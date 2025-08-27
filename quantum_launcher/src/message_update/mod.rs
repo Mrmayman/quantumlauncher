@@ -44,13 +44,13 @@ impl Launcher {
                 }
             }
             InstallFabricMessage::VersionsLoaded(result) => match result {
-                Ok(list_of_versions) => {
+                Ok((list, backend)) => {
                     if let State::InstallFabric(menu) = &mut self.state {
-                        *menu = if let Some(first) = list_of_versions.first().cloned() {
+                        *menu = if let Some(first) = list.first().cloned() {
                             MenuInstallFabric::Loaded {
-                                is_quilt: menu.is_quilt(),
+                                backend,
                                 fabric_version: first.loader.version.clone(),
-                                fabric_versions: list_of_versions
+                                fabric_versions: list
                                     .iter()
                                     .map(|ver| ver.loader.version.clone())
                                     .collect(),
@@ -67,7 +67,7 @@ impl Launcher {
                 if let State::InstallFabric(MenuInstallFabric::Loaded {
                     fabric_version,
                     progress,
-                    is_quilt,
+                    backend,
                     ..
                 }) = &mut self.state
                 {
@@ -76,14 +76,14 @@ impl Launcher {
                     let loader_version = fabric_version.clone();
 
                     let instance_name = self.selected_instance.clone().unwrap();
-                    let is_quilt = *is_quilt;
+                    let backend = *backend;
                     return Task::perform(
                         async move {
                             loaders::fabric::install(
                                 Some(loader_version),
                                 instance_name,
                                 Some(&sender),
-                                is_quilt,
+                                backend,
                             )
                             .await
                         },

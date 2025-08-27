@@ -114,12 +114,16 @@ impl MenuInstallFabric {
                 ]
             }
             MenuInstallFabric::Loaded {
-                is_quilt,
+                backend,
                 fabric_version,
                 fabric_versions,
                 progress,
             } => {
-                let loader_name = if *is_quilt { "Quilt" } else { "Fabric" };
+                let loader_name = if backend.is_quilt() {
+                    "Quilt"
+                } else {
+                    "Fabric"
+                };
 
                 if let Some(progress) = progress {
                     widget::column!(

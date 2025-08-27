@@ -17,7 +17,7 @@ use ql_instances::{
     UpdateCheckInfo,
 };
 use ql_mod_manager::{
-    loaders::fabric::FabricVersionListItem,
+    loaders::{self, fabric::FabricVersionListItem},
     store::{CurseforgeNotAllowed, ImageResult, ModIndex, QueryType, RecommendedMod, SearchResult},
 };
 use tokio::process::Child;
@@ -28,7 +28,7 @@ use super::{LaunchTabId, LauncherSettingsTab, LicenseTab, Res};
 pub enum InstallFabricMessage {
     End(Res),
     VersionSelected(String),
-    VersionsLoaded(Res<Vec<FabricVersionListItem>>),
+    VersionsLoaded(Res<(Vec<FabricVersionListItem>, loaders::fabric::BackendType)>),
     ButtonClicked,
     ScreenOpen { is_quilt: bool },
 }

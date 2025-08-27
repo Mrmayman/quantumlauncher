@@ -49,14 +49,25 @@ pub async fn install_specified_loader(
 ) -> Result<LoaderInstallResult, String> {
     match loader {
         Loader::Fabric => {
-            fabric::install(specified_version, instance, progress.as_deref(), false)
-                .await
-                .strerr()?;
+            // TODO: Add legacy fabric support
+            fabric::install(
+                specified_version,
+                instance,
+                progress.as_deref(),
+                fabric::BackendType::Fabric,
+            )
+            .await
+            .strerr()?;
         }
         Loader::Quilt => {
-            fabric::install(specified_version, instance, progress.as_deref(), true)
-                .await
-                .strerr()?;
+            fabric::install(
+                specified_version,
+                instance,
+                progress.as_deref(),
+                fabric::BackendType::Quilt,
+            )
+            .await
+            .strerr()?;
         }
 
         Loader::Forge => {

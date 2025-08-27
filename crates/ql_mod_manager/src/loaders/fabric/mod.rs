@@ -18,15 +18,33 @@ mod uninstall;
 pub use uninstall::{uninstall, uninstall_client, uninstall_server};
 mod version_compare;
 
-const FABRIC_URL: &str = "https://meta.fabricmc.net/v2";
-const QUILT_URL: &str = "https://meta.quiltmc.org/v3";
+#[derive(Debug, Clone, Copy)]
+pub enum BackendType {
+    Fabric,
+    Quilt,
+    LegacyFabric,
+}
 
-async fn download_file_to_string(url: &str, is_quilt: bool) -> Result<String, RequestError> {
+impl BackendType {
+    pub fn get_url(self) -> &'static str {
+        match self {
+            BackendType::Fabric => "https://meta.fabricmc.net/v2",
+            BackendType::Quilt => "https://meta.quiltmc.org/v3",
+            BackendType::LegacyFabric => "https://meta.legacyfabric.net/v2",
+        }
+    }
+
+    pub fn is_quilt(self) -> bool {
+        matches!(self, BackendType::Quilt)
+    }
+}
+
+async fn download_file_to_string(url: &str, backend: BackendType) -> Result<String, RequestError> {
     file_utils::download_file_to_string(
         &format!(
             "{}{}{url}",
+            backend.get_url(),
             if url.starts_with('/') { "" } else { "/" },
-            if is_quilt { QUILT_URL } else { FABRIC_URL }
         ),
         false,
     )
@@ -36,22 +54,41 @@ async fn download_file_to_string(url: &str, is_quilt: bool) -> Result<String, Re
 pub async fn get_list_of_versions(
     instance: InstanceSelection,
     is_quilt: bool,
-) -> Result<Vec<FabricVersionListItem>, FabricInstallError> {
+) -> Result<(Vec<FabricVersionListItem>, BackendType), FabricInstallError> {
     async fn inner(
         version_json: &VersionDetails,
         is_quilt: bool,
-    ) -> Result<Vec<FabricVersionListItem>, JsonDownloadError> {
+    ) -> Result<(Vec<FabricVersionListItem>, BackendType), JsonDownloadError> {
+        let mut backend = if is_quilt {
+            BackendType::Quilt
+        } else {
+            BackendType::Fabric
+        };
         let version_list = download_file_to_string(
             &format!("/versions/loader/{}", version_json.get_id()),
-            is_quilt,
+            backend,
         )
         .await?;
-        let versions = serde_json::from_str(&version_list).json(version_list)?;
-        Ok(versions)
+        let mut versions: Vec<FabricVersionListItem> =
+            serde_json::from_str(&version_list).json(version_list)?;
+
+        if versions.is_empty() && !is_quilt {
+            backend = BackendType::LegacyFabric;
+
+            let version_list = download_file_to_string(
+                &format!("/versions/loader/{}", version_json.get_id()),
+                backend,
+            )
+            .await?;
+
+            versions = serde_json::from_str(&version_list).json(version_list)?;
+        }
+
+        Ok((versions, backend))
     }
 
     let version_json = VersionDetails::load(&instance).await?;
-    
+
     let mut result = inner(&version_json, is_quilt).await;
     if result.is_err() {
         for _ in 0..5 {
@@ -62,7 +99,14 @@ pub async fn get_list_of_versions(
                     code, ..
                 })) if code.as_u16() == 404 => {
                     // Unsupported version
-                    return Ok(Vec::new());
+                    return Ok((
+                        Vec::new(),
+                        if is_quilt {
+                            BackendType::Quilt
+                        } else {
+                            BackendType::Fabric
+                        },
+                    ));
                 }
                 Err(_) => {}
             }
@@ -76,9 +120,15 @@ pub async fn install_server(
     loader_version: String,
     server_name: String,
     progress: Option<&Sender<GenericProgress>>,
-    is_quilt: bool,
+    backend: BackendType,
 ) -> Result<(), FabricInstallError> {
-    let loader_name = if is_quilt { "Quilt" } else { "Fabric" };
+    // TODO: Add legacy fabric support for servers
+
+    let loader_name = if backend.is_quilt() {
+        "Quilt"
+    } else {
+        "Fabric"
+    };
     info!("Installing {loader_name} for server");
 
     if let Some(progress) = &progress {
@@ -95,8 +145,11 @@ pub async fn install_server(
     let json = VersionDetails::load_from_path(&server_dir).await?;
     let game_version = json.get_id();
 
-    let json_url = format!("/versions/loader/{game_version}/{loader_version}/server/json");
-    let json = download_file_to_string(&json_url, is_quilt).await?;
+    let json = download_file_to_string(
+        &format!("/versions/loader/{game_version}/{loader_version}/server/json"),
+        backend,
+    )
+    .await?;
 
     let json_path = server_dir.join("fabric.json");
     tokio::fs::write(&json_path, &json).await.path(json_path)?;
@@ -148,9 +201,13 @@ pub async fn install_client(
     loader_version: String,
     instance_name: String,
     progress: Option<&Sender<GenericProgress>>,
-    is_quilt: bool,
+    backend: BackendType,
 ) -> Result<(), FabricInstallError> {
-    let loader_name = if is_quilt { "Quilt" } else { "Fabric" };
+    let loader_name = if backend.is_quilt() {
+        "Quilt"
+    } else {
+        "Fabric"
+    };
 
     let instance_dir = LAUNCHER_DIR.join("instances").join(instance_name);
 
@@ -166,12 +223,15 @@ pub async fn install_client(
 
     let libraries_dir = instance_dir.join("libraries");
 
-    let json = VersionDetails::load_from_path(&instance_dir).await?;
-    let game_version = json.get_id();
+    let version_json = VersionDetails::load_from_path(&instance_dir).await?;
+    let game_version = version_json.get_id();
 
     let json_path = instance_dir.join("fabric.json");
-    let json_url = format!("/versions/loader/{game_version}/{loader_version}/profile/json");
-    let json = download_file_to_string(&json_url, is_quilt).await?;
+    let json = download_file_to_string(
+        &format!("/versions/loader/{game_version}/{loader_version}/profile/json"),
+        backend,
+    )
+    .await?;
     tokio::fs::write(&json_path, &json).await.path(json_path)?;
 
     let json: FabricJSON = serde_json::from_str(&json).json(json)?;
@@ -270,14 +330,15 @@ pub async fn install(
     loader_version: Option<String>,
     instance: InstanceSelection,
     progress: Option<&Sender<GenericProgress>>,
-    is_quilt: bool,
+    mut backend: BackendType,
 ) -> Result<(), FabricInstallError> {
     let loader_version = if let Some(n) = loader_version {
         n
     } else {
-        get_list_of_versions(instance.clone(), is_quilt)
-            .await?
-            .first()
+        let (list, new_backend) =
+            get_list_of_versions(instance.clone(), backend.is_quilt()).await?;
+        backend = new_backend;
+        list.first()
             .ok_or(FabricInstallError::NoVersionFound)?
             .loader
             .version
@@ -285,9 +346,9 @@ pub async fn install(
     };
     match instance {
         InstanceSelection::Instance(n) => {
-            install_client(loader_version, n, progress, is_quilt).await
+            install_client(loader_version, n, progress, backend).await
         }
-        InstanceSelection::Server(n) => install_server(loader_version, n, progress, is_quilt).await,
+        InstanceSelection::Server(n) => install_server(loader_version, n, progress, backend).await,
     }
 }
 
