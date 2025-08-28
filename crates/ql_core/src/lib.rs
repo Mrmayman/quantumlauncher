@@ -465,6 +465,7 @@ pub fn get_jar_path(
     version_json: &VersionDetails,
     instance_dir: &Path,
     optifine_jar: Option<&Path>,
+    custom_jar: Option<&str>,
 ) -> PathBuf {
     fn get_path_from_id(instance_dir: &Path, id: &str) -> PathBuf {
         instance_dir
@@ -473,6 +474,12 @@ pub fn get_jar_path(
             .join(format!("{id}.jar"))
     }
 
+    // If custom jar is specified, use it first
+    if let Some(custom_jar_path) = custom_jar {
+        return PathBuf::from(custom_jar_path);
+    }
+
+    // Otherwise fall back to existing logic
     optifine_jar.map_or_else(
         || {
             let id = version_json.get_id();

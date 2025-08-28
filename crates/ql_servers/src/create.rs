@@ -122,6 +122,8 @@ async fn write_config(
         close_on_start: None,
         global_settings: None,
         java_args_mode: None,
+        // Custom JAR support is now available for servers
+        custom_jar: None,
         pre_launch_prefix_mode: None,
     };
     let server_config_path = server_dir.join("config.json");

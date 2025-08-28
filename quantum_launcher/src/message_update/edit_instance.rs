@@ -224,6 +224,49 @@ impl Launcher {
                     }
                 }
             }
+            EditInstanceMessage::CustomJarToggle(enabled) => {
+                if let State::Launch(MenuLaunch {
+                    edit_instance: Some(menu),
+                    ..
+                }) = &mut self.state
+                {
+                    if enabled {
+                        menu.config.custom_jar = Some(ql_core::json::instance_config::CustomJarConfig {
+                            jar_path: String::new(),
+                        });
+                    } else {
+                        menu.config.custom_jar = None;
+                    }
+                }
+            }
+            EditInstanceMessage::CustomJarPathChanged(path) => {
+                if let State::Launch(MenuLaunch {
+                    edit_instance: Some(menu),
+                    ..
+                }) = &mut self.state
+                {
+                    if let Some(custom_jar) = &mut menu.config.custom_jar {
+                        custom_jar.jar_path = path;
+                    }
+                }
+            }
+            EditInstanceMessage::CustomJarBrowse => {
+                if let Some(path) = rfd::FileDialog::new()
+                    .set_title("Select Custom Minecraft JAR")
+                    .add_filter("Java Archive", &["jar"])
+                    .pick_file()
+                {
+                    if let State::Launch(MenuLaunch {
+                        edit_instance: Some(menu),
+                        ..
+                    }) = &mut self.state
+                    {
+                        if let Some(custom_jar) = &mut menu.config.custom_jar {
+                            custom_jar.jar_path = path.to_string_lossy().to_string();
+                        }
+                    }
+                }
+            }
         }
         Ok(Task::none())
     }

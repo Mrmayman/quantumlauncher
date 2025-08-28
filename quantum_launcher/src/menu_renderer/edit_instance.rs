@@ -49,6 +49,9 @@ impl MenuEditInstance {
                     self.item_java_override()
                 ).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::Dark)),
                 widget::container(
+                    self.item_custom_jar()
+                ).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
+                widget::container(
                     self.item_mem_alloc(),
                 ).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
                 widget::container(
@@ -242,6 +245,46 @@ impl MenuEditInstance {
         ]
         .padding(10)
         .spacing(10)
+    }
+
+    fn item_custom_jar(&self) -> widget::Column<'_, Message, LauncherTheme> {
+        let ts = |n: &LauncherTheme| n.style_text(Color::SecondLight);
+        let is_enabled = self.config.custom_jar.is_some();
+
+        let mut column = widget::column![
+            widget::checkbox(
+                "Use custom JAR",
+                is_enabled
+            ).on_toggle(|t| Message::EditInstance(EditInstanceMessage::CustomJarToggle(t))),
+            widget::text(
+                "Use a custom JAR file instead of the official one.\nUseful for modified clients/servers, archived versions, or custom implementations.\nAssets will be used from this instance's selected version."
+            )
+            .size(12)
+            .style(ts),
+        ];
+
+        if is_enabled {
+            column = column.push(widget::column![
+                widget::text("JAR file path:").size(14),
+                widget::row![
+                    widget::text_input(
+                        "Select JAR file...",
+                        self.config.custom_jar
+                            .as_ref()
+                            .map(|cj| cj.jar_path.as_str())
+                            .unwrap_or_default()
+                    )
+                    .on_input(|t| Message::EditInstance(EditInstanceMessage::CustomJarPathChanged(t)))
+                    .width(Length::Fill),
+                    button_with_icon(icon_manager::folder(), "Browse", 14)
+                        .on_press(Message::EditInstance(EditInstanceMessage::CustomJarBrowse))
+                ]
+                .spacing(10),
+            ]
+            .spacing(10));
+        }
+
+        column.padding(10).spacing(10)
     }
 
     fn get_java_args_list<'a>(
