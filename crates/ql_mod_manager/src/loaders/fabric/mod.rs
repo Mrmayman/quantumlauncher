@@ -3,10 +3,8 @@ use std::{path::Path, sync::mpsc::Sender};
 use ql_core::{
     file_utils, info,
     json::{FabricJSON, VersionDetails},
-    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, JsonDownloadError,
-    RequestError, LAUNCHER_DIR,
+    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, RequestError, LAUNCHER_DIR,
 };
-use serde::Deserialize;
 use version_compare::compare_versions;
 
 use super::change_instance_type;
@@ -17,27 +15,11 @@ mod make_launch_jar;
 mod uninstall;
 pub use uninstall::{uninstall, uninstall_client, uninstall_server};
 mod version_compare;
+mod version_list;
 
-#[derive(Debug, Clone, Copy)]
-pub enum BackendType {
-    Fabric,
-    Quilt,
-    LegacyFabric,
-}
-
-impl BackendType {
-    pub fn get_url(self) -> &'static str {
-        match self {
-            BackendType::Fabric => "https://meta.fabricmc.net/v2",
-            BackendType::Quilt => "https://meta.quiltmc.org/v3",
-            BackendType::LegacyFabric => "https://meta.legacyfabric.net/v2",
-        }
-    }
-
-    pub fn is_quilt(self) -> bool {
-        matches!(self, BackendType::Quilt)
-    }
-}
+pub use version_list::{
+    get_list_of_versions, BackendType, FabricVersion, FabricVersionListItem, VersionList,
+};
 
 async fn download_file_to_string(url: &str, backend: BackendType) -> Result<String, RequestError> {
     file_utils::download_file_to_string(
@@ -49,71 +31,6 @@ async fn download_file_to_string(url: &str, backend: BackendType) -> Result<Stri
         false,
     )
     .await
-}
-
-pub async fn get_list_of_versions(
-    instance: InstanceSelection,
-    is_quilt: bool,
-) -> Result<(Vec<FabricVersionListItem>, BackendType), FabricInstallError> {
-    async fn inner(
-        version_json: &VersionDetails,
-        is_quilt: bool,
-    ) -> Result<(Vec<FabricVersionListItem>, BackendType), JsonDownloadError> {
-        let mut backend = if is_quilt {
-            BackendType::Quilt
-        } else {
-            BackendType::Fabric
-        };
-        let version_list = download_file_to_string(
-            &format!("/versions/loader/{}", version_json.get_id()),
-            backend,
-        )
-        .await?;
-        let mut versions: Vec<FabricVersionListItem> =
-            serde_json::from_str(&version_list).json(version_list)?;
-
-        if versions.is_empty() && !is_quilt {
-            backend = BackendType::LegacyFabric;
-
-            let version_list = download_file_to_string(
-                &format!("/versions/loader/{}", version_json.get_id()),
-                backend,
-            )
-            .await?;
-
-            versions = serde_json::from_str(&version_list).json(version_list)?;
-        }
-
-        Ok((versions, backend))
-    }
-
-    let version_json = VersionDetails::load(&instance).await?;
-
-    let mut result = inner(&version_json, is_quilt).await;
-    if result.is_err() {
-        for _ in 0..5 {
-            result = inner(&version_json, is_quilt).await;
-            match &result {
-                Ok(_) => break,
-                Err(JsonDownloadError::RequestError(RequestError::DownloadError {
-                    code, ..
-                })) if code.as_u16() == 404 => {
-                    // Unsupported version
-                    return Ok((
-                        Vec::new(),
-                        if is_quilt {
-                            BackendType::Quilt
-                        } else {
-                            BackendType::Fabric
-                        },
-                    ));
-                }
-                Err(_) => {}
-            }
-        }
-    }
-
-    result.map_err(FabricInstallError::from)
 }
 
 pub async fn install_server(
@@ -335,8 +252,9 @@ pub async fn install(
     let loader_version = if let Some(n) = loader_version {
         n
     } else {
-        let (list, new_backend) =
-            get_list_of_versions(instance.clone(), backend.is_quilt()).await?;
+        let (list, new_backend) = get_list_of_versions(instance.clone(), backend.is_quilt())
+            .await?
+            .just_get_one();
         backend = new_backend;
         list.first()
             .ok_or(FabricInstallError::NoVersionFound)?
@@ -350,18 +268,4 @@ pub async fn install(
         }
         InstanceSelection::Server(n) => install_server(loader_version, n, progress, backend).await,
     }
-}
-
-#[derive(Deserialize, Clone, Debug)]
-pub struct FabricVersionListItem {
-    pub loader: FabricVersion,
-}
-
-#[derive(Deserialize, Clone, Debug)]
-pub struct FabricVersion {
-    pub separator: String,
-    pub build: usize,
-    pub maven: String,
-    pub version: String,
-    pub stable: Option<bool>,
 }

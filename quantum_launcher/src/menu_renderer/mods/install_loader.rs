@@ -1,5 +1,6 @@
 use iced::{widget, Alignment, Length};
 use ql_core::InstanceSelection;
+use ql_mod_manager::loaders::fabric::{self, FabricVersionListItem};
 
 use crate::{
     icon_manager,
@@ -114,73 +115,146 @@ impl MenuInstallFabric {
                 ]
             }
             MenuInstallFabric::Loaded {
+                progress: Some(progress),
                 backend,
-                fabric_version,
-                fabric_versions,
-                progress,
+                ..
             } => {
-                let loader_name = if backend.is_quilt() {
-                    "Quilt"
-                } else {
-                    "Fabric"
-                };
-
-                if let Some(progress) = progress {
-                    widget::column!(
-                        widget::text!("Installing {loader_name}...").size(20),
-                        progress.view(),
-                    )
-                } else {
-                    widget::column![
-                        back_button().on_press(Message::ManageMods(
-                            ManageModsMessage::ScreenOpenWithoutUpdate
-                        )),
-                        widget::text!(
-                            "Install {loader_name} for \"{}\"",
-                            selected_instance.get_name()
-                        )
-                        .size(20),
-                        widget::column![
-                            widget::text("Version:"),
-                            widget::row![widget::pick_list(
-                                fabric_versions.as_slice(),
-                                Some(fabric_version),
-                                |n| Message::InstallFabric(InstallFabricMessage::VersionSelected(
-                                    n
-                                ))
-                            )]
-                            .push_maybe(
-                                fabric_versions
-                                    .first()
-                                    .filter(|n| *n == fabric_version)
-                                    .map(|_| { "(latest, recommended)" })
-                            )
-                            .spacing(5)
-                            .align_y(Alignment::Center),
-                        ]
-                        .spacing(5),
-                        button_with_icon(icon_manager::download(), "Install", 16)
-                            .on_press(Message::InstallFabric(InstallFabricMessage::ButtonClicked)),
-                    ]
-                }
+                widget::column![
+                    widget::text!("Installing {backend}...").size(20),
+                    progress.view(),
+                ]
             }
             MenuInstallFabric::Unsupported(is_quilt) => {
                 widget::column!(
                     back_button().on_press(Message::ManageMods(
                         ManageModsMessage::ScreenOpenWithoutUpdate
                     )),
-                    if *is_quilt {
-                        "Quilt is unsupported for this Minecraft version."
-                    } else {
-                        "Fabric is unsupported for this Minecraft version."
-                    }
+                    widget::text!(
+                        "{} is unsupported for this Minecraft version.",
+                        if *is_quilt { "Quilt" } else { "Fabric" }
+                    )
                 )
+            }
+            MenuInstallFabric::Loaded {
+                fabric_versions: fabric::VersionList::Unsupported,
+                backend,
+                ..
+            } => {
+                widget::column!(
+                    back_button().on_press(Message::ManageMods(
+                        ManageModsMessage::ScreenOpenWithoutUpdate
+                    )),
+                    widget::text!("{backend} is unsupported for this Minecraft version.")
+                )
+            }
+            MenuInstallFabric::Loaded {
+                backend,
+                fabric_version,
+                fabric_versions,
+                ..
+            } => {
+                let picker = match fabric_versions {
+                    fabric::VersionList::Quilt(l)
+                    | fabric::VersionList::Fabric(l)
+                    | fabric::VersionList::LegacyFabric(l)
+                    | fabric::VersionList::OrnitheMC(l) => version_list(&l, fabric_version),
+
+                    fabric::VersionList::Beta173 {
+                        ornithe_mc,
+                        babric,
+                        cursed_legacy,
+                    } => {
+                        let list = match backend {
+                            fabric::BackendType::OrnitheMC => ornithe_mc,
+                            fabric::BackendType::Babric => babric,
+                            fabric::BackendType::CursedLegacy => cursed_legacy,
+                            _ => unreachable!(),
+                        };
+
+                        widget::column![
+                            "Pick an implementation of Fabric:",
+                            widget::pick_list(
+                                [
+                                    fabric::BackendType::Babric,
+                                    fabric::BackendType::OrnitheMC,
+                                    fabric::BackendType::CursedLegacy
+                                ],
+                                Some(backend),
+                                |b| Message::InstallFabric(InstallFabricMessage::ChangeBackend(b))
+                            ),
+                            version_list(list, fabric_version),
+                        ]
+                        .spacing(5)
+                    }
+                    fabric::VersionList::Both {
+                        legacy_fabric,
+                        ornithe_mc,
+                    } => {
+                        let list = match backend {
+                            fabric::BackendType::LegacyFabric => legacy_fabric,
+                            fabric::BackendType::OrnitheMC => ornithe_mc,
+                            _ => unreachable!(),
+                        };
+
+                        widget::column![
+                            "Pick an implementation of Fabric:",
+                            widget::pick_list(
+                                [
+                                    fabric::BackendType::LegacyFabric,
+                                    fabric::BackendType::OrnitheMC,
+                                ],
+                                Some(backend),
+                                |b| Message::InstallFabric(InstallFabricMessage::ChangeBackend(b))
+                            ),
+                            version_list(list, fabric_version),
+                        ]
+                        .spacing(5)
+                    }
+
+                    fabric::VersionList::Unsupported => unreachable!(),
+                };
+
+                widget::column![
+                    back_button().on_press(Message::ManageMods(
+                        ManageModsMessage::ScreenOpenWithoutUpdate
+                    )),
+                    widget::text!("Install {backend} for \"{}\"", selected_instance.get_name())
+                        .size(20),
+                    picker,
+                    button_with_icon(icon_manager::download(), "Install", 16)
+                        .on_press(Message::InstallFabric(InstallFabricMessage::ButtonClicked)),
+                ]
             }
         }
         .padding(10)
         .spacing(10)
         .into()
     }
+}
+
+fn version_list<'a>(
+    list: &'a [FabricVersionListItem],
+    selected: &'a str,
+) -> widget::Column<'a, Message, LauncherTheme> {
+    let selected = FabricVersionListItem {
+        loader: fabric::FabricVersion {
+            version: selected.to_owned(),
+        },
+    };
+    widget::column![
+        widget::text("Version:"),
+        widget::row![widget::pick_list(list, Some(selected.clone()), |n| {
+            Message::InstallFabric(InstallFabricMessage::VersionSelected(n.loader.version))
+        })]
+        .push_maybe(
+            list.first()
+                .filter(|n| **n == selected)
+                .map(|_| { "(latest, recommended)" })
+        )
+        .spacing(5)
+        .align_y(Alignment::Center),
+    ]
+    .spacing(5)
 }
 
 impl MenuInstallForge {

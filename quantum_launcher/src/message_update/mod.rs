@@ -44,16 +44,16 @@ impl Launcher {
                 }
             }
             InstallFabricMessage::VersionsLoaded(result) => match result {
-                Ok((list, backend)) => {
+                Ok(list) => {
                     if let State::InstallFabric(menu) = &mut self.state {
-                        *menu = if let Some(first) = list.first().cloned() {
+                        let (regular_list, backend) = list.clone().just_get_one();
+                        *menu = if let (false, Some(first)) =
+                            (list.is_unsupported(), regular_list.first())
+                        {
                             MenuInstallFabric::Loaded {
                                 backend,
                                 fabric_version: first.loader.version.clone(),
-                                fabric_versions: list
-                                    .iter()
-                                    .map(|ver| ver.loader.version.clone())
-                                    .collect(),
+                                fabric_versions: list,
                                 progress: None,
                             }
                         } else {
@@ -63,6 +63,24 @@ impl Launcher {
                 }
                 Err(err) => self.set_error(err),
             },
+            InstallFabricMessage::ChangeBackend(b) => {
+                if let State::InstallFabric(MenuInstallFabric::Loaded {
+                    backend,
+                    fabric_version,
+                    fabric_versions,
+                    ..
+                }) = &mut self.state
+                {
+                    *backend = b;
+                    if let Some(n) = fabric_versions
+                        .clone()
+                        .get_specific(b)
+                        .and_then(|n| n.first().cloned())
+                    {
+                        *fabric_version = n.loader.version;
+                    }
+                }
+            }
             InstallFabricMessage::ButtonClicked => {
                 if let State::InstallFabric(MenuInstallFabric::Loaded {
                     fabric_version,

@@ -234,7 +234,7 @@ pub enum MenuInstallFabric {
     Loaded {
         backend: loaders::fabric::BackendType,
         fabric_version: String,
-        fabric_versions: Vec<String>,
+        fabric_versions: loaders::fabric::VersionList,
         progress: Option<ProgressBar<GenericProgress>>,
     },
     Unsupported(bool),
