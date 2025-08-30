@@ -46,6 +46,59 @@ impl std::fmt::Display for JavaArgsMode {
     }
 }
 
+/// Defines how instance pre-launch prefix commands should interact with global pre-launch prefix commands
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum PreLaunchPrefixMode {
+    /// Use global prefix only if instance prefix is empty
+    #[serde(rename = "fallback")]
+    Fallback,
+    /// Use instance prefix only, ignoring global prefix
+    #[serde(rename = "disable")]
+    Disable,
+    /// Combine global prefix + instance prefix
+    /// (in order)
+    #[serde(rename = "combine_global_local")]
+    #[default]
+    CombineGlobalLocal,
+    /// Combine instance prefix + global prefix
+    /// (in order)
+    #[serde(rename = "combine_local_global")]
+    CombineLocalGlobal,
+}
+
+impl PreLaunchPrefixMode {
+    pub const ALL: &[Self] = &[
+        Self::CombineGlobalLocal,
+        Self::CombineLocalGlobal,
+        Self::Disable,
+        Self::Fallback,
+    ];
+
+    pub fn get_description(self) -> &'static str {
+        match self {
+            PreLaunchPrefixMode::Fallback => "Use global prefix only when instance has no prefix",
+            PreLaunchPrefixMode::Disable => "Use only instance prefix, ignore global prefix",
+            PreLaunchPrefixMode::CombineGlobalLocal => {
+                "Combine global + instance prefix (global first, then instance)"
+            }
+            PreLaunchPrefixMode::CombineLocalGlobal => {
+                "Combine instance + global prefix (instance first, then global)"
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for PreLaunchPrefixMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PreLaunchPrefixMode::Fallback => write!(f, "Fallback"),
+            PreLaunchPrefixMode::Disable => write!(f, "Disable"),
+            PreLaunchPrefixMode::CombineGlobalLocal => write!(f, "Combine Global+Local (default)"),
+            PreLaunchPrefixMode::CombineLocalGlobal => write!(f, "Combine Local+Global"),
+        }
+    }
+}
+
 /// Configuration for a specific instance.
 /// Not to be confused with [`crate::json::VersionDetails`]. That one
 /// is launcher agnostic data provided from mojang, this one is
@@ -83,7 +136,7 @@ pub struct InstanceConfigJson {
     pub game_args: Option<Vec<String>>,
 
     /// Previously used to indicate if a version was downloaded from Omniarchive
-    /// v0.3.1 - v0.4.1
+    // v0.3.1 - v0.4.1
     #[deprecated(since = "0.4.2", note = "migrated to BetterJSONs, so no longer needed")]
     pub omniarchive: Option<serde_json::Value>,
 
@@ -147,6 +200,12 @@ pub struct InstanceConfigJson {
     /// How this instance's Java arguments interact with global Java arguments.
     /// Default: `Combine`. See [`JavaArgsMode`] for more info.
     pub java_args_mode: Option<JavaArgsMode>,
+
+    /// Controls how this instance's pre-launch prefix commands interact with global pre-launch prefix.
+    /// See [`PreLaunchPrefixMode`] documentation for more info.
+    ///
+    /// **Default: `PreLaunchPrefixMode::CombineGlobalLocal`**
+    pub pre_launch_prefix_mode: Option<PreLaunchPrefixMode>,
 }
 
 impl InstanceConfigJson {
@@ -221,10 +280,8 @@ impl InstanceConfigJson {
 
     /// Gets Java arguments with global fallback/combination support.
     ///
-    /// The behavior depends on the instance's `java_args_mode`:
-    /// - `Fallback`: Returns instance args if meaningful, otherwise global args
-    /// - `Override`: Returns instance args only (ignores global even if instance is empty)
-    /// - `Combine`: Returns global args + instance args (global first)
+    /// The behavior depends on the instance's `java_args_mode`.
+    /// See [`JavaArgsMode`] documentation for more info.
     ///
     /// Returns an empty vector if no arguments should be used.
     #[must_use]
@@ -267,6 +324,65 @@ impl InstanceConfigJson {
             }
         }
     }
+
+    pub fn get_launch_prefix(&mut self) -> &mut Vec<String> {
+        self.global_settings
+            .get_or_insert_with(GlobalSettings::default)
+            .pre_launch_prefix
+            .get_or_insert_with(Vec::new)
+    }
+
+    /// Gets pre-launch prefix commands with global fallback/combination support.
+    ///
+    /// The behavior depends on the instance's `pre_launch_prefix_mode`:
+    /// - `Fallback`: Returns instance prefix if meaningful, otherwise global prefix
+    /// - `Override`: Returns instance prefix only (ignores global even if instance is empty)
+    /// - `CombineGlobalLocal`: Returns global prefix + instance prefix (global first, then instance)
+    /// - `CombineLocalGlobal`: Returns instance prefix + global prefix (instance first, then global)
+    ///
+    /// Returns an empty vector if no prefixes should be used.
+    #[must_use]
+    pub fn setup_launch_prefix(&mut self, global_prefix: &[String]) -> Vec<String> {
+        let mode = self.pre_launch_prefix_mode.unwrap_or_default();
+
+        let mut instance_prefix: Vec<String> = self
+            .get_launch_prefix()
+            .iter_mut()
+            .map(|n| n.trim().to_owned())
+            .filter(|n| !n.is_empty())
+            .collect();
+
+        let mut global_prefix: Vec<String> = global_prefix
+            .iter()
+            .map(|n| n.trim().to_owned())
+            .filter(|n| !n.is_empty())
+            .collect();
+
+        match mode {
+            PreLaunchPrefixMode::Fallback => {
+                if instance_prefix.is_empty() {
+                    global_prefix.to_owned()
+                } else {
+                    instance_prefix
+                }
+            }
+            PreLaunchPrefixMode::Disable => {
+                if instance_prefix.is_empty() {
+                    Vec::new()
+                } else {
+                    instance_prefix
+                }
+            }
+            PreLaunchPrefixMode::CombineGlobalLocal => {
+                global_prefix.extend(instance_prefix);
+                global_prefix
+            }
+            PreLaunchPrefixMode::CombineLocalGlobal => {
+                instance_prefix.extend(global_prefix);
+                instance_prefix
+            }
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -295,4 +411,7 @@ pub struct GlobalSettings {
     /// When set, this will launch Minecraft with a specific window height
     /// using the `--height` command line argument.
     pub window_height: Option<u32>,
+    /// This is an optional list of commands to prepend
+    /// to the launch command (e.g., "prime-run" for NVIDIA GPU usage on Linux).
+    pub pre_launch_prefix: Option<Vec<String>>,
 }

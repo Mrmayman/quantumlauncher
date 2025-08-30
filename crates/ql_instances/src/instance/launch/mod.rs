@@ -19,6 +19,7 @@ use ql_core::json::GlobalSettings;
 /// - `auth` - (Optional) Account authentication data. Pass `None` for offline play.
 /// - `global_settings` - (Optional) Global launcher-level settings that apply to instance
 ///   like window width/height, etc.
+/// - `pre_launch_prefix` - Commands to prepend to the launch command (e.g., "prime-run")
 pub async fn launch(
     instance_name: String,
     username: String,

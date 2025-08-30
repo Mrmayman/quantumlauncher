@@ -55,6 +55,7 @@ impl Launcher {
 
         let global_settings = self.config.global_settings.clone();
         let extra_java_args = self.config.extra_java_args.clone().unwrap_or_default();
+
         let instance_name = selected_instance.to_owned();
         Task::perform(
             async move {

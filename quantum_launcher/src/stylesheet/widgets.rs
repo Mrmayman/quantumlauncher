@@ -381,9 +381,9 @@ impl widget::checkbox::Catalog for LauncherTheme {
         Box::new(|n, status| n.style_checkbox(status, None))
     }
 
-    fn style<'a>(
+    fn style(
         &self,
-        s: &<Self as widget::checkbox::Catalog>::Class<'a>,
+        s: &<Self as widget::checkbox::Catalog>::Class<'_>,
         status: widget::checkbox::Status,
     ) -> widget::checkbox::Style {
         s(self, status)

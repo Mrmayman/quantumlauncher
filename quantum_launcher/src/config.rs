@@ -190,6 +190,13 @@ impl LauncherConfig {
             .unwrap_or(WINDOW_HEIGHT * scale);
         (window_width, window_height)
     }
+
+    pub fn get_launch_prefix(&mut self) -> &mut Vec<String> {
+        self.global_settings
+            .get_or_insert_with(GlobalSettings::default)
+            .pre_launch_prefix
+            .get_or_insert_with(Vec::new)
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

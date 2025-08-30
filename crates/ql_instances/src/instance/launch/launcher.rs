@@ -784,13 +784,44 @@ impl GameLauncher {
         game_arguments: Vec<String>,
         java_arguments: Vec<String>,
     ) -> Result<(Command, PathBuf), GameLaunchError> {
-        let (mut command, path) = self.get_java_command().await?;
-        command.args(
-            java_arguments
-                .iter()
-                .chain(game_arguments.iter())
-                .filter(|n| !n.is_empty()),
+        let (mut command, mut path) = self.get_java_command().await?;
+
+        let prefix_commands = self.config_json.setup_launch_prefix(
+            &self
+                .global_settings
+                .as_ref()
+                .and_then(|n| n.pre_launch_prefix.clone())
+                .unwrap_or_default(),
         );
+        if !prefix_commands.is_empty() {
+            info!("Pre args: {prefix_commands:?}");
+
+            let original_java_path = path.to_string_lossy().to_string();
+            let mut new_command = Command::new(&prefix_commands[0]);
+
+            if prefix_commands.len() > 1 {
+                new_command.args(&prefix_commands[1..]);
+            }
+            new_command.arg(original_java_path);
+            new_command.args(
+                java_arguments
+                    .iter()
+                    .chain(game_arguments.iter())
+                    .filter(|n| !n.is_empty()),
+            );
+
+            command = new_command;
+            path = PathBuf::from(&prefix_commands[0]);
+        } else {
+            // No prefix, use normal Java command
+            command.args(
+                java_arguments
+                    .iter()
+                    .chain(game_arguments.iter())
+                    .filter(|n| !n.is_empty()),
+            );
+        }
+
         command.current_dir(&self.minecraft_dir);
         if self.config_json.enable_logger.unwrap_or(true) {
             command.stdout(Stdio::piped()).stderr(Stdio::piped());
