@@ -1,7 +1,8 @@
 use std::fmt::Display;
 
 use ql_core::{
-    json::VersionDetails, InstanceSelection, IntoJsonError, JsonDownloadError, RequestError,
+    file_utils, json::VersionDetails, InstanceSelection, IntoJsonError, JsonDownloadError,
+    RequestError,
 };
 use serde::Deserialize;
 
@@ -45,7 +46,7 @@ impl BackendType {
             BackendType::LegacyFabric => "https://meta.legacyfabric.net/v2",
             BackendType::OrnitheMC => "https://meta.ornithemc.net/v2",
             BackendType::Babric => "https://meta.babric.glass-launcher.net/v2",
-            BackendType::CursedLegacy => todo!(),
+            BackendType::CursedLegacy => unreachable!(),
         }
     }
 
@@ -190,9 +191,17 @@ pub async fn get_list_of_versions(
     is_quilt: bool,
 ) -> Result<VersionList, FabricInstallError> {
     async fn try_backend(version: &str, backend: BackendType) -> Result<List, JsonDownloadError> {
-        let version_list =
-            download_file_to_string(&format!("/versions/loader/{version}"), backend).await?;
-        let versions: List = serde_json::from_str(&version_list).json(version_list)?;
+        let versions: List = if let BackendType::CursedLegacy = backend {
+            vec![FabricVersionListItem {
+                loader: FabricVersion {
+                    version: "b1.7.3".to_owned(),
+                },
+            }]
+        } else {
+            let version_list =
+                download_file_to_string(&format!("/versions/loader/{version}"), backend).await?;
+            serde_json::from_str(&version_list).json(version_list)?
+        };
         Ok(versions)
     }
 
@@ -262,4 +271,28 @@ pub async fn get_list_of_versions(
     }
 
     result.map_err(FabricInstallError::from)
+}
+
+pub async fn get_latest_cursed_legacy_commit() -> Result<String, FabricInstallError> {
+    #[derive(Deserialize)]
+    struct GithubCommit {
+        sha: String,
+    }
+
+    fn first_seven_chars(input: &str) -> &str {
+        let len = input.chars().count();
+        let slice_end = if len < 7 { len } else { 7 };
+        &input[0..slice_end]
+    }
+
+    let version: Vec<GithubCommit> = file_utils::download_file_to_json(
+        "https://api.github.com/repos/minecraft-cursed-legacy/Cursed-fabric-loader/commits",
+        true,
+    )
+    .await?;
+
+    Ok(version
+        .first()
+        .map(|n| first_seven_chars(&n.sha).to_owned())
+        .unwrap_or("5e8a1e8".to_owned()))
 }

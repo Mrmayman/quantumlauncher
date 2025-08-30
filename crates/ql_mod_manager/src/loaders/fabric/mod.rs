@@ -7,6 +7,8 @@ use ql_core::{
 };
 use version_compare::compare_versions;
 
+use crate::loaders::fabric::version_list::get_latest_cursed_legacy_commit;
+
 use super::change_instance_type;
 
 mod error;
@@ -152,11 +154,16 @@ pub async fn install_client(
     let game_version = version_json.get_id();
 
     let json_path = instance_dir.join("fabric.json");
-    let json = download_file_to_string(
-        &format!("/versions/loader/{game_version}/{loader_version}/profile/json"),
-        backend,
-    )
-    .await?;
+    let json = if let BackendType::CursedLegacy = backend {
+        include_str!("../../../../../assets/installers/cursed_legacy_fabric.json")
+            .replace("INSERT_COMMIT", &get_latest_cursed_legacy_commit().await?)
+    } else {
+        download_file_to_string(
+            &format!("/versions/loader/{game_version}/{loader_version}/profile/json"),
+            backend,
+        )
+        .await?
+    };
     tokio::fs::write(&json_path, &json).await.path(json_path)?;
 
     let json: FabricJSON = serde_json::from_str(&json).json(json)?;
