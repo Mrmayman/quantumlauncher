@@ -226,7 +226,7 @@ pub async fn get_list_of_versions(
             try_backend(version, BackendType::OrnitheMC)
         )?;
 
-        return Ok(match (legacy_fabric.is_empty(), ornithe_mc.is_empty()) {
+        Ok(match (legacy_fabric.is_empty(), ornithe_mc.is_empty()) {
             (true, true) => VersionList::Unsupported,
             (true, false) => VersionList::OrnitheMC(ornithe_mc),
             (false, true) => VersionList::LegacyFabric(legacy_fabric),
@@ -234,7 +234,7 @@ pub async fn get_list_of_versions(
                 legacy_fabric,
                 ornithe_mc,
             },
-        });
+        })
     }
 
     let version_json = VersionDetails::load(&instance).await?;

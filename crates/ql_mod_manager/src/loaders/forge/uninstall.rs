@@ -23,13 +23,13 @@ pub async fn uninstall_client(instance: &str) -> Result<(), ForgeInstallError> {
             .path(forge_dir)?;
     }
 
-    change_instance_type(&instance_dir, "Vanilla".to_owned()).await?;
+    change_instance_type(&instance_dir, "Vanilla".to_owned(), None).await?;
     Ok(())
 }
 
 pub async fn uninstall_server(instance: &str) -> Result<(), ForgeInstallError> {
     let instance_dir = LAUNCHER_DIR.join("servers").join(instance);
-    change_instance_type(&instance_dir, "Vanilla".to_owned()).await?;
+    change_instance_type(&instance_dir, "Vanilla".to_owned(), None).await?;
 
     if let Some(forge_shim_file) = find_forge_shim_file(&instance_dir).await {
         tokio::fs::remove_file(&forge_shim_file)

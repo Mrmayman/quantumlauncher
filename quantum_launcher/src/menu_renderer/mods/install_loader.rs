@@ -157,7 +157,7 @@ impl MenuInstallFabric {
                     fabric::VersionList::Quilt(l)
                     | fabric::VersionList::Fabric(l)
                     | fabric::VersionList::LegacyFabric(l)
-                    | fabric::VersionList::OrnitheMC(l) => version_list(&l, fabric_version),
+                    | fabric::VersionList::OrnitheMC(l) => version_list(l, fabric_version),
 
                     fabric::VersionList::Beta173 {
                         ornithe_mc,

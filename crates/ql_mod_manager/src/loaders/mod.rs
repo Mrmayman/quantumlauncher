@@ -8,8 +8,9 @@ use std::{
 
 use forge::ForgeInstallProgress;
 use ql_core::{
-    json::InstanceConfigJson, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError,
-    IntoStringError, JsonFileError, Loader, Progress,
+    json::{instance_config::ModTypeInfo, InstanceConfigJson},
+    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IntoStringError, JsonFileError,
+    Loader, Progress,
 };
 
 pub mod fabric;
@@ -21,10 +22,12 @@ pub mod paper;
 async fn change_instance_type(
     instance_dir: &Path,
     instance_type: String,
+    extras: Option<ModTypeInfo>,
 ) -> Result<(), JsonFileError> {
     let mut config = InstanceConfigJson::read_from_dir(instance_dir).await?;
 
     config.mod_type = instance_type;
+    config.mod_type_info = extras;
 
     let config = serde_json::to_string(&config).json_to()?;
     let config_path = instance_dir.join("config.json");

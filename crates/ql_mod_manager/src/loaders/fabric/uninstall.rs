@@ -47,7 +47,7 @@ pub async fn uninstall_server(server_name: String) -> Result<(), FabricInstallEr
         }
     }
 
-    change_instance_type(&server_dir, "Vanilla".to_owned()).await?;
+    change_instance_type(&server_dir, "Vanilla".to_owned(), None).await?;
     info!("Finished uninstalling fabric");
 
     Ok(())
@@ -81,7 +81,7 @@ pub async fn uninstall_client(instance_name: String) -> Result<(), FabricInstall
         }
     }
 
-    change_instance_type(&instance_dir, "Vanilla".to_owned()).await?;
+    change_instance_type(&instance_dir, "Vanilla".to_owned(), None).await?;
     Ok(())
 }
 

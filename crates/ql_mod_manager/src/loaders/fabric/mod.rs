@@ -2,7 +2,7 @@ use std::{path::Path, sync::mpsc::Sender};
 
 use ql_core::{
     file_utils, info,
-    json::{FabricJSON, VersionDetails},
+    json::{instance_config::ModTypeInfo, FabricJSON, VersionDetails},
     GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, RequestError, LAUNCHER_DIR,
 };
 use version_compare::compare_versions;
@@ -103,7 +103,15 @@ pub async fn install_server(
     )
     .await?;
 
-    change_instance_type(&server_dir, loader_name.to_owned()).await?;
+    change_instance_type(
+        &server_dir,
+        loader_name.to_owned(),
+        Some(ModTypeInfo {
+            version: loader_version,
+            backend_implementation: None, // TODO
+        }),
+    )
+    .await?;
 
     if let Some(progress) = &progress {
         _ = progress.send(GenericProgress::finished());
@@ -175,7 +183,19 @@ pub async fn install_client(
         file_utils::download_file_to_path(&url, false, &path).await?;
     }
 
-    change_instance_type(&instance_dir, loader_name.to_owned()).await?;
+    change_instance_type(
+        &instance_dir,
+        loader_name.to_owned(),
+        Some(ModTypeInfo {
+            version: loader_version,
+            backend_implementation: if let BackendType::Fabric | BackendType::Quilt = backend {
+                None
+            } else {
+                Some(backend.to_string())
+            },
+        }),
+    )
+    .await?;
 
     if let Some(progress) = &progress {
         _ = progress.send(GenericProgress::default());
