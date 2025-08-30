@@ -44,16 +44,16 @@ impl Launcher {
                 }
             }
             InstallFabricMessage::VersionsLoaded(result) => match result {
-                Ok(list_of_versions) => {
+                Ok(list) => {
                     if let State::InstallFabric(menu) = &mut self.state {
-                        *menu = if let Some(first) = list_of_versions.first().cloned() {
+                        let (regular_list, backend) = list.clone().just_get_one();
+                        *menu = if let (false, Some(first)) =
+                            (list.is_unsupported(), regular_list.first())
+                        {
                             MenuInstallFabric::Loaded {
-                                is_quilt: menu.is_quilt(),
+                                backend,
                                 fabric_version: first.loader.version.clone(),
-                                fabric_versions: list_of_versions
-                                    .iter()
-                                    .map(|ver| ver.loader.version.clone())
-                                    .collect(),
+                                fabric_versions: list,
                                 progress: None,
                             }
                         } else {
@@ -63,11 +63,29 @@ impl Launcher {
                 }
                 Err(err) => self.set_error(err),
             },
+            InstallFabricMessage::ChangeBackend(b) => {
+                if let State::InstallFabric(MenuInstallFabric::Loaded {
+                    backend,
+                    fabric_version,
+                    fabric_versions,
+                    ..
+                }) = &mut self.state
+                {
+                    *backend = b;
+                    if let Some(n) = fabric_versions
+                        .clone()
+                        .get_specific(b)
+                        .and_then(|n| n.first().cloned())
+                    {
+                        *fabric_version = n.loader.version;
+                    }
+                }
+            }
             InstallFabricMessage::ButtonClicked => {
                 if let State::InstallFabric(MenuInstallFabric::Loaded {
                     fabric_version,
                     progress,
-                    is_quilt,
+                    backend,
                     ..
                 }) = &mut self.state
                 {
@@ -76,14 +94,14 @@ impl Launcher {
                     let loader_version = fabric_version.clone();
 
                     let instance_name = self.selected_instance.clone().unwrap();
-                    let is_quilt = *is_quilt;
+                    let backend = *backend;
                     return Task::perform(
                         async move {
                             loaders::fabric::install(
                                 Some(loader_version),
                                 instance_name,
                                 Some(&sender),
-                                is_quilt,
+                                backend,
                             )
                             .await
                         },

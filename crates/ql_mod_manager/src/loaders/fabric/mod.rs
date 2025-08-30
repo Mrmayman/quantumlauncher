@@ -2,12 +2,12 @@ use std::{path::Path, sync::mpsc::Sender};
 
 use ql_core::{
     file_utils, info,
-    json::{FabricJSON, VersionDetails},
-    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, JsonDownloadError,
-    RequestError, LAUNCHER_DIR,
+    json::{instance_config::ModTypeInfo, FabricJSON, VersionDetails},
+    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, RequestError, LAUNCHER_DIR,
 };
-use serde::Deserialize;
 use version_compare::compare_versions;
+
+use crate::loaders::fabric::version_list::get_latest_cursed_legacy_commit;
 
 use super::change_instance_type;
 
@@ -17,68 +17,37 @@ mod make_launch_jar;
 mod uninstall;
 pub use uninstall::{uninstall, uninstall_client, uninstall_server};
 mod version_compare;
+mod version_list;
 
-const FABRIC_URL: &str = "https://meta.fabricmc.net/v2";
-const QUILT_URL: &str = "https://meta.quiltmc.org/v3";
+pub use version_list::{
+    get_list_of_versions, BackendType, FabricVersion, FabricVersionListItem, VersionList,
+};
 
-async fn download_file_to_string(url: &str, is_quilt: bool) -> Result<String, RequestError> {
+async fn download_file_to_string(url: &str, backend: BackendType) -> Result<String, RequestError> {
     file_utils::download_file_to_string(
         &format!(
             "{}{}{url}",
+            backend.get_url(),
             if url.starts_with('/') { "" } else { "/" },
-            if is_quilt { QUILT_URL } else { FABRIC_URL }
         ),
         false,
     )
     .await
 }
 
-pub async fn get_list_of_versions(
-    instance: InstanceSelection,
-    is_quilt: bool,
-) -> Result<Vec<FabricVersionListItem>, FabricInstallError> {
-    async fn inner(
-        version_json: &VersionDetails,
-        is_quilt: bool,
-    ) -> Result<Vec<FabricVersionListItem>, JsonDownloadError> {
-        let version_list = download_file_to_string(
-            &format!("/versions/loader/{}", version_json.get_id()),
-            is_quilt,
-        )
-        .await?;
-        let versions = serde_json::from_str(&version_list).json(version_list)?;
-        Ok(versions)
-    }
-
-    let version_json = VersionDetails::load(&instance).await?;
-    
-    let mut result = inner(&version_json, is_quilt).await;
-    if result.is_err() {
-        for _ in 0..5 {
-            result = inner(&version_json, is_quilt).await;
-            match &result {
-                Ok(_) => break,
-                Err(JsonDownloadError::RequestError(RequestError::DownloadError {
-                    code, ..
-                })) if code.as_u16() == 404 => {
-                    // Unsupported version
-                    return Ok(Vec::new());
-                }
-                Err(_) => {}
-            }
-        }
-    }
-
-    result.map_err(FabricInstallError::from)
-}
-
 pub async fn install_server(
     loader_version: String,
     server_name: String,
     progress: Option<&Sender<GenericProgress>>,
-    is_quilt: bool,
+    backend: BackendType,
 ) -> Result<(), FabricInstallError> {
-    let loader_name = if is_quilt { "Quilt" } else { "Fabric" };
+    // TODO: Add legacy fabric support for servers
+
+    let loader_name = if backend.is_quilt() {
+        "Quilt"
+    } else {
+        "Fabric"
+    };
     info!("Installing {loader_name} for server");
 
     if let Some(progress) = &progress {
@@ -95,8 +64,11 @@ pub async fn install_server(
     let json = VersionDetails::load_from_path(&server_dir).await?;
     let game_version = json.get_id();
 
-    let json_url = format!("/versions/loader/{game_version}/{loader_version}/server/json");
-    let json = download_file_to_string(&json_url, is_quilt).await?;
+    let json = download_file_to_string(
+        &format!("/versions/loader/{game_version}/{loader_version}/server/json"),
+        backend,
+    )
+    .await?;
 
     let json_path = server_dir.join("fabric.json");
     tokio::fs::write(&json_path, &json).await.path(json_path)?;
@@ -133,7 +105,15 @@ pub async fn install_server(
     )
     .await?;
 
-    change_instance_type(&server_dir, loader_name.to_owned()).await?;
+    change_instance_type(
+        &server_dir,
+        loader_name.to_owned(),
+        Some(ModTypeInfo {
+            version: loader_version,
+            backend_implementation: None, // TODO
+        }),
+    )
+    .await?;
 
     if let Some(progress) = &progress {
         _ = progress.send(GenericProgress::finished());
@@ -148,9 +128,13 @@ pub async fn install_client(
     loader_version: String,
     instance_name: String,
     progress: Option<&Sender<GenericProgress>>,
-    is_quilt: bool,
+    backend: BackendType,
 ) -> Result<(), FabricInstallError> {
-    let loader_name = if is_quilt { "Quilt" } else { "Fabric" };
+    let loader_name = if backend.is_quilt() {
+        "Quilt"
+    } else {
+        "Fabric"
+    };
 
     let instance_dir = LAUNCHER_DIR.join("instances").join(instance_name);
 
@@ -166,12 +150,20 @@ pub async fn install_client(
 
     let libraries_dir = instance_dir.join("libraries");
 
-    let json = VersionDetails::load_from_path(&instance_dir).await?;
-    let game_version = json.get_id();
+    let version_json = VersionDetails::load_from_path(&instance_dir).await?;
+    let game_version = version_json.get_id();
 
     let json_path = instance_dir.join("fabric.json");
-    let json_url = format!("/versions/loader/{game_version}/{loader_version}/profile/json");
-    let json = download_file_to_string(&json_url, is_quilt).await?;
+    let json = if let BackendType::CursedLegacy = backend {
+        include_str!("../../../../../assets/installers/cursed_legacy_fabric.json")
+            .replace("INSERT_COMMIT", &get_latest_cursed_legacy_commit().await?)
+    } else {
+        download_file_to_string(
+            &format!("/versions/loader/{game_version}/{loader_version}/profile/json"),
+            backend,
+        )
+        .await?
+    };
     tokio::fs::write(&json_path, &json).await.path(json_path)?;
 
     let json: FabricJSON = serde_json::from_str(&json).json(json)?;
@@ -198,7 +190,19 @@ pub async fn install_client(
         file_utils::download_file_to_path(&url, false, &path).await?;
     }
 
-    change_instance_type(&instance_dir, loader_name.to_owned()).await?;
+    change_instance_type(
+        &instance_dir,
+        loader_name.to_owned(),
+        Some(ModTypeInfo {
+            version: loader_version,
+            backend_implementation: if let BackendType::Fabric | BackendType::Quilt = backend {
+                None
+            } else {
+                Some(backend.to_string())
+            },
+        }),
+    )
+    .await?;
 
     if let Some(progress) = &progress {
         _ = progress.send(GenericProgress::default());
@@ -270,14 +274,16 @@ pub async fn install(
     loader_version: Option<String>,
     instance: InstanceSelection,
     progress: Option<&Sender<GenericProgress>>,
-    is_quilt: bool,
+    mut backend: BackendType,
 ) -> Result<(), FabricInstallError> {
     let loader_version = if let Some(n) = loader_version {
         n
     } else {
-        get_list_of_versions(instance.clone(), is_quilt)
+        let (list, new_backend) = get_list_of_versions(instance.clone(), backend.is_quilt())
             .await?
-            .first()
+            .just_get_one();
+        backend = new_backend;
+        list.first()
             .ok_or(FabricInstallError::NoVersionFound)?
             .loader
             .version
@@ -285,22 +291,8 @@ pub async fn install(
     };
     match instance {
         InstanceSelection::Instance(n) => {
-            install_client(loader_version, n, progress, is_quilt).await
+            install_client(loader_version, n, progress, backend).await
         }
-        InstanceSelection::Server(n) => install_server(loader_version, n, progress, is_quilt).await,
+        InstanceSelection::Server(n) => install_server(loader_version, n, progress, backend).await,
     }
-}
-
-#[derive(Deserialize, Clone, Debug)]
-pub struct FabricVersionListItem {
-    pub loader: FabricVersion,
-}
-
-#[derive(Deserialize, Clone, Debug)]
-pub struct FabricVersion {
-    pub separator: String,
-    pub build: usize,
-    pub maven: String,
-    pub version: String,
-    pub stable: Option<bool>,
 }
