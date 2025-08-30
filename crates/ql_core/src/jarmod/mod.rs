@@ -19,7 +19,7 @@
 use std::path::{Path, PathBuf, StripPrefixError};
 
 use crate::{
-    file_utils::{zip_directory_to_bytes, extract_zip_archive},
+    file_utils::{extract_zip_archive, zip_directory_to_bytes},
     get_jar_path,
     json::{JsonOptifine, VersionDetails},
     pt, InstanceSelection, IntoIoError, IoError, JsonError, JsonFileError,

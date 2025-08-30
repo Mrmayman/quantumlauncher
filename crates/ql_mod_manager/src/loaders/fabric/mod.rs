@@ -51,7 +51,7 @@ pub async fn get_list_of_versions(
     }
 
     let version_json = VersionDetails::load(&instance).await?;
-    
+
     let mut result = inner(&version_json, is_quilt).await;
     if result.is_err() {
         for _ in 0..5 {
