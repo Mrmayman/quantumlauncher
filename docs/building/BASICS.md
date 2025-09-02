@@ -3,6 +3,7 @@ from source code. It's designed to be helpful for beginners and walks
 through the entire process.
 
 # Index
+
 - [Prerequisites](#prerequisites)
 - [Getting the source code](#1-getting-the-source-code)
   - [Git](#git-recommended)
@@ -20,11 +21,13 @@ It's also a good idea to have `git` installed although
 it's not strictly necessary.
 
 > TLDR; Here are the commands.
+>
 > ```sh
 > git clone https://github.com/Mrmayman/quantumlauncher.git
 > cd quantumlauncher
 > cargo run
 > ```
+>
 > Please read on for more information.
 
 # 1) Getting the source code
@@ -35,6 +38,7 @@ Using Git allows you to easily manage the source code,
 fetch updates, and contribute to the project.
 
 1. **Open the terminal** and navigate to your desired directory (maybe a projects folder)
+
 ```sh
 cd path/to/folder
 ```
@@ -47,6 +51,7 @@ cd quantumlauncher
 ```
 
 To update the code in the future, run:
+
 ```sh
 git pull
 ```
@@ -58,7 +63,7 @@ you can download the source code as a ZIP file:
 
 1. Go to the [QuantumLauncher repository](https://github.com/Mrmayman/quantumlauncher),
 2. Click on the green **"Code"** button, then select **"Download ZIP"**
-4. Extract the ZIP file, then open the terminal in the extracted folder
+3. Extract the ZIP file, then open the terminal in the extracted folder
 
 # 2) Building
 

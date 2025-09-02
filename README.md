@@ -83,7 +83,7 @@ What about the others? Well...
 
 - On *Windows*, the launcher files are at `C:/Users/YOUR_USERNAME/AppData/Roaming/QuantumLauncher/`.
 - You probably won't see the `AppData` folder. Press Windows + R and paste this path, and hit enter.
-- On *Linux*, the launcher files are at `~/.config/QuantumLauncher/`. (`~` refers to your home directory).
+- On *Linux*, the launcher files are at `~/.local/share/QuantumLauncher/`. (`~` refers to your home directory).
 - Instances located at `QuantumLauncher/instances/YOUR_INSTANCE/`
 - `.minecraft` located at `YOUR_INSTANCE/.minecraft/`.
 - Launcher logs are located at `QuantumLauncher/logs/`.

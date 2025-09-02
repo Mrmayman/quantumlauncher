@@ -2,10 +2,9 @@
 
 # Function to process a single jar file
 process_jar() {
-    local jar_file="$1"
+    jar_file="$1"
 
     # Extract the list of files in the jar and filter for *.so files
-    local so_files
     so_files=$(jar tf "$jar_file" | grep -E '\.(so|dll|dylib|jnilib)$')
 
     # Only print if there are any .so files
@@ -19,7 +18,7 @@ process_jar() {
 
 # Main function
 process_dir() {
-    local dir="$1"
+    dir="$1"
 
     # Check if the directory exists
     if [ ! -d "$dir" ]; then
@@ -40,4 +39,4 @@ if [ $# -ne 1 ]; then
 fi
 
 # Process the given directory
-process_dir "$HOME/.config/QuantumLauncher/instances/$1/libraries"
+process_dir "${HOME}/.local/share/QuantumLauncher/instances/$1/libraries"

@@ -28,7 +28,7 @@ impl JsonOptifine {
     ///   `QuantumLauncher/instances/<instance_name>/.minecraft/versions/`
     /// - If any directory starting with "Opti" is not found in the versions dir
     /// - If the Optifine directory does not contain a JSON file or JAR file
-    /// - If the config directory (`AppData/Roaming` or `~/.config`) does not exist
+    /// - If the config directory (`AppData/Roaming` or `~/.local/share`) does not exist
     pub async fn read(instance_name: &str) -> Result<(Self, PathBuf), JsonFileError> {
         let dot_minecraft_dir = LAUNCHER_DIR
             .join("instances")

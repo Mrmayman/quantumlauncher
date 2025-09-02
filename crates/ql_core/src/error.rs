@@ -63,8 +63,8 @@ pub enum IoError {
     Io { error: String, path: PathBuf },
     #[error("couldn't read directory {parent:?}, error {error}")]
     ReadDir { error: String, parent: PathBuf },
-    #[error("config or AppData directory not found")]
-    ConfigDirNotFound,
+    #[error(".local/share or AppData directory not found")]
+    LauncherDirNotFound,
     #[error("directory is outside parent directory. POTENTIAL SECURITY RISK AVOIDED")]
     DirEscapeAttack,
 }

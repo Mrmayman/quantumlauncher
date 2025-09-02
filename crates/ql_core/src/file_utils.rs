@@ -24,15 +24,15 @@ use crate::{
 /// The path to the QuantumLauncher root folder.
 ///
 /// This uses the current dir or executable location (portable mode)
-/// if a `qlportable.txt` is found, otherwise it uses the system config dir:
-/// - `~/.config` on Linux
+/// if a `qldir.txt` is found, otherwise it uses the system data dir:
+/// - `~/.local/share` on Linux
 /// - `~/AppData/Roaming` on Windows
 /// - `~/Library/Application Support` on macOS
 ///
 /// Use [`get_launcher_dir`] for a non-panicking solution.
 ///
 /// # Panics
-/// - if config dir is not found
+/// - if data dir is not found
 /// - if you're on an unsupported platform (other than Windows, Linux, macOS, Redox, any linux-like unix)
 /// - if the launcher directory could not be created (permissions issue)
 #[allow(clippy::doc_markdown)]
@@ -41,13 +41,13 @@ pub static LAUNCHER_DIR: LazyLock<PathBuf> = LazyLock::new(|| get_launcher_dir()
 /// Returns the path to the QuantumLauncher root folder.
 ///
 /// This uses the current dir or executable location (portable mode)
-/// if a `qlportable.txt` is found, otherwise it uses the system config dir:
-/// - `~/.config` on Linux
+/// if a `qldir.txt` is found, otherwise it uses the system data dir:
+/// - `~/.local/share` on Linux
 /// - `~/AppData/Roaming` on Windows
 /// - `~/Library/Application Support` on macOS
 ///
 /// # Errors
-/// - if config dir is not found
+/// - if data dir is not found
 /// - if you're on an unsupported platform (other than Windows, Linux, macOS, Redox, any linux-like unix)
 /// - if the launcher directory could not be created (permissions issue)
 #[allow(clippy::doc_markdown)]
@@ -55,8 +55,8 @@ pub fn get_launcher_dir() -> Result<PathBuf, IoError> {
     let launcher_directory = if let Some(n) = check_qlportable_file() {
         strip_verbatim_prefix(&std::fs::canonicalize(&n.path).unwrap_or(n.path))
     } else {
-        dirs::config_dir()
-            .ok_or(IoError::ConfigDirNotFound)?
+        dirs::data_dir()
+            .ok_or(IoError::LauncherDirNotFound)?
             .join("QuantumLauncher")
     };
 
@@ -99,6 +99,7 @@ fn check_qlportable_file() -> Option<QlDirInfo> {
             .ok()
             .and_then(|exe| exe.parent().map(Path::to_owned)),
         std::env::current_dir().ok(),
+        dirs::data_dir().map(|d| d.join("QuantumLauncher")),
         dirs::config_dir().map(|d| d.join("QuantumLauncher")),
     ];
 
@@ -161,10 +162,10 @@ fn check_qlportable_file() -> Option<QlDirInfo> {
 #[must_use]
 #[allow(clippy::doc_markdown)]
 pub fn is_new_user() -> bool {
-    let Some(config_directory) = dirs::config_dir() else {
+    let Some(data_directory) = dirs::data_dir() else {
         return false;
     };
-    let launcher_directory = config_directory.join("QuantumLauncher");
+    let launcher_directory = data_directory.join("QuantumLauncher");
     !launcher_directory.exists()
 }
 
@@ -392,13 +393,13 @@ use reqwest::Response;
 #[cfg(windows)]
 use std::os::windows::fs::{symlink_dir, symlink_file};
 
-/// Creates a symbolic link (i.e. the thing at `src` "points" to `dest`,
-/// accessing `src` will actually access `dest`)
+/// Creates a symbolic link (i.e. the file at `dest` "points" to `src`,
+/// accessing `dest` will actually access `src`)
 ///
 /// # Errors
 /// (depending on platform):
-/// - If `src` already exists
-/// - If `dest` doesn't exist
+/// - If `dest` already exists
+/// - If `src` doesn't exist
 /// - If user doesn't have permission for `src`
 /// - If the path is invalid (part of path is not a directory for example)
 /// - Other niche stuff (Read only filesystem, Running out of disk space)
@@ -703,4 +704,25 @@ pub async fn zip_directory_to_bytes<P: AsRef<Path>>(dir: P) -> std::io::Result<V
 
     zip.finish()?;
     Ok(buffer.into_inner())
+}
+
+/// Used for moving the launcher dir from .config to .local
+/// Gets the old location of the launcher dir using the same methods as before the
+/// migration so if the user have overwriten it using `$XGD_CONFIG_DIR` we dont lose track of it
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+pub fn migration_legacy_launcher_dir() -> Option<PathBuf> {
+    if check_qlportable_file().is_some() {
+        return None;
+    }
+    Some(dirs::config_dir()?.join("QuantumLauncher"))
+}
+
+/// used for moving the launcher dir from .config to .local
+/// same as `get_launcher_dir` but doesnt create the folder if not found.
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+pub fn migration_launcher_dir() -> Option<PathBuf> {
+    if check_qlportable_file().is_some() {
+        return None;
+    }
+    Some(dirs::data_dir()?.join("QuantumLauncher"))
 }

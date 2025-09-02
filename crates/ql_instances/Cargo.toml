@@ -16,7 +16,7 @@ ql_java_handler = { path = "../ql_java_handler" }
 
 
 chrono = { workspace = true }
-semver = "1"
+semver = { workspace = true  }
 zip = { workspace = true }
 
 reqwest = { workspace = true }

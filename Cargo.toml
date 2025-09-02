@@ -13,6 +13,7 @@ resolver = "2"
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+semver = "1"
 
 reqwest = { version = "0.12", default-features = false, features = [
     "json",
