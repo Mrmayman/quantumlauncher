@@ -3,7 +3,7 @@ use crate::{
     download::GameDownloader,
     jarmod,
 };
-use ql_core::json::GlobalSettings;
+use ql_core::json::{GlobalSettings, V_1_5_2, V_PRECLASSIC_LAST};
 use ql_core::{
     err, file_utils, info,
     json::{
@@ -485,11 +485,13 @@ impl GameLauncher {
         optifine_json: Option<&(JsonOptifine, PathBuf)>,
     ) -> Result<(), GameLaunchError> {
         java_arguments.push("-cp".to_owned());
-        java_arguments.push(
-            self.get_class_path(fabric_json.as_ref(), forge_json.as_ref(), optifine_json)
-                .await?,
-        );
-        java_arguments.push(if let Some(fabric_json) = fabric_json {
+        let (classpath, main_class_override) = self
+            .get_class_path(fabric_json.as_ref(), forge_json.as_ref(), optifine_json)
+            .await?;
+        java_arguments.push(classpath);
+        java_arguments.push(if let Some(main_class_override) = main_class_override {
+            main_class_override
+        } else if let Some(fabric_json) = fabric_json {
             fabric_json.mainClass
         } else if let Some(forge_json) = forge_json {
             forge_json.mainClass.clone()
@@ -506,7 +508,7 @@ impl GameLauncher {
         fabric_json: Option<&FabricJSON>,
         forge_json: Option<&forge::JsonDetails>,
         optifine_json: Option<&(JsonOptifine, PathBuf)>,
-    ) -> Result<String, GameLaunchError> {
+    ) -> Result<(String, Option<String>), GameLaunchError> {
         // `class_path` is the actual classpath argument
         // string that will be passed to Minecraft as a Java argument.
         let mut class_path = String::new();
@@ -536,13 +538,36 @@ impl GameLauncher {
 
         let instance = InstanceSelection::Instance(self.instance_name.clone());
         let jar_path = jarmod::build(&instance).await?;
-        debug_assert!(jar_path.is_file(), "Minecraft JAR file should exist");
+        debug_assert!(
+            jar_path.is_file(),
+            "Minecraft JAR file should exist\nPath: {jar_path:?}"
+        );
         let jar_path = jar_path
             .to_str()
             .ok_or(GameLaunchError::PathBufToString(jar_path.clone()))?;
         class_path.push_str(jar_path);
 
-        Ok(class_path)
+        Ok((
+            class_path,
+            if jar_path.contains("QuantumLauncher/custom_jars")
+                || jar_path.contains("QuantumLauncher\\custom_jars")
+            {
+                let main_class = if self.version_json.is_before_or_eq(V_PRECLASSIC_LAST) {
+                    "com.mojang.minecraft.RubyDung"
+                } else if self.version_json.is_before_or_eq(V_1_5_2) {
+                    "net.minecraft.launchwrapper.Launch"
+                } else {
+                    "net.minecraft.client.main.Main"
+                };
+                self.config_json
+                    .custom_jar
+                    .as_ref()
+                    .is_some_and(|n| n.autoset_main_class)
+                    .then_some(main_class.to_owned())
+            } else {
+                None
+            },
+        ))
     }
 
     fn classpath_fabric_and_quilt(

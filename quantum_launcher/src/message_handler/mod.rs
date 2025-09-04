@@ -316,10 +316,7 @@ impl Launcher {
             }
             self.state = State::Launch(menu_launch);
         }
-        Task::perform(
-            get_entries("servers".to_owned(), true),
-            Message::CoreListLoaded,
-        )
+        Task::perform(get_entries(true), Message::CoreListLoaded)
     }
 
     pub fn install_forge(&mut self, is_neoforge: bool) -> Task<Message> {

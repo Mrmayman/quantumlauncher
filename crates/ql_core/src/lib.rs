@@ -465,12 +465,19 @@ pub fn get_jar_path(
     version_json: &VersionDetails,
     instance_dir: &Path,
     optifine_jar: Option<&Path>,
+    custom_jar: Option<&str>,
 ) -> PathBuf {
     fn get_path_from_id(instance_dir: &Path, id: &str) -> PathBuf {
         instance_dir
             .join(".minecraft/versions")
             .join(id)
             .join(format!("{id}.jar"))
+    }
+
+    if let Some(custom_jar_path) = custom_jar {
+        if !custom_jar_path.trim().is_empty() {
+            return LAUNCHER_DIR.join("custom_jars").join(custom_jar_path);
+        }
     }
 
     optifine_jar.map_or_else(

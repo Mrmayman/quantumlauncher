@@ -1,7 +1,7 @@
 use iced::Task;
 use ql_core::{
     err,
-    json::{GlobalSettings, InstanceConfigJson},
+    json::{instance_config::CustomJarConfig, GlobalSettings, InstanceConfigJson},
     IntoIoError, IntoStringError, LAUNCHER_DIR,
 };
 
@@ -9,6 +9,7 @@ use crate::{
     message_handler::format_memory,
     state::{
         get_entries, EditInstanceMessage, Launcher, MenuEditInstance, MenuLaunch, Message, State,
+        ADD_JAR_NAME, NONE_JAR_NAME, REMOVE_JAR_NAME,
     },
 };
 
@@ -224,8 +225,98 @@ impl Launcher {
                     }
                 }
             }
+            EditInstanceMessage::CustomJarPathChanged(path) => {
+                if path == ADD_JAR_NAME {
+                    return Ok(self.add_custom_jar());
+                } else if let State::Launch(MenuLaunch {
+                    edit_instance: Some(menu),
+                    ..
+                }) = &mut self.state
+                {
+                    if path == REMOVE_JAR_NAME {
+                        if let (Some(jar), Some(list)) =
+                            (&menu.config.custom_jar, &mut self.custom_jar_choices)
+                        {
+                            list.retain(|n| *n != jar.name);
+                            let name = jar.name.clone();
+                            menu.config.custom_jar = None;
+                            return Ok(Task::perform(
+                                tokio::fs::remove_file(LAUNCHER_DIR.join("custom_jars").join(name)),
+                                |_| Message::Nothing,
+                            ));
+                        }
+                    } else if path == NONE_JAR_NAME {
+                        menu.config.custom_jar = None;
+                    } else {
+                        menu.config
+                            .custom_jar
+                            .get_or_insert_with(CustomJarConfig::default)
+                            .name = path
+                    }
+                }
+            }
+            EditInstanceMessage::CustomJarLoaded(items) => match items {
+                Ok(items) => self.custom_jar_choices = Some(items),
+                Err(err) => err!("Couldn't load list of custom jars! {err}"),
+            },
+            EditInstanceMessage::AutoSetMainClassToggle(t) => {
+                if let State::Launch(MenuLaunch {
+                    edit_instance:
+                        Some(MenuEditInstance {
+                            config:
+                                InstanceConfigJson {
+                                    custom_jar: Some(custom_jar),
+                                    ..
+                                },
+                            ..
+                        }),
+                    ..
+                }) = &mut self.state
+                {
+                    custom_jar.autoset_main_class = t;
+                }
+            }
         }
         Ok(Task::none())
+    }
+
+    fn add_custom_jar(&mut self) -> Task<Message> {
+        if let (
+            Some(custom_jars),
+            State::Launch(MenuLaunch {
+                edit_instance: Some(menu),
+                ..
+            }),
+            Some((path, file_name)),
+        ) = (
+            &mut self.custom_jar_choices,
+            &mut self.state,
+            rfd::FileDialog::new()
+                .set_title("Select Custom Minecraft JAR")
+                .add_filter("Java Archive", &["jar"])
+                .pick_file()
+                .and_then(|n| n.file_name().map(|f| (n.clone(), f.to_owned()))),
+        ) {
+            let file_name = file_name.to_string_lossy().to_string();
+            if !custom_jars.contains(&file_name) {
+                custom_jars.insert(1, file_name.clone());
+            }
+
+            *menu
+                .config
+                .custom_jar
+                .get_or_insert_with(CustomJarConfig::default) = CustomJarConfig {
+                name: file_name.clone(),
+                autoset_main_class: false,
+            };
+
+            Task::perform(
+                tokio::fs::copy(path, LAUNCHER_DIR.join("custom_jars").join(file_name)),
+                |_| Message::Nothing,
+            )
+        } else {
+            Task::none()
+        }
     }
 
     fn rename_instance(&mut self) -> Result<Task<Message>, String> {
@@ -277,14 +368,7 @@ impl Launcher {
                 .strerr()?;
 
             Ok(Task::perform(
-                get_entries(
-                    match self.selected_instance.as_ref().unwrap() {
-                        ql_core::InstanceSelection::Instance(_) => "instances",
-                        ql_core::InstanceSelection::Server(_) => "servers",
-                    }
-                    .to_owned(),
-                    false,
-                ),
+                get_entries(self.selected_instance.as_ref().unwrap().is_server()),
                 Message::CoreListLoaded,
             ))
         }

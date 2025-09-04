@@ -7,7 +7,7 @@ use std::{
 
 use iced::{widget::image::Handle, Task};
 use ql_core::{
-    err, file_utils, GenericProgress, InstanceSelection, IntoIoError, IntoStringError,
+    err, file_utils, GenericProgress, InstanceSelection, IntoIoError, IntoStringError, IoError,
     JsonFileError, ListEntry, Progress, LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
 };
 use ql_instances::{
@@ -29,6 +29,10 @@ pub use message::*;
 pub const OFFLINE_ACCOUNT_NAME: &str = "(Offline)";
 pub const NEW_ACCOUNT_NAME: &str = "+ Add Account";
 
+pub const ADD_JAR_NAME: &str = "+ Add JAR";
+pub const REMOVE_JAR_NAME: &str = "- Remove Selected";
+pub const NONE_JAR_NAME: &str = "(None)";
+
 type Res<T = ()> = Result<T, String>;
 
 pub struct InstanceLog {
@@ -47,9 +51,10 @@ pub struct Launcher {
     pub is_log_open: bool,
     pub log_scroll: isize,
     pub tick_timer: usize,
+    pub is_launching_game: bool,
 
     pub java_recv: Option<ProgressBar<GenericProgress>>,
-    pub is_launching_game: bool,
+    pub custom_jar_choices: Option<Vec<String>>,
 
     pub accounts: HashMap<String, AccountData>,
     pub accounts_dropdown: Vec<String>,
@@ -187,6 +192,7 @@ impl Launcher {
             accounts_selected: Some(selected_account),
             keys_pressed: HashSet::new(),
             tick_timer: 0,
+            custom_jar_choices: None,
         })
     }
 
@@ -241,6 +247,7 @@ impl Launcher {
             accounts_selected: Some(OFFLINE_ACCOUNT_NAME.to_owned()),
             keys_pressed: HashSet::new(),
             tick_timer: 0,
+            custom_jar_choices: None,
         }
     }
 
@@ -260,10 +267,7 @@ impl Launcher {
             menu_launch.sidebar_width = width as u16;
         }
         self.state = State::Launch(menu_launch);
-        Task::perform(
-            get_entries("instances".to_owned(), false),
-            Message::CoreListLoaded,
-        )
+        Task::perform(get_entries(false), Message::CoreListLoaded)
     }
 }
 
@@ -391,8 +395,12 @@ fn get_theme(config: &LauncherConfig) -> LauncherTheme {
     LauncherTheme::from_vals(style, theme)
 }
 
-pub async fn get_entries(path: String, is_server: bool) -> Res<(Vec<String>, bool)> {
-    let dir_path = file_utils::get_launcher_dir().strerr()?.join(path);
+pub async fn get_entries(is_server: bool) -> Res<(Vec<String>, bool)> {
+    let dir_path = file_utils::get_launcher_dir().strerr()?.join(if is_server {
+        "servers"
+    } else {
+        "instances"
+    });
     if !dir_path.exists() {
         tokio::fs::create_dir_all(&dir_path)
             .await
@@ -404,7 +412,11 @@ pub async fn get_entries(path: String, is_server: bool) -> Res<(Vec<String>, boo
     Ok((
         file_utils::read_filenames_from_dir(&dir_path)
             .await
-            .strerr()?,
+            .strerr()?
+            .into_iter()
+            .filter(|n| !n.is_file)
+            .map(|n| n.name)
+            .collect(),
         is_server,
     ))
 }
@@ -447,4 +459,19 @@ impl<T: Progress> ProgressBar<T> {
         }
         has_ticked
     }
+}
+
+pub async fn load_custom_jars() -> Result<Vec<String>, IoError> {
+    let names = file_utils::read_filenames_from_dir(LAUNCHER_DIR.join("custom_jars")).await?;
+    let mut list: Vec<String> = names
+        .into_iter()
+        .filter(|n| n.is_file)
+        .map(|n| n.name)
+        .collect();
+
+    list.insert(0, NONE_JAR_NAME.to_owned());
+    list.push(ADD_JAR_NAME.to_owned());
+    list.push(REMOVE_JAR_NAME.to_owned());
+
+    Ok(list)
 }

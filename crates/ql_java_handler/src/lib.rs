@@ -9,8 +9,10 @@ use std::{
 use thiserror::Error;
 
 use ql_core::{
-    do_jobs_with_limit, err, file_utils, info, pt, GenericProgress, IntoIoError, IoError,
-    JsonDownloadError, JsonError, RequestError, LAUNCHER_DIR,
+    do_jobs_with_limit, err,
+    file_utils::{self, DirItem},
+    info, pt, GenericProgress, IntoIoError, IoError, JsonDownloadError, JsonError, RequestError,
+    LAUNCHER_DIR,
 };
 
 mod compression;
@@ -307,7 +309,7 @@ pub enum JavaInstallError {
     #[error("{JAVA_INSTALL_ERR_PREFIX}{0}")]
     Io(#[from] IoError),
     #[error("{JAVA_INSTALL_ERR_PREFIX}couldn't find java binary\n{0:?}")]
-    NoJavaBinFound(Result<Vec<String>, IoError>),
+    NoJavaBinFound(Result<Vec<DirItem>, IoError>),
 
     #[error("on your platform, only Java 8 (Minecraft 1.16.5 and below) is supported!\n")]
     UnsupportedOnlyJava8,

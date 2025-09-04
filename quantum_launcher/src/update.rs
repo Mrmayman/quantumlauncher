@@ -434,7 +434,7 @@ impl Launcher {
                     progress: None,
                 });
                 return Task::perform(
-                    ql_core::file_utils::read_filenames_from_dir_ext(
+                    ql_core::file_utils::read_filenames_from_dir(
                         self.selected_instance
                             .clone()
                             .unwrap()

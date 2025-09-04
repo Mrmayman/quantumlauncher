@@ -54,9 +54,9 @@ impl JarMods {
         self.mods.extend(
             filenames
                 .into_iter()
-                .filter(|f| !existing_filenames.contains(f))
+                .filter(|f| f.is_file && !existing_filenames.contains(&f.name))
                 .map(|filename| JarMod {
-                    filename,
+                    filename: filename.name,
                     enabled: true,
                 }),
         );
