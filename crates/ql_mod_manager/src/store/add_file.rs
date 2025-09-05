@@ -22,6 +22,7 @@ pub async fn add_files(
 
     let len = paths.len();
     for (i, path) in paths.into_iter().enumerate() {
+        pt!("Adding file: {path:?}");
         let (Some(extension), Some(filename)) =
             (path.extension().and_then(OsStr::to_str), path.file_name())
         else {

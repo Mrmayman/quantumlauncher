@@ -241,6 +241,7 @@ impl Launcher {
                 self.state = State::CurseforgeManualDownload(MenuCurseforgeManualDownload {
                     unsupported: not_allowed,
                     is_store: true,
+                    delete_mods: true,
                 });
             }
             InstallModsMessage::IndexUpdated(Ok(idx)) => {

@@ -437,7 +437,7 @@ impl LauncherTheme {
             widget::button::Status::Active => {
                 let color = match style {
                     StyleButton::Round | StyleButton::Flat => Color::SecondDark,
-                    StyleButton::FlatDark => Color::Dark,
+                    StyleButton::FlatDark | StyleButton::RoundDark => Color::Dark,
                     StyleButton::FlatExtraDark => Color::ExtraDark,
                 };
                 widget::button::Style {
@@ -449,7 +449,10 @@ impl LauncherTheme {
             }
             widget::button::Status::Hovered => {
                 let color = match style {
-                    StyleButton::Round | StyleButton::Flat | StyleButton::FlatDark => Color::Mid,
+                    StyleButton::Round
+                    | StyleButton::RoundDark
+                    | StyleButton::Flat
+                    | StyleButton::FlatDark => Color::Mid,
                     StyleButton::FlatExtraDark => Color::SecondDark,
                 };
                 widget::button::Style {
@@ -457,7 +460,9 @@ impl LauncherTheme {
                     text_color: self.get(
                         match style {
                             StyleButton::Round | StyleButton::Flat => Color::Dark,
-                            StyleButton::FlatDark | StyleButton::FlatExtraDark => Color::White,
+                            StyleButton::FlatDark
+                            | StyleButton::RoundDark
+                            | StyleButton::FlatExtraDark => Color::White,
                         },
                         true,
                     ),
@@ -471,19 +476,28 @@ impl LauncherTheme {
                 border: self.get_border_style(&style, Color::White, true),
                 ..Default::default()
             },
-            widget::button::Status::Disabled => widget::button::Style {
-                background: Some(self.get_bg(
-                    match style {
-                        StyleButton::Flat => Color::SecondDark,
-                        StyleButton::Round | StyleButton::FlatDark => Color::Dark,
-                        StyleButton::FlatExtraDark => Color::ExtraDark,
-                    },
-                    true,
-                )),
-                text_color: self.get(Color::ExtraDark, true),
-                border: self.get_border_style(&style, Color::SecondDark, true),
-                ..Default::default()
-            },
+            widget::button::Status::Disabled => {
+                let color = match style {
+                    StyleButton::Flat | StyleButton::Round | StyleButton::RoundDark => Color::Dark,
+                    StyleButton::FlatDark | StyleButton::FlatExtraDark => Color::ExtraDark,
+                };
+                widget::button::Style {
+                    background: Some(self.get_bg(color, true)),
+                    text_color: self.get(Color::ExtraDark, true),
+                    border: self.get_border_style(
+                        &style,
+                        match style {
+                            StyleButton::Round => Color::SecondDark,
+                            StyleButton::RoundDark
+                            | StyleButton::Flat
+                            | StyleButton::FlatDark
+                            | StyleButton::FlatExtraDark => color,
+                        },
+                        true,
+                    ),
+                    ..Default::default()
+                }
+            }
         }
     }
 

@@ -71,6 +71,7 @@ impl Launcher {
                             State::CurseforgeManualDownload(MenuCurseforgeManualDownload {
                                 unsupported: not_allowed,
                                 is_store: false,
+                                delete_mods: true,
                             });
                         Task::none()
                     }
@@ -100,7 +101,9 @@ impl Launcher {
                     *selected_mods = sorted_mods_list
                         .iter()
                         .filter_map(|mod_info| {
-                            mod_info.is_manually_installed().then_some(mod_info.id())
+                            mod_info
+                                .is_manually_installed()
+                                .then_some(mod_info.clone().into())
                         })
                         .collect();
                     *selected_state = SelectedState::All;
@@ -117,7 +120,7 @@ impl Launcher {
         let selected_mods = menu
             .sorted_mods_list
             .iter()
-            .filter_map(|n| n.is_manually_installed().then_some(n.id()))
+            .filter_map(|n| n.is_manually_installed().then_some(n.clone().into()))
             .collect::<HashSet<_>>();
 
         let menu = MenuEditPresets {

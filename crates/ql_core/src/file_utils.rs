@@ -368,6 +368,20 @@ pub enum RequestError {
     InvalidHeaderValue(#[from] InvalidHeaderValue),
 }
 
+impl RequestError {
+    pub fn summary(&self) -> String {
+        match self {
+            RequestError::DownloadError { code, url } => {
+                format!("Download Error (code {code})\nUrl: {url}")
+            }
+            RequestError::ReqwestError(error) => format!("Network Request Error:\n{error}"),
+            RequestError::InvalidHeaderValue(_) => {
+                "Download Error: invalid header value".to_owned()
+            }
+        }
+    }
+}
+
 /// Sets the executable bit on a file.
 ///
 /// This makes a file executable on Unix systems,

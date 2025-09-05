@@ -110,15 +110,17 @@ impl ModListEntry {
         }
     }
 
-    pub fn name(&self) -> String {
+    pub fn name(&self) -> &str {
         match self {
-            ModListEntry::Local { file_name } => file_name.clone(),
-            ModListEntry::Downloaded { config, .. } => config.name.clone(),
+            ModListEntry::Local { file_name } => &file_name,
+            ModListEntry::Downloaded { config, .. } => &config.name,
         }
     }
+}
 
-    pub fn id(&self) -> SelectedMod {
-        match self {
+impl From<ModListEntry> for SelectedMod {
+    fn from(value: ModListEntry) -> Self {
+        match value {
             ModListEntry::Local { file_name } => SelectedMod::Local {
                 file_name: file_name.clone(),
             },
@@ -126,6 +128,21 @@ impl ModListEntry {
                 name: config.name.clone(),
                 id: id.clone(),
             },
+        }
+    }
+}
+
+impl PartialEq<ModListEntry> for SelectedMod {
+    fn eq(&self, other: &ModListEntry) -> bool {
+        match (self, other) {
+            (
+                SelectedMod::Downloaded { name, id },
+                ModListEntry::Downloaded { id: id2, config },
+            ) => id == id2 && *name == config.name,
+            (SelectedMod::Local { file_name }, ModListEntry::Local { file_name: name2 }) => {
+                file_name == name2
+            }
+            _ => false,
         }
     }
 }
@@ -148,6 +165,8 @@ pub struct MenuEditMods {
     pub available_updates: Vec<(ModId, String, bool)>,
     pub drag_and_drop_hovered: bool,
     pub submenu1_shown: bool,
+
+    pub width_name: f32,
 }
 
 impl MenuEditMods {
@@ -346,6 +365,7 @@ pub enum MenuWelcome {
 pub struct MenuCurseforgeManualDownload {
     pub unsupported: HashSet<CurseforgeNotAllowed>,
     pub is_store: bool,
+    pub delete_mods: bool,
 }
 
 pub struct MenuExportInstance {

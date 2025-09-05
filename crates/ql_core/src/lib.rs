@@ -360,6 +360,15 @@ pub enum SelectedMod {
     Local { file_name: String },
 }
 
+impl SelectedMod {
+    pub fn from_pair(name: String, id: Option<ModId>) -> Self {
+        match id {
+            Some(id) => Self::Downloaded { name, id },
+            None => Self::Local { file_name: name },
+        }
+    }
+}
+
 /// Opens the file explorer or browser
 /// (depending on path/link) to the corresponding link.
 ///

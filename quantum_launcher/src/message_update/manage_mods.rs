@@ -20,24 +20,26 @@ impl Launcher {
                 return self.go_to_edit_mods_menu(false);
             }
 
-            ManageModsMessage::ToggleCheckbox((name, id), enable) => {
+            ManageModsMessage::ToggleCheckbox(name, id) => {
                 if let State::EditMods(menu) = &mut self.state {
-                    if enable {
-                        menu.selected_mods
-                            .insert(SelectedMod::Downloaded { name, id });
-                        menu.selected_state = SelectedState::Some;
+                    let selected_mod = SelectedMod::from_pair(name, id);
+
+                    if menu.selected_mods.contains(&selected_mod) {
+                        menu.selected_mods.remove(&selected_mod);
                     } else {
-                        menu.selected_mods
-                            .remove(&SelectedMod::Downloaded { name, id });
-                        menu.selected_state = if menu.selected_mods.is_empty() {
-                            SelectedState::None
-                        } else {
-                            SelectedState::Some
-                        };
+                        menu.selected_mods.insert(selected_mod);
                     }
+
+                    menu.selected_state = if menu.selected_mods.is_empty() {
+                        SelectedState::None
+                    } else if menu.selected_mods.len() == menu.sorted_mods_list.len() {
+                        SelectedState::All
+                    } else {
+                        SelectedState::Some
+                    };
                 }
             }
-            ManageModsMessage::AddFile => {
+            ManageModsMessage::AddFile(delete_file) => {
                 if let Some(paths) = rfd::FileDialog::new()
                     .add_filter("Mod/Modpack", &["jar", "zip", "mrpack", "qmp"])
                     .set_title("Add Mod, Modpack or Preset")
@@ -47,14 +49,26 @@ impl Launcher {
 
                     self.state = State::ImportModpack(ProgressBar::with_recv(receiver));
 
-                    return Task::perform(
+                    let files_task = Task::perform(
                         ql_mod_manager::add_files(
                             self.selected_instance.clone().unwrap(),
-                            paths,
+                            paths.clone(),
                             Some(sender),
                         ),
                         move |n| Message::ManageMods(ManageModsMessage::AddFileDone(n.strerr())),
                     );
+                    return if delete_file {
+                        files_task.chain(Task::perform(
+                            async move {
+                                for path in paths {
+                                    _ = tokio::fs::remove_file(&path).await;
+                                }
+                            },
+                            |()| Message::Nothing,
+                        ))
+                    } else {
+                        files_task
+                    };
                 }
             }
             ManageModsMessage::AddFileDone(n) => match n {
@@ -64,29 +78,13 @@ impl Launcher {
                             State::CurseforgeManualDownload(MenuCurseforgeManualDownload {
                                 unsupported,
                                 is_store: false,
+                                delete_mods: true,
                             });
                     }
                     return self.go_to_edit_mods_menu(false);
                 }
                 Err(err) => self.set_error(err),
             },
-            ManageModsMessage::ToggleCheckboxLocal(name, enable) => {
-                if let State::EditMods(menu) = &mut self.state {
-                    if enable {
-                        menu.selected_mods
-                            .insert(SelectedMod::Local { file_name: name });
-                        menu.selected_state = SelectedState::Some;
-                    } else {
-                        menu.selected_mods
-                            .remove(&SelectedMod::Local { file_name: name });
-                        menu.selected_state = if menu.selected_mods.is_empty() {
-                            SelectedState::None
-                        } else {
-                            SelectedState::Some
-                        };
-                    }
-                }
-            }
             ManageModsMessage::DeleteSelected => {
                 if let State::EditMods(menu) = &self.state {
                     let command = Self::get_delete_mods_command(
@@ -286,6 +284,11 @@ impl Launcher {
             ManageModsMessage::ToggleSubmenu1 => {
                 if let State::EditMods(menu) = &mut self.state {
                     menu.submenu1_shown = !menu.submenu1_shown;
+                }
+            }
+            ManageModsMessage::CurseforgeManualToggleDelete(t) => {
+                if let State::CurseforgeManualDownload(menu) = &mut self.state {
+                    menu.delete_mods = t;
                 }
             }
         }

@@ -88,10 +88,6 @@ impl MenuExportMods {
                 widget::row![
                     widget::button(widget::text("Copy").size(14))
                         .padding([8, 16])
-                        .style(|theme: &LauncherTheme, status| {
-                            use crate::stylesheet::widgets::StyleButton;
-                            theme.style_button(status, StyleButton::Round)
-                        })
                         .on_press(Message::ExportMods(
                             ExportModsMessage::CopyMarkdownToClipboard,
                         )),

@@ -10,6 +10,33 @@ use regex::Regex;
 
 use crate::file_utils;
 
+// TODO: Have an actually solid way to
+// deal with cross platform color bullshit
+//
+// crossterm? owo-colors? Win32 API (shown below)?
+//
+// This might fix colors on windows, I have no clue
+/*
+#[cfg(windows)]
+fn enable_ansi_support() {
+    use std::io;
+    use std::ptr;
+    use winapi::um::consoleapi::GetConsoleMode;
+    use winapi::um::consoleapi::SetConsoleMode;
+    use winapi::um::processenv::GetStdHandle;
+    use winapi::um::winbase::STD_OUTPUT_HANDLE;
+    use winapi::um::wincon::ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+
+    unsafe {
+        let handle = GetStdHandle(STD_OUTPUT_HANDLE);
+        let mut mode = 0;
+        if GetConsoleMode(handle, &mut mode) != 0 {
+            SetConsoleMode(handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+        }
+    }
+}
+*/
+
 #[derive(Clone, Copy)]
 pub enum LogType {
     Info,

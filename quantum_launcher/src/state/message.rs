@@ -86,8 +86,7 @@ pub enum ManageModsMessage {
     ScreenOpen,
     ScreenOpenWithoutUpdate,
 
-    ToggleCheckbox((String, ModId), bool),
-    ToggleCheckboxLocal(String, bool),
+    ToggleCheckbox(String, Option<ModId>),
 
     DeleteSelected,
     DeleteFinished(Res<Vec<ModId>>),
@@ -103,10 +102,12 @@ pub enum ManageModsMessage {
     UpdateCheckToggle(usize, bool),
 
     SelectAll,
-    AddFile,
+    AddFile(bool),
     AddFileDone(Res<HashSet<CurseforgeNotAllowed>>),
     ExportMenuOpen,
     ToggleSubmenu1,
+
+    CurseforgeManualToggleDelete(bool),
 }
 
 #[derive(Debug, Clone)]
