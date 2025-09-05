@@ -1,7 +1,9 @@
 use chrono::DateTime;
 use ql_core::{
-    file_utils, info, json::VersionDetails, no_window, pt, GenericProgress, InstanceSelection,
-    IntoIoError, IntoJsonError, IoError, CLASSPATH_SEPARATOR, REGEX_SNAPSHOT,
+    file_utils, info,
+    json::{instance_config::ModTypeInfo, VersionDetails},
+    no_window, pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError,
+    CLASSPATH_SEPARATOR, REGEX_SNAPSHOT,
 };
 use ql_java_handler::{get_java_binary, JavaVersion, JAVA};
 use serde::Deserialize;
@@ -68,7 +70,15 @@ pub async fn install(
 
     info!("Finished installing NeoForge");
 
-    change_instance_type(&instance_dir, "NeoForge".to_owned()).await?;
+    change_instance_type(
+        &instance_dir,
+        "NeoForge".to_owned(),
+        Some(ModTypeInfo {
+            version: neoforge_version,
+            backend_implementation: None,
+        }),
+    )
+    .await?;
 
     Ok(())
 }

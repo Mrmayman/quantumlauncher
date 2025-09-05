@@ -12,7 +12,7 @@ owo-colors = { workspace = true }
 
 zip = { workspace = true }
 walkdir = { workspace = true }
-regex = "1"
+regex = { workspace = true }
 
 reqwest = { workspace = true }
 tokio = { workspace = true }

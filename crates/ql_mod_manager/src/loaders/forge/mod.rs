@@ -3,6 +3,7 @@ use ql_core::{
     do_jobs, err, file_utils, info,
     json::{
         forge::{JsonDetails, JsonDetailsLibrary, JsonInstallProfile, JsonVersions},
+        instance_config::ModTypeInfo,
         VersionDetails,
     },
     no_window, pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError,
@@ -30,9 +31,12 @@ pub use uninstall::{uninstall, uninstall_client, uninstall_server};
 
 struct ForgeInstaller {
     f_progress: Option<Sender<ForgeInstallProgress>>,
+
+    version: String,
     norm_forge_version: String,
     short_version: String,
     major_version: usize,
+
     instance_dir: PathBuf,
     forge_dir: PathBuf,
     is_server: bool,
@@ -103,9 +107,12 @@ impl ForgeInstaller {
 
         Ok(Self {
             f_progress,
+
+            version,
             norm_forge_version,
             short_version,
             major_version,
+
             instance_dir,
             forge_dir,
             is_server: instance.is_server(),
@@ -602,7 +609,15 @@ pub async fn install_client(
     .await
     .path(json_path)?;
 
-    change_instance_type(&installer.instance_dir, "Forge".to_owned()).await?;
+    change_instance_type(
+        &installer.instance_dir,
+        "Forge".to_owned(),
+        Some(ModTypeInfo {
+            version: installer.version.clone(),
+            backend_implementation: None,
+        }),
+    )
+    .await?;
 
     installer.remove_lock().await?;
     info!("Finished installing forge");

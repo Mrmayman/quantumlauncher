@@ -10,13 +10,13 @@ pub struct FabricJSON {
     pub libraries: Vec<Library>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Arguments {
     pub jvm: Option<Vec<String>>,
     pub game: Option<Vec<String>>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Library {
     pub name: String,
     pub url: String,
@@ -41,13 +41,11 @@ impl Library {
     pub fn get_url(&self) -> String {
         let parts: Vec<&str> = self.name.split(':').collect();
         format!(
-            "{}{}/{}/{}/{}-{}.jar",
+            "{}{}/{p1}/{p2}/{p1}-{p2}.jar",
             self.url,
             parts[0].replace('.', "/"),
-            parts[1],
-            parts[2],
-            parts[1],
-            parts[2],
+            p1 = parts[1],
+            p2 = parts[2],
         )
     }
 }
