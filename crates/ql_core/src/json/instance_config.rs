@@ -427,4 +427,14 @@ pub struct GlobalSettings {
     /// This is an optional list of commands to prepend
     /// to the launch command (e.g., "prime-run" for NVIDIA GPU usage on Linux).
     pub pre_launch_prefix: Option<Vec<String>>,
+
+    /// Refresh rate for the TUI (in milliseconds).
+    ///
+    /// This controls how frequently the TUI forces a redraw to fight against
+    /// stdout/stderr interference from background tasks.
+    ///
+    /// Launcher default is 500 ms when unset.
+    /// Kept here for convenience so it can live alongside other global settings.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tui_refresh_interval_ms: Option<u64>,
 }

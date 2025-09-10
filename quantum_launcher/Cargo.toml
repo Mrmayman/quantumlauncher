@@ -66,6 +66,13 @@ terminal_size = "0.4"
 owo-colors = { workspace = true }
 clap = { version = "4", features = ["help"] }
 
+# TUI
+ratatui = "0.28"
+crossterm = "0.28"
+
+# For accurate soft-wrapping and row-based scrolling in TUI logs
+textwrap = "0.16"
+
 # Mod page rendering:
 # - Markdown rendering
 comrak = { version = "0.41", default-features = false }

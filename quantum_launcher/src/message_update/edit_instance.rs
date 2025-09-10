@@ -342,7 +342,7 @@ impl Launcher {
         }
     }
 
-    fn e_list_shift_up(idx: usize, args: &mut Vec<String>) {
+    fn e_list_shift_up(idx: usize, args: &mut [String]) {
         if idx > 0 {
             args.swap(idx, idx - 1);
         }
