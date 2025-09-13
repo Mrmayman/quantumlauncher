@@ -30,23 +30,44 @@ pub const FONT_MONO: iced::Font = iced::Font::with_name("JetBrains Mono");
 
 pub type Element<'a> = iced::Element<'a, Message, LauncherTheme>;
 
+pub fn select_box<'a>(
+    e: impl Into<Element<'a>>,
+    is_checked: bool,
+    message: Message,
+) -> widget::Button<'a, Message, LauncherTheme> {
+    widget::button(underline(e, Color::Dark))
+        .on_press(message)
+        .style(move |t: &LauncherTheme, s| {
+            t.style_button(
+                s,
+                if is_checked {
+                    StyleButton::Flat
+                } else {
+                    StyleButton::FlatExtraDark
+                },
+            )
+        })
+}
+
 pub fn link<'a>(
     e: impl Into<Element<'a>>,
     url: String,
 ) -> widget::Button<'a, Message, LauncherTheme> {
-    widget::button(underline(e))
+    widget::button(underline(e, Color::Light))
         .on_press(Message::CoreOpenLink(url))
         .padding(0)
         .style(|n: &LauncherTheme, status| n.style_button(status, StyleButton::FlatDark))
 }
 
-pub fn underline<'a>(e: impl Into<Element<'a>>) -> widget::Stack<'a, Message, LauncherTheme> {
+pub fn underline<'a>(
+    e: impl Into<Element<'a>>,
+    color: Color,
+) -> widget::Stack<'a, Message, LauncherTheme> {
     widget::stack!(
         widget::column![e.into()],
         widget::column![
             widget::vertical_space(),
-            widget::horizontal_rule(1)
-                .style(|theme: &LauncherTheme| theme.style_rule(Color::Light, 1)),
+            widget::horizontal_rule(1).style(move |t: &LauncherTheme| t.style_rule(color, 1)),
             widget::Space::with_height(1),
         ]
     )
@@ -74,11 +95,26 @@ pub fn back_button<'a>() -> widget::Button<'a, Message, LauncherTheme> {
     button_with_icon(icon_manager::back_with_size(14), "Back", 14)
 }
 
-pub fn button_with_icon<'element>(
-    icon: impl Into<Element<'element>>,
-    text: &'element str,
+pub fn subbutton_with_icon<'a>(
+    icon: impl Into<Element<'a>>,
+    text: &'a str,
+) -> widget::Button<'a, Message, LauncherTheme> {
+    widget::button(
+        widget::row![icon.into(), widget::text(text).size(13)]
+            .align_y(iced::alignment::Vertical::Center)
+            .spacing(8)
+            .padding(2),
+    )
+    .style(|t: &LauncherTheme, s| {
+        t.style_button(s, crate::stylesheet::widgets::StyleButton::RoundDark)
+    })
+}
+
+pub fn button_with_icon<'a>(
+    icon: impl Into<Element<'a>>,
+    text: &'a str,
     size: u16,
-) -> widget::Button<'element, Message, LauncherTheme> {
+) -> widget::Button<'a, Message, LauncherTheme> {
     widget::button(
         widget::row![icon.into(), widget::text(text).size(size)]
             .align_y(iced::alignment::Vertical::Center)
@@ -385,13 +421,18 @@ impl MenuCurseforgeManualDownload {
 
             "Warning: Ignoring this may lead to crashes!",
             widget::row![
-                widget::button("+ Select above downloaded files").on_press(Message::ManageMods(ManageModsMessage::AddFile)),
-                widget::button("Continue").on_press(if self.is_store {
+                widget::button(widget::text("+ Select above downloaded files").size(14)).on_press(Message::ManageMods(ManageModsMessage::AddFile(self.delete_mods))),
+                widget::button(widget::text("Continue").size(14)).on_press(if self.is_store {
                     Message::InstallMods(InstallModsMessage::Open)
                 } else {
                     Message::ManageMods(ManageModsMessage::ScreenOpenWithoutUpdate)
                 }),
-            ].spacing(5)
+                widget::checkbox("Delete files when done", self.delete_mods)
+                    .text_size(14)
+                    .on_toggle(|t|
+                        Message::ManageMods(ManageModsMessage::CurseforgeManualToggleDelete(t))
+                    )
+            ].spacing(5).align_y(Alignment::Center).wrap()
         ]
             .padding(10)
             .spacing(10)
@@ -560,16 +601,8 @@ pub fn view_log_upload_result(url: &'_ str, is_server: bool) -> Element<'_> {
             widget::container(
                 widget::row![
                     widget::text(url).font(FONT_MONO),
-                    widget::button("Copy")
-                        .on_press(Message::CoreCopyText(url.to_string()))
-                        .style(|theme: &LauncherTheme, status| {
-                            theme.style_button(status, StyleButton::Round)
-                        }),
-                    widget::button("Open")
-                        .on_press(Message::CoreOpenLink(url.to_string()))
-                        .style(|theme: &LauncherTheme, status| {
-                            theme.style_button(status, StyleButton::Round)
-                        }),
+                    widget::button("Copy").on_press(Message::CoreCopyText(url.to_string())),
+                    widget::button("Open").on_press(Message::CoreOpenLink(url.to_string()))
                 ]
                 .spacing(10)
                 .align_y(iced::Alignment::Center)

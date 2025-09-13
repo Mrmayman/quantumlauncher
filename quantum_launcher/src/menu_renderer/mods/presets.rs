@@ -100,7 +100,7 @@ Modrinth/Curseforge modpack"
     ) -> widget::Column<'a, Message, LauncherTheme, iced::Renderer> {
         widget::column(self.sorted_mods_list.iter().map(|entry| {
             if entry.is_manually_installed() {
-                widget::checkbox(entry.name(), selected_mods.contains(&entry.id()))
+                widget::checkbox(entry.name(), selected_mods.contains(&entry.clone().into()))
                     .on_toggle(move |t| match entry {
                         ModListEntry::Downloaded { id, config } => {
                             Message::EditPresets(EditPresetsMessage::ToggleCheckbox(

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use iced::advanced::text::Wrapping;
+use iced::keyboard::Modifiers;
 use iced::widget::tooltip::Position;
 use iced::{widget, Length};
 use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
@@ -85,7 +86,7 @@ impl Launcher {
                         } else {
                             self.get_client_play_button(selected_instance_s)
                         },
-                        get_mods_button(selected_instance_s),
+                        self.get_mods_button(selected_instance_s),
                         Self::get_files_button(selected),
                     ]
                     .spacing(5)
@@ -147,6 +148,21 @@ impl Launcher {
         };
 
         widget::column!(tab_selector, tab_body).spacing(5).into()
+    }
+
+    fn get_mods_button(
+        &self,
+        selected_instance_s: Option<&str>,
+    ) -> widget::Button<'_, Message, LauncherTheme> {
+        button_with_icon(icon_manager::download(), "Mods", 15)
+            .on_press_maybe(selected_instance_s.is_some().then_some(
+                if self.modifiers_pressed.contains(Modifiers::SHIFT) {
+                    Message::ManageMods(ManageModsMessage::ScreenOpenWithoutUpdate)
+                } else {
+                    Message::ManageMods(ManageModsMessage::ScreenOpen)
+                },
+            ))
+            .width(98)
     }
 
     pub fn get_log_pane<'element>(
@@ -499,18 +515,6 @@ fn get_tab_selector<'a>(selected_instance_s: Option<&'a str>, menu: &'a MenuLaun
     )
     .style(|n| n.style_container_sharp_box(0.0, Color::ExtraDark))
     .into()
-}
-
-fn get_mods_button(
-    selected_instance_s: Option<&str>,
-) -> widget::Button<'_, Message, LauncherTheme> {
-    button_with_icon(icon_manager::download(), "Mods", 15)
-        .on_press_maybe(
-            selected_instance_s
-                .is_some()
-                .then_some(Message::ManageMods(ManageModsMessage::ScreenOpen)),
-        )
-        .width(98)
 }
 
 fn render_tab_button(n: LaunchTabId, menu: &'_ MenuLaunch) -> Element<'_> {

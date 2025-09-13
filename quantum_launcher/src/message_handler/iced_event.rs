@@ -7,7 +7,7 @@ use crate::state::{
     MenuRecommendedMods, MenuServerCreate, Message, State,
 };
 use iced::{
-    keyboard::{key::Named, Key},
+    keyboard::{self, key::Named, Key},
     Task,
 };
 use ql_core::jarmod::JarMods;
@@ -68,7 +68,7 @@ impl Launcher {
                 | iced::window::Event::Unfocused => {}
             },
             iced::Event::Keyboard(event) => match event {
-                iced::keyboard::Event::KeyPressed {
+                keyboard::Event::KeyPressed {
                     key,
                     // location,
                     modifiers,
@@ -127,10 +127,14 @@ impl Launcher {
                         // FUTURE
                     }
                 }
-                iced::keyboard::Event::KeyReleased { key, .. } => {
+                keyboard::Event::KeyReleased { key, .. } => {
                     self.keys_pressed.remove(&key);
                 }
-                iced::keyboard::Event::ModifiersChanged(_) => {}
+                keyboard::Event::ModifiersChanged(modifiers) => {
+                    if let iced::event::Status::Ignored = status {
+                        self.modifiers_pressed = modifiers;
+                    }
+                }
             },
             iced::Event::Mouse(mouse) => match mouse {
                 iced::mouse::Event::CursorMoved { position } => {

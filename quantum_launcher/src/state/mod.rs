@@ -76,7 +76,9 @@ pub struct Launcher {
 
     pub window_size: (f32, f32),
     pub mouse_pos: (f32, f32),
+
     pub keys_pressed: HashSet<iced::keyboard::Key>,
+    pub modifiers_pressed: iced::keyboard::Modifiers,
 }
 
 pub struct CustomJarState {
@@ -210,6 +212,7 @@ impl Launcher {
             accounts_dropdown,
             accounts_selected: Some(selected_account),
             keys_pressed: HashSet::new(),
+            modifiers_pressed: iced::keyboard::Modifiers::empty(),
             tick_timer: 0,
             custom_jar: None,
         })
@@ -265,6 +268,7 @@ impl Launcher {
             accounts_dropdown: vec![OFFLINE_ACCOUNT_NAME.to_owned(), NEW_ACCOUNT_NAME.to_owned()],
             accounts_selected: Some(OFFLINE_ACCOUNT_NAME.to_owned()),
             keys_pressed: HashSet::new(),
+            modifiers_pressed: iced::keyboard::Modifiers::empty(),
             tick_timer: 0,
             custom_jar: None,
         }

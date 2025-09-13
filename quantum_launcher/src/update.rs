@@ -17,7 +17,7 @@ use crate::state::{
 impl Launcher {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Nothing | Message::CoreLogCleanComplete(Ok(())) => {}
+            Message::Nothing | Message::CoreCleanComplete(Ok(())) => {}
             Message::Multiple(msgs) => {
                 let mut task = Task::none();
                 for msg in msgs {
@@ -34,7 +34,7 @@ impl Launcher {
                 }
             }
 
-            Message::UpdateCheckResult(Err(err)) | Message::CoreLogCleanComplete(Err(err)) => {
+            Message::UpdateCheckResult(Err(err)) | Message::CoreCleanComplete(Err(err)) => {
                 err_no_log!("{err}");
             }
 

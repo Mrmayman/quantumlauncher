@@ -251,7 +251,7 @@ impl LauncherSettingsTab {
                     // An Iced bug (or maybe some dumb mistake I made),
                     // putting underlines in buttons the "official" way makes them unclickable.
 
-                    widget::button(underline(widget::text("GNU GPLv3 License").size(12)))
+                    widget::button(underline(widget::text("GNU GPLv3 License").size(12), Color::Light))
                         .padding(0)
                         .style(|n: &LauncherTheme, status| n.style_button(status, StyleButton::FlatDark))
                         .on_press(Message::LicenseChangeTab(crate::state::LicenseTab::Gpl3));

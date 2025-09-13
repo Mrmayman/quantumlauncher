@@ -77,9 +77,9 @@ impl Color {
             Color::ExtraDark => Color::Light,
             Color::Dark => Color::White,
             Color::SecondDark => Color::SecondLight,
-            Color::Light => Color::Dark,
-            Color::SecondLight => Color::SecondDark,
             Color::Mid => Color::Mid,
+            Color::SecondLight => Color::SecondDark,
+            Color::Light => Color::Dark,
             Color::White => Color::ExtraDark,
         }
     }

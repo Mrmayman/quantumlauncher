@@ -1,4 +1,7 @@
-use std::{collections::HashSet, sync::mpsc::Sender};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::mpsc::Sender,
+};
 
 use ql_core::{
     do_jobs, file_utils,
@@ -9,8 +12,8 @@ use serde::Deserialize;
 use tokio::sync::Mutex;
 
 use crate::store::{
-    curseforge::{get_query_type, CurseforgeFileQuery, ModQuery},
-    get_mods_resourcepacks_shaderpacks_dir, CurseforgeNotAllowed, QueryType,
+    curseforge::{self, get_query_type, CFSearchResult, CurseforgeFileQuery, ModQuery},
+    get_dir, CurseforgeNotAllowed, ModConfig, ModFile, ModIndex, QueryType, SOURCE_ID_CURSEFORGE,
 };
 
 use super::PackError;
@@ -54,70 +57,128 @@ impl PackFile {
         json: &VersionDetails,
         sender: Option<&Sender<GenericProgress>>,
         (i, len): (&Mutex<usize>, usize),
+        cache: &HashMap<String, curseforge::Mod>,
+        index: &Mutex<ModIndex>,
     ) -> Result<(), PackError> {
         if !self.required {
             return Ok(());
         }
 
         let project_id = self.projectID.to_string();
+        let mod_info = if let Some(n) = cache.get(&project_id) {
+            n.clone()
+        } else {
+            ModQuery::load(&project_id).await?.data
+        };
 
-        let mod_info = ModQuery::load(&project_id).await?;
         let query = CurseforgeFileQuery::load(&project_id, self.fileID as i32).await?;
-        let query_type = get_query_type(mod_info.data.classId).await?;
-
+        let query_type = get_query_type(mod_info.classId).await?;
         let Some(url) = query.data.downloadUrl.clone() else {
-            not_allowed.lock().await.insert(CurseforgeNotAllowed {
-                name: mod_info.data.name,
-                slug: mod_info.data.slug,
-                file_id: self.fileID,
-                project_type: query_type.to_curseforge_str().to_owned(),
-                filename: query.data.fileName,
-            });
+            self.add_to_not_allowed(not_allowed, mod_info, query, query_type)
+                .await;
             return Ok(());
         };
 
-        let (dir_mods, dir_res_packs, dir_shader) =
-            get_mods_resourcepacks_shaderpacks_dir(instance, json).await?;
-        let dir = match query_type {
-            QueryType::Mods => dir_mods,
-            QueryType::ResourcePacks => dir_res_packs,
-            QueryType::Shaders => dir_shader,
-            QueryType::ModPacks => return Err(PackError::ModpackInModpack),
-        };
-
-        let path = dir.join(query.data.fileName);
+        let path = get_dir(instance, json, query_type)
+            .await?
+            .join(&query.data.fileName);
         if path.is_file() {
             let metadata = tokio::fs::metadata(&path).await.path(&path)?;
             let got_len = metadata.len();
             if query.data.fileLength == got_len {
-                pt!("Already installed {}, skipping", mod_info.data.name);
+                pt!("Already installed {}, skipping", mod_info.name);
                 return Ok(());
             }
         }
 
         file_utils::download_file_to_path(&url, true, &path).await?;
+        add_to_index(index, project_id, &mod_info, query, url).await;
 
-        if let Some(sender) = sender {
-            let mut i = i.lock().await;
-            _ = sender.send(GenericProgress {
-                done: *i,
-                total: len,
-                message: Some(format!(
-                    "Modpack: Installed mod (curseforge) ({i}/{len}):\n{}",
-                    mod_info.data.name,
-                    i = *i + 1,
-                )),
-                has_finished: false,
-            });
-            pt!(
-                "Installed mod (curseforge) ({i}/{len}): {}",
-                mod_info.data.name,
-                i = *i + 1,
-            );
-            *i += 1;
-        }
-
+        send_progress(sender, i, len, &mod_info).await;
         Ok(())
+    }
+
+    async fn add_to_not_allowed(
+        &self,
+        not_allowed: &Mutex<HashSet<CurseforgeNotAllowed>>,
+        mod_info: curseforge::Mod,
+        query: CurseforgeFileQuery,
+        query_type: QueryType,
+    ) {
+        not_allowed.lock().await.insert(CurseforgeNotAllowed {
+            name: mod_info.name,
+            slug: mod_info.slug,
+            file_id: self.fileID,
+            project_type: query_type.to_curseforge_str().to_owned(),
+            filename: query.data.fileName,
+        });
+    }
+}
+
+async fn add_to_index(
+    index: &Mutex<ModIndex>,
+    project_id: String,
+    mod_info: &curseforge::Mod,
+    query: CurseforgeFileQuery,
+    url: String,
+) {
+    let mut index = index.lock().await;
+    if !index.mods.contains_key(&project_id) {
+        index.mods.insert(
+            project_id.clone(),
+            ModConfig {
+                name: mod_info.name.clone(),
+                manually_installed: true,
+                installed_version: query.data.displayName.clone(),
+                version_release_time: query.data.fileDate.clone(),
+                enabled: true,
+                description: mod_info.summary.clone(),
+                icon_url: mod_info.logo.clone().map(|n| n.url),
+                project_source: SOURCE_ID_CURSEFORGE.to_owned(),
+                project_id,
+                files: vec![ModFile {
+                    url,
+                    filename: query.data.fileName,
+                    primary: true,
+                }],
+                supported_versions: query
+                    .data
+                    .gameVersions
+                    .iter()
+                    .filter(|n| n.contains('.'))
+                    .cloned()
+                    .collect(),
+                dependencies: HashSet::new(),
+                dependents: HashSet::new(),
+            },
+        );
+    }
+}
+
+async fn send_progress(
+    sender: Option<&Sender<GenericProgress>>,
+    i: &Mutex<usize>,
+    len: usize,
+    mod_info: &curseforge::Mod,
+) {
+    if let Some(sender) = sender {
+        let mut i = i.lock().await;
+        _ = sender.send(GenericProgress {
+            done: *i,
+            total: len,
+            message: Some(format!(
+                "Modpack: Installed mod (curseforge) ({i}/{len}):\n{}",
+                mod_info.name,
+                i = *i + 1,
+            )),
+            has_finished: false,
+        });
+        pt!(
+            "Installed mod (curseforge) ({i}/{len}): {}",
+            mod_info.name,
+            i = *i + 1,
+        );
+        *i += 1;
     }
 }
 
@@ -160,15 +221,36 @@ pub async fn install(
     let len = index.files.len();
 
     let i = Mutex::new(0);
+    let mod_index = Mutex::new(ModIndex::load(instance).await?);
 
-    let jobs: Result<Vec<()>, PackError> = do_jobs(
-        index
+    let cache: HashMap<String, curseforge::Mod> = {
+        let project_ids: Vec<String> = index
             .files
             .iter()
-            .map(|file| file.download(&not_allowed, instance, json, sender, (&i, len))),
-    )
-    .await;
-    jobs?;
+            .map(|n| n.projectID.to_string())
+            .collect();
+        CFSearchResult::get_from_ids(&project_ids)
+            .await?
+            .data
+            .into_iter()
+            .map(|n| (n.id.to_string(), n))
+            .collect()
+    };
+
+    do_jobs::<(), PackError>(index.files.iter().map(|file| {
+        file.download(
+            &not_allowed,
+            instance,
+            json,
+            sender,
+            (&i, len),
+            &cache,
+            &mod_index,
+        )
+    }))
+    .await?;
+
+    mod_index.lock().await.save(instance).await?;
 
     let not_allowed = not_allowed.lock().await;
     Ok(not_allowed.clone())

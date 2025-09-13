@@ -44,7 +44,7 @@ pub struct ProjectInfo {
 
 impl ProjectInfo {
     pub async fn download(id: &str) -> Result<Self, ModError> {
-        let _lock = RATE_LIMITER.lock().await;
+        RATE_LIMITER.lock().await;
         let url = format!("https://api.modrinth.com/v2/project/{id}");
         let file: Self = match file_utils::download_file_to_json(&url, true).await {
             Ok(file) => file,
@@ -57,7 +57,7 @@ impl ProjectInfo {
     }
 
     pub async fn download_bulk(ids: &[String]) -> Result<Vec<Self>, ModError> {
-        let _lock = RATE_LIMITER.lock().await;
+        RATE_LIMITER.lock().await;
         let mut url = "https://api.modrinth.com/v2/projects?ids=[".to_owned();
         let len = ids.len();
         for (i, id) in ids.iter().enumerate() {

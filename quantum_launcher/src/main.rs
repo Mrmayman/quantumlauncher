@@ -96,16 +96,18 @@ impl Launcher {
             Message::UpdateCheckResult,
         );
         let get_entries_command = Task::perform(get_entries(false), Message::CoreListLoaded);
-        let log_cmd = Task::perform(file_utils::clean_log_spam(), |n| {
-            Message::CoreLogCleanComplete(n.strerr())
-        });
 
         (
             Launcher::load_new(None, is_new_user, config).unwrap_or_else(Launcher::with_error),
             Task::batch([
                 check_for_updates_command,
                 get_entries_command,
-                log_cmd,
+                Task::perform(file_utils::clean_dir("logs"), |n| {
+                    Message::CoreCleanComplete(n.strerr())
+                }),
+                Task::perform(file_utils::clean_dir("downloads/cache"), |n| {
+                    Message::CoreCleanComplete(n.strerr())
+                }),
                 CustomJarState::load(),
             ]),
         )
