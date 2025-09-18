@@ -19,6 +19,7 @@ pub enum StyleScrollable {
 pub enum StyleButton {
     #[default]
     Round,
+    RoundDark,
     Flat,
     FlatDark,
     FlatExtraDark,
@@ -31,7 +32,7 @@ pub trait IsFlat {
 impl IsFlat for StyleButton {
     fn is_flat(&self) -> bool {
         match self {
-            StyleButton::Round => false,
+            StyleButton::Round | StyleButton::RoundDark => false,
             StyleButton::Flat | StyleButton::FlatDark | StyleButton::FlatExtraDark => true,
         }
     }

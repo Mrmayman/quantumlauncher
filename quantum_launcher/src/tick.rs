@@ -12,7 +12,7 @@ use ql_core::{
 use ql_mod_manager::store::{ModConfig, ModIndex};
 
 use crate::state::{
-    EditInstanceMessage, ImageState, InstallModsMessage, InstanceLog, LaunchTabId, Launcher,
+    EditInstanceMessage, InstallModsMessage, InstanceLog, LaunchTabId, Launcher,
     ManageJarModsMessage, MenuCreateInstance, MenuEditMods, MenuExportInstance, MenuInstallFabric,
     MenuInstallOptifine, MenuLaunch, MenuLoginMS, MenuModsDownload, MenuRecommendedMods,
     MenuServerCreate, Message, ModListEntry, ServerProcess, State,
@@ -87,9 +87,7 @@ impl Launcher {
                     return self.go_to_main_menu_with_message(Some("Installed Java"));
                 }
             }
-            State::ModsDownload(menu) => {
-                return menu.tick(self.selected_instance.clone().unwrap(), &mut self.images)
-            }
+            State::ModsDownload(menu) => return menu.tick(self.selected_instance.clone().unwrap()),
             State::LauncherSettings(_) => {
                 let launcher_config = self.config.clone();
                 return Task::perform(
@@ -173,25 +171,6 @@ impl Launcher {
             Message::EditInstance(EditInstanceMessage::ConfigSaved(n.strerr()))
         });
         commands.push(cmd);
-    }
-
-    pub fn get_imgs_to_load(&mut self) -> Vec<Task<Message>> {
-        let mut commands = Vec::new();
-
-        let mut images_to_load = self.images.to_load.lock().unwrap();
-
-        for url in images_to_load.iter() {
-            if !self.images.downloads_in_progress.contains(url) {
-                self.images.downloads_in_progress.insert(url.to_owned());
-                commands.push(Task::perform(
-                    ql_mod_manager::store::download_image(url.to_owned(), false),
-                    |n| Message::InstallMods(InstallModsMessage::ImageDownloaded(n)),
-                ));
-            }
-        }
-
-        images_to_load.clear();
-        commands
     }
 
     fn tick_client_processes_and_logs(&mut self) {
@@ -329,37 +308,11 @@ impl Launcher {
 }
 
 impl MenuModsDownload {
-    pub fn tick(
-        &mut self,
-        selected_instance: InstanceSelection,
-        images: &mut ImageState,
-    ) -> Task<Message> {
-        let index_cmd = Task::perform(
+    pub fn tick(&mut self, selected_instance: InstanceSelection) -> Task<Message> {
+        Task::perform(
             async move { ModIndex::load(&selected_instance).await },
             |n| Message::InstallMods(InstallModsMessage::IndexUpdated(n.strerr())),
-        );
-
-        if let Some(results) = &self.results {
-            let mut commands = vec![index_cmd];
-            for result in &results.mods {
-                if commands.len() > 64 {
-                    break;
-                }
-                if !images.downloads_in_progress.contains(&result.title)
-                    && !result.icon_url.is_empty()
-                {
-                    images.downloads_in_progress.insert(result.title.clone());
-                    commands.push(Task::perform(
-                        ql_mod_manager::store::download_image(result.icon_url.clone(), true),
-                        |n| Message::InstallMods(InstallModsMessage::ImageDownloaded(n)),
-                    ));
-                }
-            }
-
-            Task::batch(commands)
-        } else {
-            index_cmd
-        }
+        )
     }
 }
 

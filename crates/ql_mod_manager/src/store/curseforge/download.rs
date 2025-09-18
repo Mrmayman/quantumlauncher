@@ -125,6 +125,7 @@ impl<'a> ModDownloader<'a> {
             QueryType::Shaders => &self.shaderpacks_dir,
             QueryType::ModPacks => {
                 let bytes = file_utils::download_file_to_bytes(&url, true).await?;
+                self.index.save(&self.instance).await?;
                 if let Some(not_allowed_new) =
                     install_modpack(bytes, self.instance.clone(), self.sender)
                         .await
@@ -134,6 +135,7 @@ impl<'a> ModDownloader<'a> {
                 } else {
                     err!("Invalid modpack downloaded from curseforge! Corrupted?");
                 }
+                self.index = ModIndex::load(&self.instance).await?;
                 return Ok(());
             }
         };
@@ -176,48 +178,50 @@ impl<'a> ModDownloader<'a> {
         url: String,
         id_mod: &ModId,
     ) {
-        if let QueryType::Mods = query_type {
-            let id_index_str = id_mod.get_index_str();
-            self.index.mods.insert(
-                id_index_str.clone(),
-                ModConfig {
-                    name: response.name.clone(),
-                    manually_installed: dependent.is_none(),
-                    installed_version: file_query.data.displayName.clone(),
-                    version_release_time: file_query.data.fileDate.clone(),
-                    enabled: true,
-                    description: response.summary.clone(),
-                    icon_url: response.logo.clone().map(|n| n.url),
-                    project_source: SOURCE_ID_CURSEFORGE.to_owned(),
-                    project_id: id_index_str.clone(),
-                    files: vec![ModFile {
-                        url,
-                        filename: file_query.data.fileName,
-                        primary: true,
-                    }],
-                    supported_versions: file_query
-                        .data
-                        .gameVersions
-                        .iter()
-                        .filter(|n| n.contains('.'))
-                        .cloned()
-                        .collect(),
-                    dependencies: file_query
-                        .data
-                        .dependencies
-                        .into_iter()
-                        .map(|n| format!("CF:{}", n.modId))
-                        .collect(),
-                    dependents: if let Some(dependent) = dependent {
-                        let mut set = HashSet::new();
-                        set.insert(format!("CF:{dependent}"));
-                        set
-                    } else {
-                        HashSet::new()
-                    },
+        let QueryType::Mods = query_type else {
+            return;
+        };
+
+        let id_index_str = id_mod.get_index_str();
+        self.index.mods.insert(
+            id_index_str.clone(),
+            ModConfig {
+                name: response.name.clone(),
+                manually_installed: dependent.is_none(),
+                installed_version: file_query.data.displayName.clone(),
+                version_release_time: file_query.data.fileDate.clone(),
+                enabled: true,
+                description: response.summary.clone(),
+                icon_url: response.logo.clone().map(|n| n.url),
+                project_source: SOURCE_ID_CURSEFORGE.to_owned(),
+                project_id: id_index_str.clone(),
+                files: vec![ModFile {
+                    url,
+                    filename: file_query.data.fileName,
+                    primary: true,
+                }],
+                supported_versions: file_query
+                    .data
+                    .gameVersions
+                    .iter()
+                    .filter(|n| n.contains('.'))
+                    .cloned()
+                    .collect(),
+                dependencies: file_query
+                    .data
+                    .dependencies
+                    .into_iter()
+                    .map(|n| format!("CF:{}", n.modId))
+                    .collect(),
+                dependents: if let Some(dependent) = dependent {
+                    let mut set = HashSet::new();
+                    set.insert(format!("CF:{dependent}"));
+                    set
+                } else {
+                    HashSet::new()
                 },
-            );
-        }
+            },
+        );
     }
 
     async fn get_query(&mut self, id: &str) -> Result<Mod, ModError> {

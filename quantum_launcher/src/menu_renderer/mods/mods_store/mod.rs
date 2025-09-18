@@ -86,7 +86,9 @@ impl MenuModsDownload {
 
     fn get_side_panel(&'_ self) -> Element<'_> {
         let normal_controls = widget::column!(
-            back_button().on_press(Message::ManageMods(ManageModsMessage::ScreenOpen)),
+            back_button().on_press(Message::ManageMods(
+                ManageModsMessage::ScreenOpenWithoutUpdate
+            )),
             widget::Space::with_height(5.0),
             widget::text("Select store:").size(18),
             widget::radio(
@@ -184,13 +186,11 @@ impl MenuModsDownload {
             ),
             widget::button(
                 widget::row!(
-                    if let Some(icon) = images.bitmap.get(&hit.icon_url) {
-                        widget::column!(widget::image(icon.clone()))
-                    } else if let Some(icon) = images.svg.get(&hit.icon_url) {
-                        widget::column!(widget::svg(icon.clone()).width(32))
-                    } else {
-                        widget::column!(widget::text("..."))
-                    },
+                    images.view(
+                        &hit.icon_url,
+                        Some(32),
+                        widget::column!(widget::text("...")).into()
+                    ),
                     widget::column!(
                         icon_manager::download_with_size(20),
                         widget::text(Self::format_downloads(hit.downloads)).size(12),
@@ -281,13 +281,7 @@ impl MenuModsDownload {
                 )
                 .spacing(5),
                 widget::row!(
-                    if let Some(icon) = images.bitmap.get(&hit.icon_url) {
-                        widget::column!(widget::image(icon.clone()))
-                    } else if let Some(icon) = images.svg.get(&hit.icon_url) {
-                        widget::column!(widget::svg(icon.clone()))
-                    } else {
-                        widget::column!(widget::text(""))
-                    },
+                    images.view(&hit.icon_url, None, "".into()),
                     widget::text(&hit.title).size(24)
                 )
                 .spacing(10),

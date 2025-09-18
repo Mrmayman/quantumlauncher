@@ -9,7 +9,8 @@ use crate::{
     message_handler::format_memory,
     state::{
         dir_watch, get_entries, CustomJarState, EditInstanceMessage, Launcher, MenuEditInstance,
-        MenuLaunch, Message, State, ADD_JAR_NAME, NONE_JAR_NAME, REMOVE_JAR_NAME,
+        MenuLaunch, Message, State, ADD_JAR_NAME, NONE_JAR_NAME, OPEN_FOLDER_JAR_NAME,
+        REMOVE_JAR_NAME,
     },
 };
 
@@ -247,6 +248,10 @@ impl Launcher {
                         }
                     } else if path == NONE_JAR_NAME {
                         menu.config.custom_jar = None;
+                    } else if path == OPEN_FOLDER_JAR_NAME {
+                        return Ok(Task::done(Message::CoreOpenPath(
+                            LAUNCHER_DIR.join("custom_jars"),
+                        )));
                     } else {
                         menu.config
                             .custom_jar

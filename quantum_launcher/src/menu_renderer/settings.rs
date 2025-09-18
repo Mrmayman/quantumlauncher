@@ -1,5 +1,5 @@
 use iced::{widget, Length};
-use ql_core::LAUNCHER_DIR;
+use ql_core::{LAUNCHER_DIR, WEBSITE};
 
 use super::{
     back_button, button_with_icon, get_theme_selector, sidebar_button, underline, Element, DISCORD,
@@ -251,17 +251,14 @@ impl LauncherSettingsTab {
                     // An Iced bug (or maybe some dumb mistake I made),
                     // putting underlines in buttons the "official" way makes them unclickable.
 
-                    widget::button(underline(widget::text("GNU GPLv3 License").size(12)))
+                    widget::button(underline(widget::text("GNU GPLv3 License").size(12), Color::Light))
                         .padding(0)
                         .style(|n: &LauncherTheme, status| n.style_button(status, StyleButton::FlatDark))
                         .on_press(Message::LicenseChangeTab(crate::state::LicenseTab::Gpl3));
 
                 let links = widget::row![
-                    button_with_icon(icon_manager::globe(), "Website", 16).on_press(
-                        Message::CoreOpenLink(
-                            "https://mrmayman.github.io/quantumlauncher".to_owned()
-                        )
-                    ),
+                    button_with_icon(icon_manager::globe(), "Website", 16)
+                        .on_press(Message::CoreOpenLink(WEBSITE.to_owned())),
                     button_with_icon(icon_manager::github(), "Github", 16)
                         .on_press(Message::CoreOpenLink(GITHUB.to_owned())),
                     button_with_icon(icon_manager::discord(), "Discord", 16)

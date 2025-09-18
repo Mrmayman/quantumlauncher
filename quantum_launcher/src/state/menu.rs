@@ -110,15 +110,17 @@ impl ModListEntry {
         }
     }
 
-    pub fn name(&self) -> String {
+    pub fn name(&self) -> &str {
         match self {
-            ModListEntry::Local { file_name } => file_name.clone(),
-            ModListEntry::Downloaded { config, .. } => config.name.clone(),
+            ModListEntry::Local { file_name } => &file_name,
+            ModListEntry::Downloaded { config, .. } => &config.name,
         }
     }
+}
 
-    pub fn id(&self) -> SelectedMod {
-        match self {
+impl From<ModListEntry> for SelectedMod {
+    fn from(value: ModListEntry) -> Self {
+        match value {
             ModListEntry::Local { file_name } => SelectedMod::Local {
                 file_name: file_name.clone(),
             },
@@ -126,6 +128,21 @@ impl ModListEntry {
                 name: config.name.clone(),
                 id: id.clone(),
             },
+        }
+    }
+}
+
+impl PartialEq<ModListEntry> for SelectedMod {
+    fn eq(&self, other: &ModListEntry) -> bool {
+        match (self, other) {
+            (
+                SelectedMod::Downloaded { name, id },
+                ModListEntry::Downloaded { id: id2, config },
+            ) => id == id2 && *name == config.name,
+            (SelectedMod::Local { file_name }, ModListEntry::Local { file_name: name2 }) => {
+                file_name == name2
+            }
+            _ => false,
         }
     }
 }
@@ -142,12 +159,18 @@ pub struct MenuEditMods {
     pub sorted_mods_list: Vec<ModListEntry>,
 
     pub selected_mods: HashSet<SelectedMod>,
+    pub shift_selected_mods: HashSet<SelectedMod>,
     pub selected_state: SelectedState,
 
     pub update_check_handle: Option<iced::task::Handle>,
     pub available_updates: Vec<(ModId, String, bool)>,
+
+    /// Index of the item selected before pressing shift
+    pub list_shift_index: Option<usize>,
     pub drag_and_drop_hovered: bool,
     pub submenu1_shown: bool,
+
+    pub width_name: f32,
 }
 
 impl MenuEditMods {
@@ -198,6 +221,16 @@ impl MenuEditMods {
             })
             .collect();
         (ids_downloaded, ids_local)
+    }
+
+    pub fn update_selected_state(&mut self) {
+        self.selected_state = if self.selected_mods.is_empty() {
+            SelectedState::None
+        } else if self.selected_mods.len() == self.sorted_mods_list.len() {
+            SelectedState::All
+        } else {
+            SelectedState::Some
+        };
     }
 }
 
@@ -346,6 +379,7 @@ pub enum MenuWelcome {
 pub struct MenuCurseforgeManualDownload {
     pub unsupported: HashSet<CurseforgeNotAllowed>,
     pub is_store: bool,
+    pub delete_mods: bool,
 }
 
 pub struct MenuExportInstance {

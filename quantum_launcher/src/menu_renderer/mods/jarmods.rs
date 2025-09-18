@@ -3,7 +3,7 @@ use ql_core::{jarmod::JarMods, InstanceSelection};
 
 use crate::{
     icon_manager,
-    menu_renderer::{back_button, button_with_icon, Element},
+    menu_renderer::{back_button, button_with_icon, link, Element},
     state::{ManageJarModsMessage, ManageModsMessage, MenuEditJarMods, Message, SelectedState},
     stylesheet::{color::Color, styles::LauncherTheme},
 };
@@ -14,36 +14,33 @@ impl MenuEditJarMods {
             widget::container(
                 widget::scrollable(
                     widget::column!(
-                        back_button().on_press(Message::ManageMods(ManageModsMessage::ScreenOpen)),
+                        back_button().on_press(Message::ManageMods(
+                            ManageModsMessage::ScreenOpenWithoutUpdate
+                        )),
                         widget::column![
                             {
-                                let path = {
-                                    let path =
-                                        selected_instance.get_instance_path().join("jarmods");
-                                    path.exists().then_some(path)
-                                };
+                                let path = selected_instance.get_instance_path().join("jarmods");
 
                                 button_with_icon(
                                     icon_manager::folder_with_size(14),
                                     "Open Folder",
                                     15,
                                 )
-                                .on_press_maybe(path.map(Message::CoreOpenPath))
+                                .on_press(Message::CoreOpenPath(path))
                             },
                             button_with_icon(icon_manager::create(), "Add file", 15)
                                 .on_press(Message::ManageJarMods(ManageJarModsMessage::AddFile)),
                         ]
                         .spacing(5),
                         widget::row![
-                            "You can find some good jar mods at McArchive",
-                            widget::button("Open").on_press(Message::CoreOpenLink(
-                                "https://mcarchive.net".to_owned()
-                            ))
+                            "You can find some good jar mods at ",
+                            link("McArchive", "https://mcarchive.net".to_owned()),
                         ]
-                        .spacing(5)
                         .wrap(),
+                        widget::horizontal_rule(1),
                         widget::column![
                             "WARNING: JarMods are mainly for OLD Minecraft versions.",
+                            widget::Space::with_height(5),
                             widget::text(
                                 "This is easier than copying .class files into Minecraft's jar"
                             )

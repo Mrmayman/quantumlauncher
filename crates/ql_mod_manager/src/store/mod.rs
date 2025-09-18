@@ -315,6 +315,22 @@ async fn get_mods_resourcepacks_shaderpacks_dir(
     Ok((mods_dir, resource_packs_dir, shader_packs_dir))
 }
 
+async fn get_dir(
+    instance: &InstanceSelection,
+    json: &VersionDetails,
+    query_type: QueryType,
+) -> Result<std::path::PathBuf, PackError> {
+    let (dir_mods, dir_res_packs, dir_shader) =
+        get_mods_resourcepacks_shaderpacks_dir(instance, json).await?;
+    let dir = match query_type {
+        QueryType::Mods => dir_mods,
+        QueryType::ResourcePacks => dir_res_packs,
+        QueryType::Shaders => dir_shader,
+        QueryType::ModPacks => return Err(PackError::ModpackInModpack),
+    };
+    Ok(dir)
+}
+
 #[must_use]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct CurseforgeNotAllowed {

@@ -60,24 +60,6 @@ impl MenuWelcome {
             MenuWelcome::P3Auth => widget::column![
                 widget::vertical_space(),
                 center_x(
-                    widget::text_input("Enter username...", &config.username)
-                        .width(200)
-                        .on_input(Message::LaunchUsernameSet)
-                ),
-                center_x(
-                    widget::button(center_x("Continue"))
-                        .width(200)
-                        .on_press_maybe((!config.username.is_empty()).then_some(
-                            Message::LaunchScreenOpen {
-                                message: None,
-                                clear_selection: true
-                            }
-                        ))
-                ),
-                widget::Space::with_height(7),
-                center_x(widget::text("OR").size(20)),
-                widget::Space::with_height(7),
-                center_x(
                     widget::button("Login to Microsoft").on_press(Message::Account(
                         AccountMessage::OpenMicrosoft {
                             is_from_welcome_screen: true
@@ -95,6 +77,24 @@ impl MenuWelcome {
                             is_from_welcome_screen: true
                         }
                     ))
+                ),
+                widget::Space::with_height(7),
+                center_x(widget::text("OR").size(20)),
+                widget::Space::with_height(7),
+                center_x(
+                    widget::text_input("Enter username...", &config.username)
+                        .width(200)
+                        .on_input(Message::LaunchUsernameSet)
+                ),
+                center_x(
+                    widget::button(center_x("Continue"))
+                        .width(200)
+                        .on_press_maybe((!config.username.is_empty()).then_some(
+                            Message::LaunchScreenOpen {
+                                message: None,
+                                clear_selection: true
+                            }
+                        ))
                 ),
                 widget::vertical_space(),
             ]

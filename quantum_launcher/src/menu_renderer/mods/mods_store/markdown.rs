@@ -130,16 +130,7 @@ impl MenuModsDownload {
             NodeValue::Strikethrough => todoh!("strikethrough"),
             NodeValue::Superscript => todoh!("superscript"),
             NodeValue::Image(link) => {
-                if let Some(image) = images.bitmap.get(&link.url) {
-                    // Image
-                    widget::image(image.clone()).into()
-                } else if let Some(image) = images.svg.get(&link.url) {
-                    widget::svg(image.clone()).into()
-                } else {
-                    let mut images_to_load = images.to_load.lock().unwrap();
-                    images_to_load.insert(link.url.clone());
-                    widget::text("(Loading image...)").into()
-                }
+                images.view(&link.url, None, widget::text("(Loading image...)").into())
             }
             NodeValue::FootnoteReference(_) => todoh!("footnote reference"),
             NodeValue::Math(_) => todoh!("math"),
@@ -195,8 +186,8 @@ fn render_children<'arena, 'element>(
     images: &'element ImageState,
     window_size: (f32, f32),
 ) -> widget::Column<'element, Message, crate::stylesheet::styles::LauncherTheme> {
-    let mut column = widget::column![];
-    let mut row = widget::row![];
+    let mut column = widget::Column::new();
+    let mut row = widget::Row::new();
 
     let mut is_newline = false;
 
@@ -207,7 +198,7 @@ fn render_children<'arena, 'element>(
         };
         if is_newline | force_newline {
             column = column.push(row.wrap());
-            row = widget::row![];
+            row = widget::Row::new();
         }
 
         let mut element = widget::column!().into();

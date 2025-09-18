@@ -17,7 +17,7 @@ use crate::state::{
 impl Launcher {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Nothing | Message::CoreLogCleanComplete(Ok(())) => {}
+            Message::Nothing | Message::CoreCleanComplete(Ok(())) => {}
             Message::Multiple(msgs) => {
                 let mut task = Task::none();
                 for msg in msgs {
@@ -34,7 +34,7 @@ impl Launcher {
                 }
             }
 
-            Message::UpdateCheckResult(Err(err)) | Message::CoreLogCleanComplete(Err(err)) => {
+            Message::UpdateCheckResult(Err(err)) | Message::CoreCleanComplete(Err(err)) => {
                 err_no_log!("{err}");
             }
 
@@ -87,7 +87,14 @@ impl Launcher {
             },
             Message::InstallFabric(message) => return self.update_install_fabric(message),
             Message::CoreOpenLink(dir) => open_file_explorer(&dir),
-            Message::CoreOpenPath(dir) => open_file_explorer(&dir),
+            Message::CoreOpenPath(dir) => {
+                if !dir.exists() {
+                    if dir.to_string_lossy().contains("jarmods") {
+                        _ = std::fs::create_dir_all(&dir);
+                    }
+                }
+                open_file_explorer(&dir)
+            }
             Message::CoreCopyError => {
                 if let State::Error { error } = &self.state {
                     return iced::clipboard::write(format!("(QuantumLauncher): {error}"));
@@ -109,9 +116,17 @@ impl Launcher {
                 }
                 return iced::clipboard::write(format!("QuantumLauncher Log:\n{log}"));
             }
+            Message::CoreImageDownloaded(res) => match res {
+                Ok(image) => {
+                    self.images.insert_image(image);
+                }
+                Err(err) => {
+                    err!("Could not download image: {err}");
+                }
+            },
             Message::CoreTick => {
                 self.tick_timer = self.tick_timer.wrapping_add(1);
-                let mut tasks = self.get_imgs_to_load();
+                let mut tasks = self.images.get_imgs_to_load();
                 let command = self.tick();
                 tasks.push(command);
 

@@ -1,11 +1,15 @@
 use clap::{Arg, ArgAction, Command};
-use owo_colors::OwoColorize;
-use ql_core::{err, LAUNCHER_VERSION_NAME};
-use std::io::Write;
+use itertools::Itertools;
+use owo_colors::{OwoColorize, Style};
+use ql_core::{err, LAUNCHER_VERSION_NAME, WEBSITE};
 
-use crate::menu_renderer::{DISCORD, GITHUB};
+use crate::{
+    cli::helpers::render_row,
+    menu_renderer::{DISCORD, GITHUB},
+};
 
 mod command;
+mod helpers;
 
 fn command() -> Command {
     Command::new(if cfg!(target_os = "windows") {
@@ -32,13 +36,14 @@ fn command() -> Command {
     )
     .subcommand(get_launch_subcommand())
     .subcommand(
-        get_list_instance_subcommands("list-instances")
+        get_list_instance_command("list")
+            .alias("list-instances")
             .short_flag('l')
             .about("Lists all installed Minecraft instances")
             .long_about("Lists all installed Minecraft instances. Can be paired with hyphen-separated-flags like name-loader, name-version, loader-name-version"),
     )
     .subcommand(
-        get_list_instance_subcommands("list-servers")
+        get_list_instance_command("list-servers")
             .about("Lists all installed Minecraft servers")
             .long_about("Lists all installed Minecraft servers. Can be paired with hyphen-separated-flags like name-loader, name-version, loader-name-version")
             .hide(true),
@@ -79,24 +84,14 @@ fn get_launch_subcommand() -> Command {
         ])
 }
 
-fn get_list_instance_subcommands(name: &'static str) -> Command {
-    Command::new(name)
-        // May god forgive me for what I'm about to do
-        .subcommand(Command::new("name"))
-        .subcommand(Command::new("version"))
-        .subcommand(Command::new("loader"))
-        .subcommand(Command::new("name-version"))
-        .subcommand(Command::new("name-loader"))
-        .subcommand(Command::new("version-name"))
-        .subcommand(Command::new("version-loader"))
-        .subcommand(Command::new("loader-name"))
-        .subcommand(Command::new("loader-version"))
-        .subcommand(Command::new("name-version-loader"))
-        .subcommand(Command::new("name-loader-version"))
-        .subcommand(Command::new("version-name-loader"))
-        .subcommand(Command::new("version-loader-name"))
-        .subcommand(Command::new("loader-name-version"))
-        .subcommand(Command::new("loader-version-name"))
+fn get_list_instance_command(name: &'static str) -> Command {
+    Command::new(name).arg(
+        Arg::new("fields")
+            .help("Fields to display (any combination of name, version, loader)")
+            .num_args(1..) // accept 1 or more
+            .action(ArgAction::Append)
+            .value_parser(["name", "version", "loader"]),
+    )
 }
 
 fn long_about() -> String {
@@ -104,12 +99,13 @@ fn long_about() -> String {
         r"
 QuantumLauncher: A simple, powerful Minecraft launcher
 
-Website: https://mrmayman.github.io/quantumlauncher
+Website: {WEBSITE}
 Github : {GITHUB}
 Discord: {DISCORD}"
     )
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum PrintCmd {
     Name,
     Version,
@@ -126,100 +122,54 @@ enum PrintCmd {
 ///
 /// The other files in `assets/ascii` are unused.
 fn print_intro() {
-    /// Helper function to pad lines to a fixed width
-    fn pad_line(line: Option<&str>, width: usize) -> String {
-        let line = line.unwrap_or_default();
-        if line.len() < width {
-            format!("{line:<width$}")
-        } else {
-            line.to_owned()
-        }
-    }
-
-    const TEXT_WIDTH: u16 = 39;
-
     const LOGO: &str = include_str!("../../../assets/ascii/icon.txt");
     const LOGO_WIDTH: u16 = 30;
 
-    if cfg!(target_os = "windows") {
-        return;
-    }
-
-    let (text, text_len_old) = get_side_text();
-
-    let logo_len: usize = LOGO.lines().count();
+    let text = get_right_text();
 
     let Some((terminal_size::Width(width), _)) = terminal_size::terminal_size() else {
         return;
     };
 
-    let mut stdout = std::io::stdout().lock();
+    let draw_contents = &[
+        (LOGO.to_owned(), Some(Style::new().purple().bold())),
+        (text.clone(), None),
+    ];
 
-    // Ok, this code is uncomfortably ugly but bear with me...
-    if width > TEXT_WIDTH + LOGO_WIDTH {
-        // Screen large enough for Text and Logo
-        // to fit side-by-side
-        let lines_len = std::cmp::max(text.lines().count(), LOGO.lines().count());
-        for i in 0..lines_len {
-            let text_line = pad_line(text.lines().nth(i), TEXT_WIDTH as usize);
-            let logo_line = pad_line(LOGO.lines().nth(i), LOGO_WIDTH as usize);
-            if i >= logo_len {
-                _ = write!(stdout, "{logo_line} ");
-            } else {
-                _ = write!(stdout, "{} ", logo_line.purple().bold());
-            }
-            if i >= text_len_old {
-                _ = write!(stdout, "{text_line}");
-            } else {
-                _ = write!(stdout, "{}", text_line.bold());
-            }
-            _ = writeln!(stdout);
-        }
-    } else if width >= TEXT_WIDTH {
-        // Screen only large enough for
-        // Text and Logo to fit one after another
-        // vertically
-        _ = writeln!(stdout, "{}\n{}", LOGO.purple().bold(), text.bold());
-    } else if width >= LOGO_WIDTH {
-        // Screen only large enough for Logo,
-        // not text
-        _ = writeln!(stdout, "{}", LOGO.purple().bold());
+    // If we got enough space for both side-by-side
+    if let Some(res) = render_row(width, draw_contents, false) {
+        println!("{res}");
     } else {
-        // Screen is too tiny
-        _ = writeln!(stdout, "Quantum Launcher {LAUNCHER_VERSION_NAME}");
+        if width >= LOGO_WIDTH {
+            // Screen only large enough for Logo, not text
+            println!("{}", LOGO.purple().bold());
+        }
+        println!(
+            " {} {}\n",
+            "Quantum Launcher".purple().bold(),
+            LAUNCHER_VERSION_NAME.purple()
+        );
     }
-    _ = writeln!(stdout);
 }
 
-fn get_side_text() -> (String, usize) {
-    let mut text = include_str!("../../../assets/ascii/text.txt").to_owned();
-    let text_len_old = text.lines().count();
+fn get_right_text() -> String {
+    const TEXT: &str = include_str!("../../../assets/ascii/text.txt");
 
-    let mut message = if cfg!(target_os = "windows") {
-        "\n A simple, powerful Minecraft launcher".to_owned()
-    } else {
-        format!(
-            "\n {}",
-            "A simple, powerful Minecraft launcher".green().bold(),
-        )
-    };
+    let message = format!(
+        r"{TEXT}
+ {}
+ {}
+ {}
 
-    message.push_str("\n This window just shows debug info so\n feel free to ignore it\n\n ");
+ For a list of commands type
+ {help}",
+        "A simple, powerful Minecraft launcher".green().bold(),
+        "This window shows debug info;".bright_black(),
+        "feel free to ignore it".bright_black(),
+        help = "./quantum_launcher --help".yellow()
+    );
 
-    let list_of_commands = if cfg!(target_os = "windows") {
-        "For a list of commands type 'quantum_launcher.exe --help'".to_owned()
-    } else {
-        format!(
-            "For a list of commands type\n {} {}",
-            "./quantum_launcher".yellow().bold(),
-            "--help".yellow()
-        )
-    };
-    message.push_str(&list_of_commands);
-
-    text.push_str(&message);
-
-    (text, text_len_old)
+    message
 }
 
 pub fn start_cli(is_dir_err: bool) {
@@ -231,15 +181,13 @@ pub fn start_cli(is_dir_err: bool) {
             std::process::exit(1);
         }
         match subcommand.0 {
-            "list-instances" => {
-                let command = get_list_instance_subcommand(subcommand);
-                command::list_instances(&command, false);
-                std::process::exit(0);
+            "list" | "list-instances" => {
+                let command = get_list_instance_subcommand(&subcommand.1);
+                quit(command::list_instances(&command, false));
             }
             "list-servers" => {
-                let command = get_list_instance_subcommand(subcommand);
-                command::list_instances(&command, true);
-                std::process::exit(0);
+                let command = get_list_instance_subcommand(&subcommand.1);
+                quit(command::list_instances(&command, true));
             }
             "list-available-versions" => {
                 command::list_available_versions();
@@ -265,21 +213,21 @@ fn quit(res: Result<(), Box<dyn std::error::Error + 'static>>) {
     });
 }
 
-fn get_list_instance_subcommand(subcommand: (&str, &clap::ArgMatches)) -> Vec<PrintCmd> {
-    if let Some((cmd, _)) = subcommand.1.subcommand() {
-        let mut cmds = Vec::new();
-        for cmd in cmd.split('-') {
-            match cmd {
-                "name" => cmds.push(PrintCmd::Name),
-                "version" => cmds.push(PrintCmd::Version),
-                "loader" => cmds.push(PrintCmd::Loader),
-                invalid => {
-                    panic!("Invalid subcommand {invalid}! Use any combination of name, version and loader separated by hyphen '-'");
-                }
-            }
-        }
-        cmds
+fn get_list_instance_subcommand(matches: &clap::ArgMatches) -> Vec<PrintCmd> {
+    if let Some(values) = matches.get_many::<String>("fields") {
+        values
+            .map(|val| match val.as_str() {
+                "name" => PrintCmd::Name,
+                "version" => PrintCmd::Version,
+                "loader" => PrintCmd::Loader,
+                invalid => panic!(
+                    "Invalid field {invalid}! Use any combination of name, version, and loader."
+                ),
+            })
+            .unique()
+            .collect()
     } else {
+        // Default to showing name if no args passed
         vec![PrintCmd::Name]
     }
 }

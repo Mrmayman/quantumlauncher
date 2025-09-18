@@ -26,7 +26,7 @@ impl Backend for ModrinthBackend {
         offset: usize,
         query_type: QueryType,
     ) -> Result<SearchResult, ModError> {
-        let _lock = RATE_LIMITER.lock().await;
+        RATE_LIMITER.lock().await;
         let instant = Instant::now();
 
         let res = search::do_request(&query, offset, query_type).await?;

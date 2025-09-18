@@ -1,4 +1,4 @@
-use ql_core::file_utils;
+use ql_core::{url_cache_get, IntoStringError};
 
 #[derive(Clone)]
 pub struct ImageResult {
@@ -28,24 +28,7 @@ pub async fn download_image(url: String, icon: bool) -> Result<ImageResult, Stri
         return Err("url is empty".to_owned());
     }
 
-    let image = match file_utils::download_file_to_bytes(&url, true).await {
-        Ok(n) => n,
-        Err(_) => {
-            // WTF: Some pesky cloud provider might be
-            // blocking the launcher because they think it's a bot.
-
-            // I understand people do this to protect
-            // their servers but what this is doing is clearly
-            // not malicious. We're just downloading some images :)
-
-            file_utils::download_file_to_bytes_with_agent(
-                &url,
-                "Mozilla/5.0 (X11; Linux x86_64; rv:135.0) Gecko/20100101 Firefox/135.0",
-            )
-            .await
-            .map_err(|err| format!("{url} (with fake agent): {err}"))?
-        }
-    };
+    let image = url_cache_get(&url).await.strerr()?;
 
     if url.to_lowercase().ends_with(".svg") {
         return Ok(ImageResult {

@@ -25,6 +25,7 @@ mod loader;
 /// Logging macros.
 pub mod print;
 mod progress;
+mod urlcache;
 
 use std::{
     ffi::OsStr,
@@ -44,12 +45,16 @@ use json::VersionDetails;
 pub use loader::Loader;
 pub use print::{logger_finish, LogType, LoggingState, LOGGER};
 pub use progress::{DownloadProgress, GenericProgress, Progress};
+pub use urlcache::url_cache_get;
+
 use regex::Regex;
 
 pub static REGEX_SNAPSHOT: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\d{2}w\d*[a-zA-Z]+").unwrap());
 
 pub const CLASSPATH_SEPARATOR: char = if cfg!(unix) { ':' } else { ';' };
+
+pub const WEBSITE: &str = "https://mrmayman.github.io/quantumlauncher";
 
 /// To prevent spawning of terminal (windows only).
 ///
@@ -358,6 +363,15 @@ pub enum StoreBackendType {
 pub enum SelectedMod {
     Downloaded { name: String, id: ModId },
     Local { file_name: String },
+}
+
+impl SelectedMod {
+    pub fn from_pair(name: String, id: Option<ModId>) -> Self {
+        match id {
+            Some(id) => Self::Downloaded { name, id },
+            None => Self::Local { file_name: name },
+        }
+    }
 }
 
 /// Opens the file explorer or browser

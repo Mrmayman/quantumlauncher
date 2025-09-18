@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
 use iced::advanced::text::Wrapping;
+use iced::keyboard::Modifiers;
 use iced::widget::tooltip::Position;
-use iced::{widget, Length};
+use iced::{widget, Length, Padding};
 use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
 
+use crate::menu_renderer::underline;
 use crate::{
     icon_manager,
     menu_renderer::DISCORD,
@@ -85,7 +87,7 @@ impl Launcher {
                         } else {
                             self.get_client_play_button(selected_instance_s)
                         },
-                        get_mods_button(selected_instance_s),
+                        self.get_mods_button(selected_instance_s),
                         Self::get_files_button(selected),
                     ]
                     .spacing(5)
@@ -147,6 +149,21 @@ impl Launcher {
         };
 
         widget::column!(tab_selector, tab_body).spacing(5).into()
+    }
+
+    fn get_mods_button(
+        &self,
+        selected_instance_s: Option<&str>,
+    ) -> widget::Button<'_, Message, LauncherTheme> {
+        button_with_icon(icon_manager::download(), "Mods", 15)
+            .on_press_maybe(selected_instance_s.is_some().then_some(
+                if self.modifiers_pressed.contains(Modifiers::SHIFT) {
+                    Message::ManageMods(ManageModsMessage::ScreenOpenWithoutUpdate)
+                } else {
+                    Message::ManageMods(ManageModsMessage::ScreenOpen)
+                },
+            ))
+            .width(98)
     }
 
     pub fn get_log_pane<'element>(
@@ -265,12 +282,14 @@ impl Launcher {
                         None
                     };
 
-                    let text = widget::text(name).size(16);
+                    let text = widget::text(name)
+                        .size(15)
+                        .style(|t: &LauncherTheme| t.style_text(Color::SecondLight));
 
-                    if selected_instance_s == Some(name) {
+                    let selector: Element = if selected_instance_s == Some(name) {
                         widget::container(widget::row!(widget::Space::with_width(5), text))
                             .style(LauncherTheme::style_container_selected_flat_button)
-                            .width(menu.sidebar_width)
+                            .width(Length::Fill)
                             .padding(5)
                             .into()
                     } else {
@@ -282,9 +301,11 @@ impl Launcher {
                                 name: name.clone(),
                                 is_server: menu.is_viewing_server,
                             })
-                            .width(menu.sidebar_width)
+                            .width(Length::Fill)
                             .into()
-                    }
+                    };
+
+                    underline(selector, Color::Dark).into()
                 })))
                 .height(Length::Fill)
                 .style(LauncherTheme::style_scrollable_flat_extra_dark)
@@ -293,6 +314,7 @@ impl Launcher {
                     let total = n.content_bounds().height - n.bounds().height;
                     Message::LaunchScrollSidebar(total)
                 }),
+                widget::horizontal_rule(1).style(|t: &LauncherTheme| t.style_rule(Color::Dark, 1)),
                 self.get_accounts_bar(menu),
             ]
             .spacing(5)
@@ -320,7 +342,7 @@ impl Launcher {
 
         let dropdown: Element = if something_is_happening {
             widget::text_input("", self.accounts_selected.as_deref().unwrap_or_default())
-                .width(menu.sidebar_width - 10)
+                .width(Length::Fill)
                 .into()
         } else {
             widget::pick_list(
@@ -328,7 +350,7 @@ impl Launcher {
                 self.accounts_selected.clone(),
                 |n| Message::Account(AccountMessage::Selected(n)),
             )
-            .width(menu.sidebar_width - 10)
+            .width(Length::Fill)
             .into()
         };
 
@@ -340,28 +362,22 @@ impl Launcher {
             .push_maybe(
                 self.is_account_selected().then_some(
                     widget::button(widget::text("Logout").size(11))
-                        .padding(iced::Padding {
-                            top: 3.0,
-                            right: 8.0,
-                            bottom: 3.0,
-                            left: 8.0
-                        })
+                        .padding(3)
                         .on_press(Message::Account(AccountMessage::LogoutCheck))
                         .style(|n: &LauncherTheme, status| n
                             .style_button(status, StyleButton::FlatExtraDark))
                 )
-            )
-            .width(menu.sidebar_width - 10),
+            ),
             dropdown
         ]
         .push_maybe(
             (self.accounts_selected.as_deref() == Some(OFFLINE_ACCOUNT_NAME)).then_some(
                 widget::text_input("Enter username...", &self.config.username)
                     .on_input(Message::LaunchUsernameSet)
-                    .width(menu.sidebar_width - 10),
+                    .width(Length::Fill),
             ),
         )
-        .padding(5)
+        .padding(Padding::from(5).top(0).bottom(7))
         .spacing(5)
         .into()
     }
@@ -491,6 +507,7 @@ fn get_tab_selector<'a>(selected_instance_s: Option<&'a str>, menu: &'a MenuLaun
                     widget::Space::with_height(7),
                     widget::text!("{instance}  ")
                         .size(14)
+                        .style(|t: &LauncherTheme| t.style_text(Color::Mid))
                         .wrapping(Wrapping::None),
                 )
                 .height(TAB_HEIGHT)
@@ -499,18 +516,6 @@ fn get_tab_selector<'a>(selected_instance_s: Option<&'a str>, menu: &'a MenuLaun
     )
     .style(|n| n.style_container_sharp_box(0.0, Color::ExtraDark))
     .into()
-}
-
-fn get_mods_button(
-    selected_instance_s: Option<&str>,
-) -> widget::Button<'_, Message, LauncherTheme> {
-    button_with_icon(icon_manager::download(), "Mods", 15)
-        .on_press_maybe(
-            selected_instance_s
-                .is_some()
-                .then_some(Message::ManageMods(ManageModsMessage::ScreenOpen)),
-        )
-        .width(98)
 }
 
 fn render_tab_button(n: LaunchTabId, menu: &'_ MenuLaunch) -> Element<'_> {
@@ -558,11 +563,15 @@ fn get_footer_text(menu: &'_ MenuLaunch) -> Element<'_> {
         widget::vertical_space(),
         widget::row!(
             widget::horizontal_space(),
-            widget::text!("QuantumLauncher v{LAUNCHER_VERSION_NAME}").size(12)
+            widget::text!("QuantumLauncher v{LAUNCHER_VERSION_NAME}")
+                .size(12)
+                .style(|t: &LauncherTheme| t.style_text(Color::Mid))
         ),
         widget::row!(
             widget::horizontal_space(),
-            widget::text("A Minecraft Launcher by Mrmayman").size(10)
+            widget::text("A Minecraft Launcher by Mrmayman")
+                .size(10)
+                .style(|t: &LauncherTheme| t.style_text(Color::Mid))
         ),
     );
 

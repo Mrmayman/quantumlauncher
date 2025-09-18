@@ -18,7 +18,7 @@ use zip::{write::FileOptions, ZipArchive, ZipWriter};
 
 use crate::{
     error::{DownloadFileError, IoError},
-    info_no_log, retry, IntoIoError, IntoJsonError, JsonDownloadError, CLIENT,
+    info_no_log, retry, IntoIoError, IntoJsonError, JsonDownloadError, CLIENT, WEBSITE,
 };
 
 /// The path to the QuantumLauncher root folder.
@@ -188,7 +188,7 @@ pub async fn download_file_to_string(url: &str, user_agent: bool) -> Result<Stri
         if user_agent {
             get = get.header(
                 "User-Agent",
-                "Mrmayman/quantumlauncher (mrmayman.github.io/quantumlauncher)",
+                format!("Mrmayman/quantumlauncher ({WEBSITE})"),
             );
         }
         let response = get.send().await?;
@@ -368,6 +368,20 @@ pub enum RequestError {
     InvalidHeaderValue(#[from] InvalidHeaderValue),
 }
 
+impl RequestError {
+    pub fn summary(&self) -> String {
+        match self {
+            RequestError::DownloadError { code, url } => {
+                format!("Download Error (code {code})\nUrl: {url}")
+            }
+            RequestError::ReqwestError(error) => format!("Network Request Error:\n{error}"),
+            RequestError::InvalidHeaderValue(_) => {
+                "Download Error: invalid header value".to_owned()
+            }
+        }
+    }
+}
+
 /// Sets the executable bit on a file.
 ///
 /// This makes a file executable on Unix systems,
@@ -419,20 +433,20 @@ pub fn create_symlink(src: &Path, dest: &Path) -> Result<(), IoError> {
     }
 }
 
-pub async fn clean_log_spam() -> Result<(), IoError> {
+pub async fn clean_dir(path: &str) -> Result<(), IoError> {
     const SIZE_LIMIT_BYTES: u64 = 100 * 1024 * 1024; // 100 MB
 
-    let logs_dir = get_launcher_dir()?.join("logs");
-    if !logs_dir.is_dir() {
-        tokio::fs::create_dir_all(&logs_dir).await.path(logs_dir)?;
+    let dir = get_launcher_dir()?.join(path);
+    if !dir.is_dir() {
+        tokio::fs::create_dir_all(&dir).await.path(dir)?;
         return Ok(());
     }
     let mut total_size = 0;
     let mut files: Vec<(DirEntry, Metadata)> = Vec::new();
 
-    let mut read_dir = tokio::fs::read_dir(&logs_dir).await.dir(&logs_dir)?;
+    let mut read_dir = tokio::fs::read_dir(&dir).await.dir(&dir)?;
 
-    while let Some(entry) = read_dir.next_entry().await.dir(&logs_dir)? {
+    while let Some(entry) = read_dir.next_entry().await.dir(&dir)? {
         let metadata = entry.metadata().await.path(entry.path())?;
         if metadata.is_file() {
             total_size += metadata.len();
@@ -445,7 +459,7 @@ pub async fn clean_log_spam() -> Result<(), IoError> {
     }
 
     info_no_log!(
-        "Log exceeded {} MB, cleaning up",
+        "Exceeded {} MB, cleaning up {dir:?}",
         SIZE_LIMIT_BYTES / (1024 * 1024)
     );
     files.sort_unstable_by_key(|(_, metadata)| {

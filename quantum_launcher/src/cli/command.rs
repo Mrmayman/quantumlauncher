@@ -1,17 +1,20 @@
-use owo_colors::OwoColorize;
+use owo_colors::{OwoColorize, Style};
 use ql_core::{
     err, info,
     json::{InstanceConfigJson, VersionDetails},
-    InstanceSelection, IntoStringError, ListEntry, LAUNCHER_DIR,
+    InstanceSelection, IntoIoError, IntoJsonError, IntoStringError, ListEntry, Loader,
+    LAUNCHER_DIR,
 };
 use ql_instances::auth::{self, AccountType};
-use std::{io::Write, process::exit};
+use std::process::exit;
 
-use crate::{config::LauncherConfig, state::get_entries};
+use crate::{cli::helpers::render_row, config::LauncherConfig, state::get_entries};
 
 use super::PrintCmd;
 
 pub fn list_available_versions() {
+    use std::io::Write;
+
     eprintln!("Listing downloadable versions...");
     let versions = match tokio::runtime::Runtime::new()
         .unwrap()
@@ -30,60 +33,91 @@ pub fn list_available_versions() {
     }
 }
 
-pub fn list_instances(cmds: &[PrintCmd], is_server: bool) {
+pub fn list_instances(
+    cmds: &[PrintCmd],
+    is_server: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::fmt::Write;
+
     let dirname = if is_server { "servers" } else { "instances" };
-    let instances = match tokio::runtime::Runtime::new()
-        .unwrap()
-        .block_on(get_entries(is_server))
-        .strerr()
-    {
-        Ok(n) => n.0,
-        Err(err) => {
-            panic!("Could not list instances: {err}");
-        }
-    };
+    let (instances, _) = tokio::runtime::Runtime::new()?.block_on(get_entries(is_server))?;
+
+    let mut cmds_name = String::new();
+    let mut cmds_version = String::new();
+    let mut cmds_loader = String::new();
 
     for instance in instances {
-        let mut has_printed = false;
         for cmd in cmds {
             match cmd {
                 PrintCmd::Name => {
-                    if has_printed {
-                        print!("\t");
-                    }
-                    print!("{instance}");
+                    _ = writeln!(cmds_name, "{}", instance.bold().underline());
                 }
                 PrintCmd::Version => {
-                    if has_printed {
-                        print!("\t");
-                    }
                     let instance_dir = LAUNCHER_DIR.join(dirname).join(&instance);
 
-                    let json = std::fs::read_to_string(instance_dir.join("details.json")).unwrap();
-                    let mut json: VersionDetails = serde_json::from_str(&json).unwrap();
+                    let path = instance_dir.join("details.json");
+                    let json = std::fs::read_to_string(&path).path(path)?;
+                    let mut json: VersionDetails = serde_json::from_str(&json).json(json)?;
                     json.fix();
 
-                    print!("{}", json.id);
+                    cmds_version.push_str(&json.id);
+                    cmds_version.push('\n');
                 }
                 PrintCmd::Loader => {
-                    if has_printed {
-                        print!("\t");
-                    }
                     let instance_dir = LAUNCHER_DIR.join(dirname).join(&instance);
-                    let config_json =
-                        std::fs::read_to_string(instance_dir.join("config.json")).unwrap();
+                    let path = instance_dir.join("config.json");
+                    let config_json = std::fs::read_to_string(&path).path(path)?;
                     let config_json: InstanceConfigJson =
-                        serde_json::from_str(&config_json).unwrap();
+                        serde_json::from_str(&config_json).json(config_json)?;
+                    let m = config_json.mod_type;
 
-                    print!("{}", config_json.mod_type);
+                    match Loader::try_from(m.as_str()) {
+                        Ok(l) => {
+                            _ = match l {
+                                Loader::Fabric => writeln!(cmds_loader, "{}", m.bright_green()),
+                                Loader::Quilt => writeln!(cmds_loader, "{}", m.bright_purple()),
+                                Loader::Forge => writeln!(cmds_loader, "{}", m.bright_yellow()),
+                                Loader::Neoforge => writeln!(cmds_loader, "{}", m.yellow()),
+                                Loader::OptiFine => {
+                                    writeln!(cmds_loader, "{}", m.red().bold())
+                                }
+                                Loader::Paper => writeln!(cmds_loader, "{}", m.blue()),
+                                Loader::Liteloader => writeln!(cmds_loader, "{}", m.bright_blue()),
+                                Loader::Modloader => writeln!(cmds_loader, "{}", m),
+                                Loader::Rift => writeln!(cmds_loader, "{}", m.bold().underline()),
+                            };
+                        }
+                        Err(_) => {
+                            if m == "Vanilla" {
+                                _ = writeln!(cmds_loader, "{}", "Vanilla".bright_black());
+                            } else {
+                                cmds_loader.push_str(&m);
+                                cmds_loader.push('\n');
+                            }
+                        }
+                    }
                 }
             }
-            has_printed = true;
-        }
-        if has_printed {
-            println!();
         }
     }
+
+    let Some((terminal_size::Width(width), _)) = terminal_size::terminal_size() else {
+        println!("{cmds_name}\n\n{cmds_loader}\n\n{cmds_version}");
+        return Ok(());
+    };
+
+    let cmds: Vec<(String, Option<Style>)> = cmds
+        .iter()
+        .map(|n| match n {
+            PrintCmd::Name => (cmds_name.clone(), None),
+            PrintCmd::Version => (cmds_version.clone(), None),
+            PrintCmd::Loader => (cmds_loader.clone(), None),
+        })
+        .collect();
+
+    println!("{}", render_row(width, &cmds, true).unwrap());
+
+    Ok(())
 }
 
 pub fn create_instance(
@@ -136,6 +170,8 @@ pub fn delete_instance(
 }
 
 fn confirm_action() -> bool {
+    use std::io::Write;
+
     print!("[Y/n] ");
     std::io::stdout().flush().unwrap();
 

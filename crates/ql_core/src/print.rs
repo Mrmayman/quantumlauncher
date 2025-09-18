@@ -10,6 +10,33 @@ use regex::Regex;
 
 use crate::file_utils;
 
+// TODO: Have an actually solid way to
+// deal with cross platform color bullshit
+//
+// crossterm? owo-colors? Win32 API (shown below)?
+//
+// This might fix colors on windows, I have no clue
+/*
+#[cfg(windows)]
+fn enable_ansi_support() {
+    use std::io;
+    use std::ptr;
+    use winapi::um::consoleapi::GetConsoleMode;
+    use winapi::um::consoleapi::SetConsoleMode;
+    use winapi::um::processenv::GetStdHandle;
+    use winapi::um::winbase::STD_OUTPUT_HANDLE;
+    use winapi::um::wincon::ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+
+    unsafe {
+        let handle = GetStdHandle(STD_OUTPUT_HANDLE);
+        let mut mode = 0;
+        if GetConsoleMode(handle, &mut mode) != 0 {
+            SetConsoleMode(handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+        }
+    }
+}
+*/
+
 #[derive(Clone, Copy)]
 pub enum LogType {
     Info,
@@ -201,10 +228,11 @@ macro_rules! pt {
     }};
 }
 
+/// Regex: ESC [ ... letters
+/// ESC = `\x1B` or `\u{1b}`
+const ANSI_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\x1B\[[0-9;]*[A-Za-z]").unwrap());
+
 /// Removes ANSI escape codes (colors, formatting, cursor moves) from a string.
 pub fn strip_ansi_codes(input: &str) -> String {
-    // Regex: ESC [ ... letters
-    // ESC = \x1B or \u{1b}
-    let re = Regex::new(r"\x1B\[[0-9;]*[A-Za-z]").unwrap();
-    re.replace_all(input, "").to_string()
+    ANSI_REGEX.replace_all(input, "").to_string()
 }

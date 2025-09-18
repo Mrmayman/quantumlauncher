@@ -2,10 +2,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 use iced::futures::executor::block_on;
-use iced::{
-    widget::{image::Handle, scrollable::AbsoluteOffset},
-    Task,
-};
+use iced::{widget::scrollable::AbsoluteOffset, Task};
 use ql_core::{err, info, InstanceSelection, IntoStringError, ModId, OptifineUniqueVersion};
 use ql_mod_manager::{
     loaders,
@@ -175,14 +172,6 @@ impl Launcher {
                     return menu.search_store(is_server, 0);
                 }
             }
-            InstallModsMessage::ImageDownloaded(image) => match image {
-                Ok(image) => {
-                    self.insert_image(image);
-                }
-                Err(err) => {
-                    err!("Could not download image: {err}");
-                }
-            },
             InstallModsMessage::Click(i) => {
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.opened_mod = Some(i);
@@ -241,6 +230,7 @@ impl Launcher {
                 self.state = State::CurseforgeManualDownload(MenuCurseforgeManualDownload {
                     unsupported: not_allowed,
                     is_store: true,
+                    delete_mods: true,
                 });
             }
             InstallModsMessage::IndexUpdated(Ok(idx)) => {
@@ -282,17 +272,6 @@ impl Launcher {
             }
         }
         Task::none()
-    }
-
-    fn insert_image(&mut self, image: ql_mod_manager::store::ImageResult) {
-        if image.is_svg {
-            let handle = iced::widget::svg::Handle::from_memory(image.image);
-            self.images.svg.insert(image.url, handle);
-        } else {
-            self.images
-                .bitmap
-                .insert(image.url, Handle::from_bytes(image.image));
-        }
     }
 
     fn mod_download(&mut self, index: usize) -> Option<Task<Message>> {

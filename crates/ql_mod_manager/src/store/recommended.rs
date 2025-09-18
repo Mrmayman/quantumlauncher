@@ -1,9 +1,10 @@
 use std::sync::{mpsc::Sender, Arc, Mutex};
 
 use futures::StreamExt;
+use owo_colors::colored::OwoColorize;
 use ql_core::{
-    info, info_no_log, json::VersionDetails, pt, GenericProgress, InstanceSelection, Loader, ModId,
-    StoreBackendType,
+    err_no_log, info, info_no_log, json::VersionDetails, pt, GenericProgress, InstanceSelection,
+    Loader, ModId, StoreBackendType,
 };
 
 use crate::store::{get_latest_version_date, ModIndex};
@@ -74,10 +75,25 @@ impl RecommendedMod {
             return None;
         }
 
-        let is_compatible = get_latest_version_date(Some(loader), &mod_id, version)
-            .await
-            .is_ok();
-        pt!("{} : {is_compatible}", self.name);
+        let is_compatible = get_latest_version_date(Some(loader), &mod_id, version).await;
+        let is_compatible = match is_compatible {
+            Ok(_) => {
+                pt!("{} compatible!", self.name);
+                true
+            }
+            Err(ModError::NoCompatibleVersionFound(_)) => {
+                pt!("{} {}", self.name, "not compatible!".bright_black());
+                false
+            }
+            Err(ModError::RequestError(err)) => {
+                err_no_log!("{}", err.summary());
+                false
+            }
+            Err(err) => {
+                err_no_log!("{err}");
+                false
+            }
+        };
 
         {
             let mut i = i.lock().unwrap();

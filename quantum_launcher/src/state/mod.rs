@@ -9,7 +9,7 @@ use std::{
     },
 };
 
-use iced::{widget::image::Handle, Task};
+use iced::Task;
 use notify::Watcher;
 use ql_core::{
     err, file_utils, GenericProgress, InstanceSelection, IntoIoError, IntoStringError, IoError,
@@ -26,8 +26,10 @@ use crate::{
     stylesheet::styles::{LauncherTheme, LauncherThemeColor, LauncherThemeLightness},
 };
 
+mod images;
 mod menu;
 mod message;
+pub use images::ImageState;
 pub use menu::*;
 pub use message::*;
 
@@ -36,6 +38,7 @@ pub const NEW_ACCOUNT_NAME: &str = "+ Add Account";
 
 pub const ADD_JAR_NAME: &str = "+ Add JAR";
 pub const REMOVE_JAR_NAME: &str = "- Remove Selected";
+pub const OPEN_FOLDER_JAR_NAME: &str = "> Open Folder";
 pub const NONE_JAR_NAME: &str = "(None)";
 
 type Res<T = ()> = Result<T, String>;
@@ -76,7 +79,9 @@ pub struct Launcher {
 
     pub window_size: (f32, f32),
     pub mouse_pos: (f32, f32),
+
     pub keys_pressed: HashSet<iced::keyboard::Key>,
+    pub modifiers_pressed: iced::keyboard::Modifiers,
 }
 
 pub struct CustomJarState {
@@ -91,14 +96,6 @@ impl CustomJarState {
             Message::EditInstance(EditInstanceMessage::CustomJarLoaded(n.strerr()))
         })
     }
-}
-
-#[derive(Default)]
-pub struct ImageState {
-    pub bitmap: HashMap<String, Handle>,
-    pub svg: HashMap<String, iced::widget::svg::Handle>,
-    pub downloads_in_progress: HashSet<String>,
-    pub to_load: Mutex<HashSet<String>>,
 }
 
 pub struct ClientProcess {
@@ -210,6 +207,7 @@ impl Launcher {
             accounts_dropdown,
             accounts_selected: Some(selected_account),
             keys_pressed: HashSet::new(),
+            modifiers_pressed: iced::keyboard::Modifiers::empty(),
             tick_timer: 0,
             custom_jar: None,
         })
@@ -265,6 +263,7 @@ impl Launcher {
             accounts_dropdown: vec![OFFLINE_ACCOUNT_NAME.to_owned(), NEW_ACCOUNT_NAME.to_owned()],
             accounts_selected: Some(OFFLINE_ACCOUNT_NAME.to_owned()),
             keys_pressed: HashSet::new(),
+            modifiers_pressed: iced::keyboard::Modifiers::empty(),
             tick_timer: 0,
             custom_jar: None,
         }
@@ -491,6 +490,7 @@ pub async fn load_custom_jars() -> Result<Vec<String>, IoError> {
     list.insert(0, NONE_JAR_NAME.to_owned());
     list.push(ADD_JAR_NAME.to_owned());
     list.push(REMOVE_JAR_NAME.to_owned());
+    list.push(OPEN_FOLDER_JAR_NAME.to_owned());
 
     Ok(list)
 }

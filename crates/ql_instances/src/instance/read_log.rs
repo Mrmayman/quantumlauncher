@@ -204,14 +204,8 @@ impl LogLine {
     #[must_use]
     pub fn print_colored(&self) -> String {
         match self {
-            #[cfg(target_os = "windows")]
-            LogLine::Info(event) => event.to_string(),
-            #[cfg(not(target_os = "windows"))]
             LogLine::Info(event) => event.print_color(),
             LogLine::Message(message) => message.clone(),
-            #[cfg(target_os = "windows")]
-            LogLine::Error(error) => error.clone(),
-            #[cfg(not(target_os = "windows"))]
             LogLine::Error(error) => error.bright_red().to_string(),
         }
     }

@@ -98,9 +98,11 @@ impl Launcher {
             .into(),
             State::GenericMessage(msg) => widget::column![widget::text(msg)].padding(10).into(),
             State::AccountLogin => view_account_login(),
-            State::EditMods(menu) => {
-                menu.view(self.selected_instance.as_ref().unwrap(), self.tick_timer)
-            }
+            State::EditMods(menu) => menu.view(
+                self.selected_instance.as_ref().unwrap(),
+                self.tick_timer,
+                &self.images,
+            ),
             State::Create(menu) => menu.view(self.client_list.as_ref()),
             State::ConfirmAction {
                 msg1,
