@@ -151,7 +151,7 @@ impl MenuExportMods {
 
         let mut preview_elements = Vec::new();
 
-        for selected_mod in self.selected_mods.iter() {
+        for selected_mod in &self.selected_mods {
             match selected_mod {
                 SelectedMod::Downloaded { name, id } => {
                     let url = match id {

@@ -3,8 +3,12 @@ name = "ql_core"
 version = "0.0.0"
 edition = "2021"
 
-[dependencies]
+[features]
+default = []
+simulate_linux_arm64 = []
+simulate_macos_arm64 = []
 
+[dependencies]
 chrono = { workspace = true }
 dirs = "6"
 futures = { workspace = true }
@@ -12,7 +16,7 @@ owo-colors = { workspace = true }
 
 zip = { workspace = true }
 walkdir = { workspace = true }
-regex = "1"
+regex = { workspace = true }
 
 reqwest = { workspace = true }
 tokio = { workspace = true }

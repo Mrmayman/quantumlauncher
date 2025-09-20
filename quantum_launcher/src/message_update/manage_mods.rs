@@ -8,8 +8,7 @@ use ql_mod_manager::store::ModIndex;
 use std::{collections::HashSet, path::PathBuf};
 
 use crate::state::{
-    Launcher, ManageJarModsMessage, ManageModsMessage, MenuCurseforgeManualDownload,
-    MenuEditJarMods, MenuEditMods, Message, ProgressBar, SelectedState, State,
+    ExportModsMessage, Launcher, ManageJarModsMessage, ManageModsMessage, MenuCurseforgeManualDownload, MenuEditJarMods, MenuEditMods, Message, ProgressBar, SelectedState, State
 };
 
 impl Launcher {
@@ -591,8 +590,7 @@ impl Launcher {
         }
     }
 
-    pub fn update_export_mods(&mut self, msg: crate::state::ExportModsMessage) -> Task<Message> {
-        use crate::state::ExportModsMessage;
+    pub fn update_export_mods(&mut self, msg: ExportModsMessage) -> Task<Message> {
         match msg {
             ExportModsMessage::ExportAsPlainText => {
                 if let State::ExportMods(menu) = &self.state {

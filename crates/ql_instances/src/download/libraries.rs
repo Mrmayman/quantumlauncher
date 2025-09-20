@@ -5,16 +5,21 @@ use std::{
     sync::Mutex,
 };
 
+#[cfg(not(any(
+    target_arch = "aarch64",
+    target_arch = "arm",
+    feature = "simulate_linux_arm64",
+    feature = "simulate_macos_arm64",
+)))]
+use ql_core::constants::OS_NAME;
 use ql_core::{
+    constants::OS_NAMES,
     do_jobs, err, file_utils, info,
     json::version::{
         Library, LibraryClassifier, LibraryDownloadArtifact, LibraryDownloads, LibraryExtract,
     },
     pt, DownloadProgress, IntoIoError, IoError,
 };
-
-#[allow(clippy::wildcard_imports)]
-use crate::download::constants::*;
 
 use super::{DownloadError, GameDownloader};
 
@@ -60,7 +65,7 @@ impl GameDownloader {
         library_i: &Mutex<usize>,
         library_len: usize,
     ) -> Result<(), DownloadError> {
-        if !GameDownloader::download_libraries_library_is_allowed(library) {
+        if !library.is_allowed() {
             info!("Skipping library:\n{library:#?}\n",);
             return Ok(());
         }
@@ -290,67 +295,6 @@ impl GameDownloader {
 
         Ok(())
     }
-
-    pub fn download_libraries_library_is_allowed(library: &Library) -> bool {
-        let mut allowed: bool = true;
-
-        if let Some(ref rules) = library.rules {
-            allowed = false;
-
-            for rule in rules {
-                if let Some(ref os) = rule.os {
-                    #[cfg(any(
-                        target_arch = "aarch64",
-                        target_arch = "arm",
-                        target_arch = "x86",
-                        feature = "simulate_linux_arm64",
-                        feature = "simulate_macos_arm64"
-                    ))]
-                    let target = format!("{OS_NAME}-{ARCH}");
-
-                    #[cfg(not(any(
-                        target_arch = "aarch64",
-                        target_arch = "arm",
-                        target_arch = "x86",
-                        feature = "simulate_linux_arm64",
-                        feature = "simulate_macos_arm64"
-                    )))]
-                    let target = OS_NAME;
-
-                    if os.name == target {
-                        allowed = rule.action == "allow";
-                    }
-
-                    #[cfg(any(
-                        all(target_os = "macos", target_arch = "aarch64"),
-                        feature = "simulate_macos_arm64"
-                    ))]
-                    if os.name == OS_NAME
-                        && library.name.as_ref().is_some_and(|n| {
-                            n.contains("natives-macos-arm64")
-                                || n == "ca.weblite:java-objc-bridge:1.1"
-                        })
-                    {
-                        allowed = rule.action == "allow";
-                    }
-                } else {
-                    allowed = rule.action == "allow";
-                }
-            }
-        }
-
-        if let Some(classifiers) = library
-            .downloads
-            .as_ref()
-            .and_then(|n| n.classifiers.as_ref())
-        {
-            if supports_os(classifiers) {
-                allowed = true;
-            }
-        }
-
-        allowed
-    }
 }
 
 async fn extractlib_name_natives(
@@ -497,14 +441,6 @@ async fn extractlib_natives_field(
     extract_zip_file(&native_jar, natives_path).map_err(DownloadError::NativesExtractError)?;
 
     Ok(())
-}
-
-fn supports_os(classifiers: &BTreeMap<String, LibraryClassifier>) -> bool {
-    classifiers.iter().any(|(k, _)| {
-        OS_NAMES
-            .iter()
-            .any(|n| k.starts_with(&format!("natives-{n}")))
-    })
 }
 
 pub fn extract_zip_file(archive: &[u8], target_dir: &Path) -> Result<(), zip::result::ZipError> {

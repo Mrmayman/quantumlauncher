@@ -140,7 +140,7 @@ pub async fn install(
     run_hook(&new_installer_path, &optifine_path).await?;
 
     download_libraries(&instance_name, &dot_minecraft_path, progress_sender).await?;
-    change_instance_type(&instance_path, "OptiFine".to_owned()).await?;
+    change_instance_type(&instance_path, "OptiFine".to_owned(), None).await?;
     send_progress(progress_sender, OptifineInstallProgress::P5Done);
     pt!("Finished installing OptiFine");
 
@@ -166,7 +166,7 @@ pub async fn uninstall(instance_name: String) -> Result<(), OptifineError> {
             .path(optifine_path)?;
     }
 
-    change_instance_type(&instance_path, "Vanilla".to_owned()).await?;
+    change_instance_type(&instance_path, "Vanilla".to_owned(), None).await?;
 
     let dot_minecraft_path = instance_path.join(".minecraft");
     let libraries_path = dot_minecraft_path.join("libraries");

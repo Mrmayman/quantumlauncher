@@ -6,8 +6,8 @@ use std::{
 use chrono::Datelike;
 use iced::Task;
 use ql_core::{
-    json::InstanceConfigJson, InstanceSelection, IntoIoError, IntoJsonError, IntoStringError,
-    JsonFileError, ModId,
+    constants::OS_NAME, json::InstanceConfigJson, InstanceSelection, IntoIoError, IntoJsonError,
+    IntoStringError, JsonFileError, ModId,
 };
 use ql_mod_manager::store::{ModConfig, ModIndex};
 
@@ -235,7 +235,7 @@ impl Launcher {
                     "Starting Minecraft Server ({})\n",
                     Self::get_current_date_formatted()
                 ),
-                format!("OS: {}\n", ql_instances::OS_NAME),
+                format!("OS: {OS_NAME}\n"),
             ];
 
             if let Some(log) = server_logs.get_mut(name) {
@@ -274,7 +274,7 @@ impl Launcher {
                     "Launching Minecraft ({})\n",
                     Self::get_current_date_formatted()
                 ),
-                format!("OS: {}\n", ql_instances::OS_NAME),
+                format!("OS: {OS_NAME}\n"),
             ];
 
             if !logs.contains_key(name) {

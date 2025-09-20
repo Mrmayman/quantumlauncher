@@ -2,7 +2,7 @@ use std::sync::mpsc::Sender;
 
 use ql_core::{
     file_utils, info,
-    json::{InstanceConfigJson, Manifest, VersionDetails},
+    json::{instance_config::VersionInfo, InstanceConfigJson, Manifest, VersionDetails},
     pt, GenericProgress, IntoIoError, IntoJsonError, IntoStringError, ListEntry, LAUNCHER_DIR,
 };
 
@@ -26,7 +26,7 @@ use crate::ServerError;
 /// - EULA and `config.json` file couldn't be saved
 /// ## Server Jar...
 /// - ...couldn't be downloaded from
-///   mojang/omniarchive (internet/server issue)
+///   Mojang/Omniarchive (internet/server issue)
 /// - ...couldn't be saved to a file
 /// - classic server zip file couldn't be extracted
 /// - classic server zip file doesn't have a `minecraft-server.jar`
@@ -82,9 +82,9 @@ pub async fn create_server(
         file_utils::download_file_to_path(&server.url, false, &server_jar_path).await?;
     }
 
-    write_json(&server_dir, version_json).await?;
+    write_json(&server_dir, &version_json).await?;
     write_eula(&server_dir).await?;
-    write_config(is_classic_server, &server_dir).await?;
+    write_config(is_classic_server, &server_dir, &version_json).await?;
 
     let mods_dir = server_dir.join("mods");
     tokio::fs::create_dir(&mods_dir).await.path(mods_dir)?;
@@ -97,6 +97,7 @@ pub async fn create_server(
 async fn write_config(
     is_classic_server: bool,
     server_dir: &std::path::Path,
+    version_json: &VersionDetails,
 ) -> Result<(), ServerError> {
     #[allow(deprecated)]
     let server_config = InstanceConfigJson {
@@ -124,6 +125,11 @@ async fn write_config(
         java_args_mode: None,
         custom_jar: None,
         pre_launch_prefix_mode: None,
+        mod_type_info: None,
+
+        version_info: Some(VersionInfo {
+            is_special_lwjgl3: version_json.id.ends_with("-lwjgl3"),
+        }),
     };
     let server_config_path = server_dir.join("config.json");
     tokio::fs::write(
@@ -169,12 +175,12 @@ async fn write_eula(server_dir: &std::path::Path) -> Result<(), ServerError> {
 
 async fn write_json(
     server_dir: &std::path::Path,
-    version_json: VersionDetails,
+    version_json: &VersionDetails,
 ) -> Result<(), ServerError> {
     let version_json_path = server_dir.join("details.json");
     tokio::fs::write(
         &version_json_path,
-        serde_json::to_string(&version_json).json_to()?,
+        serde_json::to_string(version_json).json_to()?,
     )
     .await
     .path(version_json_path)?;

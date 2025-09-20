@@ -1,5 +1,5 @@
 use std::{
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::Stdio,
     sync::{mpsc::Sender, Arc, Mutex},
 };
@@ -7,7 +7,7 @@ use std::{
 use ql_core::{
     err, find_forge_shim_file, info,
     json::{InstanceConfigJson, VersionDetails},
-    no_window, GenericProgress, IntoIoError, LAUNCHER_DIR,
+    no_window, pt, GenericProgress, IntoIoError, LAUNCHER_DIR,
 };
 use ql_java_handler::{get_java_binary, JavaVersion};
 use tokio::process::{Child, Command};
@@ -40,6 +40,7 @@ pub async fn run(
     let server_dir = LAUNCHER_DIR.join("servers").join(name);
 
     let config_json = InstanceConfigJson::read_from_dir(&server_dir).await?;
+    let version_json = VersionDetails::load_from_path(&server_dir).await?;
 
     let server_jar_path = if let Some(custom_jar) = &config_json.custom_jar {
         // Should I prioritise Fabric/Forge/Paper over a custom JAR?
@@ -56,7 +57,7 @@ pub async fn run(
         server_dir.join("server.jar")
     };
 
-    let java_path = get_java(&server_dir, &config_json, java_install_progress).await?;
+    let java_path = get_java(&version_json, &config_json, java_install_progress).await?;
 
     let mut java_args: Vec<String> = if let Some(java_args) = &config_json.java_args {
         java_args
@@ -70,6 +71,21 @@ pub async fn run(
     java_args.push(config_json.get_ram_argument());
     if config_json.mod_type == "Forge" {
         java_args.push("-Djava.net.preferIPv6Addresses=system".to_owned());
+    } else if config_json.mod_type == "Fabric" {
+        if let Some(info) = config_json
+            .mod_type_info
+            .as_ref()
+            .and_then(|n| n.backend_implementation.as_ref())
+        {
+            // Fixes the crash:
+            // Exception in thread "main" java.lang.RuntimeException: Failed to setup Fabric server environment!
+            // ...
+            // Caused by: java.lang.RuntimeException: net.fabricmc.loader.api.VersionParsingException: Could not parse version number component 'server'!
+
+            if info == "Fabric (Cursed Legacy)" {
+                java_args.push(format!("-Dfabric.gameVersion={}", version_json.id));
+            }
+        }
     }
 
     let is_classic_server = config_json.is_classic_server.unwrap_or(false);
@@ -107,15 +123,19 @@ pub async fn run(
 
     let child = command.spawn().path(server_jar_path)?;
     info!("Started server");
+    if let Some(id) = child.id() {
+        pt!("PID: {id}");
+    } else {
+        pt!("No ID found!");
+    }
     Ok((Arc::new(Mutex::new(child)), is_classic_server))
 }
 
 async fn get_java(
-    server_dir: &Path,
+    version_json: &VersionDetails,
     config_json: &InstanceConfigJson,
     java_install_progress: Sender<GenericProgress>,
 ) -> Result<PathBuf, ServerError> {
-    let version_json = VersionDetails::load_from_path(server_dir).await?;
     let version = if let Some(version) = version_json.javaVersion.clone() {
         version.into()
     } else {

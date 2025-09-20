@@ -6,18 +6,18 @@ through the entire process.
 
 - [Prerequisites](#prerequisites)
 - [Getting the source code](#1-getting-the-source-code)
-  - [Git](#git-recommended)
-  - [Zip](#alternate-method-zip)
+    - [Git](#git-recommended)
+    - [Zip](#alternate-method-zip)
 - [Building](#2-building)
-  - [Getting the Executable](#getting-the-executable)
-  - [Release vs Debug](#release-vs-debug)
+    - [Getting the Executable](#getting-the-executable)
+    - [Release vs Debug](#release-vs-debug)
 
 # Prerequisites:
 
 Before you start, you will need to install
 the [Rust programming language](https://rustup.rs/).
 
-It's also a good idea to have `git` installed although
+It's also a good idea to have `git` installed, although
 it's not strictly necessary.
 
 > TLDR; Here are the commands.
@@ -37,7 +37,7 @@ it's not strictly necessary.
 Using Git allows you to easily manage the source code,
 fetch updates, and contribute to the project.
 
-1. **Open the terminal** and navigate to your desired directory (maybe a projects folder)
+1. **Open the terminal** and navigate to your desired directory (maybe a projects' folder)
 
 ```sh
 cd path/to/folder
@@ -97,7 +97,7 @@ on Windows, and `quantum_launcher` on other platforms.
 ## Release vs Debug
 
 - **Debug** (default): Faster compilation, but the app is
-  larger in size and less optimized. Use `cargo run` or `cargo build`
+  larger and less optimized. Use `cargo run` or `cargo build`
   to compile the launcher in debug mode
 
 - **Release**: Optimized for performance, resulting in much

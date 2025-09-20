@@ -4,11 +4,21 @@ use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{err, pt, InstanceSelection, IntoIoError, IntoJsonError, JsonFileError};
+#[cfg(not(any(
+    target_arch = "aarch64",
+    target_arch = "arm",
+    target_arch = "x86",
+    feature = "simulate_linux_arm64",
+    feature = "simulate_macos_arm64"
+)))]
+use crate::constants::OS_NAME;
+use crate::{
+    constants::OS_NAMES, err, pt, InstanceSelection, IntoIoError, IntoJsonError, JsonFileError,
+};
 
 pub const V_PRECLASSIC_LAST: &str = "2009-05-16T11:48:00+00:00";
 pub const V_1_5_2: &str = "2013-04-25T15:45:00+00:00";
-pub const V_FABRIC_UNSUPPORTED: &str = "2018-10-24T10:52:16+00:00";
+pub const V_1_12_2: &str = "2017-09-18T08:39:46+00:00";
 
 #[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -46,7 +56,6 @@ pub struct VersionDetails {
     /// Unused field.
     pub minimumLauncherVersion: Option<usize>,
 
-    // TODO: Find difference between `releaseTime` and `time`
     pub releaseTime: String,
     pub time: String,
 
@@ -235,6 +244,74 @@ pub struct Library {
     // pub sha512: Option<String>,
     // pub md5: Option<String>,
     pub url: Option<String>,
+}
+
+impl Library {
+    #[must_use]
+    pub fn is_allowed(&self) -> bool {
+        let mut allowed: bool = true;
+
+        if let Some(ref rules) = self.rules {
+            allowed = false;
+
+            for rule in rules {
+                if let Some(ref os) = rule.os {
+                    #[cfg(any(
+                        target_arch = "aarch64",
+                        target_arch = "arm",
+                        target_arch = "x86",
+                        feature = "simulate_linux_arm64",
+                        feature = "simulate_macos_arm64"
+                    ))]
+                    let target = format!("{OS_NAME}-{ARCH}");
+
+                    #[cfg(not(any(
+                        target_arch = "aarch64",
+                        target_arch = "arm",
+                        target_arch = "x86",
+                        feature = "simulate_linux_arm64",
+                        feature = "simulate_macos_arm64"
+                    )))]
+                    let target = OS_NAME;
+
+                    if os.name == target {
+                        allowed = rule.action == "allow";
+                    }
+
+                    #[cfg(any(
+                        all(target_os = "macos", target_arch = "aarch64"),
+                        feature = "simulate_macos_arm64"
+                    ))]
+                    if os.name == OS_NAME
+                        && library.name.as_ref().is_some_and(|n| {
+                            n.contains("natives-macos-arm64")
+                                || n == "ca.weblite:java-objc-bridge:1.1"
+                        })
+                    {
+                        allowed = rule.action == "allow";
+                    }
+                } else {
+                    allowed = rule.action == "allow";
+                }
+            }
+        }
+
+        if let Some(classifiers) = self.downloads.as_ref().and_then(|n| n.classifiers.as_ref()) {
+            if supports_os(classifiers) {
+                allowed = true;
+            }
+        }
+
+        allowed
+    }
+}
+
+fn supports_os(classifiers: &BTreeMap<String, LibraryClassifier>) -> bool {
+    classifiers.iter().any(|(k, _)| {
+        OS_NAMES
+            .iter()
+            .any(|n| k.starts_with(&format!("natives-{n}")))
+    })
 }
 
 impl Debug for Library {

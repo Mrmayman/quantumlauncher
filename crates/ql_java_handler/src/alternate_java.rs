@@ -12,25 +12,25 @@
 //!
 //! | Platforms   | 8  | 16 | 17 | 21 |
 //! |-------------|----|----|----|----|
-//! | Linux   x86_64  | ✅ | ✅ | ✅ | ✅ |
-//! | Linux   i686¹   | ✅ |    |    |   |
-//! | Linux   aarch64 | 🟢 | 🟢 | 🟢 | 🟢 |
-//! | Linux   arm32¹  | 🟢³|    |    |    |
-//! | Linux   sparc64 |    |    |    |    |
+//! | Linux   `x86_64`  | ✅ | ✅ | ✅ | ✅ |
+//! | Linux   `i686`¹   | ✅ |    |    |   |
+//! | Linux   `aarch64` | 🟢 | 🟢 | 🟢 | 🟢 |
+//! | Linux   `arm32`¹  | 🟢³|    |    |    |
+//! | Linux   `sparc64` |    |    |    |    |
 //! | | | | |
-//! | FreeBSD x86_64¹ | 🟢³|    |    |    |
-//! | FreeBSD aarch64 |    |    |    |    |
-//! | FreeBSD i686    |    |    |    |    |
+//! | FreeBSD `x86_64`¹ | 🟢³|    |    |    |
+//! | FreeBSD `aarch64` |    |    |    |    |
+//! | FreeBSD `i686`    |    |    |    |    |
 //! | | | | |
-//! | Solaris x86_64¹ | 🟢³|    |    |    |
-//! | Solaris sparc64¹| 🟢³|    |    |    |
+//! | Solaris `x86_64`¹ | 🟢³|    |    |    |
+//! | Solaris `sparc64`¹| 🟢³|    |    |    |
 //! | | | | |
-//! | macOS   x86_64  | 🟢 | ✅  | ✅ | ✅ |
-//! | macOS   aarch64 | 🟢 | 🟢  | ✅ | ✅ |
+//! | macOS   `x86_64`  | 🟢 | ✅  | ✅ | ✅ |
+//! | macOS   `aarch64` | 🟢 | 🟢  | ✅ | ✅ |
 //! | | | | |
-//! | Windows x86_64  | 🟢 | ✅ | ✅ | ✅  |
-//! | Windows i686    | 🟢 | ✅ | ✅ | 🟢³|
-//! | Windows aarch64²| 🟢²|🟢²| ✅ | ✅ |
+//! | Windows `x86_64`  | 🟢 | ✅ | ✅ | ✅  |
+//! | Windows `i686`    | 🟢 | ✅ | ✅ | 🟢³|
+//! | Windows `aarch64`²| 🟢²|🟢²| ✅ | ✅ |
 //!
 //! ¹ Only Java 8 is supported on these platforms,
 //!   you can only play Minecraft 1.16.5 and below.
@@ -44,7 +44,7 @@
 //! # Future support
 //!
 //! ## Linux
-//! - RiscV
+//! - Risc-V
 //! - PowerPC
 //! - Iaarch64
 //! - Alpha

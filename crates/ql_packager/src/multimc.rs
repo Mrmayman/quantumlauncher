@@ -8,6 +8,7 @@ use ql_core::{
     err, file_utils, info, json::InstanceConfigJson, GenericProgress, InstanceSelection,
     IntoIoError, IntoJsonError, ListEntry,
 };
+use ql_mod_manager::loaders::fabric;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 
@@ -61,11 +62,16 @@ pub async fn import(
                 .await?;
             }
             name @ ("Fabric Loader" | "Quilt Loader") => {
-                ql_mod_manager::loaders::fabric::install(
+                fabric::install(
                     Some(component.cachedVersion.clone()),
                     instance_selection.clone(),
                     sender.as_deref(),
-                    name == "Quilt",
+                    // TODO: Add legacy fabric support
+                    if name == "Quilt" {
+                        fabric::BackendType::Quilt
+                    } else {
+                        fabric::BackendType::Fabric
+                    },
                 )
                 .await?;
             }

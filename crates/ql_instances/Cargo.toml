@@ -7,13 +7,12 @@ edition = "2021"
 
 [features]
 default = []
-simulate_linux_arm64 = []
-simulate_macos_arm64 = []
+simulate_linux_arm64 = ["ql_core/simulate_linux_arm64"]
+simulate_macos_arm64 = ["ql_core/simulate_macos_arm64"]
 
 [dependencies]
 ql_core = { path = "../ql_core" }
 ql_java_handler = { path = "../ql_java_handler" }
-
 
 chrono = { workspace = true }
 semver = { workspace = true  }
