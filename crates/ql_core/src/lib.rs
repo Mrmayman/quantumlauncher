@@ -39,7 +39,7 @@ pub use error::{
     DownloadFileError, IntoIoError, IntoJsonError, IntoStringError, IoError, JsonDownloadError,
     JsonError, JsonFileError,
 };
-pub use file_utils::{RequestError, LAUNCHER_DIR};
+pub use file_utils::{redact_path, RequestError, LAUNCHER_DIR};
 use futures::StreamExt;
 use json::VersionDetails;
 pub use loader::Loader;
@@ -394,7 +394,7 @@ pub fn open_file_explorer<S: AsRef<OsStr>>(path: S) {
     use std::process::Command;
 
     let path = path.as_ref();
-    info!("Opening link: {}", path.to_string_lossy());
+    info!("Opening link: {}", redact_path(&path.to_string_lossy()));
 
     #[allow(unused)]
     let result: std::io::Result<()> = Err(std::io::Error::other("Unsupported Platform!"));

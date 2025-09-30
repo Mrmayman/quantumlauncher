@@ -99,10 +99,7 @@ impl Launcher {
         #[cfg(not(feature = "auto_update"))]
         let check_for_updates_command = Task::none();
 
-        let get_entries_command = Task::perform(
-            get_entries(false),
-            Message::CoreListLoaded,
-        );
+        let get_entries_command = Task::perform(get_entries(false), Message::CoreListLoaded);
 
         (
             Launcher::load_new(None, is_new_user, config).unwrap_or_else(Launcher::with_error),
@@ -118,7 +115,6 @@ impl Launcher {
                 CustomJarState::load(),
             ]),
         )
-
     }
 
     fn kill_selected_server(&mut self, server: &str) {
@@ -186,7 +182,7 @@ fn main() {
 
     info_no_log!("Starting up the launcher... (OS: {OS_NAME})");
     if let Some(dir) = &launcher_dir {
-        eprintln!("- {}", dir.to_string_lossy());
+        eprintln!("- {}", ql_core::redact_path(&dir.to_string_lossy()));
     }
 
     let icon = load_icon();

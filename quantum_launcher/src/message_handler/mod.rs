@@ -107,6 +107,41 @@ impl Launcher {
                         }
                     }
 
+                    // Add system path censors to prevent exposing user information
+                    // Get system username from environment variables
+                    if let Ok(username) = std::env::var("USER")
+                        .or_else(|_| std::env::var("USERNAME"))
+                        .or_else(|_| std::env::var("LOGNAME"))
+                    {
+                        censors.push(username.clone());
+
+                        // Add common path patterns with username
+                        censors.push(format!("/home/{}", username)); // Linux/Unix
+                        censors.push(format!("C:\\Users\\{}", username)); // Windows
+                        censors.push(format!("/Users/{}", username)); // macOS
+                    }
+
+                    // Add home directory path
+                    if let Ok(home_dir) =
+                        std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"))
+                    // Windows
+                    {
+                        censors.push(home_dir.clone());
+
+                        // Also add common subdirectories that might appear in logs
+                        censors.push(format!("{}/.local", home_dir));
+                        censors.push(format!("{}/.local/share", home_dir));
+                        censors.push(format!("{}/AppData", home_dir)); // Windows
+                        censors.push(format!("{}/AppData/Roaming", home_dir)); // Windows
+                    }
+
+                    // Add launcher directory path (which might contain username)
+                    if let Ok(launcher_dir) = ql_core::file_utils::get_launcher_dir() {
+                        if let Some(launcher_str) = launcher_dir.to_str() {
+                            censors.push(launcher_str.to_string());
+                        }
+                    }
+
                     return Task::perform(
                         async move {
                             let result = ql_instances::read_logs(
