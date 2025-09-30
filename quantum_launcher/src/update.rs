@@ -425,6 +425,29 @@ impl Launcher {
             Message::CoreEvent(event, status) => return self.iced_event(event, status),
             Message::LaunchChangeTab(launch_tab_id) => {
                 self.load_edit_instance(Some(launch_tab_id));
+
+                // Load saves when switching to Saves tab
+                if launch_tab_id == LaunchTabId::Saves {
+                    if let Some(instance) = &self.selected_instance {
+                        let instance_name = instance.get_name().to_owned();
+                        // Only load if not already cached
+                        if !self.saves_cache.contains_key(&instance_name) {
+                            let instance_clone = instance.clone();
+                            return Task::perform(
+                                async move {
+                                    let instance_name = instance_clone.get_name().to_owned();
+                                    let result = ql_core::saves::read_saves_info(&instance_clone)
+                                        .await
+                                        .strerr();
+                                    (instance_name, result)
+                                },
+                                |(instance_name, result)| {
+                                    Message::SavesLoaded(instance_name, result)
+                                },
+                            );
+                        }
+                    }
+                }
             }
             Message::CoreLogToggle => {
                 self.is_log_open = !self.is_log_open;
@@ -573,6 +596,21 @@ impl Launcher {
                         if let State::License(menu) = &mut self.state {
                             menu.content.perform(action);
                         }
+                    }
+                }
+            }
+            Message::LoadSaves(_instance_name) => {
+                // This message is currently unused - loading is triggered by tab change
+            }
+            Message::SavesLoaded(instance_name, result) => {
+                match result {
+                    Ok(saves) => {
+                        self.saves_cache.insert(instance_name, saves);
+                    }
+                    Err(err) => {
+                        err!("Failed to load saves for '{}': {}", instance_name, err);
+                        // Insert empty list to prevent repeated loading attempts
+                        self.saves_cache.insert(instance_name, Vec::new());
                     }
                 }
             }

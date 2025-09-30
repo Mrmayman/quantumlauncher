@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use iced::advanced::text::Wrapping;
 use iced::keyboard::Modifiers;
 use iced::widget::tooltip::Position;
-use iced::{widget, Length, Padding};
+use iced::{widget, Length,Padding};
+use iced::widget::image::Handle;
 use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
 
 use crate::menu_renderer::underline;
@@ -140,6 +141,7 @@ impl Launcher {
                         .into()
                     }
                 }
+                LaunchTabId::Saves => self.get_saves_pane(selected, selected_instance_s),
             }
         } else {
             widget::column!("Select an instance", last_parts)
@@ -459,6 +461,144 @@ impl Launcher {
             .into()
         }
     }
+
+    fn get_saves_pane<'a>(
+        &'a self,
+        selected_instance: &InstanceSelection,
+        selected_instance_name: Option<&'a str>,
+    ) -> Element<'a> {
+        if let Some(instance_name) = selected_instance_name {
+            // Check if we have cached saves for this instance
+            if let Some(saves) = self.saves_cache.get(instance_name) {
+                self.render_saves(saves, selected_instance)
+            } else {
+                // Show loading state - the actual loading will be triggered by the tab change handler
+                widget::column![
+                    widget::text("Loading saves...").size(18),
+                    widget::text("Scanning world files").size(14),
+                    widget::text("This may take a moment for large worlds").size(12),
+                ]
+                .padding(20)
+                .spacing(10)
+                .into()
+            }
+        } else {
+            widget::column![
+                widget::text("No instance selected").size(18),
+                widget::text("Select an instance to view its saves").size(14),
+            ]
+            .padding(20)
+            .spacing(10)
+            .into()
+        }
+    }
+
+    /// Loads a world icon from the filesystem if it exists
+    fn get_world_icon(save: &ql_core::saves::Save) -> Element<'static> {
+        // Check if the save has an icon path and try to load it
+        if let Some(icon_path) = &save.icon_path {
+            if let Ok(icon_bytes) = std::fs::read(icon_path) {
+                let handle = Handle::from_bytes(icon_bytes);
+                return widget::image(handle).width(32).height(32).into();
+            }
+        }
+        
+        // Fallback to folder icon
+        icon_manager::folder().into()
+    }
+
+    fn render_saves<'a>(
+        &'a self,
+        saves: &'a [ql_core::saves::Save],
+        selected_instance: &InstanceSelection,
+    ) -> Element<'a> {
+        if saves.is_empty() {
+            widget::column![
+                widget::text("No saves found").size(18),
+                widget::text("Create a world in Minecraft to see it here").size(14),
+            ]
+            .padding(20)
+            .spacing(10)
+            .into()
+        } else {
+            let saves_list: Vec<_> = saves
+                .iter()
+                .enumerate()
+                .map(|(i, save)| {
+                    let icon = Self::get_world_icon(save);
+
+                    let size_text = if let Some(size) = save.size_bytes {
+                        format!("{:.1} MB", size as f64 / 1_048_576.0)
+                    } else {
+                        "Unknown size".to_string()
+                    };
+
+                    let status_text = if save.has_level_dat {
+                        "Valid world"
+                    } else {
+                        "Invalid world"
+                    };
+
+                    let is_even = i % 2 == 0;
+
+                    widget::container(
+                        widget::row![
+                            icon,
+                            widget::column![
+                                widget::text(save.name.clone()).size(16),
+                                widget::text(size_text).size(12),
+                                widget::text(status_text).size(10)
+                            ]
+                            .spacing(2),
+                            widget::horizontal_space(),
+                            widget::button("Open Folder")
+                                .on_press(Message::CoreOpenPath(save.path.clone()))
+                                .padding(5)
+                        ]
+                        .align_y(iced::Alignment::Center)
+                        .spacing(10)
+                        .padding(10),
+                    )
+                    .style(move |theme: &LauncherTheme| {
+                        theme.style_container_sharp_box(
+                            0.0,
+                            if is_even {
+                                Color::Dark
+                            } else {
+                                Color::ExtraDark
+                            },
+                        )
+                    })
+                    .width(Length::Fill)
+                    .into()
+                })
+                .collect();
+
+            let saves_grid = widget::scrollable(widget::column(saves_list).spacing(2))
+                .width(Length::Fill)
+                .height(Length::Fill);
+
+            widget::column![
+                widget::row![
+                    widget::text(format!("Found {} saves", saves.len())).size(16),
+                    widget::horizontal_space(),
+                    button_with_icon(icon_manager::folder(), "Open Saves Folder", 14).on_press(
+                        Message::CoreOpenPath(match selected_instance {
+                            InstanceSelection::Instance(_) =>
+                                selected_instance.get_dot_minecraft_path().join("saves"),
+                            InstanceSelection::Server(_) =>
+                                selected_instance.get_instance_path().join("world"),
+                        })
+                    )
+                ]
+                .padding(10)
+                .spacing(10),
+                widget::horizontal_rule(1),
+                saves_grid
+            ]
+            .into()
+        }
+    }
 }
 
 fn get_sidebar_new_button(menu: &MenuLaunch) -> widget::Button<'_, Message, LauncherTheme> {
@@ -479,9 +619,14 @@ fn get_sidebar_new_button(menu: &MenuLaunch) -> widget::Button<'_, Message, Laun
 
 fn get_tab_selector<'a>(selected_instance_s: Option<&'a str>, menu: &'a MenuLaunch) -> Element<'a> {
     let tab_bar = widget::row(
-        [LaunchTabId::Buttons, LaunchTabId::Edit, LaunchTabId::Log]
-            .into_iter()
-            .map(|n| render_tab_button(n, menu)),
+        [
+            LaunchTabId::Buttons,
+            LaunchTabId::Edit,
+            LaunchTabId::Saves,
+            LaunchTabId::Log,
+        ]
+        .into_iter()
+        .map(|n| render_tab_button(n, menu)),
     )
     .wrap();
 

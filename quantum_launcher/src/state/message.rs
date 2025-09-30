@@ -373,4 +373,7 @@ pub enum Message {
     LicenseOpen,
     LicenseChangeTab(LicenseTab),
     LicenseAction(widget::text_editor::Action),
+
+    LoadSaves(String),
+    SavesLoaded(String, Res<Vec<ql_core::saves::Save>>),
 }

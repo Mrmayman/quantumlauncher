@@ -25,6 +25,8 @@ mod loader;
 /// Logging macros.
 pub mod print;
 mod progress;
+/// Minecraft save file utilities.
+pub mod saves;
 mod urlcache;
 
 use std::{
@@ -48,6 +50,7 @@ pub use progress::{DownloadProgress, GenericProgress, Progress};
 pub use urlcache::url_cache_get;
 
 use regex::Regex;
+pub use saves::{read_saves_info, Save};
 
 pub static REGEX_SNAPSHOT: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\d{2}w\d*[a-zA-Z]+").unwrap());
