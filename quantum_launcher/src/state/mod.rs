@@ -99,6 +99,8 @@ impl CustomJarState {
     }
 }
 
+
+#[derive(Debug)]
 pub struct ClientProcess {
     pub child: Arc<Mutex<Child>>,
     pub receiver: Option<Receiver<LogLine>>,

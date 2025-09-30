@@ -31,7 +31,7 @@ use config::LauncherConfig;
 use iced::{futures::executor::block_on, Settings, Task};
 use state::{get_entries, Launcher, Message, ServerProcess};
 
-use ql_core::{err, err_no_log, file_utils, info, info_no_log, IntoStringError, JsonFileError};
+use ql_core::{err, err_no_log, file_utils, info_no_log, IntoStringError, JsonFileError};
 use ql_instances::OS_NAME;
 use tokio::io::AsyncWriteExt;
 
@@ -46,6 +46,8 @@ mod config;
 mod icon_manager;
 /// All the main structs and enums used in the launcher.
 mod state;
+/// The TUI interface of the launcher.
+mod tui;
 
 /// Code to handle all [`Message`]'s coming from
 /// user interaction.
@@ -233,6 +235,7 @@ fn load_launcher_dir() -> (Option<std::path::PathBuf>, bool) {
     let mut launcher_dir = None;
     let is_dir_err = match launcher_dir_res {
         Ok(n) => {
+            info_no_log!("Launcher dir: {}", n.display());
             launcher_dir = Some(n);
             false
         }
@@ -322,7 +325,10 @@ fn do_migration() {
     // Can't use `info!` for logs,
     // since that runs get_logs_dir which lazy allocates LAUNCHER_DIR
     // which creates the new_dir and that would fail the migration
-    println!("Running migration");
+    // Avoid direct stdout in TUI environment; use logger storage instead
+    // Signal to logger to avoid file-backed logging during migration
+    std::env::set_var("QL_MIGRATING", "1");
+    ql_core::print::print_to_storage("Running migration\n", ql_core::print::LogType::Info);
     if let (Some(legacy_dir), Some(new_dir)) = (
         file_utils::migration_legacy_launcher_dir(),
         file_utils::migration_launcher_dir(),
@@ -332,7 +338,8 @@ fn do_migration() {
         } else if let Err(e) = ql_core::file_utils::create_symlink(&new_dir, &legacy_dir) {
             eprintln!("Migration successful but couldnt create symlink to the legacy dir: {e}",);
         } else {
-            info!("Migration successful!\nYour launcher files are now in ~./local/share/QuantumLauncher")
+            // Do not write migration logs to disk to avoid creating logs dir mid-migration
+            info_no_log!("Migration successful!\nYour launcher files are now in ~./local/share/QuantumLauncher")
         }
     }
 }

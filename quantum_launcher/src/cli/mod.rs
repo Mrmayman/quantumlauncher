@@ -21,6 +21,12 @@ fn command() -> Command {
     .author("Mrmayman")
     .version(LAUNCHER_VERSION_NAME)
     .long_about(long_about())
+    .arg(
+        Arg::new("tui")
+            .long("tui")
+            .help("Launch in Terminal User Interface (TUI) mode")
+            .action(ArgAction::SetTrue)
+    )
     .subcommand(Command::new("create")
         .args([
             Arg::new("instance_name").help("The name of the instance to create").required(true),
@@ -99,7 +105,12 @@ fn long_about() -> String {
         r"
 QuantumLauncher: A simple, powerful Minecraft launcher
 
-Website: {WEBSITE}
+Usage:
+  quantum_launcher                    Launch GUI mode
+  quantum_launcher --tui              Launch TUI (Terminal) mode
+  quantum_launcher <SUBCOMMAND>       Use CLI commands
+
+Website: https://mrmayman.github.io/quantumlauncher
 Github : {GITHUB}
 Discord: {DISCORD}"
     )
@@ -175,6 +186,19 @@ fn get_right_text() -> String {
 pub fn start_cli(is_dir_err: bool) {
     let command = command();
     let matches = command.clone().get_matches();
+
+    // Check for TUI flag first
+    if matches.get_flag("tui") {
+        if is_dir_err {
+            std::process::exit(1);
+        }
+        // Launch TUI mode
+        if let Err(err) = crate::tui::run_tui() {
+            err!("TUI error: {err}");
+            std::process::exit(1);
+        }
+        std::process::exit(0);
+    }
 
     if let Some(subcommand) = matches.subcommand() {
         if is_dir_err {
