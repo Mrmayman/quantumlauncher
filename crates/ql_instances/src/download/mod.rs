@@ -4,7 +4,6 @@ use ql_core::{
     info, DownloadProgress, IntoIoError, ListEntry, LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
 };
 
-pub mod constants;
 mod downloader;
 mod libraries;
 

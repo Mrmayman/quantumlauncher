@@ -17,10 +17,12 @@ use ql_instances::{
     UpdateCheckInfo,
 };
 use ql_mod_manager::{
-    loaders::fabric::FabricVersionListItem,
+    loaders::fabric,
     store::{CurseforgeNotAllowed, ImageResult, ModIndex, QueryType, RecommendedMod, SearchResult},
 };
 use tokio::process::Child;
+
+use crate::message_handler::ForgeKind;
 
 use super::{LaunchTabId, LauncherSettingsTab, LicenseTab, Res};
 
@@ -28,9 +30,10 @@ use super::{LaunchTabId, LauncherSettingsTab, LicenseTab, Res};
 pub enum InstallFabricMessage {
     End(Res),
     VersionSelected(String),
-    VersionsLoaded(Res<Vec<FabricVersionListItem>>),
+    VersionsLoaded(Res<fabric::FabricVersionList>),
     ButtonClicked,
     ScreenOpen { is_quilt: bool },
+    ChangeBackend(fabric::BackendType),
 }
 
 #[derive(Debug, Clone)]
@@ -93,6 +96,7 @@ pub enum ManageModsMessage {
     ToggleCheckbox(String, Option<ModId>),
 
     DeleteSelected,
+    DeleteOptiforge(String),
     DeleteFinished(Res<Vec<ModId>>),
     LocalDeleteFinished(Res),
     LocalIndexLoaded(HashSet<String>),
@@ -262,8 +266,8 @@ pub enum LauncherSettingsMessage {
 #[derive(Debug, Clone)]
 pub enum Message {
     Nothing,
-    #[allow(unused)]
     Multiple(Vec<Message>),
+    ShowScreen(String),
 
     WelcomeContinueToTheme,
     WelcomeContinueToAuth,
@@ -301,9 +305,7 @@ pub enum Message {
     DeleteInstanceMenu,
     DeleteInstance,
 
-    InstallForgeStart {
-        is_neoforge: bool,
-    },
+    InstallForge(ForgeKind),
     InstallForgeEnd(Res),
     InstallPaperStart,
     InstallPaperEnd(Res),

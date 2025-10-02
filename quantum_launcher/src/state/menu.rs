@@ -12,7 +12,7 @@ use ql_core::{
     SelectedMod, StoreBackendType,
 };
 use ql_mod_manager::{
-    loaders::{forge::ForgeInstallProgress, optifine::OptifineInstallProgress},
+    loaders::{self, forge::ForgeInstallProgress, optifine::OptifineInstallProgress},
     store::{CurseforgeNotAllowed, ModConfig, ModIndex, QueryType, RecommendedMod, SearchResult},
 };
 
@@ -266,9 +266,9 @@ pub enum MenuInstallFabric {
         _loading_handle: iced::task::Handle,
     },
     Loaded {
-        is_quilt: bool,
+        backend: loaders::fabric::BackendType,
         fabric_version: String,
-        fabric_versions: Vec<String>,
+        fabric_versions: loaders::fabric::FabricVersionList,
         progress: Option<ProgressBar<GenericProgress>>,
     },
     Unsupported(bool),
@@ -278,8 +278,8 @@ impl MenuInstallFabric {
     pub fn is_quilt(&self) -> bool {
         match self {
             MenuInstallFabric::Loading { is_quilt, .. }
-            | MenuInstallFabric::Loaded { is_quilt, .. }
             | MenuInstallFabric::Unsupported(is_quilt) => *is_quilt,
+            MenuInstallFabric::Loaded { backend, .. } => backend.is_quilt(),
         }
     }
 }
@@ -573,7 +573,11 @@ impl MenuInstallOptifine {
             ..
         } = self
         {
-            o.get_url().0
+            if let OptifineUniqueVersion::Forge = o {
+                OPTIFINE_DOWNLOADS
+            } else {
+                o.get_url().0
+            }
         } else {
             OPTIFINE_DOWNLOADS
         }

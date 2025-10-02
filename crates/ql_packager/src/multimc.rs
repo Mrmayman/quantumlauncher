@@ -1,5 +1,4 @@
 use chrono::DateTime;
-use ql_mod_manager::loaders::fabric::just_get_a_version;
 use std::{
     path::Path,
     sync::{mpsc::Sender, Arc, Mutex},
@@ -14,6 +13,7 @@ use ql_core::{
     },
     pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, ListEntry, Loader,
 };
+use ql_mod_manager::loaders::fabric::{self, get_list_of_versions_from_backend};
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 
@@ -176,13 +176,19 @@ async fn install_fabric(
     version: Option<String>,
     is_quilt: bool,
 ) -> Result<(), InstancePackageError> {
+    let backend = if is_quilt {
+        fabric::BackendType::Quilt
+    } else {
+        fabric::BackendType::Fabric
+    };
+
     let version_json = VersionDetails::load(instance_selection).await?;
     if !version_json.is_before_or_eq(V_OFFICIAL_FABRIC_SUPPORT) {
         ql_mod_manager::loaders::fabric::install(
             version,
             instance_selection.clone(),
             sender,
-            is_quilt,
+            backend,
         )
         .await?;
         return Ok(());
@@ -199,7 +205,11 @@ async fn install_fabric(
         if let Some(version) = version.clone() {
             version
         } else {
-            just_get_a_version(instance_selection, is_quilt).await?
+            get_list_of_versions_from_backend("1.14.4", backend, false)
+                .await?
+                .first()
+                .map(|n| n.loader.version.clone())
+                .unwrap_or_else(|| " No versions found! ".to_owned())
         }
     );
     let fabric_json_text = file_utils::download_file_to_string(&url, false).await?;
@@ -217,7 +227,9 @@ async fn install_fabric(
             return Ok::<_, InstancePackageError>(());
         }
         let path_str = library.get_path();
-        let url = library.get_url();
+        let Some(url) = library.get_url() else {
+            return Ok::<_, InstancePackageError>(());
+        };
         let path = libraries_dir.join(&path_str);
 
         let parent_dir = path

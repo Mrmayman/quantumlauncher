@@ -58,7 +58,8 @@ impl Launcher {
         let last_parts = widget::column![
             widget::horizontal_space(),
             widget::row![
-                // Server UI enabled
+                // Enable/Disable the below `widget::column![]` code to
+                // toggle the experimental server manager
                 widget::column![
                     widget::vertical_space(),
                     if menu.is_viewing_server {
@@ -212,9 +213,8 @@ impl Launcher {
                 ),
                 widget::button(widget::text("Join Discord").size(14))
                     .on_press(Message::CoreOpenLink(DISCORD.to_owned())),
-                widget::text("Having issues? Copy and send the game log for support").size(12),
             )
-            .spacing(10)]
+            .spacing(7)
             .push_maybe(
                 has_crashed.then_some(
                     widget::text!(
@@ -228,6 +228,7 @@ impl Launcher {
                     .size(18),
                 ),
             )
+            .wrap()]
             .push_maybe(
                 menu.is_viewing_server.then_some(
                     widget::text_input("Enter command...", command)
@@ -337,7 +338,7 @@ impl Launcher {
             || (menu.is_viewing_server && self.server_processes.contains_key(name))
     }
 
-    fn get_accounts_bar<'a>(&'a self, menu: &MenuLaunch) -> Element<'a> {
+    fn get_accounts_bar(&self, menu: &MenuLaunch) -> Element<'_> {
         let something_is_happening = self.java_recv.is_some() || menu.login_progress.is_some();
 
         let dropdown: Element = if something_is_happening {

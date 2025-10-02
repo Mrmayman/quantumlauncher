@@ -11,6 +11,7 @@ use crate::{
 };
 use iced::futures::executor::block_on;
 use iced::Task;
+use ql_core::json::instance_config::ModTypeInfo;
 use ql_core::json::VersionDetails;
 use ql_core::{
     err, json::instance_config::InstanceConfigJson, GenericProgress, InstanceSelection,
@@ -310,19 +311,21 @@ impl Launcher {
         Task::perform(get_entries(true), Message::CoreListLoaded)
     }
 
-    pub fn install_forge(&mut self, is_neoforge: bool) -> Task<Message> {
+    pub fn install_forge(&mut self, kind: ForgeKind) -> Task<Message> {
         let (f_sender, f_receiver) = std::sync::mpsc::channel();
         let (j_sender, j_receiver): (Sender<GenericProgress>, Receiver<GenericProgress>) =
             std::sync::mpsc::channel();
 
         let instance_selection = self.selected_instance.clone().unwrap();
+        let instance_selection2 = instance_selection.clone();
+
         let command = Task::perform(
             async move {
-                if is_neoforge {
+                if matches!(kind, ForgeKind::NeoForge) {
                     // TODO: Add UI to specify NeoForge version
                     loaders::neoforge::install(
                         None,
-                        instance_selection,
+                        instance_selection2,
                         Some(f_sender),
                         Some(j_sender),
                     )
@@ -330,13 +333,22 @@ impl Launcher {
                 } else {
                     loaders::forge::install(
                         None,
-                        instance_selection,
+                        instance_selection2,
                         Some(f_sender),
                         Some(j_sender),
                     )
                     .await
                 }
-                .strerr()
+                .strerr()?;
+                if matches!(kind, ForgeKind::OptiFine) {
+                    copy_optifine_over(&instance_selection)
+                        .await
+                        .map_err(|n| format!("Couldn't install OptiFine with Forge:\n{n}"))?;
+                    loaders::optifine::uninstall(instance_selection.get_name().to_owned(), false)
+                        .await
+                        .strerr()?;
+                }
+                Ok(())
             },
             Message::InstallForgeEnd,
         );
@@ -628,4 +640,38 @@ pub fn format_memory(memory_bytes: usize) -> String {
     } else {
         format!("{memory_bytes} MB")
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ForgeKind {
+    Normal,
+    NeoForge,
+    OptiFine,
+}
+
+async fn copy_optifine_over(instance: &InstanceSelection) -> Result<(), String> {
+    let instance_dir = instance.get_instance_path();
+    let installer_path = instance_dir.join("optifine/OptiFine.jar");
+    let mods_dir = instance_dir.join(".minecraft/mods");
+
+    if !installer_path.exists() {
+        return Ok(());
+    }
+    if !mods_dir.exists() {
+        tokio::fs::create_dir_all(&mods_dir)
+            .await
+            .path(&mods_dir)
+            .strerr()?;
+    }
+    let new_path = mods_dir.join("optifine.jar");
+    tokio::fs::copy(&installer_path, &new_path).await.strerr()?;
+
+    let mut config = InstanceConfigJson::read(instance).await.strerr()?;
+    config
+        .mod_type_info
+        .get_or_insert_with(ModTypeInfo::default)
+        .optifine_jar = Some("optifine.jar".to_owned());
+    config.save(instance).await.strerr()?;
+
+    Ok(())
 }

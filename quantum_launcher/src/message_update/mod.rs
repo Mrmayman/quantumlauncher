@@ -42,16 +42,16 @@ impl Launcher {
                 }
             }
             InstallFabricMessage::VersionsLoaded(result) => match result {
-                Ok(list_of_versions) => {
+                Ok(list) => {
                     if let State::InstallFabric(menu) = &mut self.state {
-                        *menu = if let Some(first) = list_of_versions.first().cloned() {
+                        let (regular_list, backend) = list.clone().just_get_one();
+                        *menu = if let (false, Some(first)) =
+                            (list.is_unsupported(), regular_list.first())
+                        {
                             MenuInstallFabric::Loaded {
-                                is_quilt: menu.is_quilt(),
+                                backend,
                                 fabric_version: first.loader.version.clone(),
-                                fabric_versions: list_of_versions
-                                    .iter()
-                                    .map(|ver| ver.loader.version.clone())
-                                    .collect(),
+                                fabric_versions: list,
                                 progress: None,
                             }
                         } else {
@@ -61,11 +61,29 @@ impl Launcher {
                 }
                 Err(err) => self.set_error(err),
             },
+            InstallFabricMessage::ChangeBackend(b) => {
+                if let State::InstallFabric(MenuInstallFabric::Loaded {
+                    backend,
+                    fabric_version,
+                    fabric_versions,
+                    ..
+                }) = &mut self.state
+                {
+                    *backend = b;
+                    if let Some(n) = fabric_versions
+                        .clone()
+                        .get_specific(b)
+                        .and_then(|n| n.first().cloned())
+                    {
+                        *fabric_version = n.loader.version;
+                    }
+                }
+            }
             InstallFabricMessage::ButtonClicked => {
                 if let State::InstallFabric(MenuInstallFabric::Loaded {
                     fabric_version,
                     progress,
-                    is_quilt,
+                    backend,
                     ..
                 }) = &mut self.state
                 {
@@ -74,14 +92,14 @@ impl Launcher {
                     let loader_version = fabric_version.clone();
 
                     let instance_name = self.selected_instance.clone().unwrap();
-                    let is_quilt = *is_quilt;
+                    let backend = *backend;
                     return Task::perform(
                         async move {
                             loaders::fabric::install(
                                 Some(loader_version),
                                 instance_name,
                                 Some(&sender),
-                                is_quilt,
+                                backend,
                             )
                             .await
                         },
@@ -320,9 +338,18 @@ impl Launcher {
     pub fn update_install_optifine(&mut self, message: InstallOptifineMessage) -> Task<Message> {
         match message {
             InstallOptifineMessage::ScreenOpen => {
-                let optifine_unique_version = block_on(OptifineUniqueVersion::get(
-                    self.selected_instance.as_ref().unwrap(),
-                ));
+                let is_forge_installed = if let State::EditMods(menu) = &self.state {
+                    menu.config.mod_type == "Forge"
+                } else {
+                    false
+                };
+                let optifine_unique_version = if is_forge_installed {
+                    Some(OptifineUniqueVersion::Forge)
+                } else {
+                    block_on(OptifineUniqueVersion::get(
+                        self.selected_instance.as_ref().unwrap(),
+                    ))
+                };
 
                 if let Some(version @ OptifineUniqueVersion::B1_7_3) = optifine_unique_version {
                     self.state = State::InstallOptifine(MenuInstallOptifine::InstallingB173);
@@ -375,7 +402,16 @@ impl Launcher {
         let (j_sender, j_recv) = std::sync::mpsc::channel();
 
         let instance = self.selected_instance.as_ref().unwrap();
-        let optifine_unique_version = block_on(OptifineUniqueVersion::get(instance));
+        let optifine_unique_version =
+            if let State::InstallOptifine(MenuInstallOptifine::Choosing {
+                optifine_unique_version,
+                ..
+            }) = &self.state
+            {
+                *optifine_unique_version
+            } else {
+                block_on(OptifineUniqueVersion::get(instance))
+            };
 
         let delete_installer = if let State::InstallOptifine(MenuInstallOptifine::Choosing {
             delete_installer,
@@ -410,7 +446,7 @@ impl Launcher {
                 installer_path.clone(),
                 Some(p_sender),
                 Some(j_sender),
-                optifine_unique_version.is_some(),
+                optifine_unique_version,
             ),
             |n| Message::InstallOptifine(InstallOptifineMessage::End(n.strerr())),
         )

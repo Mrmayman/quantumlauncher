@@ -141,8 +141,9 @@ impl Launcher {
             }
             Message::UninstallLoaderForgeStart => {
                 let instance = self.selected_instance.clone().unwrap();
+
                 return Task::perform(
-                    async move { loaders::forge::uninstall(instance).await.strerr() },
+                    loaders::forge::uninstall(instance),
                     Message::UninstallLoaderEnd,
                 );
             }
@@ -154,7 +155,11 @@ impl Launcher {
                     .get_name()
                     .to_owned();
                 return Task::perform(
-                    async { loaders::optifine::uninstall(instance_name).await.strerr() },
+                    async {
+                        loaders::optifine::uninstall(instance_name, true)
+                            .await
+                            .strerr()
+                    },
                     Message::UninstallLoaderEnd,
                 );
             }
@@ -165,8 +170,8 @@ impl Launcher {
                     Message::UninstallLoaderEnd,
                 );
             }
-            Message::InstallForgeStart { is_neoforge } => {
-                return self.install_forge(is_neoforge);
+            Message::InstallForge(kind) => {
+                return self.install_forge(kind);
             }
             Message::InstallForgeEnd(Ok(())) | Message::UninstallLoaderEnd(Ok(())) => {
                 return self.go_to_edit_mods_menu(false);
@@ -301,11 +306,13 @@ impl Launcher {
             }
             Message::ServerCreateVersionsLoaded(Ok(vec)) => {
                 self.server_version_list_cache = Some(vec.clone());
-                self.state = State::ServerCreate(MenuServerCreate::Loaded {
-                    versions: Box::new(iced::widget::combo_box::State::new(vec)),
-                    selected_version: None,
-                    name: String::new(),
-                });
+                if let State::ServerCreate(_) = &self.state {
+                    self.state = State::ServerCreate(MenuServerCreate::Loaded {
+                        versions: Box::new(iced::widget::combo_box::State::new(vec)),
+                        selected_version: None,
+                        name: String::new(),
+                    });
+                }
             }
             Message::ServerManageStartServer(server) => {
                 self.server_logs.remove(&server);
@@ -332,7 +339,6 @@ impl Launcher {
                     info!("Server {name} crashed with status: {status}");
                 }
 
-                // TODO: Implement server crash handling
                 if let Some(log) = self.server_logs.get_mut(&name) {
                     log.has_crashed = !status.success();
                 }
@@ -418,9 +424,15 @@ impl Launcher {
                 self.state = State::ConfirmAction {
                     msg1: format!("uninstall {name}"),
                     msg2: "This should be fine, you can always reinstall it later".to_owned(),
-                    yes: (*msg).clone(),
+                    yes: Message::Multiple(vec![
+                        Message::ShowScreen("Uninstalling...".to_owned()),
+                        (*msg).clone(),
+                    ]),
                     no: Message::ManageMods(ManageModsMessage::ScreenOpenWithoutUpdate),
                 }
+            }
+            Message::ShowScreen(msg) => {
+                self.state = State::GenericMessage(msg);
             }
             Message::CoreEvent(event, status) => return self.iced_event(event, status),
             Message::LaunchChangeTab(launch_tab_id) => {

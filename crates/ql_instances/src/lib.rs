@@ -56,7 +56,7 @@ mod instance;
 mod json_profiles;
 mod launcher_update_detector;
 
-pub use download::{constants::OS_NAME, create_instance, DownloadError};
+pub use download::{create_instance, DownloadError};
 pub use instance::launch::launch;
 pub use instance::list_versions::list_versions;
 pub use instance::read_log::{read_logs, LogEvent, LogLine, ReadError};

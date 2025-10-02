@@ -5,17 +5,18 @@ use std::{
 
 use crate::json_profiles::ProfileJson;
 use ql_core::{
+    constants::DEFAULT_RAM_MB_FOR_INSTANCE,
     do_jobs,
     file_utils::{self, LAUNCHER_DIR},
     impl_3_errs_jri, info,
-    json::{AssetIndexMap, InstanceConfigJson, Manifest, VersionDetails},
+    json::{
+        instance_config::VersionInfo, AssetIndexMap, InstanceConfigJson, Manifest, VersionDetails,
+    },
     pt, DownloadFileError, DownloadProgress, IntoIoError, IntoJsonError, IoError, JsonError,
     ListEntry, RequestError,
 };
 use thiserror::Error;
 use tokio::sync::Mutex;
-
-use super::constants::DEFAULT_RAM_MB_FOR_INSTANCE;
 
 const DOWNLOAD_ERR_PREFIX: &str = "while creating instance:\n";
 
@@ -327,6 +328,10 @@ impl GameDownloader {
             java_args_mode: None,
             pre_launch_prefix_mode: None,
             custom_jar: None,
+            mod_type_info: None,
+            version_info: Some(VersionInfo {
+                is_special_lwjgl3: self.version_json.id.ends_with("-lwjgl3"),
+            }),
             main_class_override: None,
         };
         let config_json = serde_json::to_string(&config_json).json_to()?;
