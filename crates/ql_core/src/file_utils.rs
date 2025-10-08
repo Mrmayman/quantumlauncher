@@ -680,3 +680,46 @@ pub fn migration_launcher_dir() -> Option<PathBuf> {
     }
     Some(dirs::data_dir()?.join("QuantumLauncher"))
 }
+
+/// Redacts sensitive information from file paths to protect user privacy.
+///
+/// This function replaces usernames and home directory paths with `[REDACTED]`
+/// to prevent sensitive user information from appearing in logs or output.
+///
+/// # Examples
+///
+/// ```
+/// use ql_core::file_utils::redact_path;
+///
+/// // On Linux/Unix systems:
+/// assert_eq!(redact_path("/home/username/Documents"), "/home/[REDACTED]/Documents");
+///
+/// // On Windows systems:
+/// assert_eq!(redact_path("C:\\Users\\username\\Documents"), "C:\\Users\\[REDACTED]\\Documents");
+/// ```
+pub fn redact_path(path: &str) -> String {
+    let mut redacted = path.to_string();
+
+    // Get system username from environment variables
+    if let Ok(username) = std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .or_else(|_| std::env::var("LOGNAME"))
+    {
+        redacted = redacted.replace(&username, "[REDACTED]");
+    }
+
+    // Get home directory path and replace it
+    if let Some(home_dir) = dirs::home_dir() {
+        if let Some(home_str) = home_dir.to_str() {
+            // Replace full home path
+            redacted = redacted.replace(home_str, "/home/[REDACTED]");
+        }
+    }
+
+    // Handle Windows-style paths
+    if let Ok(userprofile) = std::env::var("USERPROFILE") {
+        redacted = redacted.replace(&userprofile, "C:\\Users\\[REDACTED]");
+    }
+
+    redacted
+}

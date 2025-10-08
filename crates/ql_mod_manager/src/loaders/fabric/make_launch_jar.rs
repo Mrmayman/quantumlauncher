@@ -93,7 +93,7 @@ pub async fn make_launch_jar(
         let regex = regex::Regex::new(r"META-INF/[^/]+\.(SF|DSA|RSA|EC)").unwrap();
 
         for (i, library_path) in library_files.iter().enumerate() {
-            info!("({i}/{library_files_len}) {library_path:?}");
+            info!("({i}/{library_files_len}) {}", ql_core::redact_path(&library_path.to_string_lossy()));
             let library_file = File::open(library_path).path(library_path)?;
             let mut jar_reader = zip::read::ZipArchive::new(BufReader::new(library_file))?;
 
