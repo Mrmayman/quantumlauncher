@@ -26,6 +26,7 @@ pub enum LaunchTabId {
     Buttons,
     Log,
     Edit,
+    Saves,
 }
 
 impl std::fmt::Display for LaunchTabId {
@@ -37,6 +38,7 @@ impl std::fmt::Display for LaunchTabId {
                 LaunchTabId::Buttons => "Play",
                 LaunchTabId::Log => "Log",
                 LaunchTabId::Edit => "Edit",
+                LaunchTabId::Saves => "Saves",
             }
         )
     }
