@@ -136,7 +136,7 @@ async fn get_java_path(
             if java_path.exists() {
                 return Ok(java_path);
             }
-            err!("Java override at {java_path:?} does not exist!");
+            err!("Java override at {} does not exist!", ql_core::redact_path(&java_path.to_string_lossy()));
         }
     }
     let path = get_java_binary(version, "java", Some(&java_install_progress)).await?;
