@@ -24,4 +24,4 @@ thiserror = { workspace = true }
 
 image = { workspace = true }
 chrono = { workspace = true }
-regex = "1"
+regex = { workspace = true }

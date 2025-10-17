@@ -2,7 +2,7 @@ use std::{
     collections::HashSet,
     ffi::OsStr,
     io::{Cursor, Write},
-    path::{Path, PathBuf},
+    path::{Path, PathBuf, MAIN_SEPARATOR},
     sync::LazyLock,
 };
 
@@ -632,7 +632,11 @@ pub fn extract_zip_archive<R: std::io::Read + std::io::Seek, P: AsRef<Path>>(
 pub async fn zip_directory_to_bytes<P: AsRef<Path>>(dir: P) -> std::io::Result<Vec<u8>> {
     let mut buffer = Cursor::new(Vec::new());
     let mut zip = ZipWriter::new(&mut buffer);
-    let options = FileOptions::<()>::default().unix_permissions(0o755);
+
+    let file_options = FileOptions::<()>::default().unix_permissions(0o755);
+    let dir_options = FileOptions::<()>::default()
+        .unix_permissions(0o755)
+        .compression_method(zip::CompressionMethod::Stored);
 
     let dir = dir.as_ref();
     let base_path = dir;
@@ -641,13 +645,23 @@ pub async fn zip_directory_to_bytes<P: AsRef<Path>>(dir: P) -> std::io::Result<V
         let entry = entry?;
         let path = entry.path();
 
-        if path.is_file() {
-            let relative_path = path
-                .strip_prefix(base_path)
-                .map_err(std::io::Error::other)?;
-            let name_in_zip = relative_path.to_string_lossy().replace('\\', "/"); // For Windows compatibility
+        let relative_path = path
+            .strip_prefix(base_path)
+            .map_err(std::io::Error::other)?;
+        let mut name_in_zip = relative_path.to_string_lossy().to_string();
+        // .replace('\\', "/");
 
-            zip.start_file(name_in_zip, options)?;
+        if path.is_dir() {
+            // Add directory entries with trailing slash (required for Java jar loading)
+            if !name_in_zip.is_empty() {
+                if !name_in_zip.ends_with(MAIN_SEPARATOR) {
+                    name_in_zip.push(MAIN_SEPARATOR);
+                }
+                zip.start_file(name_in_zip, dir_options)?;
+            }
+        } else {
+            // Add file
+            zip.start_file(name_in_zip, file_options)?;
             let bytes = tokio::fs::read(path)
                 .await
                 .path(path)
@@ -660,10 +674,11 @@ pub async fn zip_directory_to_bytes<P: AsRef<Path>>(dir: P) -> std::io::Result<V
     Ok(buffer.into_inner())
 }
 
-/// Used for moving the launcher dir from .config to .local
+/// Used for moving the launcher dir from `.config` to `.local`.
 /// Gets the old location of the launcher dir using the same methods as before the
-/// migration so if the user have overwriten it using `$XGD_CONFIG_DIR` we dont lose track of it
+/// migration so if the user have overwritten it using `$XGD_CONFIG_DIR` we don't lose track of it.
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+#[must_use]
 pub fn migration_legacy_launcher_dir() -> Option<PathBuf> {
     if check_qlportable_file().is_some() {
         return None;
@@ -671,9 +686,10 @@ pub fn migration_legacy_launcher_dir() -> Option<PathBuf> {
     Some(dirs::config_dir()?.join("QuantumLauncher"))
 }
 
-/// used for moving the launcher dir from .config to .local
-/// same as `get_launcher_dir` but doesnt create the folder if not found.
+/// Used for moving the launcher dir from `.config` to `.local`.
+/// Same as `get_launcher_dir` but doesn't create the folder if not found.
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+#[must_use]
 pub fn migration_launcher_dir() -> Option<PathBuf> {
     if check_qlportable_file().is_some() {
         return None;

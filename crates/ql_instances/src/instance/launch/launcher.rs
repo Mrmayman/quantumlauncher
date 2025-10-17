@@ -3,7 +3,7 @@ use crate::{
     download::GameDownloader,
     jarmod,
 };
-use ql_core::json::{GlobalSettings, V_1_5_2, V_PRECLASSIC_LAST};
+use ql_core::json::{GlobalSettings, V_1_12_2, V_1_5_2, V_PRECLASSIC_LAST};
 use ql_core::{
     err, file_utils, info,
     json::{
@@ -573,6 +573,12 @@ impl GameLauncher {
     ) -> Result<(), GameLaunchError> {
         if let Some(fabric_json) = fabric_json {
             for library in &fabric_json.libraries {
+                if library.name.contains("org.lwjgl.lwjgl:")
+                    && library.name.contains(":2.")
+                    && self.version_json.is_before_or_eq(V_1_12_2)
+                {
+                    continue;
+                }
                 if let Some(name) = remove_version_from_library(&library.name) {
                     if self
                         .version_json
@@ -696,7 +702,7 @@ impl GameLauncher {
             .version_json
             .libraries
             .iter()
-            .filter(|n| GameDownloader::download_libraries_library_is_allowed(n))
+            .filter(|n| n.is_allowed())
             .filter_map(|n| match (&n.name, n.downloads.as_ref(), n.url.as_ref()) {
                 (
                     Some(name),
@@ -709,22 +715,25 @@ impl GameLauncher {
                 (Some(name), None, Some(url)) => {
                     let flib = ql_core::json::fabric::Library {
                         name: name.clone(),
-                        url: if url.ends_with('/') {
+                        url: Some(if url.ends_with('/') {
                             url.clone()
                         } else {
                             format!("{url}/")
-                        },
+                        }),
+                        rules: None,
                     };
-                    Some((
-                        n,
-                        name,
-                        LibraryDownloadArtifact {
-                            path: Some(flib.get_path()),
-                            sha1: String::new(),
-                            size: serde_json::Number::from_u128(0).unwrap(),
-                            url: flib.get_url(),
-                        },
-                    ))
+                    flib.get_url().map(|url| {
+                        (
+                            n,
+                            name,
+                            LibraryDownloadArtifact {
+                                path: Some(flib.get_path()),
+                                sha1: String::new(),
+                                size: serde_json::Number::from_u128(0).unwrap(),
+                                url,
+                            },
+                        )
+                    })
                 }
                 _ => None,
             })
@@ -753,6 +762,9 @@ impl GameLauncher {
         library: &Library,
         main_class: &str,
     ) -> Result<(), GameLaunchError> {
+        if !library.is_allowed() {
+            return Ok(());
+        }
         if let Some(name) = remove_version_from_library(name) {
             if classpath_entries.contains(&name) {
                 return Ok(());
@@ -851,7 +863,15 @@ impl GameLauncher {
                 .and_then(|n| n.pre_launch_prefix.clone())
                 .unwrap_or_default(),
         );
-        if !prefix_commands.is_empty() {
+        if prefix_commands.is_empty() {
+            // No prefix, use normal Java command
+            command.args(
+                java_arguments
+                    .iter()
+                    .chain(game_arguments.iter())
+                    .filter(|n| !n.is_empty()),
+            );
+        } else {
             info!("Pre args: {prefix_commands:?}");
 
             let original_java_path = path.to_string_lossy().to_string();
@@ -870,14 +890,6 @@ impl GameLauncher {
 
             command = new_command;
             path = PathBuf::from(&prefix_commands[0]);
-        } else {
-            // No prefix, use normal Java command
-            command.args(
-                java_arguments
-                    .iter()
-                    .chain(game_arguments.iter())
-                    .filter(|n| !n.is_empty()),
-            );
         }
 
         command.current_dir(&self.minecraft_dir);

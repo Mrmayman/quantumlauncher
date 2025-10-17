@@ -3,19 +3,19 @@ import re
 import subprocess
 import sys
 import time
-from typing import List, Tuple
 
 from . import procs
 from .types import Version, PID
 
 _ANSI_ESCAPE: re.Pattern[str] = re.compile(r'\x1b\[[0-9;]*[mK]')
+_PID_LOG: re.Pattern[str] = re.compile(r'(?:\[info\] Launched!\s+|-\s+)PID: (\d+)')
 
 IS_XWAYLAND = os.environ.get("WAYLAND_DISPLAY") is not None and os.environ.get("DISPLAY") is not None
 IS_X11 = os.getenv("XDG_SESSION_TYPE") == "x11"
-IS_WINDOWS = sys.platform.startswith("win")
+IS_WINDOWS: bool = sys.platform.startswith("win")
 
 
-def _remove_ansi_colors(text):
+def _remove_ansi_colors(text: str):
     return _ANSI_ESCAPE.sub('', text)
 
 
@@ -32,7 +32,6 @@ def _launch(instance: Version) -> PID | None:
         sys.exit(1)
 
     pid: PID | None = None
-    pattern = re.compile(r'\[info] Launched! PID: (\d+)')
 
     for line in process.stdout:
         clean_line = _remove_ansi_colors(line)
@@ -40,7 +39,7 @@ def _launch(instance: Version) -> PID | None:
             print("Error: Game crashed instantly!")
             process.kill()
             return None
-        match = re.search(pattern, clean_line)
+        match = re.search(_PID_LOG, clean_line)
         if match:
             pid = PID(match.group(1))
             break
@@ -81,13 +80,13 @@ if sys.platform.startswith("win"):
     SendMessageW = user32.SendMessageW
     PostMessageW = user32.PostMessageW
 
-    g_found: List[Tuple[int, str]] = []
+    g_found: list[tuple[int, str]] = []
     g_pid: int = 0
 
 
-    def _get_windows_for_pid(pid: int) -> List[int]:
+    def _get_windows_for_pid(pid: int) -> list[int]:
         # Return list of hwnd for windows belonging to pid
-        found: List[int] = []
+        found: list[int] = []
 
         @EnumWindowsProc
         def _enum(hwnd, l_param):

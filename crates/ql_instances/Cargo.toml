@@ -7,13 +7,12 @@ edition = "2021"
 
 [features]
 default = []
-simulate_linux_arm64 = []
-simulate_macos_arm64 = []
+simulate_linux_arm64 = ["ql_core/simulate_linux_arm64"]
+simulate_macos_arm64 = ["ql_core/simulate_macos_arm64"]
 
 [dependencies]
 ql_core = { path = "../ql_core" }
 ql_java_handler = { path = "../ql_java_handler" }
-
 
 chrono = { workspace = true }
 semver = { workspace = true  }
@@ -24,14 +23,12 @@ tokio = { workspace = true }
 
 serde = { workspace = true }
 serde_json = { workspace = true }
-quick-xml = { version = "0.37", features = ["encoding", "serialize"] }
 
 owo-colors = { workspace = true }
 indicatif = "0.17"
 thiserror = { workspace = true }
 
-# Removing UNICODE characters from XML log
-any_ascii = "0.3"
+
 
 urlencoding = "2"
 

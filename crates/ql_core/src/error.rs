@@ -69,6 +69,22 @@ pub enum IoError {
     DirEscapeAttack,
 }
 
+/// Converts any `std::io::Result<T>` into
+/// `Result<T, IoError>`.
+///
+/// This allows you to use our [`IoError`] type
+/// which has more context.
+///
+/// # Example
+///
+/// ```no_run
+/// # use std::path::Path;
+/// let p = Path::from("some_file.txt");
+/// std::fs::write(p, "hi").path(p)?;
+/// // Here, if this fails, the error message
+/// // will tell you what path it tried writing to.
+/// # Ok(())
+/// ```
 pub trait IntoIoError<T> {
     #[allow(clippy::missing_errors_doc)]
     fn path(self, p: impl Into<PathBuf>) -> Result<T, IoError>;

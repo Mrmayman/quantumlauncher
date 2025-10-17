@@ -4,7 +4,6 @@ import signal
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List
 
 QL_BIN: str = "tests/qlbin.exe" if sys.platform == "win32" else "tests/qlbin"
 OLD_QL_BIN: str = (
@@ -20,7 +19,7 @@ def prepare_ql_bin() -> None:
         f.write('')
 
 
-def run(args: List[str]) -> None:
+def run(args: list[str]) -> None:
     try:
         subprocess.run(args)
     except subprocess.CalledProcessError as e:
@@ -34,7 +33,7 @@ def run(args: List[str]) -> None:
         sys.exit(1)
 
 
-def run_parallel(commands: List[List[str]], max_workers: int | None = None) -> None:
+def run_parallel(commands: list[list[str]], max_workers: int | None = None) -> None:
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(run, cmd): cmd for cmd in commands}
 

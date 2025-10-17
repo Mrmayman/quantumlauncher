@@ -1,4 +1,5 @@
 use std::{
+    ffi::OsStr,
     fmt::Display,
     path::{Path, PathBuf},
     process::Command,
@@ -7,9 +8,11 @@ use std::{
 
 use ql_core::{
     file_utils, impl_3_errs_jri, info, jarmod,
-    json::{optifine::JsonOptifine, VersionDetails},
-    no_window, pt, GenericProgress, InstanceSelection, IntoIoError, IoError, JsonError, Progress,
-    RequestError, CLASSPATH_SEPARATOR, LAUNCHER_DIR,
+    json::{
+        instance_config::ModTypeInfo, optifine::JsonOptifine, InstanceConfigJson, VersionDetails,
+    },
+    no_window, pt, GenericProgress, InstanceSelection, IntoIoError, IoError, JsonError,
+    OptifineUniqueVersion, Progress, RequestError, CLASSPATH_SEPARATOR, LAUNCHER_DIR,
 };
 use ql_java_handler::{get_java_binary, JavaInstallError, JavaVersion, JAVA};
 use thiserror::Error;
@@ -85,32 +88,55 @@ pub async fn install(
     path_to_installer: PathBuf,
     progress_sender: Option<Sender<OptifineInstallProgress>>,
     java_progress_sender: Option<Sender<GenericProgress>>,
-    optifine_unique_version: bool,
+    optifine_unique_version: Option<OptifineUniqueVersion>,
 ) -> Result<(), OptifineError> {
     if !path_to_installer.exists() || !path_to_installer.is_file() {
         return Err(OptifineError::InstallerDoesNotExist);
     }
 
     let progress_sender = progress_sender.as_ref();
+    let instance_path = LAUNCHER_DIR.join("instances").join(&instance_name);
 
     info!("Started installing OptiFine");
     send_progress(progress_sender, OptifineInstallProgress::P1Start);
 
-    if optifine_unique_version {
-        let installer = tokio::fs::read(&path_to_installer)
-            .await
-            .path(&path_to_installer)?;
-        jarmod::insert(
-            InstanceSelection::Instance(instance_name),
-            installer,
-            "Optifine",
-        )
-        .await?;
-        pt!("Finished installing OptiFine (old version)");
-        return Ok(());
+    let mut config = InstanceConfigJson::read_from_dir(&instance_path).await?;
+
+    match optifine_unique_version {
+        Some(OptifineUniqueVersion::Forge) => {
+            let dest = instance_path.join(".minecraft/mods");
+            tokio::fs::create_dir_all(&dest).await.path(&dest)?;
+            let filename = path_to_installer
+                .file_name()
+                .and_then(OsStr::to_str)
+                .unwrap_or("optifine.jar");
+            let dest = dest.join(filename);
+            tokio::fs::copy(&path_to_installer, &dest)
+                .await
+                .path(&path_to_installer)?;
+            config
+                .mod_type_info
+                .get_or_insert_with(ModTypeInfo::default)
+                .optifine_jar = Some(filename.to_owned());
+            config.save_to_dir(&instance_path).await?;
+            return Ok(());
+        }
+        Some(_) => {
+            let installer = tokio::fs::read(&path_to_installer)
+                .await
+                .path(&path_to_installer)?;
+            jarmod::insert(
+                InstanceSelection::Instance(instance_name),
+                installer,
+                "Optifine",
+            )
+            .await?;
+            pt!("Finished installing OptiFine (old version)");
+            return Ok(());
+        }
+        None => {}
     }
 
-    let instance_path = LAUNCHER_DIR.join("instances").join(&instance_name);
     create_details_json(&instance_path).await?;
     let dot_minecraft_path = instance_path.join(".minecraft");
 
@@ -140,7 +166,12 @@ pub async fn install(
     run_hook(&new_installer_path, &optifine_path).await?;
 
     download_libraries(&instance_name, &dot_minecraft_path, progress_sender).await?;
-    change_instance_type(&instance_path, "OptiFine".to_owned()).await?;
+
+    let instance_type = "OptiFine".to_owned();
+    config.mod_type = instance_type;
+    config.mod_type_info = None;
+    config.save_to_dir(&instance_path).await?;
+
     send_progress(progress_sender, OptifineInstallProgress::P5Done);
     pt!("Finished installing OptiFine");
 
@@ -156,7 +187,7 @@ fn send_progress(
     }
 }
 
-pub async fn uninstall(instance_name: String) -> Result<(), OptifineError> {
+pub async fn uninstall(instance_name: String, change_type: bool) -> Result<(), OptifineError> {
     let instance_path = LAUNCHER_DIR.join("instances").join(&instance_name);
 
     let optifine_path = instance_path.join("optifine");
@@ -166,7 +197,9 @@ pub async fn uninstall(instance_name: String) -> Result<(), OptifineError> {
             .path(optifine_path)?;
     }
 
-    change_instance_type(&instance_path, "Vanilla".to_owned()).await?;
+    if change_type {
+        change_instance_type(&instance_path, "Vanilla".to_owned(), None).await?;
+    }
 
     let dot_minecraft_path = instance_path.join(".minecraft");
     let libraries_path = dot_minecraft_path.join("libraries");

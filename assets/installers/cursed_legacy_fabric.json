@@ -1,0 +1,75 @@
+{
+  "libraries": [
+    {
+      "name": "net.fabricmc:tiny-mappings-parser:0.2.2.14",
+      "url": "https://maven.fabricmc.net/"
+    },
+    {
+      "name": "net.fabricmc:sponge-mixin:0.8+build.18",
+      "url": "https://maven.fabricmc.net/"
+    },
+    {
+      "name": "net.fabricmc:tiny-remapper:0.3.0.70",
+      "url": "https://maven.fabricmc.net/"
+    },
+    {
+      "name": "net.fabricmc:fabric-loader-sat4j:2.3.5.4",
+      "url": "https://maven.fabricmc.net/"
+    },
+    {
+      "name": "com.google.jimfs:jimfs:1.1",
+      "url": "https://maven.fabricmc.net/"
+    },
+    {
+      "name": "org.ow2.asm:asm:9.0",
+      "url": "https://maven.fabricmc.net/"
+    },
+    {
+      "name": "org.ow2.asm:asm-analysis:9.0",
+      "url": "https://maven.fabricmc.net/"
+    },
+    {
+      "name": "org.ow2.asm:asm-commons:9.0",
+      "url": "https://maven.fabricmc.net/"
+    },
+    {
+      "name": "org.ow2.asm:asm-tree:9.0",
+      "url": "https://maven.fabricmc.net/"
+    },
+    {
+      "name": "org.ow2.asm:asm-util:9.0",
+      "url": "https://maven.fabricmc.net/"
+    },
+    {
+      "name": "org.apache.logging.log4j:log4j-api:2.8.1",
+      "url": "https://libraries.minecraft.net/"
+    },
+    {
+      "name": "org.apache.logging.log4j:log4j-core:2.8.1",
+      "url": "https://libraries.minecraft.net/"
+    },
+    {
+      "name": "com.google.code.gson:gson:2.8.6",
+      "url": "https://repo1.maven.org/maven2/"
+    },
+    {
+      "name": "net.fabricmc:access-widener:1.0.0",
+      "url": "https://maven.fabricmc.net/"
+    },
+    {
+      "name": "com.github.minecraft-cursed-legacy:Plasma:build.9",
+      "url": "https://jitpack.io/"
+    },
+    {
+      "name": "com.github.minecraft-cursed-legacy:cursed-fabric-loader:INSERT_COMMIT",
+      "url": "https://jitpack.io/"
+    },
+    {
+      "_comment": "(Servers only) jimfs in fabric-server-launch requires guava on the system classloader",
+      "name": "com.google.guava:guava:21.0",
+      "url": "https://maven.fabricmc.net/"
+    }
+  ],
+  "mainClass": "net.fabricmc.loader.launch.knot.KnotClient",
+  "mainClassServer": "net.fabricmc.loader.launch.knot.KnotServer"
+}

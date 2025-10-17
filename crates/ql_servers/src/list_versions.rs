@@ -11,18 +11,6 @@ use ql_core::{err, json::Manifest, JsonDownloadError, ListEntry};
 /// Prints an error to log if Omniarchive versions couldn't be loaded.
 #[allow(clippy::missing_panics_doc)]
 pub async fn list() -> Result<Vec<ListEntry>, JsonDownloadError> {
-    // TODO: Allow sideloading server jars
-    // In Minecraft Server ecosystem, it's more common
-    // to "sideload", or provide your own custom server jars.
-    //
-    // This isn't common in clients because distributing
-    // full-built jars is against Minecraft EULA.
-    // The only use case for this in clients is for running old versions.
-    // We already have that built in through Omniarchive so it's fine.
-    //
-    // I think this "sideloading" is allowed for servers so gotta
-    // provide it somehow.
-
     Ok(Manifest::download()
         .await?
         .versions

@@ -22,15 +22,16 @@ impl TryFrom<&str> for Loader {
     type Error = ();
 
     fn try_from(loader: &str) -> Result<Self, Self::Error> {
-        match loader {
-            "Forge" => Ok(Loader::Forge),
-            "Fabric" => Ok(Loader::Fabric),
-            "Quilt" => Ok(Loader::Quilt),
-            "OptiFine" => Ok(Loader::OptiFine),
-            "Paper" => Ok(Loader::Paper),
-            "NeoForge" => Ok(Loader::Neoforge),
+        let loader = loader.to_lowercase();
+        match loader.as_str() {
+            "forge" => Ok(Loader::Forge),
+            "fabric" => Ok(Loader::Fabric),
+            "quilt" => Ok(Loader::Quilt),
+            "optifine" => Ok(Loader::OptiFine),
+            "paper" => Ok(Loader::Paper),
+            "neoforge" => Ok(Loader::Neoforge),
             _ => {
-                if loader != "Vanilla" {
+                if loader != "vanilla" {
                     err!("Unknown loader: {loader}");
                 }
                 Err(())

@@ -6,10 +6,12 @@ use std::{
     },
 };
 
+use crate::loaders::paper::PaperVer;
 use forge::ForgeInstallProgress;
 use ql_core::{
-    json::InstanceConfigJson, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError,
-    IntoStringError, JsonFileError, Loader, Progress,
+    json::{instance_config::ModTypeInfo, InstanceConfigJson},
+    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IntoStringError, JsonFileError,
+    Loader, Progress,
 };
 
 pub mod fabric;
@@ -18,13 +20,18 @@ pub mod neoforge;
 pub mod optifine;
 pub mod paper;
 
+pub(crate) const FORGE_INSTALLER_JAVA: &str =
+    include_str!("../../../../assets/installers/ForgeInstaller.java");
+
 async fn change_instance_type(
     instance_dir: &Path,
     instance_type: String,
+    extras: Option<ModTypeInfo>,
 ) -> Result<(), JsonFileError> {
     let mut config = InstanceConfigJson::read_from_dir(instance_dir).await?;
 
     config.mod_type = instance_type;
+    config.mod_type_info = extras;
 
     let config = serde_json::to_string(&config).json_to()?;
     let config_path = instance_dir.join("config.json");
@@ -49,14 +56,25 @@ pub async fn install_specified_loader(
 ) -> Result<LoaderInstallResult, String> {
     match loader {
         Loader::Fabric => {
-            fabric::install(specified_version, instance, progress.as_deref(), false)
-                .await
-                .strerr()?;
+            // TODO: Add legacy fabric support
+            fabric::install(
+                specified_version,
+                instance,
+                progress.as_deref(),
+                fabric::BackendType::Fabric,
+            )
+            .await
+            .strerr()?;
         }
         Loader::Quilt => {
-            fabric::install(specified_version, instance, progress.as_deref(), true)
-                .await
-                .strerr()?;
+            fabric::install(
+                specified_version,
+                instance,
+                progress.as_deref(),
+                fabric::BackendType::Quilt,
+            )
+            .await
+            .strerr()?;
         }
 
         Loader::Forge => {
@@ -87,10 +105,16 @@ pub async fn install_specified_loader(
 
         Loader::Paper => {
             debug_assert!(instance.is_server());
-            // TODO: Specified version
-            paper::install(instance.get_name().to_owned())
-                .await
-                .strerr()?;
+            paper::install(
+                instance.get_name().to_owned(),
+                if let Some(s) = specified_version {
+                    PaperVer::Id(s)
+                } else {
+                    PaperVer::None
+                },
+            )
+            .await
+            .strerr()?;
         }
 
         Loader::OptiFine => return Ok(LoaderInstallResult::NeedsOptifine),

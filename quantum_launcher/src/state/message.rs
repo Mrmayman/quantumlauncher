@@ -1,13 +1,10 @@
-use std::{
-    collections::HashSet,
-    path::PathBuf,
-    process::ExitStatus,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
 
+use crate::message_handler::ForgeKind;
 use iced::widget;
 use ql_core::{
-    file_utils::DirItem, jarmod::JarMods, InstanceSelection, ListEntry, ModId, StoreBackendType,
+    file_utils::DirItem, jarmod::JarMods, InstanceSelection, LaunchedProcess, ListEntry, ModId,
+    StoreBackendType,
 };
 use ql_instances::{
     auth::{
@@ -17,10 +14,9 @@ use ql_instances::{
     UpdateCheckInfo,
 };
 use ql_mod_manager::{
-    loaders::fabric::FabricVersionListItem,
+    loaders::{fabric, paper::PaperVersion},
     store::{CurseforgeNotAllowed, ImageResult, ModIndex, QueryType, RecommendedMod, SearchResult},
 };
-use tokio::process::Child;
 
 use super::{LaunchTabId, LauncherSettingsTab, LicenseTab, Res};
 
@@ -28,9 +24,19 @@ use super::{LaunchTabId, LauncherSettingsTab, LicenseTab, Res};
 pub enum InstallFabricMessage {
     End(Res),
     VersionSelected(String),
-    VersionsLoaded(Res<Vec<FabricVersionListItem>>),
+    VersionsLoaded(Res<fabric::FabricVersionList>),
     ButtonClicked,
     ScreenOpen { is_quilt: bool },
+    ChangeBackend(fabric::BackendType),
+}
+
+#[derive(Debug, Clone)]
+pub enum InstallPaperMessage {
+    End(Res),
+    VersionSelected(PaperVersion),
+    VersionsLoaded(Res<Vec<ql_mod_manager::loaders::paper::PaperVersion>>),
+    ButtonClicked,
+    ScreenOpen,
 }
 
 #[derive(Debug, Clone)]
@@ -93,6 +99,7 @@ pub enum ManageModsMessage {
     ToggleCheckbox(String, Option<ModId>),
 
     DeleteSelected,
+    DeleteOptiforge(String),
     DeleteFinished(Res<Vec<ModId>>),
     LocalDeleteFinished(Res),
     LocalIndexLoaded(HashSet<String>),
@@ -184,7 +191,6 @@ pub enum RecommendedModMessage {
     DownloadEnd(Res<HashSet<CurseforgeNotAllowed>>),
 }
 
-// FIXME: Look at the unused messages
 #[allow(unused)]
 #[derive(Debug, Clone)]
 pub enum AccountMessage {
@@ -262,8 +268,8 @@ pub enum LauncherSettingsMessage {
 #[derive(Debug, Clone)]
 pub enum Message {
     Nothing,
-    #[allow(unused)]
     Multiple(Vec<Message>),
+    ShowScreen(String),
 
     WelcomeContinueToTheme,
     WelcomeContinueToAuth,
@@ -291,9 +297,8 @@ pub enum Message {
         message: Option<String>,
         clear_selection: bool,
     },
-    LaunchEnd(Res<Arc<Mutex<Child>>>),
+    LaunchEnd(Res<LaunchedProcess>),
     LaunchKill,
-    LaunchKillEnd(Res),
     LaunchChangeTab(LaunchTabId),
 
     LaunchScrollSidebar(f32),
@@ -301,12 +306,9 @@ pub enum Message {
     DeleteInstanceMenu,
     DeleteInstance,
 
-    InstallForgeStart {
-        is_neoforge: bool,
-    },
+    InstallForge(ForgeKind),
     InstallForgeEnd(Res),
-    InstallPaperStart,
-    InstallPaperEnd(Res),
+    InstallPaper(InstallPaperMessage),
 
     UninstallLoaderConfirm(Box<Message>, String),
     UninstallLoaderFabricStart,
@@ -344,7 +346,7 @@ pub enum Message {
 
     LaunchLogScroll(isize),
     LaunchLogScrollAbsolute(isize),
-    LaunchEndedLog(Res<(ExitStatus, String)>),
+    LaunchGameExited(Res<(ExitStatus, InstanceSelection)>),
     LaunchCopyLog,
     LaunchUploadLog,
     LaunchUploadLogResult(Res<String>),
@@ -357,10 +359,8 @@ pub enum Message {
         selected_server: Option<String>,
         message: Option<String>,
     },
-    ServerStartFinish(Res<(Arc<Mutex<Child>>, bool)>),
-    ServerStopped(Res<(ExitStatus, String)>),
-    ServerCommandEdit(String, String),
-    ServerCommandSubmit(String),
+    ServerCommandEdit(String),
+    ServerCommandSubmit,
 
     ServerCreateScreenOpen,
     ServerCreateVersionsLoaded(Res<Vec<ListEntry>>),

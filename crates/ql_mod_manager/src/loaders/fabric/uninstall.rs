@@ -47,7 +47,7 @@ pub async fn uninstall_server(server_name: String) -> Result<(), FabricInstallEr
         }
     }
 
-    change_instance_type(&server_dir, "Vanilla".to_owned()).await?;
+    change_instance_type(&server_dir, "Vanilla".to_owned(), None).await?;
     info!("Finished uninstalling fabric");
 
     Ok(())
@@ -63,18 +63,20 @@ pub async fn uninstall_client(instance_name: String) -> Result<(), FabricInstall
         let fabric_json = tokio::fs::read_to_string(&fabric_json_path)
             .await
             .path(&fabric_json_path)?;
-        let fabric_json: FabricJSON = serde_json::from_str(&fabric_json).json(fabric_json)?;
+        if let Ok(FabricJSON { libraries, .. }) =
+            serde_json::from_str(&fabric_json).json(fabric_json)
+        {
+            tokio::fs::remove_file(&fabric_json_path)
+                .await
+                .path(fabric_json_path)?;
 
-        tokio::fs::remove_file(&fabric_json_path)
-            .await
-            .path(fabric_json_path)?;
-
-        for library in &fabric_json.libraries {
-            let library_path = libraries_dir.join(library.get_path());
-            if library_path.exists() {
-                tokio::fs::remove_file(&library_path)
-                    .await
-                    .path(library_path)?;
+            for library in &libraries {
+                let library_path = libraries_dir.join(library.get_path());
+                if library_path.exists() {
+                    tokio::fs::remove_file(&library_path)
+                        .await
+                        .path(library_path)?;
+                }
             }
         }
     }
@@ -86,7 +88,7 @@ pub async fn uninstall_client(instance_name: String) -> Result<(), FabricInstall
             .path(&cache_dir)?;
     }
 
-    change_instance_type(&instance_dir, "Vanilla".to_owned()).await?;
+    change_instance_type(&instance_dir, "Vanilla".to_owned(), None).await?;
     Ok(())
 }
 

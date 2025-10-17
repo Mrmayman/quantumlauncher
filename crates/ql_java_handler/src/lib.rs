@@ -9,6 +9,7 @@ use std::{
 use thiserror::Error;
 
 use ql_core::{
+    constants::OS_NAME,
     do_jobs_with_limit, err,
     file_utils::{self, DirItem},
     info, pt, GenericProgress, IntoIoError, IoError, JsonDownloadError, JsonError, RequestError,
@@ -296,19 +297,21 @@ async fn download_file(downloads: &JavaFileDownload) -> Result<Vec<u8>, JavaInst
     }
 }
 
-const JAVA_INSTALL_ERR_PREFIX: &str = "while installing Java:\n";
+const ERR_PREF1: &str = "while installing Java (OS: ";
 
 #[derive(Debug, Error)]
 pub enum JavaInstallError {
-    #[error("{JAVA_INSTALL_ERR_PREFIX}{0}")]
+    #[error("{ERR_PREF1}{OS_NAME}):\n{0}")]
     JsonDownload(#[from] JsonDownloadError),
-    #[error("{JAVA_INSTALL_ERR_PREFIX}{0}")]
+    #[error("{ERR_PREF1}{OS_NAME}):\n{0}")]
     Request(#[from] RequestError),
-    #[error("{JAVA_INSTALL_ERR_PREFIX}{0}")]
+    #[error("{ERR_PREF1}{OS_NAME}):\n{0}")]
     Json(#[from] JsonError),
-    #[error("{JAVA_INSTALL_ERR_PREFIX}{0}")]
+    #[error("{ERR_PREF1}{OS_NAME}):\n{0}")]
     Io(#[from] IoError),
-    #[error("{JAVA_INSTALL_ERR_PREFIX}couldn't find java binary\n{0:?}")]
+    #[error(
+        "{ERR_PREF1}{OS_NAME}):\ncouldn't find java binary (this is a bug! please report on discord!)\n{0:?}"
+    )]
     NoJavaBinFound(Result<Vec<DirItem>, IoError>),
 
     #[error("on your platform, only Java 8 (Minecraft 1.16.5 and below) is supported!\n")]
@@ -316,11 +319,11 @@ pub enum JavaInstallError {
     #[error("Java auto-installation is not supported on your platform!\nPlease manually install Java,\nand add the executable path in instance Edit tab")]
     UnsupportedPlatform,
 
-    #[error("{JAVA_INSTALL_ERR_PREFIX}zip extract error:\n{0}")]
+    #[error("{ERR_PREF1}{OS_NAME}):\nzip extract error:\n{0}")]
     ZipExtract(#[from] zip::result::ZipError),
-    #[error("{JAVA_INSTALL_ERR_PREFIX}couldn't extract java tar.gz:\n{0}")]
+    #[error("{ERR_PREF1}{OS_NAME}):\ncouldn't extract java tar.gz:\n{0}")]
     TarGzExtract(std::io::Error),
-    #[error("{JAVA_INSTALL_ERR_PREFIX}unknown extension for java: {0}\n\nTHIS IS A BUG, PLEASE REPORT ON DISCORD")]
+    #[error("{ERR_PREF1}{OS_NAME}):\nunknown extension for java: {0}\n\nThis is a bug, please report on discord!")]
     UnknownExtension(String),
 }
 

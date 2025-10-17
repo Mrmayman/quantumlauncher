@@ -47,6 +47,7 @@ image = { version = "0.24", default-features = false, features = [
     "webp",
 ] }
 tempfile = "3"
+regex = "1"
 
 # [profile.dev]
 # opt-level = 1
