@@ -1,11 +1,10 @@
-use std::collections::BTreeMap;
 use std::{collections::HashMap, time::Instant};
 
 use iced::futures::executor::block_on;
 use iced::{widget::scrollable::AbsoluteOffset, Task};
 use ql_core::{
     json::{instance_config::InstanceConfigJson, version::VersionDetails},
-    InstanceSelection, IntoStringError, JsonFileError, Loader, StoreBackendType,
+    InstanceSelection, IntoStringError, JsonFileError, StoreBackendType,
 };
 use ql_mod_manager::store::{ModIndex, Query, QueryType};
 
@@ -32,10 +31,11 @@ impl Launcher {
             results: None,
             opened_mod: None,
             mod_descriptions: HashMap::new(),
-            mods_download_in_progress: BTreeMap::new(),
+            mods_download_in_progress: HashMap::new(),
             mod_index,
             is_loading_continuation: false,
             has_continuation_ended: false,
+            description: None,
 
             backend: StoreBackendType::Modrinth,
             query_type: QueryType::Mods,
@@ -51,12 +51,10 @@ impl Launcher {
 
 impl MenuModsDownload {
     pub fn search_store(&mut self, is_server: bool, offset: usize) -> Task<Message> {
-        let loader = Loader::try_from(self.config.mod_type.as_str()).ok();
-
         let query = Query {
             name: self.query.clone(),
             version: self.version_json.get_id().to_owned(),
-            loader,
+            loader: self.config.mod_type,
             server_side: is_server,
             // open_source: false, // TODO: Add Open Source filter
         };

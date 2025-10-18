@@ -1,13 +1,11 @@
-use iced::{widget, Length};
+use iced::{widget, Alignment, Length};
 use ql_core::{LAUNCHER_DIR, WEBSITE};
 
 use super::{
     back_button, button_with_icon, get_theme_selector, sidebar_button, underline, Element, DISCORD,
     GITHUB,
 };
-use crate::menu_renderer::edit_instance::{
-    global_java_args_dialog, global_pre_launch_prefix_dialog, resolution_dialog,
-};
+use crate::menu_renderer::edit_instance::{get_args_list, resolution_dialog};
 use crate::{
     config::LauncherConfig,
     icon_manager,
@@ -19,7 +17,7 @@ use crate::{
     },
 };
 
-const SETTINGS_SPACING: f32 = 7.0;
+const SETTINGS_SPACING: f32 = 10.0;
 const PADDING_NOT_BOTTOM: iced::Padding = iced::Padding {
     top: 10.0,
     bottom: 0.0,
@@ -77,6 +75,8 @@ impl MenuLauncherSettings {
     }
 
     fn view_ui_tab<'a>(&'a self, config: &'a LauncherConfig) -> Element<'a> {
+        const SETTING_WIDTH: u16 = 180;
+
         let (light, dark) = get_theme_selector(config);
 
         let color_scheme_picker = LauncherThemeColor::ALL.iter().map(|color| {
@@ -85,6 +85,7 @@ impl MenuLauncherSettings {
                     LauncherTheme {
                         lightness: theme.lightness,
                         color: *color,
+                        alpha: 1.0,
                     }
                     .style_button(s, StyleButton::Round)
                 })
@@ -94,65 +95,74 @@ impl MenuLauncherSettings {
                 .into()
         });
 
+        let ui_scale_apply = widget::row![
+            widget::horizontal_space(),
+            widget::button(widget::text("Apply").size(12))
+                .padding(iced::Padding {
+                    top: 2.0,
+                    bottom: 2.0,
+                    right: 5.0,
+                    left: 5.0,
+                })
+                .on_press(Message::LauncherSettings(
+                    LauncherSettingsMessage::UiScaleApply,
+                ))
+        ];
+
         widget::column!(
             widget::column![widget::text("User Interface").size(20)].padding(PADDING_NOT_BOTTOM),
-            widget::column!("Theme:", widget::row![light, dark].spacing(5))
-                .padding(iced::Padding {
-                    top: 0.0,
-                    bottom: 10.0,
-                    left: 10.0,
-                    right: 10.0,
-                })
-                .spacing(5),
-            widget::horizontal_rule(1),
-            widget::column!(
+            widget::row!["Theme: ", light, dark].spacing(5).align_y(Alignment::Center).padding([0, 10]),
+            widget::column![
                 "Color scheme:",
                 widget::row(color_scheme_picker).spacing(5).wrap()
-            )
-            .padding(10)
+            ]
+            .padding(iced::Padding::new(10.0).top(5.0))
             .spacing(5),
-            widget::horizontal_rule(1),
-            widget::column![
-                widget::row![widget::text!("UI Scale ({:.2}x)  ", self.temp_scale)]
+            widget::row![
+                widget::row![widget::text!("UI Scale ({:.2}x)  ", self.temp_scale).size(15)]
                     .push_maybe(
                         ((self.temp_scale - config.ui_scale.unwrap_or(1.0)).abs() > 0.01)
-                            .then_some(
-                                widget::button(widget::text("Apply").size(12))
-                                    .padding(iced::Padding {
-                                        top: 2.0,
-                                        bottom: 2.0,
-                                        right: 5.0,
-                                        left: 5.0,
-                                    })
-                                    .on_press(Message::LauncherSettings(
-                                        LauncherSettingsMessage::UiScaleApply
-                                    ))
-                            )
+                            .then_some(ui_scale_apply)
                     )
-                    .align_y(iced::Alignment::Center),
+                    .align_y(Alignment::Center).width(SETTING_WIDTH),
                 widget::slider(0.5..=2.0, self.temp_scale, |n| Message::LauncherSettings(
                     LauncherSettingsMessage::UiScale(n)
                 ))
                 .step(0.1),
-                widget::text("Warning: slightly buggy").size(12),
             ]
-            .padding(10)
+            .align_y(Alignment::Center)
+            .padding([5, 10])
             .spacing(5),
-            widget::horizontal_rule(1),
+
+            {
+                let ui_opacity = config.c_ui_opacity();
+                widget::column![
+                    widget::row![
+                        widget::text!("Window Opacity ({ui_opacity:.2}x)").width(SETTING_WIDTH).size(15),
+                        widget::slider(0.5..=1.0, ui_opacity, |n| Message::LauncherSettings(
+                            LauncherSettingsMessage::UiOpacity(n)
+                        ))
+                        .step(0.1)
+                    ].spacing(5).align_y(Alignment::Center),
+                    widget::text("Window background transparency\n0.5 (translucent) ..  1.0 (opaque)").size(12),
+                ]
+                .padding([0, 10])
+                .spacing(5)
+            },
+
             widget::column![
-                widget::checkbox("Antialiasing (UI)", config.antialiasing.unwrap_or(true))
+                widget::checkbox("Antialiasing (UI) - Requires Restart", config.antialiasing.unwrap_or(true))
                     .on_toggle(|n| Message::LauncherSettings(
                         LauncherSettingsMessage::ToggleAntialiasing(n)
                     )),
-                widget::text("Makes text/menus crisper. Also nudges the launcher into using your dedicated GPU for the User Interface.\nRequires restarting the launcher.").size(12),
+                widget::text("Makes text/menus crisper. Also nudges the launcher into using your dedicated GPU for the User Interface.").size(12),
                 widget::Space::with_height(5),
                 widget::checkbox("Remember window size", config.window.as_ref().is_none_or(|n| n.save_window_size))
                     .on_toggle(|n| Message::LauncherSettings(LauncherSettingsMessage::ToggleWindowSize(n))),
-                widget::text("If enabled, the launcher window will retain its size from the last session.").size(12),
             ]
             .padding(10)
             .spacing(5)
-        )
+        ).padding(iced::Padding::new(0.0).right(10.0))
         .spacing(SETTINGS_SPACING)
         .into()
     }
@@ -184,51 +194,37 @@ impl LauncherSettingsTab {
                     |n| Message::LauncherSettings(
                         LauncherSettingsMessage::DefaultMinecraftHeightChanged(n)
                     ),
-                    true
                 )]
                 .padding(10)
                 .spacing(10),
                 widget::horizontal_rule(1),
-                widget::column![global_java_args_dialog(
-                    config.extra_java_args.as_deref(),
-                    Message::LauncherSettings(LauncherSettingsMessage::GlobalJavaArgsAdd),
-                    |idx| Message::LauncherSettings(LauncherSettingsMessage::GlobalJavaArgDelete(
-                        idx
-                    )),
-                    &|arg, idx| Message::LauncherSettings(
-                        LauncherSettingsMessage::GlobalJavaArgEdit(arg, idx)
-                    ),
-                    |idx| Message::LauncherSettings(LauncherSettingsMessage::GlobalJavaArgShiftUp(
-                        idx
-                    )),
-                    |idx| Message::LauncherSettings(
-                        LauncherSettingsMessage::GlobalJavaArgShiftDown(idx)
-                    ),
-                )]
+                widget::column![
+                    "Global Java Arguments:",
+                    get_args_list(config.extra_java_args.as_deref(), |msg| {
+                        Message::LauncherSettings(LauncherSettingsMessage::GlobalJavaArgs(msg))
+                    })
+                ]
                 .padding(10)
-                .spacing(10),
-                widget::horizontal_rule(1),
-                widget::column![global_pre_launch_prefix_dialog(
-                    config
-                        .global_settings
-                        .as_ref()
-                        .and_then(|n| n.pre_launch_prefix.as_deref()),
-                    Message::LauncherSettings(LauncherSettingsMessage::GlobalPreLaunchPrefixAdd),
-                    |idx| Message::LauncherSettings(
-                        LauncherSettingsMessage::GlobalPreLaunchPrefixDelete(idx)
+                .spacing(5),
+                widget::column![
+                    "Global Pre-Launch Prefix:",
+                    widget::text(
+                        r"Commands to prepend to the game launch command.
+Example: Use 'prime-run' to force NVIDIA GPU usage on Linux with Optimus graphics."
+                    )
+                    .size(12)
+                    .style(|n: &LauncherTheme| n.style_text(Color::SecondLight)),
+                    get_args_list(
+                        config
+                            .global_settings
+                            .as_ref()
+                            .and_then(|n| n.pre_launch_prefix.as_deref()),
+                        |n| Message::LauncherSettings(
+                            LauncherSettingsMessage::GlobalPreLaunchPrefix(n)
+                        )
                     ),
-                    &|arg, idx| Message::LauncherSettings(
-                        LauncherSettingsMessage::GlobalPreLaunchPrefixEdit(arg, idx)
-                    ),
-                    |idx| Message::LauncherSettings(
-                        LauncherSettingsMessage::GlobalPreLaunchPrefixShiftUp(idx)
-                    ),
-                    |idx| Message::LauncherSettings(
-                        LauncherSettingsMessage::GlobalPreLaunchPrefixShiftDown(idx)
-                    ),
-                )]
-                .padding(10)
-                .spacing(10),
+                ]
+                .padding(10),
                 widget::horizontal_rule(1),
                 widget::column![
                     button_with_icon(icon_manager::delete(), "Clear Java installs", 16).on_press(

@@ -63,7 +63,7 @@ impl Backend for ModrinthBackend {
     async fn get_latest_version_date(
         id: &str,
         version: &str,
-        loader: Option<Loader>,
+        loader: Loader,
     ) -> Result<(DateTime<chrono::FixedOffset>, String), ModError> {
         let download_info = ModVersion::download(id).await?;
         let version = version.to_owned();
@@ -72,15 +72,9 @@ impl Backend for ModrinthBackend {
             .iter()
             .filter(|v| v.game_versions.contains(&version))
             .filter(|v| {
-                if let Some(loader) = &loader {
-                    if v.loaders.first().is_none_or(|n| n == "minecraft") {
-                        true
-                    } else {
-                        v.loaders.contains(&loader.to_modrinth_str().to_owned())
-                    }
-                } else {
-                    true
-                }
+                loader.is_vanilla()
+                    || v.loaders.first().is_none_or(|n| n == "minecraft") // ?
+                    || v.loaders.contains(&loader.to_modrinth_str().to_owned())
             })
             .cloned()
             .collect();

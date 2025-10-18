@@ -12,7 +12,7 @@ use ql_core::{
 use ql_mod_manager::store::{ModConfig, ModIndex};
 
 use crate::state::{
-    EditInstanceMessage, InstallModsMessage, InstanceLog, LaunchTabId, Launcher,
+    AutoSaveKind, EditInstanceMessage, InstallModsMessage, InstanceLog, LaunchTabId, Launcher,
     ManageJarModsMessage, MenuCreateInstance, MenuEditMods, MenuExportInstance, MenuInstallFabric,
     MenuInstallOptifine, MenuLaunch, MenuLoginMS, MenuModsDownload, MenuRecommendedMods,
     MenuServerCreate, Message, ModListEntry, ServerProcess, State,
@@ -21,9 +21,16 @@ use crate::state::{
 impl Launcher {
     pub fn tick(&mut self) -> Task<Message> {
         match &mut self.state {
-            State::Launch(MenuLaunch {
-                edit_instance, tab, ..
-            }) => {
+            State::Launch(
+                ref menu @ MenuLaunch {
+                    ref edit_instance,
+                    ref tab,
+                    ..
+                },
+            ) => {
+                let sidebar_width = menu.get_sidebar_width();
+                self.config.sidebar_width = Some(sidebar_width as u64);
+
                 if let Some(receiver) = &mut self.java_recv {
                     if receiver.tick() {
                         self.state = State::InstallJava;
@@ -35,17 +42,20 @@ impl Launcher {
 
                 if let (Some(edit), LaunchTabId::Edit) = (&edit_instance, tab) {
                     let config = edit.config.clone();
+                    self.autosave.remove(&AutoSaveKind::LauncherConfig);
                     self.tick_edit_instance(config, &mut commands);
                 }
                 self.tick_client_processes_and_logs();
                 self.tick_server_processes_and_logs();
 
                 if self.tick_timer % 5 == 0 {
-                    let launcher_config = self.config.clone();
-                    commands.push(Task::perform(
-                        async move { launcher_config.save().await.strerr() },
-                        Message::CoreTickConfigSaved,
-                    ));
+                    if self.autosave.insert(AutoSaveKind::LauncherConfig) {
+                        let launcher_config = self.config.clone();
+                        commands.push(Task::perform(
+                            async move { launcher_config.save().await.strerr() },
+                            Message::CoreTickConfigSaved,
+                        ));
+                    }
                 }
                 return Task::batch(commands);
             }

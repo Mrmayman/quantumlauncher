@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use ql_core::{
     file_utils, impl_3_errs_jri, info, json::VersionDetails, pt, IntoIoError, IoError, JsonError,
-    RequestError, LAUNCHER_DIR,
+    Loader, RequestError, LAUNCHER_DIR,
 };
 use serde::Deserialize;
 use thiserror::Error;
@@ -67,7 +67,7 @@ pub async fn uninstall(instance_name: String) -> Result<(), PaperInstallerError>
     let path = server_dir.join("world_the_end");
     tokio::fs::remove_dir_all(&path).await.path(path)?;
 
-    change_instance_type(&server_dir, "Vanilla".to_owned()).await?;
+    change_instance_type(&server_dir, Loader::Vanilla).await?;
 
     Ok(())
 }
@@ -90,7 +90,7 @@ pub async fn install(instance_name: String) -> Result<(), PaperInstallerError> {
     let jar_path = server_dir.join("paper_server.jar");
     file_utils::download_file_to_path(url, true, &jar_path).await?;
 
-    change_instance_type(&server_dir, "Paper".to_owned()).await?;
+    change_instance_type(&server_dir, Loader::Paper).await?;
 
     pt!("Done");
     Ok(())

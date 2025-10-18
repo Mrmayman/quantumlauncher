@@ -1,8 +1,7 @@
 use ql_core::{
     file_utils, info,
     json::{InstanceConfigJson, VersionDetails},
-    pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, ListEntry, Loader,
-    Progress,
+    pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, ListEntry, Progress,
 };
 use std::{
     path::{Path, PathBuf},
@@ -138,16 +137,14 @@ async fn import_quantumlauncher(
 
     let instance_path = instance.get_instance_path();
 
-    if let Ok(loader) = Loader::try_from(config_json.mod_type.as_str()) {
-        ql_mod_manager::loaders::install_specified_loader(
-            instance.clone(),
-            loader,
-            sender.clone(),
-            None,
-        )
-        .await
-        .map_err(InstancePackageError::Loader)?;
-    }
+    ql_mod_manager::loaders::install_specified_loader(
+        instance.clone(),
+        config_json.mod_type,
+        sender.clone(),
+        None,
+    )
+    .await
+    .map_err(InstancePackageError::Loader)?;
 
     pt!("Copying packaged files");
     if let Some(sender) = &sender {

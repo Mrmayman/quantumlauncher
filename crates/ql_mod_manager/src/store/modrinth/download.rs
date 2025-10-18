@@ -1,38 +1,33 @@
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
     sync::mpsc::Sender,
 };
 
 use chrono::DateTime;
 use ql_core::{
-    err, file_utils, info,
-    json::{InstanceConfigJson, VersionDetails},
-    pt, GenericProgress, InstanceSelection,
+    err, file_utils, info, json::VersionDetails, pt, GenericProgress, InstanceSelection,
 };
 
 use crate::store::{
-    get_mods_resourcepacks_shaderpacks_dir, install_modpack,
+    install_modpack,
     local_json::{ModConfig, ModIndex},
     modrinth::versions::ModVersion,
-    ModError, QueryType, SOURCE_ID_MODRINTH,
+    DirStructure, ModError, QueryType, SOURCE_ID_MODRINTH,
 };
 
 use super::info::ProjectInfo;
 
 pub struct ModDownloader {
+    instance: InstanceSelection,
     version: String,
+    loader: Option<&'static str>,
+
     pub index: ModIndex,
-    loader: Option<String>,
     currently_installing_mods: HashSet<String>,
     pub info: HashMap<String, ProjectInfo>,
-    instance: InstanceSelection,
     sender: Option<Sender<GenericProgress>>,
-
-    mods_dir: PathBuf,
-    resourcepacks_dir: PathBuf,
-    shaderpacks_dir: PathBuf,
+    dirs: DirStructure,
 }
 
 impl ModDownloader {
@@ -41,11 +36,13 @@ impl ModDownloader {
         sender: Option<Sender<GenericProgress>>,
     ) -> Result<ModDownloader, ModError> {
         let version_json = VersionDetails::load(instance).await?;
-        let (mods_dir, resourcepacks_dir, shaderpacks_dir) =
-            get_mods_resourcepacks_shaderpacks_dir(instance, &version_json).await?;
 
         let index = ModIndex::load(instance).await?;
-        let loader = get_loader_type(instance).await?;
+        let loader = instance
+            .get_loader()
+            .await?
+            .not_vanilla()
+            .map(|n| n.to_modrinth_str());
         let currently_installing_mods = HashSet::new();
         Ok(ModDownloader {
             version: version_json.get_id().to_owned(),
@@ -56,9 +53,7 @@ impl ModDownloader {
             instance: instance.clone(),
             sender,
 
-            mods_dir,
-            resourcepacks_dir,
-            shaderpacks_dir,
+            dirs: DirStructure::new(instance, &version_json).await?,
         })
     }
 
@@ -181,8 +176,8 @@ impl ModDownloader {
     }
 
     fn has_compatible_loader(&self, project_info: &ProjectInfo) -> bool {
-        if let Some(loader) = &self.loader {
-            if project_info.loaders.contains(loader) {
+        if let Some(loader) = self.loader {
+            if project_info.loaders.iter().any(|n| n == loader) {
                 true
             } else {
                 pt!(
@@ -210,9 +205,9 @@ impl ModDownloader {
             .filter(|v| v.game_versions.contains(&self.version))
             .filter(|v| {
                 if let (Some(loader), QueryType::Mods | QueryType::ModPacks) =
-                    (&self.loader, project_type)
+                    (self.loader, project_type)
                 {
-                    v.loaders.contains(loader)
+                    v.loaders.iter().any(|n| n == loader)
                 } else {
                     true
                 }
@@ -231,15 +226,6 @@ impl ModDownloader {
         Ok(download_version)
     }
 
-    fn get_dir(&self, project_type: QueryType) -> Option<&Path> {
-        match project_type {
-            QueryType::Mods => Some(&self.mods_dir),
-            QueryType::ResourcePacks => Some(&self.resourcepacks_dir),
-            QueryType::Shaders => Some(&self.shaderpacks_dir),
-            QueryType::ModPacks => None,
-        }
-    }
-
     async fn download_file(
         &self,
         project_type: QueryType,
@@ -256,7 +242,7 @@ impl ModDownloader {
             );
             return Ok(());
         }
-        let file_path = self.get_dir(project_type).unwrap().join(&file.filename);
+        let file_path = self.dirs.get(project_type).unwrap().join(&file.filename);
         file_utils::download_file_to_path(&file.url, true, &file_path).await?;
         Ok(())
     }
@@ -329,25 +315,4 @@ fn print_downloading_message(project_info: &ProjectInfo, dependent: Option<&str>
     } else {
         pt!("Downloading {}", project_info.title);
     }
-}
-
-pub async fn get_loader_type(instance: &InstanceSelection) -> Result<Option<String>, ModError> {
-    let instance_dir = instance.get_instance_path();
-    let config_json = InstanceConfigJson::read_from_dir(&instance_dir).await?;
-
-    Ok(match config_json.mod_type.as_str() {
-        "Fabric" => Some("fabric"),
-        "Forge" => Some("forge"),
-        "Quilt" => Some("quilt"),
-        "NeoForge" => Some("neoforge"),
-        "LiteLoader" => Some("liteloader"),
-        "Rift" => Some("rift"),
-        loader => {
-            if loader != "Vanilla" {
-                err!("Unknown loader {loader}");
-            }
-            None
-        } // TODO: Add more loaders
-    }
-    .map(str::to_owned))
 }

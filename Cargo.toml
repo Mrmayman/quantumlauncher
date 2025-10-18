@@ -65,3 +65,7 @@ opt-level = "s"
 lto = "fat"
 strip = "symbols"
 panic = "abort"
+
+# Backported a feature
+[patch.crates-io]
+iced = { git = "https://github.com/Mrmayman/iced.git", branch = "ql-patches" }

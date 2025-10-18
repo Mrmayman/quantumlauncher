@@ -7,7 +7,8 @@ use std::{
 
 use iced::widget;
 use ql_core::{
-    file_utils::DirItem, jarmod::JarMods, InstanceSelection, ListEntry, ModId, StoreBackendType,
+    file_utils::DirItem, jarmod::JarMods, InstanceSelection, ListEntry, Loader, ModId,
+    StoreBackendType,
 };
 use ql_instances::{
     auth::{
@@ -58,25 +59,14 @@ pub enum EditInstanceMessage {
     MemoryChanged(f32),
     LoggingToggle(bool),
     CloseLauncherToggle(bool),
-    JavaArgsAdd,
-    JavaArgEdit(String, usize),
-    JavaArgDelete(usize),
-    JavaArgShiftUp(usize),
-    JavaArgShiftDown(usize),
+    JavaArgs(ListMessage),
     JavaArgsModeChanged(ql_core::json::instance_config::JavaArgsMode),
-    GameArgsAdd,
-    GameArgEdit(String, usize),
-    GameArgDelete(usize),
-    GameArgShiftUp(usize),
-    GameArgShiftDown(usize),
-    PreLaunchPrefixAdd,
-    PreLaunchPrefixEdit(String, usize),
-    PreLaunchPrefixDelete(usize),
-    PreLaunchPrefixShiftUp(usize),
-    PreLaunchPrefixShiftDown(usize),
+    GameArgs(ListMessage),
+    PreLaunchPrefix(ListMessage),
     PreLaunchPrefixModeChanged(ql_core::json::instance_config::PreLaunchPrefixMode),
     RenameEdit(String),
     RenameApply,
+    RenameToggle,
     WindowWidthChanged(String),
     WindowHeightChanged(String),
 
@@ -140,9 +130,11 @@ pub enum ManageJarModsMessage {
 
 #[derive(Debug, Clone)]
 pub enum InstallModsMessage {
-    SearchResult(Res<SearchResult>),
     Open,
+    TickDesc,
     SearchInput(String),
+    SearchResult(Res<SearchResult>),
+
     Click(usize),
     BackToMainScreen,
     LoadData(Res<(ModId, String)>),
@@ -184,7 +176,16 @@ pub enum RecommendedModMessage {
     DownloadEnd(Res<HashSet<CurseforgeNotAllowed>>),
 }
 
-// FIXME: Look at the unused messages
+#[derive(Debug, Clone)]
+pub enum WindowMessage {
+    Dragged,
+    Resized(iced::window::Direction),
+    ClickClose,
+    ClickMinimize,
+    ClickMaximize,
+    IsMaximized(bool),
+}
+
 #[allow(unused)]
 #[derive(Debug, Clone)]
 pub enum AccountMessage {
@@ -235,6 +236,7 @@ pub enum LauncherSettingsMessage {
     ColorSchemePicked(String),
     UiScale(f64),
     UiScaleApply,
+    UiOpacity(f32),
     ClearJavaInstalls,
     ClearJavaInstallsConfirm,
     ChangeTab(LauncherSettingsTab),
@@ -244,19 +246,54 @@ pub enum LauncherSettingsMessage {
     ToggleAntialiasing(bool),
     ToggleWindowSize(bool),
 
-    // Global Java arguments
-    GlobalJavaArgsAdd,
-    GlobalJavaArgEdit(String, usize),
-    GlobalJavaArgDelete(usize),
-    GlobalJavaArgShiftUp(usize),
-    GlobalJavaArgShiftDown(usize),
+    GlobalJavaArgs(ListMessage),
+    GlobalPreLaunchPrefix(ListMessage),
+}
 
-    // Global pre-launch prefix
-    GlobalPreLaunchPrefixAdd,
-    GlobalPreLaunchPrefixEdit(String, usize),
-    GlobalPreLaunchPrefixDelete(usize),
-    GlobalPreLaunchPrefixShiftUp(usize),
-    GlobalPreLaunchPrefixShiftDown(usize),
+#[derive(Debug, Clone)]
+pub enum ListMessage {
+    Add,
+    Edit(String, usize),
+    Delete(usize),
+    ShiftUp(usize),
+    ShiftDown(usize),
+}
+
+impl ListMessage {
+    pub fn apply(self, l: &mut Vec<String>) {
+        match self {
+            ListMessage::Add => {
+                l.push(String::new());
+            }
+            ListMessage::Edit(msg, idx) => {
+                if msg.contains(' ') {
+                    l.remove(idx);
+                    let mut insert_idx = idx;
+                    for s in msg.split(' ').filter(|n| !n.is_empty()) {
+                        l.insert(insert_idx, s.to_owned());
+                        insert_idx += 1;
+                    }
+                } else if let Some(entry) = l.get_mut(idx) {
+                    *entry = msg;
+                }
+            }
+            ListMessage::Delete(i) => {
+                if i < l.len() {
+                    l.remove(i);
+                }
+            }
+            ListMessage::ShiftUp(idx) => {
+                if idx > 0 {
+                    l.swap(idx, idx - 1);
+                }
+            }
+            ListMessage::ShiftDown(idx) => {
+                if idx + 1 < l.len() {
+                    l.swap(idx, idx + 1);
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -296,7 +333,8 @@ pub enum Message {
     LaunchKillEnd(Res),
     LaunchChangeTab(LaunchTabId),
 
-    LaunchScrollSidebar(f32),
+    LaunchSidebarResize(f32),
+    LaunchSidebarScroll(f32),
 
     DeleteInstanceMenu,
     DeleteInstance,
@@ -308,7 +346,7 @@ pub enum Message {
     InstallPaperStart,
     InstallPaperEnd(Res),
 
-    UninstallLoaderConfirm(Box<Message>, String),
+    UninstallLoaderConfirm(Box<Message>, Loader),
     UninstallLoaderFabricStart,
     UninstallLoaderForgeStart,
     UninstallLoaderOptiFineStart,
@@ -336,6 +374,7 @@ pub enum Message {
     CoreCleanComplete(Res),
     CoreTryQuit,
 
+    Window(WindowMessage),
     CoreImageDownloaded(Res<ImageResult>),
 
     CoreLogToggle,

@@ -1347,6 +1347,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "frostmark"
+version = "0.1.0"
+source = "git+https://github.com/Mrmayman/frostmark.git?rev=971a143fcfb6cc8889c7858cf5cdb12db64a1396#971a143fcfb6cc8889c7858cf5cdb12db64a1396"
+dependencies = [
+ "bitflags 2.9.2",
+ "comrak",
+ "html5ever",
+ "iced",
+ "markup5ever_rcdom",
+]
+
+[[package]]
 name = "fsevent-sys"
 version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1857,8 +1869,7 @@ dependencies = [
 [[package]]
 name = "iced"
 version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88acfabc84ec077eaf9ede3457ffa3a104626d79022a9bf7f296093b1d60c73f"
+source = "git+https://github.com/Mrmayman/iced.git?branch=ql-patches#ae0a80a3b541645e566b1aababcfb52805202a01"
 dependencies = [
  "iced_core",
  "iced_futures",
@@ -1871,9 +1882,8 @@ dependencies = [
 
 [[package]]
 name = "iced_core"
-version = "0.13.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0013a238275494641bf8f1732a23a808196540dc67b22ff97099c044ae4c8a1c"
+version = "0.13.1"
+source = "git+https://github.com/Mrmayman/iced.git?branch=ql-patches#ae0a80a3b541645e566b1aababcfb52805202a01"
 dependencies = [
  "bitflags 2.9.2",
  "bytes",
@@ -1890,9 +1900,8 @@ dependencies = [
 
 [[package]]
 name = "iced_futures"
-version = "0.13.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c04a6745ba2e80f32cf01e034fd00d853aa4f4cd8b91888099cb7aaee0d5d7c"
+version = "0.13.1"
+source = "git+https://github.com/Mrmayman/iced.git?branch=ql-patches#ae0a80a3b541645e566b1aababcfb52805202a01"
 dependencies = [
  "futures",
  "iced_core",
@@ -1918,9 +1927,8 @@ dependencies = [
 
 [[package]]
 name = "iced_graphics"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba25a18cfa6d5cc160aca7e1b34f73ccdff21680fa8702168c09739767b6c66f"
+version = "0.13.1"
+source = "git+https://github.com/Mrmayman/iced.git?branch=ql-patches#ae0a80a3b541645e566b1aababcfb52805202a01"
 dependencies = [
  "bitflags 2.9.2",
  "bytemuck",
@@ -1940,9 +1948,8 @@ dependencies = [
 
 [[package]]
 name = "iced_renderer"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73558208059f9e622df2bf434e044ee2f838ce75201a023cf0ca3e1244f46c2a"
+version = "0.13.1"
+source = "git+https://github.com/Mrmayman/iced.git?branch=ql-patches#ae0a80a3b541645e566b1aababcfb52805202a01"
 dependencies = [
  "iced_graphics",
  "iced_tiny_skia",
@@ -1953,9 +1960,8 @@ dependencies = [
 
 [[package]]
 name = "iced_runtime"
-version = "0.13.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "348b5b2c61c934d88ca3b0ed1ed913291e923d086a66fa288ce9669da9ef62b5"
+version = "0.13.1"
+source = "git+https://github.com/Mrmayman/iced.git?branch=ql-patches#ae0a80a3b541645e566b1aababcfb52805202a01"
 dependencies = [
  "bytes",
  "iced_core",
@@ -1966,9 +1972,8 @@ dependencies = [
 
 [[package]]
 name = "iced_tiny_skia"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c625d368284fcc43b0b36b176f76eff1abebe7959dd58bd8ce6897d641962a50"
+version = "0.13.1"
+source = "git+https://github.com/Mrmayman/iced.git?branch=ql-patches#ae0a80a3b541645e566b1aababcfb52805202a01"
 dependencies = [
  "bytemuck",
  "cosmic-text",
@@ -1983,9 +1988,8 @@ dependencies = [
 
 [[package]]
 name = "iced_wgpu"
-version = "0.13.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15708887133671d2bcc6c1d01d1f176f43a64d6cdc3b2bf893396c3ee498295f"
+version = "0.13.1"
+source = "git+https://github.com/Mrmayman/iced.git?branch=ql-patches#ae0a80a3b541645e566b1aababcfb52805202a01"
 dependencies = [
  "bitflags 2.9.2",
  "bytemuck",
@@ -2004,9 +2008,8 @@ dependencies = [
 
 [[package]]
 name = "iced_widget"
-version = "0.13.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81429e1b950b0e4bca65be4c4278fea6678ea782030a411778f26fa9f8983e1d"
+version = "0.13.1"
+source = "git+https://github.com/Mrmayman/iced.git?branch=ql-patches#ae0a80a3b541645e566b1aababcfb52805202a01"
 dependencies = [
  "iced_renderer",
  "iced_runtime",
@@ -2020,9 +2023,8 @@ dependencies = [
 
 [[package]]
 name = "iced_winit"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f44cd4e1c594b6334f409282937bf972ba14d31fedf03c23aa595d982a2fda28"
+version = "0.13.1"
+source = "git+https://github.com/Mrmayman/iced.git?branch=ql-patches#ae0a80a3b541645e566b1aababcfb52805202a01"
 dependencies = [
  "iced_futures",
  "iced_graphics",
@@ -2246,6 +2248,25 @@ checksum = "dbc5ebe9c3a1a7a5127f920a418f7585e9e758e911d0466ed004f393b0e380b2"
 dependencies = [
  "memchr",
  "serde",
+]
+
+[[package]]
+name = "is-docker"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "928bae27f42bc99b60d9ac7334e3a21d10ad8f1835a4e12ec3ec0464765ed1b3"
+dependencies = [
+ "once_cell",
+]
+
+[[package]]
+name = "is-wsl"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "173609498df190136aa7dea1a91db051746d339e18476eed5ca40521f02d7aa5"
+dependencies = [
+ "is-docker",
+ "once_cell",
 ]
 
 [[package]]
@@ -3147,6 +3168,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4895175b425cb1f87721b59f0f286c2092bd4af812243672510e1ac53e2e0ad"
 
 [[package]]
+name = "open"
+version = "5.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2483562e62ea94312f3576a7aca397306df7990b8d89033e18766744377ef95"
+dependencies = [
+ "is-wsl",
+ "libc",
+ "pathdiff",
+]
+
+[[package]]
 name = "openssl"
 version = "0.10.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3351,6 +3383,12 @@ name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+
+[[package]]
+name = "pathdiff"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df94ce210e5bc13cb6651479fa48d14f601d9858cfe0467f43ae157023b938d3"
 
 [[package]]
 name = "percent-encoding"
@@ -3686,14 +3724,12 @@ version = "0.4.2"
 dependencies = [
  "chrono",
  "clap",
- "comrak",
  "embed-resource",
- "html5ever",
+ "frostmark",
  "iced",
- "image",
  "itertools",
- "markup5ever_rcdom",
  "notify",
+ "open",
  "owo-colors",
  "paste",
  "ql_core",

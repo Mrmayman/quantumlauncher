@@ -6,19 +6,19 @@ through the entire process.
 
 - [Prerequisites](#prerequisites)
 - [Getting the source code](#1-getting-the-source-code)
-  - [Git](#git-recommended)
-  - [Zip](#alternate-method-zip)
+    - [Git](#git-recommended)
+    - [Zip](#alternate-method-zip)
 - [Building](#2-building)
-  - [Getting the Executable](#getting-the-executable)
-  - [Release vs Debug](#release-vs-debug)
+    - [Getting the Executable](#getting-the-executable)
+    - [Release vs Debug](#release-vs-debug)
 
 # Prerequisites:
 
 Before you start, you will need to install
 the [Rust programming language](https://rustup.rs/).
 
-It's also a good idea to have `git` installed although
-it's not strictly necessary.
+It's also a good idea to have `git` installed,
+although it's not strictly necessary.
 
 > TLDR; Here are the commands.
 >

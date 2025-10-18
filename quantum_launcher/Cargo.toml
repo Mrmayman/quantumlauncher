@@ -45,7 +45,11 @@ iced = { version = "0.13", default-features = false, features = [
     "lazy",
     "advanced",
 ] }
-#tabular = { git = "https://github.com/Mrmayman/tabular.git" }
+# The HTML/Markdown renderer
+# There is a "0.1.0" version, but it's outdated.
+frostmark = { git = "https://github.com/Mrmayman/frostmark.git", rev = "971a143fcfb6cc8889c7858cf5cdb12db64a1396", default-features = false, features = ["markdown"] } # TOML is a terrible language
+# For table widget, I don't need this
+# tabular = { git = "https://github.com/Mrmayman/tabular.git" }
 
 # For parsing JSON
 serde = { workspace = true }
@@ -67,17 +71,9 @@ rfd = { workspace = true }
 terminal_size = "0.4"
 owo-colors = { workspace = true }
 clap = { version = "4", features = ["help"] }
-
-# Mod page rendering:
-# - Markdown rendering
-comrak = { version = "0.41", default-features = false }
-# - Image loading
-image = { workspace = true }
-# - HTML Rendering:
-html5ever = "0.27"
-markup5ever_rcdom = "0.3"
 notify = "8"
-itertools = "0.14.0"
+itertools = "0.14"
+open = "5.3.2"
 
 # iced::widget::markdown doesn't have inline
 # HTML support, so I made my own renderer.

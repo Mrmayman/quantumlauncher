@@ -71,31 +71,18 @@ pub fn list_instances(
                         serde_json::from_str(&config_json).json(config_json)?;
                     let m = config_json.mod_type;
 
-                    match Loader::try_from(m.as_str()) {
-                        Ok(l) => {
-                            _ = match l {
-                                Loader::Fabric => writeln!(cmds_loader, "{}", m.bright_green()),
-                                Loader::Quilt => writeln!(cmds_loader, "{}", m.bright_purple()),
-                                Loader::Forge => writeln!(cmds_loader, "{}", m.bright_yellow()),
-                                Loader::Neoforge => writeln!(cmds_loader, "{}", m.yellow()),
-                                Loader::OptiFine => {
-                                    writeln!(cmds_loader, "{}", m.red().bold())
-                                }
-                                Loader::Paper => writeln!(cmds_loader, "{}", m.blue()),
-                                Loader::Liteloader => writeln!(cmds_loader, "{}", m.bright_blue()),
-                                Loader::Modloader => writeln!(cmds_loader, "{}", m),
-                                Loader::Rift => writeln!(cmds_loader, "{}", m.bold().underline()),
-                            };
-                        }
-                        Err(_) => {
-                            if m == "Vanilla" {
-                                _ = writeln!(cmds_loader, "{}", "Vanilla".bright_black());
-                            } else {
-                                cmds_loader.push_str(&m);
-                                cmds_loader.push('\n');
-                            }
-                        }
-                    }
+                    match m {
+                        Loader::Vanilla => writeln!(cmds_loader, "{}", m.bright_black()),
+                        Loader::Fabric => writeln!(cmds_loader, "{}", m.bright_green()),
+                        Loader::Quilt => writeln!(cmds_loader, "{}", m.bright_purple()),
+                        Loader::Forge => writeln!(cmds_loader, "{}", m.bright_yellow()),
+                        Loader::Neoforge => writeln!(cmds_loader, "{}", m.yellow()),
+                        Loader::OptiFine => writeln!(cmds_loader, "{}", m.red().bold()),
+                        Loader::Paper => writeln!(cmds_loader, "{}", m.blue()),
+                        Loader::Liteloader => writeln!(cmds_loader, "{}", m.bright_blue()),
+                        Loader::Modloader => writeln!(cmds_loader, "{m}"),
+                        Loader::Rift => writeln!(cmds_loader, "{}", m.bold().underline()),
+                    }?;
                 }
             }
         }

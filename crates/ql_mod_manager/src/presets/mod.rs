@@ -7,7 +7,8 @@ use std::{
 use ql_core::{
     err, info,
     json::{InstanceConfigJson, VersionDetails},
-    pt, InstanceSelection, IntoIoError, IntoJsonError, ModId, SelectedMod, LAUNCHER_VERSION_NAME,
+    pt, InstanceSelection, IntoIoError, IntoJsonError, Loader, ModId, SelectedMod,
+    LAUNCHER_VERSION_NAME,
 };
 use serde::{Deserialize, Serialize};
 use zip::ZipWriter;
@@ -32,7 +33,7 @@ pub struct PresetOutput {
 /// - Mod configuration
 ///
 /// # How to use this?
-/// See the [`PresetJson::generate`] and [`PresetJson::load`],
+/// See the [`Preset::generate`] and [`Preset::load`],
 ///
 /// # Format
 /// Mod presets consist of a `.qmp` file
@@ -40,7 +41,7 @@ pub struct PresetOutput {
 ///
 /// Inside this zip file, there will be:
 /// - An `index.json` file, essentially a `serde::Serialize`d
-///   version of [`PresetJson`] (the main struct through which
+///   version of [`Preset`] (the main struct through which
 ///   this API is used).
 /// - `.jar` files in the root of the zip (at the top level),
 ///   for any local, sideloaded mods from outside the mod store.
@@ -52,7 +53,7 @@ pub struct PresetOutput {
 pub struct Preset {
     pub launcher_version: String,
     pub minecraft_version: String,
-    pub instance_type: String,
+    pub instance_type: Loader,
     pub entries_modrinth: HashMap<String, ModConfig>,
     pub entries_local: Vec<String>,
 }
@@ -265,7 +266,7 @@ impl Preset {
     }
 }
 
-async fn get_instance_type(instance_name: &InstanceSelection) -> Result<String, ModError> {
+async fn get_instance_type(instance_name: &InstanceSelection) -> Result<Loader, ModError> {
     let config = InstanceConfigJson::read(instance_name).await?;
     Ok(config.mod_type)
 }

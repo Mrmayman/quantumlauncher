@@ -8,8 +8,8 @@ use std::{
 use ql_core::{
     file_utils, impl_3_errs_jri, info, jarmod,
     json::{optifine::JsonOptifine, VersionDetails},
-    no_window, pt, GenericProgress, InstanceSelection, IntoIoError, IoError, JsonError, Progress,
-    RequestError, CLASSPATH_SEPARATOR, LAUNCHER_DIR,
+    no_window, pt, GenericProgress, InstanceSelection, IntoIoError, IoError, JsonError, Loader,
+    Progress, RequestError, CLASSPATH_SEPARATOR, LAUNCHER_DIR,
 };
 use ql_java_handler::{get_java_binary, JavaInstallError, JavaVersion, JAVA};
 use thiserror::Error;
@@ -140,7 +140,7 @@ pub async fn install(
     run_hook(&new_installer_path, &optifine_path).await?;
 
     download_libraries(&instance_name, &dot_minecraft_path, progress_sender).await?;
-    change_instance_type(&instance_path, "OptiFine".to_owned()).await?;
+    change_instance_type(&instance_path, Loader::OptiFine).await?;
     send_progress(progress_sender, OptifineInstallProgress::P5Done);
     pt!("Finished installing OptiFine");
 
@@ -166,7 +166,7 @@ pub async fn uninstall(instance_name: String) -> Result<(), OptifineError> {
             .path(optifine_path)?;
     }
 
-    change_instance_type(&instance_path, "Vanilla".to_owned()).await?;
+    change_instance_type(&instance_path, Loader::Vanilla).await?;
 
     let dot_minecraft_path = instance_path.join(".minecraft");
     let libraries_path = dot_minecraft_path.join("libraries");

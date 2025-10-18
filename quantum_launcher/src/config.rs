@@ -6,25 +6,20 @@ use ql_core::{
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::Path};
 
-pub const SIDEBAR_WIDTH_DEFAULT: u32 = 190;
+pub const SIDEBAR_WIDTH_DEFAULT: u64 = 190;
 
-/// The global launcher configuration.
-///
-/// This is stored in the launcher directory
-/// (`QuantumLauncher/`) as `config.json`.
+/// Global launcher configuration stored in
+/// `QuantumLauncher/config.json`.
 ///
 /// For more info on the launcher directory see
 /// <https://mrmayman.github.io/quantumlauncher#files-location>
 ///
 /// # Why `Option`?
 ///
-/// Note: many fields here are `Option`s. This is for
-/// backwards-compatibility, as if you upgrade from an older
-/// version without these fields, `serde` will safely serialize
-/// them as `None`.
-///
-/// So generally `None` is interpreted as a default value
-/// put there when migrating from a version without the feature.
+/// Many fields are `Option`s for backwards compatibility.
+/// If upgrading from an older version,
+/// `serde` will deserialize missing fields as `None`,
+/// which is treated as a default value.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct LauncherConfig {
     /// The offline username set by the player when playing Minecraft.
@@ -59,7 +54,7 @@ pub struct LauncherConfig {
     /// (which shows the list of instances). You can
     /// drag it around to resize it.
     // Since: v0.4
-    pub sidebar_width: Option<u32>,
+    pub sidebar_width: Option<u64>,
     /// A list of Minecraft accounts logged into the launcher.
     ///
     /// `String (username) : ConfigAccount { uuid: String, skin: None (unimplemented) }`
@@ -101,6 +96,7 @@ pub struct LauncherConfig {
     // Since: v0.4.2
     pub global_settings: Option<GlobalSettings>,
     pub extra_java_args: Option<Vec<String>>,
+    pub ui: Option<UiSettings>,
 }
 
 impl Default for LauncherConfig {
@@ -120,6 +116,7 @@ impl Default for LauncherConfig {
             window: None,
             global_settings: None,
             extra_java_args: None,
+            ui: None,
         }
     }
 }
@@ -139,11 +136,21 @@ impl LauncherConfig {
             return LauncherConfig::create(&config_path);
         }
 
-        let config = std::fs::read_to_string(&config_path).path(&config_path)?;
+        let mut config = std::fs::read_to_string(&config_path).path(&config_path)?;
+        if config.is_empty() {
+            for _ in 0..5 {
+                config = std::fs::read_to_string(&config_path).path(&config_path)?;
+                if !config.is_empty() {
+                    break;
+                }
+            }
+        }
         let mut config: Self = match serde_json::from_str(&config) {
             Ok(config) => config,
             Err(err) => {
                 err!("Invalid launcher config! This may be a sign of corruption! Please report if this happens to you.\nError: {err}");
+                let old_path = LAUNCHER_DIR.join("config.json.bak");
+                _ = std::fs::copy(&config_path, &old_path);
                 return LauncherConfig::create(&config_path);
             }
         };
@@ -177,25 +184,41 @@ impl LauncherConfig {
         Ok(config)
     }
 
-    pub fn read_window_size(&mut self) -> (f32, f32) {
-        let window = self.window.get_or_insert_with(Default::default);
+    pub fn c_window_size(&self) -> (f32, f32) {
+        let window = self.window.clone().unwrap_or_default();
         let scale = self.ui_scale.unwrap_or(1.0) as f32;
         let window_width = window
             .width
             .filter(|_| window.save_window_size)
             .unwrap_or(WINDOW_WIDTH * scale);
-        let window_height = window
-            .height
-            .filter(|_| window.save_window_size)
-            .unwrap_or(WINDOW_HEIGHT * scale);
+        let window_height = window.height.filter(|_| window.save_window_size).unwrap_or(
+            (WINDOW_HEIGHT
+                + if self.c_window_decorations() {
+                    0.0
+                } else {
+                    30.0
+                })
+                * scale,
+        );
         (window_width, window_height)
     }
 
-    pub fn get_launch_prefix(&mut self) -> &mut Vec<String> {
+    pub fn c_ui_opacity(&self) -> f32 {
+        self.ui.as_ref().map_or(0.9, |n| n.window_opacity)
+    }
+
+    pub fn c_launch_prefix(&mut self) -> &mut Vec<String> {
         self.global_settings
             .get_or_insert_with(GlobalSettings::default)
             .pre_launch_prefix
             .get_or_insert_with(Vec::new)
+    }
+
+    pub fn c_window_decorations(&self) -> bool {
+        self.ui
+            .as_ref()
+            .map(|n| matches!(n.window_decorations, UiWindowDecorations::System))
+            .unwrap_or_default()
     }
 }
 
@@ -263,5 +286,39 @@ impl Default for WindowProperties {
             width: None,
             height: None,
         }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct UiSettings {
+    pub window_decorations: UiWindowDecorations,
+    pub window_opacity: f32,
+}
+
+impl Default for UiSettings {
+    fn default() -> Self {
+        Self {
+            window_decorations: UiWindowDecorations::default(),
+            window_opacity: 0.9,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub enum UiWindowDecorations {
+    #[serde(rename = "system")]
+    System,
+    #[serde(rename = "left")]
+    Left,
+    #[serde(rename = "right")]
+    Right,
+}
+
+impl Default for UiWindowDecorations {
+    fn default() -> Self {
+        #[cfg(target_os = "macos")]
+        return Self::Left;
+        #[cfg(not(target_os = "macos"))]
+        Self::Right
     }
 }

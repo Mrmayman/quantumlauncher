@@ -1,9 +1,13 @@
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     time::Instant,
 };
 
-use iced::{widget::scrollable::AbsoluteOffset, Task};
+use frostmark::MarkState;
+use iced::{
+    widget::{self, scrollable::AbsoluteOffset},
+    Task,
+};
 use ql_core::{
     file_utils::DirItem,
     jarmod::JarMods,
@@ -16,7 +20,10 @@ use ql_mod_manager::{
     store::{CurseforgeNotAllowed, ModConfig, ModIndex, QueryType, RecommendedMod, SearchResult},
 };
 
-use crate::{config::SIDEBAR_WIDTH_DEFAULT, message_handler::get_locally_installed_mods};
+use crate::{
+    config::SIDEBAR_WIDTH_DEFAULT, message_handler::get_locally_installed_mods, state::ImageState,
+    WINDOW_WIDTH,
+};
 
 use super::{ManageModsMessage, Message, ProgressBar};
 
@@ -49,9 +56,10 @@ pub struct MenuLaunch {
     pub tab: LaunchTabId,
     pub edit_instance: Option<MenuEditInstance>,
 
-    pub sidebar_width: u16,
-    pub sidebar_height: f32,
-    pub sidebar_dragging: bool,
+    sidebar_width: u64,
+    pub sidebar_scrolled: f32,
+    pub sidebar_grid_state: widget::pane_grid::State<bool>,
+    sidebar_split: Option<widget::pane_grid::Split>,
 
     pub is_viewing_server: bool,
     pub is_uploading_mclogs: bool,
@@ -66,24 +74,46 @@ impl Default for MenuLaunch {
 
 impl MenuLaunch {
     pub fn with_message(message: String) -> Self {
+        let (mut sidebar_grid_state, pane) = widget::pane_grid::State::new(true);
+        let sidebar_split = if let Some((_, split)) =
+            sidebar_grid_state.split(widget::pane_grid::Axis::Vertical, pane, false)
+        {
+            sidebar_grid_state.resize(split, SIDEBAR_WIDTH_DEFAULT as f32 / WINDOW_WIDTH);
+            Some(split)
+        } else {
+            None
+        };
         Self {
             message,
             tab: LaunchTabId::default(),
             edit_instance: None,
             login_progress: None,
-            sidebar_width: SIDEBAR_WIDTH_DEFAULT as u16,
-            sidebar_height: 100.0,
-            sidebar_dragging: false,
+            sidebar_width: SIDEBAR_WIDTH_DEFAULT as u64,
+            sidebar_scrolled: 100.0,
             is_viewing_server: false,
+            sidebar_grid_state,
             log_scroll: 0,
             is_uploading_mclogs: false,
+            sidebar_split,
         }
+    }
+
+    pub fn resize_sidebar(&mut self, width: f32, window_width: f32) {
+        if let Some(split) = self.sidebar_split {
+            self.sidebar_width = width as u64;
+            self.sidebar_grid_state.resize(split, width / window_width);
+        }
+    }
+
+    pub fn get_sidebar_width(&self) -> f32 {
+        self.sidebar_width as f32
     }
 }
 
 /// The screen where you can edit an instance/server.
 pub struct MenuEditInstance {
     pub config: InstanceConfigJson,
+    pub is_editing_name: bool,
     pub instance_name: String,
     pub old_instance_name: String,
     pub slider_value: f32,
@@ -298,13 +328,15 @@ pub struct MenuLauncherUpdate {
 pub struct MenuModsDownload {
     pub query: String,
     pub results: Option<SearchResult>,
+    pub description: Option<MarkState>,
+
     pub mod_descriptions: HashMap<ModId, String>,
-    pub version_json: Box<VersionDetails>,
+    pub mods_download_in_progress: HashMap<ModId, String>,
     pub opened_mod: Option<usize>,
     pub latest_load: Instant,
-    pub mods_download_in_progress: BTreeMap<ModId, String>,
     pub scroll_offset: AbsoluteOffset,
 
+    pub version_json: Box<VersionDetails>,
     pub config: InstanceConfigJson,
     pub mod_index: ModIndex,
 
@@ -315,6 +347,33 @@ pub struct MenuModsDownload {
     /// i.e. when you scroll down and more stuff appears
     pub is_loading_continuation: bool,
     pub has_continuation_ended: bool,
+}
+
+impl MenuModsDownload {
+    pub fn reload_description(&mut self, images: &mut ImageState) {
+        let (Some(selection), Some(results)) = (self.opened_mod, &self.results) else {
+            return;
+        };
+        let Some(hit) = results.mods.get(selection) else {
+            return;
+        };
+        let Some(info) = self
+            .mod_descriptions
+            .get(&ModId::from_pair(&hit.id, results.backend))
+        else {
+            return;
+        };
+        let description = match results.backend {
+            StoreBackendType::Modrinth => MarkState::with_html_and_markdown(info),
+            StoreBackendType::Curseforge => MarkState::with_html(info), // Optimization, curseforge only has HTML
+        };
+        let imgs = description.find_image_links();
+        self.description = Some(description);
+
+        for img in imgs {
+            images.queue(&img);
+        }
+    }
 }
 
 pub struct MenuLauncherSettings {
@@ -345,6 +404,20 @@ impl std::fmt::Display for LauncherSettingsTab {
 
 impl LauncherSettingsTab {
     pub const ALL: &'static [Self] = &[Self::UserInterface, Self::Internal, Self::About];
+
+    pub const fn next(self) -> Self {
+        match self {
+            Self::UserInterface => Self::Internal,
+            Self::Internal | Self::About => Self::About,
+        }
+    }
+
+    pub const fn prev(self) -> Self {
+        match self {
+            Self::UserInterface | Self::Internal => Self::UserInterface,
+            Self::About => Self::Internal,
+        }
+    }
 }
 
 pub struct MenuEditPresets {
@@ -483,9 +556,9 @@ pub struct MenuLicense {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LicenseTab {
     Gpl3,
+    ForgeInstallerApache,
     OpenFontLicense,
     PasswordAsterisks,
-    ForgeInstallerApache,
     Lwjgl,
 }
 
@@ -497,6 +570,24 @@ impl LicenseTab {
         Self::PasswordAsterisks,
         Self::Lwjgl,
     ];
+
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Gpl3 => Self::ForgeInstallerApache,
+            Self::ForgeInstallerApache => Self::OpenFontLicense,
+            Self::OpenFontLicense => Self::PasswordAsterisks,
+            Self::PasswordAsterisks | Self::Lwjgl => Self::Lwjgl,
+        }
+    }
+
+    pub const fn prev(self) -> Self {
+        match self {
+            Self::Gpl3 | Self::ForgeInstallerApache => Self::Gpl3,
+            Self::OpenFontLicense => Self::ForgeInstallerApache,
+            Self::PasswordAsterisks => Self::OpenFontLicense,
+            Self::Lwjgl => Self::PasswordAsterisks,
+        }
+    }
 
     pub fn get_text(self) -> &'static str {
         match self {

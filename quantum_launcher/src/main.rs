@@ -34,7 +34,7 @@ use state::{get_entries, Launcher, Message, ServerProcess};
 use ql_core::{err, err_no_log, file_utils, info, info_no_log, IntoStringError, JsonFileError};
 use ql_instances::OS_NAME;
 
-use crate::state::CustomJarState;
+use crate::{menu_renderer::FONT_DEFAULT, state::CustomJarState};
 
 /// The CLI interface of the launcher.
 mod cli;
@@ -63,7 +63,7 @@ mod view;
 /// (called by [`view`]).
 mod menu_renderer;
 
-/// Handles mclo.gs log uploads
+/// Handles `mclo.gs` log uploads
 mod mclog_upload;
 /// Child functions of the
 /// [`Launcher::update`] function.
@@ -164,15 +164,11 @@ fn main() {
     }
 
     let icon = load_icon();
-    let mut config = load_config(launcher_dir.is_some());
-    let scale = match &config {
-        Ok(cfg) => cfg.ui_scale.unwrap_or(1.0),
-        Err(_e) => 1.0,
-    } as f32;
-    let (width, height) = config.as_mut().ok().map_or(
-        (WINDOW_WIDTH * scale, WINDOW_HEIGHT * scale),
-        LauncherConfig::read_window_size,
-    );
+    let config = load_config(launcher_dir.is_some());
+
+    let c = config.as_ref().cloned().unwrap_or_default();
+    let decorations = c.c_window_decorations();
+    let (width, height) = c.c_window_size();
 
     iced::application("QuantumLauncher", Launcher::update, Launcher::view)
         .subscription(Launcher::subscription)
@@ -180,7 +176,7 @@ fn main() {
         .theme(Launcher::theme)
         .settings(Settings {
             fonts: load_fonts(),
-            default_font: iced::Font::with_name("Inter"),
+            default_font: FONT_DEFAULT,
             antialiasing: config
                 .as_ref()
                 .ok()
@@ -196,6 +192,8 @@ fn main() {
                 width: 420.0,
                 height: 300.0,
             }),
+            decorations,
+            transparent: true,
             ..Default::default()
         })
         .run_with(move || Launcher::new(is_new_user, config))
@@ -227,7 +225,7 @@ fn load_config(dir_is_ok: bool) -> Result<LauncherConfig, JsonFileError> {
 }
 
 fn load_icon() -> Option<iced::window::Icon> {
-    match iced::window::icon::from_file_data(LAUNCHER_ICON, Some(image::ImageFormat::Ico)) {
+    match iced::window::icon::from_file_data(LAUNCHER_ICON, None) {
         Ok(n) => Some(n),
         Err(err) => {
             err_no_log!("Couldn't load launcher icon! (bug detected): {err}");
@@ -253,12 +251,22 @@ fn load_fonts() -> Vec<Cow<'static, [u8]>> {
     ]
 }
 
+/// This is the only `unsafe` Rust code in the entire launcher.
+/// It tweaks Windows terminal behaviour so that:
+///
+/// - If launcher is opened from terminal,
+///   it shows output in terminal
+/// - If it's opened normally from GUI,
+///   no terminal window pops up
+///
+/// Basically Linux-default behaviour.
 #[cfg(windows)]
 fn attach_to_console() {
     use windows::Win32::System::Console::AttachConsole;
     use windows::Win32::System::Console::ATTACH_PARENT_PROCESS;
 
     unsafe {
+        // No one cares if it fails. Ignore the `Result<()>`
         _ = AttachConsole(ATTACH_PARENT_PROCESS);
     }
 }
@@ -269,7 +277,7 @@ fn should_migrate() -> bool {
         return false;
     };
 
-    // Already migrated or haven't ran the launcher before migration
+    // Already migrated or haven't run the launcher before migration
     // Don't load the config for no reason
     if legacy_dir.is_symlink() || !legacy_dir.exists() {
         return false;
@@ -303,7 +311,7 @@ fn do_migration() {
     ) {
         if let Err(e) = std::fs::rename(&legacy_dir, &new_dir) {
             eprintln!("Migration failed: {}", e);
-        } else if let Err(e) = ql_core::file_utils::create_symlink(&new_dir, &legacy_dir) {
+        } else if let Err(e) = file_utils::create_symlink(&new_dir, &legacy_dir) {
             eprintln!("Migration successful but couldnt create symlink to the legacy dir: {e}",);
         } else {
             info!("Migration successful!\nYour launcher files are now in ~./local/share/QuantumLauncher")

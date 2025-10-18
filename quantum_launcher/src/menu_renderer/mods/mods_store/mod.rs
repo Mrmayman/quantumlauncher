@@ -1,17 +1,14 @@
+use frostmark::MarkWidget;
 use iced::{widget, Length};
-use ql_core::{ModId, StoreBackendType};
+use ql_core::{Loader, ModId, StoreBackendType};
 use ql_mod_manager::store::{QueryType, SearchMod};
 
 use crate::{
     icon_manager,
-    menu_renderer::{back_button, button_with_icon, Element, FONT_MONO},
+    menu_renderer::{back_button, button_with_icon, Element, FONT_DEFAULT, FONT_MONO},
     state::{ImageState, InstallModsMessage, ManageModsMessage, MenuModsDownload, Message},
-    stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
+    stylesheet::{color::Color, styles::LauncherTheme},
 };
-
-mod helpers;
-mod html;
-mod markdown;
 
 impl MenuModsDownload {
     /// Renders the main store page, with the search bar,
@@ -34,7 +31,7 @@ impl MenuModsDownload {
             widget::Column::new()
                 .push_maybe(
                     (self.query_type == QueryType::Shaders
-                        && self.config.mod_type != "OptiFine"
+                        && self.config.mod_type != Loader::OptiFine
 
                         // Iris Shaders Mod
                         && !self.mod_index.mods.contains_key("YL57xq9U") // Modrinth ID
@@ -49,7 +46,7 @@ impl MenuModsDownload {
                 )
                 .push_maybe(
                     (self.query_type == QueryType::Mods
-                        && self.config.mod_type == "Vanilla")
+                        && self.config.mod_type.is_vanilla())
                     .then_some(
                         widget::container(
                             widget::text(
@@ -188,7 +185,8 @@ impl MenuModsDownload {
                 widget::row!(
                     images.view(
                         &hit.icon_url,
-                        Some(32),
+                        Some(32.0),
+                        Some(32.0),
                         widget::column!(widget::text("...")).into()
                     ),
                     widget::column!(
@@ -200,11 +198,21 @@ impl MenuModsDownload {
                     .height(60)
                     .spacing(5),
                     widget::column!(
-                        widget::text(&hit.title).size(16),
-                        widget::text(safe_slice(&hit.description, 50)).size(12),
+                        widget::text(&hit.title)
+                            .wrapping(widget::text::Wrapping::None)
+                            .shaping(widget::text::Shaping::Advanced)
+                            .height(20)
+                            .width(Length::Fill),
+                        widget::responsive(|size| {
+                            widget::text(safe_slice(&hit.description, (size.width / 7.5) as usize))
+                                .font(FONT_MONO)
+                                .shaping(widget::text::Shaping::Advanced)
+                                .size(12)
+                                .style(|t: &LauncherTheme| t.style_text(Color::Mid))
+                                .into()
+                        }),
                     )
                     .spacing(5),
-                    widget::horizontal_space()
                 )
                 .padding(5)
                 .spacing(10),
@@ -216,22 +224,17 @@ impl MenuModsDownload {
         .into()
     }
 
-    pub fn view<'a>(
-        &'a self,
-        images: &'a ImageState,
-        window_size: (f32, f32),
-        tick_timer: usize,
-    ) -> Element<'a> {
+    pub fn view<'a>(&'a self, images: &'a ImageState, tick_timer: usize) -> Element<'a> {
         // If we opened a mod (`self.opened_mod`) then
         // render the mod description page.
         // else render the main store page.
-        let (Some(selection), Some(results)) = (&self.opened_mod, &self.results) else {
+        let (Some(selection), Some(results)) = (self.opened_mod, &self.results) else {
             return self.view_main(images, tick_timer);
         };
-        let Some(hit) = results.mods.get(*selection) else {
+        let Some(hit) = results.mods.get(selection) else {
             return self.view_main(images, tick_timer);
         };
-        self.view_project_description(hit, images, window_size, results.backend, tick_timer)
+        self.view_project_description(hit, images, tick_timer)
     }
 
     /// Renders the mod description page.
@@ -239,16 +242,16 @@ impl MenuModsDownload {
         &'a self,
         hit: &'a SearchMod,
         images: &'a ImageState,
-        window_size: (f32, f32),
-        backend: StoreBackendType,
         tick_timer: usize,
     ) -> Element<'a> {
         // Parses the markdown description of the mod.
-        let markdown_description = if let Some(info) = self
-            .mod_descriptions
-            .get(&ModId::from_pair(&hit.id, backend))
-        {
-            widget::column!(Self::render_markdown(info, images, window_size))
+        let markdown_description = if let Some(desc) = &self.description {
+            widget::column!(MarkWidget::new(desc)
+                .on_clicking_link(Message::CoreOpenLink)
+                .on_drawing_image(|img| { images.view(img.url, img.width, img.height, "".into()) })
+                .on_updating_state(|| Message::InstallMods(InstallModsMessage::TickDesc))
+                .font(FONT_DEFAULT)
+                .font_mono(FONT_MONO))
         } else {
             let dots = ".".repeat((tick_timer % 3) + 1);
             widget::column!(widget::text!("Loading...{dots}"))
@@ -281,7 +284,7 @@ impl MenuModsDownload {
                 )
                 .spacing(5),
                 widget::row!(
-                    images.view(&hit.icon_url, None, "".into()),
+                    images.view(&hit.icon_url, Some(32.0), Some(32.0), "".into()),
                     widget::text(&hit.title).size(24)
                 )
                 .spacing(10),
@@ -322,11 +325,4 @@ fn safe_slice(s: &str, max_len: usize) -> &str {
     } else {
         &s[..end]
     }
-}
-
-pub fn codeblock<'a>(e: String) -> widget::Button<'a, Message, LauncherTheme> {
-    widget::button(widget::text(e.clone()).font(FONT_MONO))
-        .on_press(Message::CoreCopyText(e))
-        .padding(0)
-        .style(|n: &LauncherTheme, status| n.style_button(status, StyleButton::FlatDark))
 }

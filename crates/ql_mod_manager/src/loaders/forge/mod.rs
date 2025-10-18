@@ -5,7 +5,7 @@ use ql_core::{
         forge::{JsonDetails, JsonDetailsLibrary, JsonInstallProfile, JsonVersions},
         VersionDetails,
     },
-    no_window, pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError,
+    no_window, pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError, Loader,
     Progress, CLASSPATH_SEPARATOR,
 };
 use ql_java_handler::{get_java_binary, JavaVersion, JAVA};
@@ -602,7 +602,7 @@ pub async fn install_client(
     .await
     .path(json_path)?;
 
-    change_instance_type(&installer.instance_dir, "Forge".to_owned()).await?;
+    change_instance_type(&installer.instance_dir, Loader::Forge).await?;
 
     installer.remove_lock().await?;
     info!("Finished installing forge");

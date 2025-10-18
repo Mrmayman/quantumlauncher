@@ -367,6 +367,7 @@ pub enum RequestError {
 }
 
 impl RequestError {
+    #[must_use]
     pub fn summary(&self) -> String {
         match self {
             RequestError::DownloadError { code, url } => {
@@ -660,10 +661,12 @@ pub async fn zip_directory_to_bytes<P: AsRef<Path>>(dir: P) -> std::io::Result<V
     Ok(buffer.into_inner())
 }
 
-/// Used for moving the launcher dir from .config to .local
-/// Gets the old location of the launcher dir using the same methods as before the
-/// migration so if the user have overwriten it using `$XGD_CONFIG_DIR` we dont lose track of it
+/// Gets the old location of the launcher dir
+///
+/// This uses the same methods as before the migration,
+/// so if the user has overwritten it using `$XDG_CONFIG_DIR` we don't lose track of it.
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+#[must_use]
 pub fn migration_legacy_launcher_dir() -> Option<PathBuf> {
     if check_qlportable_file().is_some() {
         return None;
@@ -671,8 +674,8 @@ pub fn migration_legacy_launcher_dir() -> Option<PathBuf> {
     Some(dirs::config_dir()?.join("QuantumLauncher"))
 }
 
-/// used for moving the launcher dir from .config to .local
-/// same as `get_launcher_dir` but doesnt create the folder if not found.
+/// Same as [`get_launcher_dir`] but doesn't create the folder if not found.
+#[must_use]
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 pub fn migration_launcher_dir() -> Option<PathBuf> {
     if check_qlportable_file().is_some() {

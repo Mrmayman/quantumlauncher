@@ -1,7 +1,7 @@
 use chrono::DateTime;
 use ql_core::{
     file_utils, info, json::VersionDetails, no_window, pt, GenericProgress, InstanceSelection,
-    IntoIoError, IntoJsonError, IoError, CLASSPATH_SEPARATOR, REGEX_SNAPSHOT,
+    IntoIoError, IntoJsonError, IoError, Loader, CLASSPATH_SEPARATOR, REGEX_SNAPSHOT,
 };
 use ql_java_handler::{get_java_binary, JavaVersion, JAVA};
 use serde::Deserialize;
@@ -66,9 +66,8 @@ pub async fn install(
         download_libraries(f_progress, &json, &installer_bytes, &neoforge_dir).await?;
     }
 
-    info!("Finished installing NeoForge");
-
-    change_instance_type(&instance_dir, "NeoForge".to_owned()).await?;
+    pt!("Finished");
+    change_instance_type(&instance_dir, Loader::Neoforge).await?;
 
     Ok(())
 }
@@ -337,18 +336,13 @@ async fn compile_and_run_installer(
 }
 
 async fn create_required_jsons(neoforge_dir: &Path) -> Result<(), ForgeInstallError> {
-    const CONTENTS: &str = "{}";
+    let lp_path = neoforge_dir.join("launcher_profiles.json");
+    tokio::fs::write(&lp_path, "{}").await.path(lp_path)?;
 
-    let launcher_profiles_json_path = neoforge_dir.join("launcher_profiles.json");
-    tokio::fs::write(&launcher_profiles_json_path, "{}")
+    let lp_microsoft_store = neoforge_dir.join("launcher_profiles_microsoft_store.json");
+    tokio::fs::write(&lp_microsoft_store, "{}")
         .await
-        .path(launcher_profiles_json_path)?;
-
-    let launcher_profiles_json_microsoft_store_path =
-        neoforge_dir.join("launcher_profiles_microsoft_store.json");
-    tokio::fs::write(&launcher_profiles_json_microsoft_store_path, CONTENTS)
-        .await
-        .path(launcher_profiles_json_microsoft_store_path)?;
+        .path(lp_microsoft_store)?;
 
     Ok(())
 }

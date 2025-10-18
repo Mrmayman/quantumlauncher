@@ -9,6 +9,16 @@
 - Presets, text exporting (explained below), and recommended mods
   are now under a hamburger menu.
 
+## Descriptions
+
+Improved mod store description viewer with a revamped HTML renderer, featuring:
+
+- Visual layout fixes and sharper images
+- Lower CPU usage
+- Enhanced formatting: bold, italic, emojis, strikethrough, underline, monospace
+- Selectable text in codeblocks
+- GIF support (TODO)
+
 ## Text export
 
 - Export mods as a text list for easy sharing.
