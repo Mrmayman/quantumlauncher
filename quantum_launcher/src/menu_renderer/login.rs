@@ -97,13 +97,13 @@ impl MenuLoginAlternate {
                             )
                         )
                     ]
-                    .align_y(iced::Alignment::Center)
+                    .align_y(Alignment::Center)
                     .spacing(5)
                     .wrap(),
                     widget::vertical_space(),
                 ]
                 .width(Length::Fill)
-                .align_x(iced::Alignment::Center)
+                .align_x(Alignment::Center)
                 .spacing(5)
             ]
             .padding(10)
@@ -154,7 +154,7 @@ impl MenuLoginAlternate {
                 .map(|err| widget::text(err).size(14)),
         )
         .spacing(5)
-        .align_x(iced::Alignment::Center)
+        .align_x(Alignment::Center)
         .into()
     }
 }
@@ -180,7 +180,7 @@ impl MenuLoginMS {
                     widget::vertical_space(),
                 )
                 .spacing(5)
-                .align_x(iced::Alignment::Center),
+                .align_x(Alignment::Center),
                 widget::horizontal_space()
             )
         ]

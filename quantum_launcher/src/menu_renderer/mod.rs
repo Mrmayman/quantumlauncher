@@ -28,6 +28,7 @@ pub const DISCORD: &str = "https://discord.gg/bWqRaSXar5";
 pub const GITHUB: &str = "https://github.com/Mrmayman/quantumlauncher";
 
 pub const FONT_MONO: iced::Font = iced::Font::with_name("JetBrains Mono");
+pub const FONT_DEFAULT: iced::Font = iced::Font::with_name("Inter");
 
 pub type Element<'a> = iced::Element<'a, Message, LauncherTheme>;
 
@@ -69,7 +70,7 @@ pub fn underline<'a>(
         widget::column![
             widget::vertical_space(),
             widget::horizontal_rule(1).style(move |t: &LauncherTheme| t.style_rule(color, 1)),
-            widget::Space::with_height(1),
+            widget::Space::with_height(0.1),
         ]
     )
 }
@@ -101,14 +102,13 @@ pub fn subbutton_with_icon<'a>(
     text: &'a str,
 ) -> widget::Button<'a, Message, LauncherTheme> {
     widget::button(
-        widget::row![icon.into(), widget::text(text).size(12)]
+        widget::row![icon.into()]
+            .push_maybe((!text.is_empty()).then_some(widget::text(text).size(12)))
             .align_y(iced::alignment::Vertical::Center)
             .spacing(8)
             .padding(1),
     )
-    .style(|t: &LauncherTheme, s| {
-        t.style_button(s, crate::stylesheet::widgets::StyleButton::RoundDark)
-    })
+    .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::RoundDark))
 }
 
 pub fn button_with_icon<'a>(
@@ -321,28 +321,54 @@ pub fn get_theme_selector(config: &'_ LauncherConfig) -> (Element<'_>, Element<'
         left: 10.0,
     };
 
+    let td = |t: &LauncherTheme| t.style_text(Color::Mid);
+
     let theme = config.theme.as_deref().unwrap_or("Dark");
     let (light, dark): (Element, Element) = if theme == "Dark" {
         (
-            widget::button(widget::text("Light").size(14))
-                .on_press(Message::LauncherSettings(
-                    LauncherSettingsMessage::ThemePicked("Light".to_owned()),
-                ))
-                .into(),
-            widget::container(widget::text("Dark").size(14))
-                .padding(PADDING)
-                .into(),
+            widget::button(
+                widget::row![
+                    icon_manager::mode_light_with_size(14),
+                    widget::text("Light").size(14)
+                ]
+                .spacing(5),
+            )
+            .on_press(Message::LauncherSettings(
+                LauncherSettingsMessage::ThemePicked("Light".to_owned()),
+            ))
+            .into(),
+            widget::container(
+                widget::row![
+                    icon_manager::mode_dark_with_size(14).style(td),
+                    widget::text("Dark").size(14)
+                ]
+                .spacing(5),
+            )
+            .padding(PADDING)
+            .into(),
         )
     } else {
         (
-            widget::container(widget::text("Light").size(14))
-                .padding(PADDING)
-                .into(),
-            widget::button(widget::text("Dark").size(14))
-                .on_press(Message::LauncherSettings(
-                    LauncherSettingsMessage::ThemePicked("Dark".to_owned()),
-                ))
-                .into(),
+            widget::container(
+                widget::row![
+                    icon_manager::mode_light_with_size(14).style(td),
+                    widget::text("Light").size(14)
+                ]
+                .spacing(5),
+            )
+            .padding(PADDING)
+            .into(),
+            widget::button(
+                widget::row![
+                    icon_manager::mode_dark_with_size(14),
+                    widget::text("Dark").size(14)
+                ]
+                .spacing(5),
+            )
+            .on_press(Message::LauncherSettings(
+                LauncherSettingsMessage::ThemePicked("Dark".to_owned()),
+            ))
+            .into(),
         )
     };
     (light, dark)
@@ -413,7 +439,7 @@ impl MenuCurseforgeManualDownload {
                         widget::button(widget::text("Open link").size(14)).on_press(Message::CoreOpenLink(url)),
                         widget::text(&entry.name)
                     ]
-                    .align_y(iced::Alignment::Center)
+                    .align_y(Alignment::Center)
                     .spacing(10)
                     .into()
                 }))
@@ -549,7 +575,7 @@ pub fn view_account_login<'a>() -> Element<'a> {
                     }
                 )),
             ]
-            .align_x(iced::Alignment::Center)
+            .align_x(Alignment::Center)
             .spacing(5),
             widget::horizontal_space(),
         ],
@@ -608,7 +634,7 @@ pub fn view_log_upload_result(url: &'_ str, is_server: bool) -> Element<'_> {
                     widget::button("Open").on_press(Message::CoreOpenLink(url.to_string()))
                 ]
                 .spacing(10)
-                .align_y(iced::Alignment::Center)
+                .align_y(Alignment::Center)
             )
             .padding(10),
             widget::vertical_space(),

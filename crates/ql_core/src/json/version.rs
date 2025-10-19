@@ -4,7 +4,7 @@ use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{err, pt, InstanceSelection, IntoIoError, IntoJsonError, JsonFileError};
+use crate::{err, json, pt, InstanceSelection, IntoIoError, IntoJsonError, JsonFileError};
 
 pub const V_PRECLASSIC_LAST: &str = "2009-05-16T11:48:00+00:00";
 pub const V_OFFICIAL_FABRIC_SUPPORT: &str = "2018-10-24T10:52:16+00:00";
@@ -241,6 +241,38 @@ pub struct Library {
     // pub sha512: Option<String>,
     // pub md5: Option<String>,
     pub url: Option<String>,
+}
+
+impl Library {
+    pub fn get_artifact(&self) -> Option<LibraryDownloadArtifact> {
+        match (&self.name, self.downloads.as_ref(), self.url.as_ref()) {
+            (
+                _,
+                Some(LibraryDownloads {
+                    artifact: Some(artifact),
+                    ..
+                }),
+                _,
+            ) => Some(artifact.clone()),
+            (Some(name), None, Some(url)) => {
+                let flib = json::fabric::Library {
+                    name: name.clone(),
+                    url: if url.ends_with('/') {
+                        url.clone()
+                    } else {
+                        format!("{url}/")
+                    },
+                };
+                Some(LibraryDownloadArtifact {
+                    path: Some(flib.get_path()),
+                    sha1: String::new(),
+                    size: serde_json::Number::from_u128(0).unwrap(),
+                    url: flib.get_url(),
+                })
+            }
+            _ => None,
+        }
+    }
 }
 
 impl Debug for Library {

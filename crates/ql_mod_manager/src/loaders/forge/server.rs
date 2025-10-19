@@ -1,4 +1,4 @@
-use ql_core::{InstanceSelection, IntoIoError};
+use ql_core::{InstanceSelection, IntoIoError, Loader};
 
 use crate::loaders::{change_instance_type, forge::ForgeInstaller};
 
@@ -36,7 +36,7 @@ pub async fn install_server(
     installer.delete("ForgeInstaller.java").await?;
     installer.delete("ForgeInstaller.class").await?;
 
-    change_instance_type(&installer.instance_dir, "Forge".to_owned()).await?;
+    change_instance_type(&installer.instance_dir, Loader::Forge).await?;
     installer.remove_lock().await?;
 
     Ok(())

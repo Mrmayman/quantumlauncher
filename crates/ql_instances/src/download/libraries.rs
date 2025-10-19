@@ -282,7 +282,7 @@ impl GameDownloader {
                     "(download_library_native): Library size {} doesn't match expected size {}",
                     library.len(),
                     download.size
-                )
+                );
             }
 
             file_utils::extract_zip_archive(Cursor::new(&library), &natives_dir, true)

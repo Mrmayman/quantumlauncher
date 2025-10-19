@@ -2,7 +2,11 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{InstanceSelection, IntoIoError, IntoJsonError, JsonFileError};
+use crate::{InstanceSelection, IntoIoError, IntoJsonError, JsonFileError, Loader};
+
+mod modes;
+
+pub use modes::{JavaArgsMode, PreLaunchPrefixMode};
 
 /// Configuration for using a custom Minecraft JAR file
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
@@ -11,123 +15,20 @@ pub struct CustomJarConfig {
     pub autoset_main_class: bool,
 }
 
-/// Defines how instance Java arguments should interact with global Java arguments
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum JavaArgsMode {
-    /// Use global arguments only if instance arguments are empty,
-    /// as a *fallback*.
-    #[serde(rename = "fallback")]
-    Fallback,
-    /// Disable global arguments entirely,
-    /// **only** use instance arguments
-    #[serde(rename = "disable")]
-    Disable,
-    /// Combine global arguments with instance arguments,
-    /// using both together.
-    #[serde(rename = "combine")]
-    #[default]
-    Combine,
-}
-
-impl JavaArgsMode {
-    pub const ALL: &[Self] = &[Self::Combine, Self::Disable, Self::Fallback];
-
-    pub fn get_description(self) -> &'static str {
-        match self {
-            JavaArgsMode::Fallback => "Use global arguments only when instance has no arguments",
-            JavaArgsMode::Disable => "No global arguments are applied",
-            JavaArgsMode::Combine => {
-                "Global arguments are combined with instance arguments (default)"
-            }
-        }
-    }
-}
-
-impl std::fmt::Display for JavaArgsMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            JavaArgsMode::Fallback => write!(f, "Fallback"),
-            JavaArgsMode::Disable => write!(f, "Disable"),
-            JavaArgsMode::Combine => write!(f, "Combine (default)"),
-        }
-    }
-}
-
-/// Defines how instance pre-launch prefix commands should interact with global pre-launch prefix commands
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum PreLaunchPrefixMode {
-    /// Use global prefix only if instance prefix is empty
-    #[serde(rename = "fallback")]
-    Fallback,
-    /// Use instance prefix only, ignoring global prefix
-    #[serde(rename = "disable")]
-    Disable,
-    /// Combine global prefix + instance prefix
-    /// (in order)
-    #[serde(rename = "combine_global_local")]
-    #[default]
-    CombineGlobalLocal,
-    /// Combine instance prefix + global prefix
-    /// (in order)
-    #[serde(rename = "combine_local_global")]
-    CombineLocalGlobal,
-}
-
-impl PreLaunchPrefixMode {
-    pub const ALL: &[Self] = &[
-        Self::CombineGlobalLocal,
-        Self::CombineLocalGlobal,
-        Self::Disable,
-        Self::Fallback,
-    ];
-
-    pub fn get_description(self) -> &'static str {
-        match self {
-            PreLaunchPrefixMode::Fallback => "Use global prefix only when instance has no prefix",
-            PreLaunchPrefixMode::Disable => "Use only instance prefix, ignore global prefix",
-            PreLaunchPrefixMode::CombineGlobalLocal => {
-                "Combine global + instance prefix (global first, then instance)"
-            }
-            PreLaunchPrefixMode::CombineLocalGlobal => {
-                "Combine instance + global prefix (instance first, then global)"
-            }
-        }
-    }
-}
-
-impl std::fmt::Display for PreLaunchPrefixMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PreLaunchPrefixMode::Fallback => write!(f, "Fallback"),
-            PreLaunchPrefixMode::Disable => write!(f, "Disable"),
-            PreLaunchPrefixMode::CombineGlobalLocal => write!(f, "Combine Global+Local (default)"),
-            PreLaunchPrefixMode::CombineLocalGlobal => write!(f, "Combine Local+Global"),
-        }
-    }
-}
-
 /// Configuration for a specific instance.
 /// Not to be confused with [`crate::json::VersionDetails`]. That one
 /// is launcher agnostic data provided from mojang, this one is
 /// Quantum Launcher specific information.
 ///
 /// Stored in:
-/// - Client: `QuantumLauncher/instances/<instance_name>/config.json`
-/// - Server: `QuantumLauncher/servers/<instance_name>/config.json`
+/// - Client: `QuantumLauncher/instances/<NAME>/config.json`
+/// - Server: `QuantumLauncher/servers/<NAME>/config.json`
 ///
 /// See the documentation of each field for more information.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct InstanceConfigJson {
-    /// **Default: `"Vanilla"`**
-    ///
-    /// Can be one of:
-    /// - `"Vanilla"` (unmodded)
-    /// - `"Fabric"`
-    /// - `"Forge"`
-    /// - `"OptiFine"`
-    /// - `"Quilt"`
-    /// - `"NeoForge"`
-    pub mod_type: String,
+    /// **Default: `Vanilla` (meaning, no loader)**
+    pub mod_type: Loader,
     /// If you want to use your own Java installation
     /// instead of the auto-installed one, specify
     /// the path to the `java` executable here.
@@ -325,9 +226,8 @@ impl InstanceConfigJson {
     ///
     /// The behavior depends on the instance's `java_args_mode`.
     /// See [`JavaArgsMode`] documentation for more info.
-    ///
-    /// Returns an empty vector if no arguments should be used.
     #[must_use]
+    #[allow(clippy::missing_panics_doc)] // Won't panic
     pub fn get_java_args(&self, global_args: &[String]) -> Vec<String> {
         let mode = self
             .java_args_mode
@@ -404,7 +304,7 @@ impl InstanceConfigJson {
         match mode {
             PreLaunchPrefixMode::Fallback => {
                 if instance_prefix.is_empty() {
-                    global_prefix.to_owned()
+                    global_prefix.clone()
                 } else {
                     instance_prefix
                 }

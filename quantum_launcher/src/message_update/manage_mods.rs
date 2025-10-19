@@ -92,7 +92,7 @@ impl Launcher {
                     if paths
                         .iter()
                         .filter_map(|n| n.extension())
-                        .any(|n| n.to_ascii_lowercase() != "jar")
+                        .any(|n| !n.eq_ignore_ascii_case("jar"))
                     {
                         self.mod_updates_checked.remove(selected_instance);
                     }

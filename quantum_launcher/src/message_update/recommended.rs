@@ -1,7 +1,5 @@
 use iced::{futures::executor::block_on, Task};
-use ql_core::{
-    json::InstanceConfigJson, InstanceSelection, IntoStringError, JsonFileError, Loader, ModId,
-};
+use ql_core::{json::InstanceConfigJson, InstanceSelection, IntoStringError, JsonFileError, ModId};
 use ql_mod_manager::store::{RecommendedMod, RECOMMENDED_MODS};
 
 use crate::state::{
@@ -34,11 +32,11 @@ impl Launcher {
                     config: config.clone(),
                 });
 
-                let mod_type = config.mod_type.clone();
-                let Some(loader) = Loader::try_from(mod_type.as_str()).ok() else {
+                let loader = config.mod_type;
+                if loader.is_vanilla() {
                     self.state = State::RecommendedMods(MenuRecommendedMods::InstallALoader);
                     return Task::none();
-                };
+                }
                 let ids = RECOMMENDED_MODS.to_owned();
 
                 return Task::perform(

@@ -17,7 +17,7 @@ impl std::fmt::Debug for ImageResult {
     }
 }
 
-pub async fn download_image(url: String, icon: bool) -> Result<ImageResult, String> {
+pub async fn download_image(url: String) -> Result<ImageResult, String> {
     if url.starts_with("https://cdn.modrinth.com/") {
         // Does Modrinth CDN have a rate limit like their API?
         // I have no idea but from my testing it doesn't seem like they do.
@@ -29,42 +29,7 @@ pub async fn download_image(url: String, icon: bool) -> Result<ImageResult, Stri
     }
 
     let image = url_cache_get(&url).await.strerr()?;
+    let is_svg = image.starts_with(b"<svg") || url.to_lowercase().ends_with(".svg");
 
-    if url.to_lowercase().ends_with(".svg") {
-        return Ok(ImageResult {
-            url,
-            image,
-            is_svg: true,
-        });
-    }
-
-    if let Ok(text) = std::str::from_utf8(&image) {
-        if text.starts_with("<svg") {
-            return Ok(ImageResult {
-                url,
-                image,
-                is_svg: true,
-            });
-        }
-    }
-
-    let img = image::io::Reader::new(std::io::Cursor::new(image))
-        .with_guessed_format()
-        .map_err(|err| format!("{url}: {err}"))?
-        .decode()
-        .map_err(|err| format!("{url}: {err}"))?;
-
-    let img = img.thumbnail(if icon { 32 } else { 1000 }, 426);
-    // let img = img.resize(32, 32, image::imageops::FilterType::Nearest);
-
-    let mut buffer = Vec::new();
-    let mut cursor = std::io::Cursor::new(&mut buffer);
-    img.write_to(&mut cursor, image::ImageFormat::Png)
-        .map_err(|err| format!("{url}: {err}"))?;
-
-    Ok(ImageResult {
-        url,
-        image: buffer,
-        is_svg: false,
-    })
+    Ok(ImageResult { url, image, is_svg })
 }

@@ -5,7 +5,7 @@ use ql_core::{
     do_jobs, info_no_log, json::VersionDetails, GenericProgress, InstanceSelection, Loader,
 };
 
-use crate::store::{get_latest_version_date, get_loader};
+use crate::store::get_latest_version_date;
 
 use super::{delete_mods, download_mods_bulk, ModError, ModId, ModIndex};
 
@@ -21,20 +21,16 @@ pub async fn apply_updates(
 }
 
 pub async fn check_for_updates(
-    selected_instance: InstanceSelection,
+    instance: InstanceSelection,
 ) -> Result<Vec<(ModId, String)>, ModError> {
-    let index = ModIndex::load(&selected_instance).await?;
+    let index = ModIndex::load(&instance).await?;
+    let version_json = VersionDetails::load(&instance).await?;
 
-    let version_json = VersionDetails::load(&selected_instance).await?;
-
-    let loader = get_loader(&selected_instance).await?;
-    if let Some(Loader::OptiFine) = loader {
+    let loader = instance.get_loader().await?;
+    if let Loader::OptiFine = loader {
         return Ok(Vec::new());
     }
-    info_no_log!(
-        "Checking for mod updates (loader: {})",
-        loader.map_or("Vanilla".to_owned(), |n| format!("{n:?}"))
-    );
+    info_no_log!("Checking for mod updates (loader: {loader})");
 
     let version = version_json.get_id();
 

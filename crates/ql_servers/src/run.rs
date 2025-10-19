@@ -7,7 +7,7 @@ use std::{
 use ql_core::{
     err, find_forge_shim_file, info,
     json::{InstanceConfigJson, VersionDetails},
-    no_window, GenericProgress, IntoIoError, LAUNCHER_DIR,
+    no_window, GenericProgress, IntoIoError, Loader, LAUNCHER_DIR,
 };
 use ql_java_handler::{get_java_binary, JavaVersion};
 use tokio::process::{Child, Command};
@@ -44,16 +44,15 @@ pub async fn run(
     let server_jar_path = if let Some(custom_jar) = &config_json.custom_jar {
         // Should I prioritise Fabric/Forge/Paper over a custom JAR?
         PathBuf::from(&custom_jar.name)
-    } else if config_json.mod_type == "Fabric" || config_json.mod_type == "Quilt" {
-        server_dir.join("fabric-server-launch.jar")
-    } else if config_json.mod_type == "Forge" {
-        find_forge_shim_file(&server_dir)
-            .await
-            .ok_or(ServerError::NoForgeShimFound)?
-    } else if config_json.mod_type == "Paper" {
-        server_dir.join("paper_server.jar")
     } else {
-        server_dir.join("server.jar")
+        match config_json.mod_type {
+            Loader::Fabric | Loader::Quilt => server_dir.join("fabric-server-launch.jar"),
+            Loader::Forge => find_forge_shim_file(&server_dir)
+                .await
+                .ok_or(ServerError::NoForgeShimFound)?,
+            Loader::Paper => server_dir.join("paper_server.jar"),
+            _ => server_dir.join("server.jar"),
+        }
     };
 
     let java_path = get_java(&server_dir, &config_json, java_install_progress).await?;
@@ -68,7 +67,7 @@ pub async fn run(
         Vec::new()
     };
     java_args.push(config_json.get_ram_argument());
-    if config_json.mod_type == "Forge" {
+    if let Loader::Forge = config_json.mod_type {
         java_args.push("-Djava.net.preferIPv6Addresses=system".to_owned());
     }
 

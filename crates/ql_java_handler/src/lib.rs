@@ -1,3 +1,66 @@
+//! Quick, easy cross-platform Java.
+//!
+//! This crate allows you to get a path to any Java executable
+//! (like `java`, `javac`, `jar`, etc). It auto-installs Java
+//! if not present.
+//!
+//! See [`get_java_binary`] for examples.
+//!
+//! # Platform Support
+//!
+//! - ✅: Official support from Mojang (installed from their servers)
+//! - 🟢: Supported through *Amazon Corretto Java*
+//!   which we provide an alternate installer for.
+//! - 🟢³: Installed from
+//!   <https://github.com/Mrmayman/get-jdk>
+//! - 🟢²: Uses later version of Java (with backwards compatibility)
+//!
+//! | Platforms   | 8  | 16 | 17 | 21 |
+//! |-------------|----|----|----|----|
+//! | **Windows** `x86_64`  | 🟢 | ✅ | ✅ | ✅  |
+//! | **Windows** `i686`    | 🟢 | ✅ | ✅ | 🟢³|
+//! | **Windows** `aarch64`²| 🟢²|🟢²| ✅ | ✅ |
+//! | | | | |
+//! | **macOS**   `x86_64`  | 🟢 | ✅  | ✅ | ✅ |
+//! | **macOS**   `aarch64` | 🟢 | 🟢  | ✅ | ✅ |
+//! | | | | |
+//! | **Linux**   `x86_64`  | ✅ | ✅ | ✅ | ✅ |
+//! | **Linux**   `i686`¹   | ✅ |    |    |   |
+//! | **Linux**   `aarch64` | 🟢 | 🟢 | 🟢 | 🟢 |
+//! | **Linux**   `arm32`¹  | 🟢³|    |    |    |
+//! | **Linux**   `sparc64` |    |    |    |    |
+//! | | | | |
+//! | **FreeBSD** `x86_64`¹ | 🟢³|    |    |    |
+//! | **FreeBSD** `aarch64` |    |    |    |    |
+//! | **FreeBSD** `i686`    |    |    |    |    |
+//! | | | | |
+//! | **Solaris** `x86_64`¹ | 🟢³|    |    |    |
+//! | **Solaris** `sparc64`¹| 🟢³|    |    |    |
+//!
+//! ¹ Only Java 8 is supported on these platforms,
+//!   you can only play Minecraft 1.16.5 and below.
+//!
+//! ² Only Java 17+ is supported here,
+//!   most versions should run fine through Java backwards compatibility
+//!   but some mods may break.
+//!
+//! ³ This version uses `get-jdk` as mentioned previously
+//!
+//! # TODO
+//!
+//! ## Linux platforms
+//! - Risc-V
+//! - PowerPC
+//! - aarch64
+//! - Alpha
+//! - S390 (IBM Z)
+//! - SPARC
+//! - MIPS
+//!
+//! ## macOS platforms
+//! - i686
+//! - PowerPC
+
 use json::{
     files::{JavaFile, JavaFileDownload, JavaFilesJson},
     list::JavaListJson,
@@ -18,15 +81,27 @@ use ql_core::{
 mod compression;
 pub use compression::extract_tar_gz;
 
-pub mod alternate_java;
+mod alternate_java;
 mod json;
 
 pub use json::list::JavaVersion;
 
-#[cfg(target_os = "windows")]
-pub const JAVA: &str = "javaw";
-#[cfg(not(target_os = "windows"))]
-pub const JAVA: &str = "java";
+const fn which_java() -> &'static str {
+    #[cfg(target_os = "windows")]
+    return "javaw";
+    #[cfg(not(target_os = "windows"))]
+    "java"
+}
+
+/// Which Java to use for GUI apps.
+///
+/// `javaw` on Windows, `java` on all other platforms.
+///
+/// On windows, `javaw` is used to avoid accidentally opening
+/// secondary terminal window. This uses the Windows subsystem
+/// instead of the Console subsystem, so the OS treats it as
+/// a GUI app.
+pub const JAVA: &str = which_java();
 
 /// Returns a `PathBuf` pointing to a Java executable of your choice.
 ///
@@ -53,13 +128,18 @@ pub const JAVA: &str = "java";
 /// use ql_java_handler::{get_java_binary, JavaVersion};
 /// use std::path::PathBuf;
 ///
-/// let java_binary: PathBuf = get_java_binary(JavaVersion::Java16, "java", None).await?;
+/// let java: PathBuf =
+///     get_java_binary(JavaVersion::Java16, "java", None).await?;
 ///
-/// let command = std::process::Command::new(java_binary).arg("-version").output()?;
+/// let command =
+///     std::process::Command::new(java).arg("-version").output()?;
 ///
-/// let java_compiler_binary: PathBuf = get_java_binary(JavaVersion::Java16, "javac", None).await?;
+/// // Another built-in Java tool
 ///
-/// let command = std::process::Command::new(java_compiler_binary)
+/// let java_compiler: PathBuf =
+///     get_java_binary(JavaVersion::Java16, "javac", None).await?;
+///
+/// let command = std::process::Command::new(java_compiler)
 ///     .args(&["MyApp.java", "-d", "."])
 ///     .output()?;
 /// # Ok(())
@@ -324,6 +404,12 @@ pub enum JavaInstallError {
     UnknownExtension(String),
 }
 
+/// Deletes all the auto-installed Java installations.
+///
+/// They are stored in `QuantumLauncher/java_installs/`
+/// and are *completely cleared*. If you try to use
+/// [`get_java_binary`] later, they will
+/// *automatically get reinstalled*.
 pub async fn delete_java_installs() {
     info!("Clearing Java installs");
     let java_installs = LAUNCHER_DIR.join("java_installs");

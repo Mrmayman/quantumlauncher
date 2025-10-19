@@ -75,7 +75,7 @@ impl RecommendedMod {
             return None;
         }
 
-        let is_compatible = get_latest_version_date(Some(loader), &mod_id, version).await;
+        let is_compatible = get_latest_version_date(loader, &mod_id, version).await;
         let is_compatible = match is_compatible {
             Ok(_) => {
                 pt!("{} compatible!", self.name);

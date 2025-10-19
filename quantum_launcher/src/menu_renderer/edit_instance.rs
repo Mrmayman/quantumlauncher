@@ -1,8 +1,10 @@
 use crate::{
     icon_manager,
     menu_renderer::{button_with_icon, FONT_MONO},
-    state::{CustomJarState, EditInstanceMessage, MenuEditInstance, Message, NONE_JAR_NAME},
-    stylesheet::{color::Color, styles::LauncherTheme},
+    state::{
+        CustomJarState, EditInstanceMessage, ListMessage, MenuEditInstance, Message, NONE_JAR_NAME,
+    },
+    stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
 use iced::{widget, Length};
 use ql_core::json::{
@@ -25,8 +27,19 @@ impl MenuEditInstance {
             widget::column![
                 widget::container(
                     widget::column![
-                        widget::text(selected_instance.get_name().to_owned()).size(20).font(FONT_MONO),
-                        widget::text!("{} {}  ",
+                        widget::row![
+                            widget::text(selected_instance.get_name().to_owned()).size(20).font(FONT_MONO),
+                        ].push_maybe((!self.is_editing_name).then_some(
+                            widget::button(
+                                icon_manager::edit_with_size(12)
+                                    .style(|t: &LauncherTheme| t.style_text(Color::Mid))
+                            ).style(|t: &LauncherTheme, s|
+                                t.style_button(s, StyleButton::FlatDark)
+                            )
+                            .on_press(Message::EditInstance(EditInstanceMessage::RenameToggle))
+                        )).spacing(5),
+
+                        widget::text!("{} {}",
                             self.config.mod_type,
                             if selected_instance.is_server() {
                                 "Server"
@@ -34,13 +47,15 @@ impl MenuEditInstance {
                                 "Client"
                             }
                         ).style(|t: &LauncherTheme| t.style_text(Color::Mid)).size(14),
+                    ].padding(10).spacing(5).push_maybe(self.is_editing_name.then_some(widget::column![
                         widget::Space::with_height(1),
-                        widget::row!(
-                            widget::button("Rename").on_press(Message::EditInstance(EditInstanceMessage::RenameApply)),
-                            widget::text_input("Rename Instance", &self.instance_name).on_input(|n| Message::EditInstance(EditInstanceMessage::RenameEdit(n))),
-                        ).spacing(5),
-                    ].padding(10).spacing(5),
-                )
+                        widget::text_input("Rename Instance", &self.instance_name).on_input(|n| Message::EditInstance(EditInstanceMessage::RenameEdit(n))),
+                        widget::row![
+                            widget::button(widget::text("Rename").size(12)).on_press(Message::EditInstance(EditInstanceMessage::RenameApply)),
+                            widget::button(widget::text("Cancel").size(12)).on_press(Message::EditInstance(EditInstanceMessage::RenameToggle))
+                        ].spacing(5)
+                    ].spacing(5))),
+                ).width(Length::Fill)
                 .style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::Dark)),
 
                 widget::container(
@@ -80,7 +95,6 @@ impl MenuEditInstance {
                                 self.config.global_settings.as_ref(),
                                 |n| Message::EditInstance(EditInstanceMessage::WindowWidthChanged(n)),
                                 |n| Message::EditInstance(EditInstanceMessage::WindowHeightChanged(n)),
-                                false
                         )))
                 )
                 .style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::Dark))
@@ -116,29 +130,13 @@ impl MenuEditInstance {
                 .spacing(7)
             ),
             widget::text("Java arguments:").size(20),
-            widget::column!(
-                Self::get_java_args_list(
-                    self.config.java_args.as_deref(),
-                    |n| Message::EditInstance(EditInstanceMessage::JavaArgDelete(n)),
-                    |n| Message::EditInstance(EditInstanceMessage::JavaArgShiftUp(n)),
-                    |n| Message::EditInstance(EditInstanceMessage::JavaArgShiftDown(n)),
-                    &|n, i| Message::EditInstance(EditInstanceMessage::JavaArgEdit(n, i))
-                ),
-                button_with_icon(icon_manager::create(), "Add", 16)
-                    .on_press(Message::EditInstance(EditInstanceMessage::JavaArgsAdd))
-            ),
+            get_args_list(self.config.java_args.as_deref(), |n| Message::EditInstance(
+                EditInstanceMessage::JavaArgs(n)
+            )),
             widget::text("Game arguments:").size(20),
-            widget::column!(
-                Self::get_java_args_list(
-                    self.config.game_args.as_deref(),
-                    |n| Message::EditInstance(EditInstanceMessage::GameArgDelete(n)),
-                    |n| Message::EditInstance(EditInstanceMessage::GameArgShiftUp(n)),
-                    |n| Message::EditInstance(EditInstanceMessage::GameArgShiftDown(n)),
-                    &|n, i| Message::EditInstance(EditInstanceMessage::GameArgEdit(n, i))
-                ),
-                button_with_icon(icon_manager::create(), "Add", 16)
-                    .on_press(Message::EditInstance(EditInstanceMessage::GameArgsAdd))
-            ),
+            get_args_list(self.config.game_args.as_deref(), |n| Message::EditInstance(
+                EditInstanceMessage::GameArgs(n)
+            )),
             widget::text("Pre-launch prefix:").size(20),
             widget::container(
                 widget::column![
@@ -162,20 +160,12 @@ impl MenuEditInstance {
                 .padding(10)
                 .spacing(7)
             ),
-            widget::column!(
-                Self::get_java_args_list(
-                    self.config
-                        .global_settings
-                        .as_ref()
-                        .and_then(|n| n.pre_launch_prefix.as_deref()),
-                    |n| Message::EditInstance(EditInstanceMessage::PreLaunchPrefixDelete(n)),
-                    |n| Message::EditInstance(EditInstanceMessage::PreLaunchPrefixShiftUp(n)),
-                    |n| Message::EditInstance(EditInstanceMessage::PreLaunchPrefixShiftDown(n)),
-                    &|n, i| Message::EditInstance(EditInstanceMessage::PreLaunchPrefixEdit(n, i))
-                ),
-                button_with_icon(icon_manager::create(), "Add", 16).on_press(
-                    Message::EditInstance(EditInstanceMessage::PreLaunchPrefixAdd)
-                )
+            get_args_list(
+                self.config
+                    .global_settings
+                    .as_ref()
+                    .and_then(|n| n.pre_launch_prefix.as_deref()),
+                |n| Message::EditInstance(EditInstanceMessage::PreLaunchPrefix(n)),
             ),
         )
         .padding(10)
@@ -235,6 +225,7 @@ impl MenuEditInstance {
     fn item_java_override(&self) -> widget::Column<'_, Message, LauncherTheme> {
         widget::column![
             "Custom Java executable (full path)",
+            widget::text("Note: The launcher already sets up Java automatically,\nYou won't need this in most cases").size(12),
             widget::text_input(
                 "Leave blank if none",
                 self.config.java_override.as_deref().unwrap_or_default()
@@ -305,69 +296,18 @@ use "Mods->Jar Mods""#
         .padding(10)
         .spacing(5)
     }
-
-    fn get_java_args_list<'a>(
-        args: Option<&'a [String]>,
-        mut msg_delete: impl FnMut(usize) -> Message,
-        mut msg_up: impl FnMut(usize) -> Message,
-        mut msg_down: impl FnMut(usize) -> Message,
-        edit_msg: &'a dyn Fn(String, usize) -> Message,
-    ) -> Element<'a> {
-        const ITEM_SIZE: u16 = 10;
-
-        let Some(args) = args else {
-            return widget::column!().into();
-        };
-        widget::column(args.iter().enumerate().map(|(i, arg)| {
-            widget::row!(
-                widget::button(
-                    widget::row![icon_manager::delete_with_size(ITEM_SIZE)]
-                        .align_y(iced::Alignment::Center)
-                        .padding(5)
-                )
-                .on_press(msg_delete(i)),
-                widget::button(
-                    widget::row![icon_manager::arrow_up_with_size(ITEM_SIZE)]
-                        .align_y(iced::Alignment::Center)
-                        .padding(5)
-                )
-                .on_press(msg_up(i)),
-                widget::button(
-                    widget::row![icon_manager::arrow_down_with_size(ITEM_SIZE)]
-                        .align_y(iced::Alignment::Center)
-                        .padding(5)
-                )
-                .on_press(msg_down(i)),
-                widget::text_input("Enter argument...", arg)
-                    .size(ITEM_SIZE + 8)
-                    .on_input(move |n| edit_msg(n, i))
-            )
-            .into()
-        }))
-        .into()
-    }
 }
 
 pub fn resolution_dialog<'a>(
     global_settings: Option<&GlobalSettings>,
     width: impl Fn(String) -> Message + 'a,
     height: impl Fn(String) -> Message + 'a,
-    global: bool,
 ) -> widget::Column<'a, Message, LauncherTheme> {
     let ts = |n: &LauncherTheme| n.style_text(Color::SecondLight);
 
     widget::column![
         "Custom Game Window Size (px):",
-        widget::text!(
-            "The default size the Minecraft window will open in{}\n(Leave empty for default)",
-            if global {
-                "\nIndividual instances can override these settings."
-            } else {
-                ""
-            }
-        )
-        .size(12)
-        .style(ts),
+        widget::text("(Leave empty for default)\nCommon resolutions: 854x480, 1366x768, 1920x1080, 2560x1440, 3840x2160").size(12).style(ts),
         widget::row![
             widget::text("Width:").size(14),
             widget::text_input(
@@ -390,69 +330,51 @@ pub fn resolution_dialog<'a>(
         ]
         .spacing(10)
         .align_y(iced::alignment::Vertical::Center),
-        widget::text("Common resolutions: 854x480, 1366x768, 1920x1080, 2560x1440, 3840x2160")
-            .size(12)
-            .style(ts),
     ]
     .spacing(5)
 }
 
-pub fn global_java_args_dialog<'a>(
-    java_args: Option<&'a [String]>,
-    add_msg: Message,
-    delete_msg: impl Fn(usize) -> Message + 'a,
-    edit_msg: &'a dyn Fn(String, usize) -> Message,
-    up_msg: impl Fn(usize) -> Message + 'a,
-    down_msg: impl Fn(usize) -> Message + 'a,
-) -> widget::Column<'a, Message, LauncherTheme> {
-    let ts = |n: &LauncherTheme| n.style_text(Color::SecondLight);
+pub fn get_args_list<'a>(
+    args: Option<&'a [String]>,
+    msg: impl Fn(ListMessage) -> Message + Clone + 'static,
+) -> Element<'a> {
+    const ITEM_SIZE: u16 = 10;
 
+    let Some(args) = args else {
+        return widget::column!().into();
+    };
     widget::column![
-        "Global Java Arguments:",
-        widget::text(
-            r"These Java arguments will apply to all instances.
-You can override or customize their behaviour on a per-instance basis too."
-        )
-        .size(12)
-        .style(ts),
-        widget::column!(
-            MenuEditInstance::get_java_args_list(java_args, delete_msg, up_msg, down_msg, edit_msg),
-            button_with_icon(icon_manager::create(), "Add Argument", 16).on_press(add_msg)
-        )
-        .spacing(5),
+        widget::column(args.iter().enumerate().map(|(i, arg)| {
+            widget::row!(
+                widget::button(
+                    widget::row![icon_manager::delete_with_size(ITEM_SIZE)]
+                        .align_y(iced::Alignment::Center)
+                        .padding(5)
+                )
+                .on_press(msg(ListMessage::Delete(i))),
+                widget::button(
+                    widget::row![icon_manager::arrow_up_with_size(ITEM_SIZE)]
+                        .align_y(iced::Alignment::Center)
+                        .padding(5)
+                )
+                .on_press(msg(ListMessage::ShiftUp(i))),
+                widget::button(
+                    widget::row![icon_manager::arrow_down_with_size(ITEM_SIZE)]
+                        .align_y(iced::Alignment::Center)
+                        .padding(5)
+                )
+                .on_press(msg(ListMessage::ShiftDown(i))),
+                widget::text_input("Enter argument...", arg)
+                    .size(ITEM_SIZE + 8)
+                    .on_input({
+                        let msg = msg.clone();
+                        move |n| msg(ListMessage::Edit(n, i))
+                    })
+            )
+            .into()
+        })),
+        button_with_icon(icon_manager::create(), "Add", 16).on_press(msg(ListMessage::Add))
     ]
     .spacing(5)
-}
-
-pub fn global_pre_launch_prefix_dialog<'a>(
-    prefix_args: Option<&'a [String]>,
-    add_msg: Message,
-    delete_msg: impl Fn(usize) -> Message + 'a,
-    edit_msg: &'a dyn Fn(String, usize) -> Message,
-    up_msg: impl Fn(usize) -> Message + 'a,
-    down_msg: impl Fn(usize) -> Message + 'a,
-) -> widget::Column<'a, Message, LauncherTheme> {
-    let ts = |n: &LauncherTheme| n.style_text(Color::SecondLight);
-
-    widget::column![
-        "Global Pre-Launch Prefix:",
-        widget::text(
-            r"Commands to prepend to the game launch command.
-Example: Use 'prime-run' to force NVIDIA GPU usage on Linux with Optimus graphics."
-        )
-        .size(12)
-        .style(ts),
-        widget::column!(
-            MenuEditInstance::get_java_args_list(
-                prefix_args,
-                delete_msg,
-                up_msg,
-                down_msg,
-                edit_msg
-            ),
-            button_with_icon(icon_manager::create(), "Add Command", 16).on_press(add_msg)
-        )
-        .spacing(5),
-    ]
-    .spacing(5)
+    .into()
 }

@@ -3,16 +3,15 @@ use crate::{
     download::GameDownloader,
     jarmod,
 };
-use ql_core::json::{GlobalSettings, V_1_5_2, V_PRECLASSIC_LAST};
 use ql_core::{
     err, file_utils, info,
-    json::{
-        forge,
-        version::{Library, LibraryDownloadArtifact, LibraryDownloads},
-        FabricJSON, InstanceConfigJson, JsonOptifine, VersionDetails,
-    },
+    json::{forge, version::Library, FabricJSON, InstanceConfigJson, JsonOptifine, VersionDetails},
     pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError, JsonFileError,
     CLASSPATH_SEPARATOR, LAUNCHER_DIR,
+};
+use ql_core::{
+    json::{GlobalSettings, V_1_5_2, V_PRECLASSIC_LAST},
+    Loader,
 };
 use ql_java_handler::{get_java_binary, JavaVersion};
 use std::{
@@ -353,7 +352,7 @@ impl GameLauncher {
         java_arguments: &mut Vec<String>,
         game_arguments: &mut Vec<String>,
     ) -> Result<Option<FabricJSON>, GameLaunchError> {
-        if !(self.config_json.mod_type == "Fabric" || self.config_json.mod_type == "Quilt") {
+        if !matches!(self.config_json.mod_type, Loader::Fabric | Loader::Quilt) {
             return Ok(None);
         }
 
@@ -374,7 +373,7 @@ impl GameLauncher {
         java_arguments: &mut Vec<String>,
         game_arguments: &mut Vec<String>,
     ) -> Result<Option<forge::JsonDetails>, GameLaunchError> {
-        if self.config_json.mod_type != "Forge" && self.config_json.mod_type != "NeoForge" {
+        if !matches!(self.config_json.mod_type, Loader::Forge | Loader::Neoforge) {
             return Ok(None);
         }
         if self.version_json.is_legacy_version() && self.version_json.get_id() != "1.5.2" {
@@ -436,7 +435,7 @@ impl GameLauncher {
         &self,
         game_arguments: &mut Vec<String>,
     ) -> Result<Option<(JsonOptifine, PathBuf)>, GameLaunchError> {
-        if self.config_json.mod_type != "OptiFine" {
+        if !matches!(self.config_json.mod_type, Loader::OptiFine) {
             return Ok(None);
         }
 
@@ -692,47 +691,14 @@ impl GameLauncher {
             None,
         );
 
-        for (library, name, artifact) in self
+        for library in self
             .version_json
             .libraries
             .iter()
             .filter(|n| GameDownloader::download_libraries_library_is_allowed(n))
-            .filter_map(|n| match (&n.name, n.downloads.as_ref(), n.url.as_ref()) {
-                (
-                    Some(name),
-                    Some(LibraryDownloads {
-                        artifact: Some(artifact),
-                        ..
-                    }),
-                    _,
-                ) => Some((n, name, artifact.clone())),
-                (Some(name), None, Some(url)) => {
-                    let flib = ql_core::json::fabric::Library {
-                        name: name.clone(),
-                        url: if url.ends_with('/') {
-                            url.clone()
-                        } else {
-                            format!("{url}/")
-                        },
-                    };
-                    Some((
-                        n,
-                        name,
-                        LibraryDownloadArtifact {
-                            path: Some(flib.get_path()),
-                            sha1: String::new(),
-                            size: serde_json::Number::from_u128(0).unwrap(),
-                            url: flib.get_url(),
-                        },
-                    ))
-                }
-                _ => None,
-            })
         {
             self.add_entry_to_classpath(
-                name,
                 classpath_entries,
-                &artifact,
                 class_path,
                 &downloader,
                 library,
@@ -745,20 +711,25 @@ impl GameLauncher {
 
     async fn add_entry_to_classpath(
         &self,
-        name: &str,
         classpath_entries: &mut HashSet<String>,
-        artifact: &LibraryDownloadArtifact,
         class_path: &mut String,
         downloader: &GameDownloader,
         library: &Library,
         main_class: &str,
     ) -> Result<(), GameLaunchError> {
-        if let Some(name) = remove_version_from_library(name) {
+        if let Some(name) = library
+            .name
+            .as_ref()
+            .and_then(|name| remove_version_from_library(name))
+        {
             if classpath_entries.contains(&name) {
                 return Ok(());
             }
             classpath_entries.insert(name);
         }
+        let Some(artifact) = library.get_artifact() else {
+            return Ok(());
+        };
         let library_path = self
             .instance_dir
             .join("libraries")
@@ -766,10 +737,10 @@ impl GameLauncher {
 
         if !library_path.exists() {
             pt!("library {library_path:?} not found! Downloading...");
-            if let Err(err) = downloader.download_library(library, Some(artifact)).await {
+            if let Err(err) = downloader.download_library(library, Some(&artifact)).await {
                 err!("Couldn't download library! Skipping...\n{err}");
             } else if !library_path.exists() {
-                err!("Library still doesn't exist... failed?")
+                err!("Library still doesn't exist... failed?");
             }
         }
         #[allow(unused_mut)]
@@ -851,8 +822,16 @@ impl GameLauncher {
                 .and_then(|n| n.pre_launch_prefix.clone())
                 .unwrap_or_default(),
         );
-        if !prefix_commands.is_empty() {
-            info!("Pre args: {prefix_commands:?}");
+        if prefix_commands.is_empty() {
+            // No prefix, use normal Java command
+            command.args(
+                java_arguments
+                    .iter()
+                    .chain(game_arguments.iter())
+                    .filter(|n| !n.is_empty()),
+            );
+        } else {
+            info!("Prefix: {prefix_commands:?}");
 
             let original_java_path = path.to_string_lossy().to_string();
             let mut new_command = Command::new(&prefix_commands[0]);
@@ -870,14 +849,6 @@ impl GameLauncher {
 
             command = new_command;
             path = PathBuf::from(&prefix_commands[0]);
-        } else {
-            // No prefix, use normal Java command
-            command.args(
-                java_arguments
-                    .iter()
-                    .chain(game_arguments.iter())
-                    .filter(|n| !n.is_empty()),
-            );
         }
 
         command.current_dir(&self.minecraft_dir);

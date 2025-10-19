@@ -94,16 +94,16 @@ pub async fn import(
 
     for component in &mmc_pack.components {
         match component.cachedName.as_str() {
-            "Minecraft" => {
-                instance_recipe.mc_version = component.cachedVersion.clone();
-            }
+            "Minecraft" => instance_recipe
+                .mc_version
+                .clone_from(&component.cachedVersion),
 
             "Forge" => {
                 instance_recipe.loader = Some(Loader::Forge);
                 instance_recipe.loader_version = Some(component.cachedVersion.clone());
             }
             "NeoForge" => {
-                instance_recipe.loader = Some(Loader::Forge);
+                instance_recipe.loader = Some(Loader::Neoforge);
                 instance_recipe.loader_version = Some(component.cachedVersion.clone());
             }
             "Fabric Loader" => {
@@ -111,7 +111,7 @@ pub async fn import(
                 instance_recipe.loader_version = Some(component.cachedVersion.clone());
             }
             "Quilt Loader" => {
-                instance_recipe.loader = Some(Loader::Forge);
+                instance_recipe.loader = Some(Loader::Quilt);
                 instance_recipe.loader_version = Some(component.cachedVersion.clone());
             }
 
@@ -152,7 +152,7 @@ pub async fn import(
                 .await?;
             }
             loader => {
-                err!("Unimplemented MultiMC Component: {loader:?}")
+                err!("Unimplemented MultiMC Component: {loader:?}");
             }
         }
     }
@@ -251,7 +251,7 @@ async fn install_fabric(
 
     let mut config = InstanceConfigJson::read(instance_selection).await?;
     config.main_class_override = Some(fabric_json.mainClass.clone());
-    config.mod_type = "Fabric".to_owned();
+    config.mod_type = Loader::Fabric;
     config.save(instance_selection).await?;
 
     let fabric_json_path = instance_path.join("fabric.json");

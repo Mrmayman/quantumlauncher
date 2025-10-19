@@ -3,7 +3,7 @@ use std::{path::Path, sync::mpsc::Sender};
 use ql_core::{
     file_utils, info,
     json::{FabricJSON, VersionDetails},
-    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, JsonDownloadError,
+    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, JsonDownloadError, Loader,
     RequestError, LAUNCHER_DIR,
 };
 use serde::Deserialize;
@@ -78,7 +78,11 @@ pub async fn install_server(
     progress: Option<&Sender<GenericProgress>>,
     is_quilt: bool,
 ) -> Result<(), FabricInstallError> {
-    let loader_name = if is_quilt { "Quilt" } else { "Fabric" };
+    let loader_name = if is_quilt {
+        Loader::Quilt
+    } else {
+        Loader::Fabric
+    };
     info!("Installing {loader_name} for server");
 
     if let Some(progress) = &progress {
@@ -150,7 +154,11 @@ pub async fn install_client(
     progress: Option<&Sender<GenericProgress>>,
     is_quilt: bool,
 ) -> Result<(), FabricInstallError> {
-    let loader_name = if is_quilt { "Quilt" } else { "Fabric" };
+    let loader_name = if is_quilt {
+        Loader::Quilt
+    } else {
+        Loader::Fabric
+    };
 
     let instance_dir = LAUNCHER_DIR.join("instances").join(instance_name);
 

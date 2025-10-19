@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::Path, sync::mpsc::Sender};
 use ql_core::{
     do_jobs, file_utils,
     json::{InstanceConfigJson, VersionDetails},
-    pt, GenericProgress, InstanceSelection,
+    pt, GenericProgress, InstanceSelection, Loader,
 };
 use serde::Deserialize;
 use tokio::sync::Mutex;
@@ -57,11 +57,11 @@ pub async fn install(
     }
 
     pt!("Modrinth Modpack: {}", index.name);
-    let loader = match config.mod_type.as_str() {
-        "Forge" => "forge",
-        "Fabric" => "fabric-loader",
-        "Quilt" => "quilt-loader",
-        "NeoForge" => "neoforge",
+    let loader = match config.mod_type {
+        Loader::Forge => "forge",
+        Loader::Fabric => "fabric-loader",
+        Loader::Quilt => "quilt-loader",
+        Loader::Neoforge => "neoforge",
         _ => {
             return Err(expect_got_modrinth(index, config));
         }
@@ -148,7 +148,7 @@ fn expect_got_modrinth(index_json: &PackIndex, config: &InstanceConfigJson) -> P
     {
         Some(expect) => PackError::Loader {
             expect,
-            got: config.mod_type.clone(),
+            got: config.mod_type,
         },
         None => PackError::NoLoadersSpecified,
     }

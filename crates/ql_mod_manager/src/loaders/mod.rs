@@ -8,8 +8,8 @@ use std::{
 
 use forge::ForgeInstallProgress;
 use ql_core::{
-    json::InstanceConfigJson, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError,
-    IntoStringError, JsonFileError, Loader, Progress,
+    json::InstanceConfigJson, GenericProgress, InstanceSelection, IntoStringError, JsonFileError,
+    Loader, Progress,
 };
 
 pub mod fabric;
@@ -18,19 +18,10 @@ pub mod neoforge;
 pub mod optifine;
 pub mod paper;
 
-async fn change_instance_type(
-    instance_dir: &Path,
-    instance_type: String,
-) -> Result<(), JsonFileError> {
+async fn change_instance_type(instance_dir: &Path, loader: Loader) -> Result<(), JsonFileError> {
     let mut config = InstanceConfigJson::read_from_dir(instance_dir).await?;
-
-    config.mod_type = instance_type;
-
-    let config = serde_json::to_string(&config).json_to()?;
-    let config_path = instance_dir.join("config.json");
-    tokio::fs::write(&config_path, config)
-        .await
-        .path(config_path)?;
+    config.mod_type = loader;
+    config.save_to_dir(instance_dir).await?;
     Ok(())
 }
 
@@ -48,6 +39,7 @@ pub async fn install_specified_loader(
     specified_version: Option<String>,
 ) -> Result<LoaderInstallResult, String> {
     match loader {
+        Loader::Vanilla => {}
         Loader::Fabric => {
             fabric::install(specified_version, instance, progress.as_deref(), false)
                 .await

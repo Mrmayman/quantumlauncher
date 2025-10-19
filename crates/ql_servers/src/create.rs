@@ -3,7 +3,8 @@ use std::sync::mpsc::Sender;
 use ql_core::{
     file_utils, info,
     json::{InstanceConfigJson, Manifest, VersionDetails},
-    pt, GenericProgress, IntoIoError, IntoJsonError, IntoStringError, ListEntry, LAUNCHER_DIR,
+    pt, GenericProgress, IntoIoError, IntoJsonError, IntoStringError, ListEntry, Loader,
+    LAUNCHER_DIR,
 };
 
 use crate::ServerError;
@@ -100,7 +101,7 @@ async fn write_config(
 ) -> Result<(), ServerError> {
     #[allow(deprecated)]
     let server_config = InstanceConfigJson {
-        mod_type: "Vanilla".to_owned(),
+        mod_type: Loader::Vanilla,
         java_override: None,
         ram_in_mb: 2048,
         enable_logger: Some(true),

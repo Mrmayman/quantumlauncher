@@ -16,6 +16,8 @@ mod manage_mods;
 mod presets;
 mod recommended;
 
+use crate::config::UiSettings;
+use crate::state::{MenuModsDownload, WindowMessage};
 use crate::{
     state::{
         self, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage, Launcher,
@@ -166,6 +168,15 @@ impl Launcher {
                 Ok(command) => return command,
                 Err(err) => self.set_error(err),
             },
+            InstallModsMessage::TickDesc => {
+                if let State::ModsDownload(MenuModsDownload {
+                    description: Some(d),
+                    ..
+                }) = &mut self.state
+                {
+                    d.update();
+                }
+            }
             InstallModsMessage::SearchInput(input) => {
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.query = input;
@@ -175,6 +186,7 @@ impl Launcher {
             InstallModsMessage::Click(i) => {
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.opened_mod = Some(i);
+                    menu.reload_description(&mut self.images);
                     if let Some(results) = &menu.results {
                         let hit = results.mods.get(i).unwrap();
                         if !menu
@@ -194,6 +206,7 @@ impl Launcher {
             InstallModsMessage::BackToMainScreen => {
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.opened_mod = None;
+                    menu.description = None;
                     return iced::widget::scrollable::scroll_to(
                         iced::widget::scrollable::Id::new("MenuModsDownload:main:mods_list"),
                         menu.scroll_offset,
@@ -203,6 +216,7 @@ impl Launcher {
             InstallModsMessage::LoadData(Ok((id, description))) => {
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.mod_descriptions.insert(id, description);
+                    menu.reload_description(&mut self.images);
                 }
             }
             InstallModsMessage::Download(index) => {
@@ -454,6 +468,13 @@ impl Launcher {
                     menu.temp_scale = scale;
                 }
             }
+            LauncherSettingsMessage::UiOpacity(opacity) => {
+                self.config
+                    .ui
+                    .get_or_insert_with(UiSettings::default)
+                    .window_opacity = opacity;
+                self.theme.alpha = opacity;
+            }
             LauncherSettingsMessage::UiScaleApply => {
                 if let State::LauncherSettings(menu) = &self.state {
                     self.config.ui_scale = Some(menu.temp_scale);
@@ -510,61 +531,11 @@ impl Launcher {
                     input.trim().parse::<u32>().ok()
                 };
             }
-            LauncherSettingsMessage::GlobalJavaArgsAdd => {
-                self.config
-                    .extra_java_args
-                    .get_or_insert_with(Vec::new)
-                    .push(String::new());
+            LauncherSettingsMessage::GlobalJavaArgs(msg) => {
+                msg.apply(self.config.extra_java_args.get_or_insert_with(Vec::new));
             }
-            LauncherSettingsMessage::GlobalJavaArgEdit(arg, idx) => {
-                if let Some(args) = self.config.extra_java_args.as_mut() {
-                    add_to_arguments_list(arg, args, idx);
-                }
-            }
-            LauncherSettingsMessage::GlobalJavaArgDelete(idx) => {
-                if let Some(args) = self.config.extra_java_args.as_mut() {
-                    if idx < args.len() {
-                        args.remove(idx);
-                    }
-                }
-            }
-            LauncherSettingsMessage::GlobalJavaArgShiftUp(idx) => {
-                if let Some(args) = self.config.extra_java_args.as_mut() {
-                    if idx > 0 && idx < args.len() {
-                        args.swap(idx, idx - 1);
-                    }
-                }
-            }
-            LauncherSettingsMessage::GlobalJavaArgShiftDown(idx) => {
-                if let Some(args) = self.config.extra_java_args.as_mut() {
-                    if idx + 1 < args.len() {
-                        args.swap(idx, idx + 1);
-                    }
-                }
-            }
-            LauncherSettingsMessage::GlobalPreLaunchPrefixAdd => {
-                self.config.get_launch_prefix().push(String::new());
-            }
-            LauncherSettingsMessage::GlobalPreLaunchPrefixEdit(arg, idx) => {
-                add_to_arguments_list(arg, self.config.get_launch_prefix(), idx);
-            }
-            LauncherSettingsMessage::GlobalPreLaunchPrefixDelete(idx) => {
-                let args = self.config.get_launch_prefix();
-                if idx < args.len() {
-                    args.remove(idx);
-                }
-            }
-            LauncherSettingsMessage::GlobalPreLaunchPrefixShiftUp(idx) => {
-                let args = self.config.get_launch_prefix();
-                if idx > 0 && idx < args.len() {
-                    args.swap(idx, idx - 1);
-                }
-            }
-            LauncherSettingsMessage::GlobalPreLaunchPrefixShiftDown(idx) => {
-                let args = self.config.get_launch_prefix();
-                if idx + 1 < args.len() {
-                    args.swap(idx, idx + 1);
-                }
+            LauncherSettingsMessage::GlobalPreLaunchPrefix(msg) => {
+                msg.apply(self.config.c_launch_prefix());
             }
         }
         Task::none()
@@ -579,17 +550,31 @@ impl Launcher {
             selected_tab: state::LauncherSettingsTab::UserInterface,
         });
     }
-}
 
-fn add_to_arguments_list(msg: String, args: &mut Vec<String>, idx: usize) {
-    if msg.contains(' ') {
-        args.remove(idx);
-        let mut insert_idx = idx;
-        for s in msg.split(' ').filter(|n| !n.is_empty()) {
-            args.insert(insert_idx, s.to_owned());
-            insert_idx += 1;
+    pub fn update_window_msg(&mut self, msg: WindowMessage) -> Task<Message> {
+        match msg {
+            WindowMessage::Dragged => {
+                return iced::window::get_latest().and_then(iced::window::drag);
+            }
+            WindowMessage::Resized(dir) => {
+                return iced::window::get_latest()
+                    .and_then(move |id| iced::window::drag_resize(id, dir));
+            }
+            WindowMessage::ClickMinimize => {
+                return iced::window::get_latest().and_then(|id| iced::window::minimize(id, true));
+            }
+            WindowMessage::ClickMaximize => {
+                return iced::window::get_latest().and_then(|id| {
+                    iced::window::get_maximized(id)
+                        .map(|t| Some(t))
+                        .and_then(move |max| iced::window::maximize(id, !max))
+                })
+            }
+            WindowMessage::ClickClose => std::process::exit(0),
+            WindowMessage::IsMaximized(n) => {
+                self.window_state.is_maximized = n;
+                Task::none()
+            }
         }
-    } else if let Some(arg) = args.get_mut(idx) {
-        *arg = msg;
     }
 }

@@ -4,6 +4,7 @@ use flate2::read::GzDecoder;
 use tar::Archive;
 
 /// Extracts a `.tar.gz` file from a `&[u8]` buffer into the given directory.
+///
 /// Does not create a top-level directory,
 /// extracting files directly into the target directory.
 ///

@@ -6,14 +6,15 @@ use std::{
 use ql_core::{
     do_jobs, file_utils,
     json::{InstanceConfigJson, VersionDetails},
-    pt, GenericProgress, InstanceSelection, IntoIoError,
+    pt, GenericProgress, InstanceSelection, IntoIoError, Loader,
 };
 use serde::Deserialize;
 use tokio::sync::Mutex;
 
 use crate::store::{
     curseforge::{self, get_query_type, CFSearchResult, CurseforgeFileQuery, ModQuery},
-    get_dir, CurseforgeNotAllowed, ModConfig, ModFile, ModIndex, QueryType, SOURCE_ID_CURSEFORGE,
+    CurseforgeNotAllowed, DirStructure, ModConfig, ModFile, ModIndex, QueryType,
+    SOURCE_ID_CURSEFORGE,
 };
 
 use super::PackError;
@@ -44,7 +45,7 @@ pub struct PackLoader {
 #[derive(Deserialize)]
 #[allow(non_snake_case)]
 pub struct PackFile {
-    pub projectID: usize,
+    pub projectID: i32,
     pub fileID: usize,
     pub required: bool,
 }
@@ -53,25 +54,23 @@ impl PackFile {
     pub async fn download(
         &self,
         not_allowed: &Mutex<HashSet<CurseforgeNotAllowed>>,
-        instance: &InstanceSelection,
-        json: &VersionDetails,
+        dirs: &DirStructure,
         sender: Option<&Sender<GenericProgress>>,
         (i, len): (&Mutex<usize>, usize),
-        cache: &HashMap<String, curseforge::Mod>,
+        cache: &HashMap<i32, curseforge::Mod>,
         index: &Mutex<ModIndex>,
     ) -> Result<(), PackError> {
         if !self.required {
             return Ok(());
         }
 
-        let project_id = self.projectID.to_string();
-        let mod_info = if let Some(n) = cache.get(&project_id) {
+        let mod_info = if let Some(n) = cache.get(&self.projectID) {
             n.clone()
         } else {
-            ModQuery::load(&project_id).await?.data
+            ModQuery::load(self.projectID).await?.data
         };
 
-        let query = CurseforgeFileQuery::load(&project_id, self.fileID as i32).await?;
+        let query = CurseforgeFileQuery::load(&self.projectID, self.fileID as i32).await?;
         let query_type = get_query_type(mod_info.classId).await?;
         let Some(url) = query.data.downloadUrl.clone() else {
             self.add_to_not_allowed(not_allowed, mod_info, query, query_type)
@@ -79,9 +78,7 @@ impl PackFile {
             return Ok(());
         };
 
-        let path = get_dir(instance, json, query_type)
-            .await?
-            .join(&query.data.fileName);
+        let path = dirs.get(query_type)?.join(&query.data.fileName);
         if path.is_file() {
             let metadata = tokio::fs::metadata(&path).await.path(&path)?;
             let got_len = metadata.len();
@@ -92,7 +89,7 @@ impl PackFile {
         }
 
         file_utils::download_file_to_path(&url, true, &path).await?;
-        add_to_index(index, project_id, &mod_info, query, url).await;
+        add_to_index(index, self.projectID.to_string(), &mod_info, query, url).await;
 
         send_progress(sender, i, len, &mod_info).await;
         Ok(())
@@ -198,11 +195,11 @@ pub async fn install(
 
     pt!("CurseForge Modpack: {}", index.name);
 
-    let loader = match config.mod_type.as_str() {
-        "Forge" => "forge",
-        "Fabric" => "fabric",
-        "Quilt" => "quilt",
-        "NeoForge" => "neoforge",
+    let loader = match config.mod_type {
+        Loader::Forge => "forge",
+        Loader::Fabric => "fabric",
+        Loader::Quilt => "quilt",
+        Loader::Neoforge => "neoforge",
         _ => {
             return Err(expect_got_curseforge(index, config));
         }
@@ -222,8 +219,9 @@ pub async fn install(
 
     let i = Mutex::new(0);
     let mod_index = Mutex::new(ModIndex::load(instance).await?);
+    let dirs = DirStructure::new(instance, json).await?;
 
-    let cache: HashMap<String, curseforge::Mod> = {
+    let cache: HashMap<i32, curseforge::Mod> = {
         let project_ids: Vec<String> = index
             .files
             .iter()
@@ -233,21 +231,16 @@ pub async fn install(
             .await?
             .data
             .into_iter()
-            .map(|n| (n.id.to_string(), n))
+            .map(|n| (n.id, n))
             .collect()
     };
 
-    do_jobs::<(), PackError>(index.files.iter().map(|file| {
-        file.download(
-            &not_allowed,
-            instance,
-            json,
-            sender,
-            (&i, len),
-            &cache,
-            &mod_index,
-        )
-    }))
+    do_jobs::<(), PackError>(
+        index
+            .files
+            .iter()
+            .map(|file| file.download(&not_allowed, &dirs, sender, (&i, len), &cache, &mod_index)),
+    )
     .await?;
 
     mod_index.lock().await.save(instance).await?;
@@ -265,6 +258,6 @@ fn expect_got_curseforge(index: &PackIndex, config: &InstanceConfigJson) -> Pack
             .map(|l| l.id.split('-').next().unwrap_or(&l.id))
             .collect::<Vec<&str>>()
             .join(", "),
-        got: config.mod_type.clone(),
+        got: config.mod_type,
     }
 }

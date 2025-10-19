@@ -7,7 +7,7 @@ use std::{
 use chrono::DateTime;
 use download::ModDownloader;
 use ql_core::{
-    err, pt, GenericProgress, IntoJsonError, JsonDownloadError, ModId, RequestError, CLIENT,
+    err, pt, GenericProgress, IntoJsonError, JsonDownloadError, Loader, ModId, RequestError, CLIENT,
 };
 use reqwest::header::HeaderValue;
 use serde::Deserialize;
@@ -30,7 +30,7 @@ pub struct ModQuery {
 }
 
 impl ModQuery {
-    pub async fn load(id: &str) -> Result<Self, JsonDownloadError> {
+    pub async fn load<T: std::fmt::Display>(id: T) -> Result<Self, JsonDownloadError> {
         let response = send_request(&format!("mods/{id}"), &HashMap::new()).await?;
         let response: ModQuery = serde_json::from_str(&response).json(response)?;
         Ok(response)
@@ -52,10 +52,10 @@ pub struct Mod {
 }
 
 impl Mod {
-    async fn get_file(
+    async fn get_file<T: std::fmt::Display>(
         &self,
         title: String,
-        id: &str,
+        id: T,
         version: String,
         loader: Option<&str>,
         query_type: QueryType,
@@ -120,7 +120,10 @@ pub struct CurseforgeFileQuery {
 }
 
 impl CurseforgeFileQuery {
-    pub async fn load(mod_id: &str, file_id: i32) -> Result<Self, JsonDownloadError> {
+    pub async fn load<T: std::fmt::Display>(
+        mod_id: T,
+        file_id: i32,
+    ) -> Result<Self, JsonDownloadError> {
         let response =
             send_request(&format!("mods/{mod_id}/files/{file_id}"), &HashMap::new()).await?;
         let response: Self = serde_json::from_str(&response).json(response)?;
@@ -211,8 +214,8 @@ impl Backend for CurseforgeBackend {
         ]);
 
         if let QueryType::Mods | QueryType::ModPacks = query_type {
-            if let Some(loader) = query.loader {
-                params.insert("modLoaderType", loader.to_curseforge().to_owned());
+            if !query.loader.is_vanilla() {
+                params.insert("modLoaderType", query.loader.to_curseforge_num().to_owned());
             }
             params.insert("gameVersion", query.version.clone());
         }
@@ -268,10 +271,10 @@ impl Backend for CurseforgeBackend {
     async fn get_latest_version_date(
         id: &str,
         version: &str,
-        loader: Option<ql_core::Loader>,
+        loader: Loader,
     ) -> Result<(DateTime<chrono::FixedOffset>, String), ModError> {
         let response = ModQuery::load(id).await?;
-        let loader = loader.map(|n| n.to_curseforge());
+        let loader = loader.not_vanilla().map(|n| n.to_curseforge_num());
 
         let query_type = get_query_type(response.data.classId).await?;
         let (file_query, _) = response

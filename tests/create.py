@@ -21,7 +21,7 @@ VERSIONS_L3: list[Version] = [
     "1.14.4",  # after migration to lwjgl3, engine rewrites
     "1.16.5",  # last version to use Java 8, OpenGL 2.x
     "1.18.2",  # after migration to Java 17, OpenGL 3.x, engine rewrites
-    "1.21.5",  # last launchwrapper version
+    "1.21.5",  # last LaunchWrapper version
     "1.21.8",  # latest
 ]
 

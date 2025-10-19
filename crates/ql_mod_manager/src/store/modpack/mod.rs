@@ -20,7 +20,7 @@ use super::CurseforgeNotAllowed;
 
 /// Installs a modpack file.
 ///
-/// Not to be confused with [`crate::PresetJson`]
+/// Not to be confused with [`crate::Preset`]
 /// (`.qmp` mod presets). Those are QuantumLauncher-only,
 /// but these are found across the internet.
 ///
@@ -39,7 +39,7 @@ use super::CurseforgeNotAllowed;
 ///   manually download these from the browser and import them. May be empty
 ///   if none present, or if it's a modrinth pack.
 /// - `Ok(None)` - This isn't a modpack.
-/// - `Err` - Any error that occured.
+/// - `Err` - Any error that occurred.
 pub async fn install_modpack(
     file: Vec<u8>,
     instance: InstanceSelection,

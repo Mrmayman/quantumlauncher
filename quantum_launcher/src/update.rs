@@ -1,17 +1,20 @@
 use iced::{futures::executor::block_on, Task};
 use ql_core::{
-    err, err_no_log, file_utils::DirItem, info, info_no_log, open_file_explorer, InstanceSelection,
-    IntoIoError, IntoStringError, LOGGER,
+    err, err_no_log, file_utils::DirItem, info, info_no_log, InstanceSelection, IntoIoError,
+    IntoStringError,
 };
 use ql_instances::UpdateCheckInfo;
 use ql_mod_manager::loaders;
 use std::{collections::HashMap, fmt::Write};
 use tokio::io::AsyncWriteExt;
 
-use crate::state::{
-    CustomJarState, InstanceLog, LaunchTabId, Launcher, ManageModsMessage, MenuExportInstance,
-    MenuLaunch, MenuLauncherUpdate, MenuLicense, MenuServerCreate, MenuWelcome, Message,
-    ProgressBar, ServerProcess, State,
+use crate::{
+    message_handler::{SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
+    state::{
+        AutoSaveKind, CustomJarState, InstanceLog, LaunchTabId, Launcher, ManageModsMessage,
+        MenuExportInstance, MenuLaunch, MenuLauncherUpdate, MenuLicense, MenuServerCreate,
+        MenuWelcome, Message, ProgressBar, ServerProcess, State, WindowMessage,
+    },
 };
 
 impl Launcher {
@@ -66,16 +69,19 @@ impl Launcher {
             }
 
             Message::Account(msg) => return self.update_account(msg),
-            Message::ManageMods(message) => return self.update_manage_mods(message),
-            Message::ExportMods(message) => return self.update_export_mods(message),
-            Message::ManageJarMods(message) => return self.update_manage_jar_mods(message),
-            Message::RecommendedMods(message) => return self.update_recommended_mods(message),
+            Message::ManageMods(msg) => return self.update_manage_mods(msg),
+            Message::ExportMods(msg) => return self.update_export_mods(msg),
+            Message::ManageJarMods(msg) => return self.update_manage_jar_mods(msg),
+            Message::RecommendedMods(msg) => return self.update_recommended_mods(msg),
+            Message::Window(msg) => return self.update_window_msg(msg),
+
             Message::LaunchInstanceSelected { name, is_server } => {
                 self.selected_instance = Some(InstanceSelection::new(&name, is_server));
                 self.load_edit_instance(None);
             }
             Message::LaunchUsernameSet(username) => {
                 self.config.username = username;
+                self.autosave.remove(&AutoSaveKind::LauncherConfig);
             }
             Message::LaunchStart => return self.launch_start(),
             Message::LaunchEnd(result) => return self.finish_launching(result),
@@ -97,12 +103,12 @@ impl Launcher {
                 Err(err) => self.set_error(err),
             },
             Message::InstallFabric(message) => return self.update_install_fabric(message),
-            Message::CoreOpenLink(dir) => open_file_explorer(&dir),
+            Message::CoreOpenLink(dir) => _ = open::that_detached(&dir),
             Message::CoreOpenPath(dir) => {
                 if !dir.exists() && dir.to_string_lossy().contains("jarmods") {
                     _ = std::fs::create_dir_all(&dir);
                 }
-                open_file_explorer(&dir)
+                _ = open::that_detached(&dir);
             }
             Message::CoreCopyError => {
                 if let State::Error { error } = &self.state {
@@ -110,14 +116,7 @@ impl Launcher {
                 }
             }
             Message::CoreCopyLog => {
-                let text = {
-                    if let Some(logger) = LOGGER.as_ref() {
-                        let logger = logger.lock().unwrap();
-                        logger.text.clone()
-                    } else {
-                        Vec::new()
-                    }
-                };
+                let text = ql_core::print::get();
 
                 let mut log = String::new();
                 for (line, kind) in text {
@@ -138,6 +137,11 @@ impl Launcher {
                 let mut tasks = self.images.get_imgs_to_load();
                 let command = self.tick();
                 tasks.push(command);
+
+                let max_command = iced::window::get_latest()
+                    .and_then(|id| iced::window::get_maximized(id))
+                    .map(|m| Message::Window(WindowMessage::IsMaximized(m)));
+                tasks.push(max_command);
 
                 if self
                     .custom_jar
@@ -445,8 +449,23 @@ impl Launcher {
                     *log_scroll = lines;
                 }
             }
-            Message::LaunchScrollSidebar(total) => {
-                if let State::Launch(MenuLaunch { sidebar_height, .. }) = &mut self.state {
+            Message::LaunchSidebarResize(ratio) => {
+                if let State::Launch(menu) = &mut self.state {
+                    self.autosave.remove(&AutoSaveKind::LauncherConfig);
+                    let window_width = self.window_state.size.0;
+                    let ratio = ratio * window_width;
+                    menu.resize_sidebar(
+                        ratio.clamp(SIDEBAR_LIMIT_LEFT, window_width - SIDEBAR_LIMIT_RIGHT),
+                        window_width,
+                    );
+                }
+            }
+            Message::LaunchSidebarScroll(total) => {
+                if let State::Launch(MenuLaunch {
+                    sidebar_scrolled: sidebar_height,
+                    ..
+                }) = &mut self.state
+                {
                     *sidebar_height = total;
                 }
             }

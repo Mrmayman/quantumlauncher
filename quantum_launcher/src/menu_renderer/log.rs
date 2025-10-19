@@ -10,7 +10,7 @@
 //! # Limitations
 //! - Scrolling is janky
 //! - When scrolling, large lines get jumped over
-//! - Overall layouting and widget size is messy sometimes
+//! - Overall layout and widget size is messy sometimes
 //!
 //! `iced::widget::scrollable` renders the whole thing, not slices,
 //! so I can't use it. I can't figure out how to make this as smooth as
@@ -68,7 +68,7 @@ impl Launcher {
     /// - `msg_absolute`: A closure returning the [`Message`] to be
     ///   called when scrolling **absolute**.
     ///
-    /// Returns the `Elemeent` containing the log viewer.
+    /// Returns the `Element` containing the log viewer.
     pub fn view_launcher_log<'a, T>(
         text: Vec<T>,
         text_size: f32,
