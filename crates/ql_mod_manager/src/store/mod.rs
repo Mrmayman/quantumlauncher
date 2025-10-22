@@ -184,6 +184,7 @@ impl QueryType {
         Self::ResourcePacks,
         Self::Shaders,
         Self::ModPacks,
+        Self::DataPacks,
     ];
 
     #[must_use]

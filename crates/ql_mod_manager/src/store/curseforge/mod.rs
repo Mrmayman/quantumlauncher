@@ -219,7 +219,13 @@ impl Backend for CurseforgeBackend {
 
         let categories = get_categories().await?;
         let query_type_str = query_type.to_curseforge_str();
-        if let Some(category) = categories.data.iter().find(|n| n.slug == query_type_str) {
+        if query_type == QueryType::DataPacks {
+            // curseforge returns categories but there are multiple ones that have the same slug
+            // for example this 2 have the same slug but are different
+            // /data-packs                  id: 6945 (the right one)
+            // /texture-packs/data-packs    id: 5139
+            params.insert("classId", 6945.to_string());
+        } else if let Some(category) = categories.data.iter().find(|n| n.slug == query_type_str) {
             params.insert("classId", category.id.to_string());
         }
 
