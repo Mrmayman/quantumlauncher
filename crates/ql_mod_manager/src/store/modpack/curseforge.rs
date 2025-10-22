@@ -163,21 +163,18 @@ async fn send_progress(
 ) {
     if let Some(sender) = sender {
         let mut i = i.lock().await;
-        _ = sender.send(GenericProgress {
-            done: *i,
-            total: len,
-            message: Some(format!(
-                "Modpack: Installed mod (curseforge) ({i}/{len}):\n{}",
-                mod_info.name,
-                i = *i + 1,
-            )),
-            has_finished: false,
-        });
-        pt!(
-            "Installed mod (curseforge) ({i}/{len}): {}",
+        let message = format!(
+            "Modpack: Installed mod (curseforge) ({i}/{len}):\n{}",
             mod_info.name,
             i = *i + 1,
         );
+        _ = sender.send(GenericProgress {
+            done: *i,
+            total: len,
+            message: Some(message.clone()),
+            has_finished: false,
+        });
+        pt!("{}", message);
         *i += 1;
     }
 }

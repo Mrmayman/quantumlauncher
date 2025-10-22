@@ -106,21 +106,18 @@ pub async fn install(
 
                 if let Some(sender) = sender {
                     let mut i = i.lock().await;
-                    _ = sender.send(GenericProgress {
-                        done: *i,
-                        total: len,
-                        message: Some(format!(
+                    let message = format!(
                             "Modpack: Installed mod (modrinth) ({i}/{len}):\n{}",
                             file.path,
                             i = *i + 1
-                        )),
+                        );
+                    _ = sender.send(GenericProgress {
+                        done: *i,
+                        total: len,
+                        message: Some(message.clone()),
                         has_finished: false,
                     });
-                    pt!(
-                        "Installed mod (modrinth) ({i}/{len}): {}",
-                        file.path,
-                        i = *i + 1,
-                    );
+                    pt!("{}", message);
                     *i += 1;
                 }
 

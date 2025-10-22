@@ -157,8 +157,8 @@ pub enum QueryType {
     ResourcePacks,
     Shaders,
     ModPacks,
+    DataPacks,
     // TODO:
-    // DataPacks,
     // Plugins,
 }
 
@@ -172,6 +172,7 @@ impl Display for QueryType {
                 QueryType::ResourcePacks => "Resource Packs",
                 QueryType::Shaders => "Shaders",
                 QueryType::ModPacks => "Modpacks",
+                QueryType::DataPacks => "Data Packs",
             }
         )
     }
@@ -192,6 +193,7 @@ impl QueryType {
             QueryType::ResourcePacks => "resourcepack",
             QueryType::Shaders => "shader",
             QueryType::ModPacks => "modpack",
+            QueryType::DataPacks => "datapack",
         }
     }
 
@@ -202,6 +204,7 @@ impl QueryType {
             "resourcepack" => Some(QueryType::ResourcePacks),
             "shader" => Some(QueryType::Shaders),
             "modpack" => Some(QueryType::ModPacks),
+            "datapack" => Some(QueryType::DataPacks),
             _ => None,
         }
     }
@@ -213,6 +216,7 @@ impl QueryType {
             QueryType::ResourcePacks => "texture-packs",
             QueryType::Shaders => "shaders",
             QueryType::ModPacks => "modpacks",
+            QueryType::DataPacks => "data-packs",
         }
     }
 
@@ -223,6 +227,7 @@ impl QueryType {
             "texture-packs" => Some(QueryType::ResourcePacks),
             "shaders" => Some(QueryType::Shaders),
             "modpacks" => Some(QueryType::ModPacks),
+            "data-packs" => Some(QueryType::DataPacks),
             _ => None,
         }
     }
@@ -276,61 +281,78 @@ async fn get_loader(instance: &InstanceSelection) -> Result<Option<Loader>, ModE
         } // TODO: Add more loaders
     })
 }
-
-async fn get_mods_resourcepacks_shaderpacks_dir(
-    instance_name: &InstanceSelection,
-    version_json: &VersionDetails,
-) -> Result<(PathBuf, PathBuf, PathBuf), ModError> {
-    let dot_minecraft_dir = instance_name.get_dot_minecraft_path();
-    let mods_dir = dot_minecraft_dir.join("mods");
-    tokio::fs::create_dir_all(&mods_dir).await.path(&mods_dir)?;
-
-    // Minecraft 13w24a release date (1.6.1 snapshot)
-    // Switched from Texture Packs to Resource Packs
-    let v1_6_1 = DateTime::parse_from_rfc3339("2013-06-13T15:32:23+00:00")?;
-    let resource_packs = match DateTime::parse_from_rfc3339(&version_json.releaseTime) {
-        Ok(dt) => {
-            if dt >= v1_6_1 {
-                "resourcepacks"
-            } else {
-                "texturepacks"
-            }
-        }
-        Err(e) => {
-            err!("Could not parse instance date/time: {e}");
-            "resourcepacks"
-        }
-    };
-
-    let resource_packs_dir = dot_minecraft_dir.join(resource_packs);
-    tokio::fs::create_dir_all(&resource_packs_dir)
-        .await
-        .path(&resource_packs_dir)?;
-
-    let shader_packs_dir = dot_minecraft_dir.join("shaderpacks");
-    tokio::fs::create_dir_all(&shader_packs_dir)
-        .await
-        .path(&shader_packs_dir)?;
-
-    Ok((mods_dir, resource_packs_dir, shader_packs_dir))
+#[derive(Debug)]
+pub struct LoaderDirs {
+    mods: PathBuf,
+    resource_packs: PathBuf,
+    shader_packs: PathBuf,
+    data_packs: PathBuf,
 }
+impl LoaderDirs {
+    async fn from_instance_json(
+        instance_name: &InstanceSelection,
+        version_json: &VersionDetails,
+    ) -> Result<LoaderDirs, ModError> {
+        let dot_minecraft_dir = instance_name.get_dot_minecraft_path();
+        let mods = dot_minecraft_dir.join("mods");
+        tokio::fs::create_dir_all(&mods).await.path(&mods)?;
 
+        // Minecraft 13w24a release date (1.6.1 snapshot)
+        // Switched from Texture Packs to Resource Packs
+        let v1_6_1 = DateTime::parse_from_rfc3339("2013-06-13T15:32:23+00:00")?;
+        let resource_packs = match DateTime::parse_from_rfc3339(&version_json.releaseTime) {
+            Ok(dt) => {
+                if dt >= v1_6_1 {
+                    "resourcepacks"
+                } else {
+                    "texturepacks"
+                }
+            }
+            Err(e) => {
+                err!("Could not parse instance date/time: {e}");
+                "resourcepacks"
+            }
+        };
+
+        let resource_packs = dot_minecraft_dir.join(resource_packs);
+        tokio::fs::create_dir_all(&resource_packs)
+            .await
+            .path(&resource_packs)?;
+
+        let shader_packs = dot_minecraft_dir.join("shaderpacks");
+        tokio::fs::create_dir_all(&shader_packs)
+            .await
+            .path(&shader_packs)?;
+
+        let data_packs = dot_minecraft_dir.join("datapacks");
+        tokio::fs::create_dir_all(&data_packs)
+            .await
+            .path(&data_packs)?;
+
+        Ok(LoaderDirs {
+            mods,
+            resource_packs,
+            shader_packs,
+            data_packs,
+        })
+    }
+}
 async fn get_dir(
     instance: &InstanceSelection,
     json: &VersionDetails,
     query_type: QueryType,
 ) -> Result<std::path::PathBuf, PackError> {
-    let (dir_mods, dir_res_packs, dir_shader) =
-        get_mods_resourcepacks_shaderpacks_dir(instance, json).await?;
+    let loader_dirs = LoaderDirs::from_instance_json(instance, json).await?;
     let dir = match query_type {
-        QueryType::Mods => dir_mods,
-        QueryType::ResourcePacks => dir_res_packs,
-        QueryType::Shaders => dir_shader,
+        QueryType::Mods => loader_dirs.mods,
+        QueryType::ResourcePacks => loader_dirs.resource_packs,
+        QueryType::Shaders => loader_dirs.shader_packs,
+        QueryType::DataPacks => loader_dirs.data_packs,
         QueryType::ModPacks => return Err(PackError::ModpackInModpack),
     };
+
     Ok(dir)
 }
-
 #[must_use]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct CurseforgeNotAllowed {

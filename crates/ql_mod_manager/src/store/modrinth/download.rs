@@ -1,7 +1,7 @@
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    path::Path,
     sync::mpsc::Sender,
 };
 
@@ -13,10 +13,10 @@ use ql_core::{
 };
 
 use crate::store::{
-    get_mods_resourcepacks_shaderpacks_dir, install_modpack,
+    install_modpack,
     local_json::{ModConfig, ModIndex},
     modrinth::versions::ModVersion,
-    ModError, QueryType, SOURCE_ID_MODRINTH,
+    LoaderDirs, ModError, QueryType, SOURCE_ID_MODRINTH,
 };
 
 use super::info::ProjectInfo;
@@ -30,9 +30,7 @@ pub struct ModDownloader {
     instance: InstanceSelection,
     sender: Option<Sender<GenericProgress>>,
 
-    mods_dir: PathBuf,
-    resourcepacks_dir: PathBuf,
-    shaderpacks_dir: PathBuf,
+    loader_dirs: LoaderDirs,
 }
 
 impl ModDownloader {
@@ -41,8 +39,7 @@ impl ModDownloader {
         sender: Option<Sender<GenericProgress>>,
     ) -> Result<ModDownloader, ModError> {
         let version_json = VersionDetails::load(instance).await?;
-        let (mods_dir, resourcepacks_dir, shaderpacks_dir) =
-            get_mods_resourcepacks_shaderpacks_dir(instance, &version_json).await?;
+        let loader_dirs = LoaderDirs::from_instance_json(instance, &version_json).await?;
 
         let index = ModIndex::load(instance).await?;
         let loader = get_loader_type(instance).await?;
@@ -56,9 +53,7 @@ impl ModDownloader {
             instance: instance.clone(),
             sender,
 
-            mods_dir,
-            resourcepacks_dir,
-            shaderpacks_dir,
+            loader_dirs,
         })
     }
 
@@ -233,9 +228,10 @@ impl ModDownloader {
 
     fn get_dir(&self, project_type: QueryType) -> Option<&Path> {
         match project_type {
-            QueryType::Mods => Some(&self.mods_dir),
-            QueryType::ResourcePacks => Some(&self.resourcepacks_dir),
-            QueryType::Shaders => Some(&self.shaderpacks_dir),
+            QueryType::Mods => Some(&self.loader_dirs.mods),
+            QueryType::ResourcePacks => Some(&self.loader_dirs.resource_packs),
+            QueryType::Shaders => Some(&self.loader_dirs.shader_packs),
+            QueryType::DataPacks => Some(&self.loader_dirs.data_packs),
             QueryType::ModPacks => None,
         }
     }
