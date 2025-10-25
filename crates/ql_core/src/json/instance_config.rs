@@ -23,15 +23,16 @@ pub enum JavaArgsMode {
     #[serde(rename = "disable")]
     Disable,
     /// Combine global arguments with instance arguments,
-    /// using both together.
+    /// using both together. (Default)
     #[serde(rename = "combine")]
     #[default]
     Combine,
 }
 
 impl JavaArgsMode {
-    pub const ALL: &[Self] = &[Self::Combine, Self::Disable, Self::Fallback];
+    pub const ALL: [Self; 3] = [Self::Combine, Self::Disable, Self::Fallback];
 
+    #[must_use]
     pub fn get_description(self) -> &'static str {
         match self {
             JavaArgsMode::Fallback => "Use global arguments only when instance has no arguments",
@@ -74,13 +75,14 @@ pub enum PreLaunchPrefixMode {
 }
 
 impl PreLaunchPrefixMode {
-    pub const ALL: &[Self] = &[
+    pub const ALL: [Self; 4] = [
         Self::CombineGlobalLocal,
         Self::CombineLocalGlobal,
         Self::Disable,
         Self::Fallback,
     ];
 
+    #[must_use]
     pub fn get_description(self) -> &'static str {
         match self {
             PreLaunchPrefixMode::Fallback => "Use global prefix only when instance has no prefix",
@@ -127,50 +129,39 @@ pub struct InstanceConfigJson {
     /// - `"OptiFine"`
     /// - `"Quilt"`
     /// - `"NeoForge"`
+    /// - `"Paper"` (for servers)
     pub mod_type: String,
-    /// If you want to use your own Java installation
-    /// instead of the auto-installed one, specify
-    /// the path to the `java` executable here.
+    pub mod_type_info: Option<ModTypeInfo>,
+
+    /// Path to custom `java` binary. Uses auto-installed Java if `None`.
     pub java_override: Option<String>,
-    /// The amount of RAM in megabytes the instance should have.
+    /// Memory allocation in MB.
     pub ram_in_mb: usize,
-    /// **Default: `true`**
-    ///
-    /// - `true` (default): Show log output in launcher.
-    ///   May not show all log output, especially during a crash.
-    /// - `false`: Print raw, unformatted log output to the console (stdout).
-    ///   This is useful for debugging, but may be hard to read.
+    /// Show logs in launcher (`true`, default) or raw console output AKA `stdout`/`stderr` (`false`).
     pub enable_logger: Option<bool>,
-    /// This is an optional list of additional
-    /// arguments to pass to Java.
+
+    /// Extra JVM (Java) arguments.
     pub java_args: Option<Vec<String>>,
-    /// This is an optional list of additional
-    /// arguments to pass to the game.
+    /// Extra game arguments.
     pub game_args: Option<Vec<String>>,
 
-    /// DEPRECATED in v0.4.2
-    ///
-    /// This used to indicate whether a version
-    /// was downloaded from Omniarchive instead
-    /// of Mojang, in Quantum Launcher
+    /// Previously used to indicate if a version was downloaded from Omniarchive
     /// v0.3.1 - v0.4.1
     #[deprecated(since = "0.4.2", note = "migrated to BetterJSONs, so no longer needed")]
     pub omniarchive: Option<serde_json::Value>,
-    /// **Default: `false`**
+
+    /// Classic server mode. Default: `false`.
+    /// - `false` (default) if this is a client
+    ///   or a non-classic server
+    /// - `true` if this is a classic server
     ///
-    /// - `true`: the instance is a classic server.
-    /// - `false` (default): the instance is a client
-    ///   or a non-classic server (alpha, beta, release).
-    ///
-    /// This is stored because classic servers:
-    /// - Are downloaded differently (zip file to extract)
-    /// - Cannot be stopped by sending a `stop` command.
-    ///   (need to kill the process)
+    /// Affects download and shutdown behavior.
+    /// (classic servers come in ZIP files and
+    /// cannot be stopped through `stop` command)
     pub is_classic_server: Option<bool>,
-    /// **`false` for client instances, `true` for server installations**
-    ///
-    /// Added in v0.4.2
+    /// Whether this is a server installation (default `false`).
     pub is_server: Option<bool>,
+
     /// **Client Only**
     ///
     /// If true, then the Java Garbage Collector
@@ -202,31 +193,22 @@ pub struct InstanceConfigJson {
     /// - `-XX:MaxGCPauseMillis=50`
     /// - `-XX:G1HeapRegionSize=32M`
     pub do_gc_tuning: Option<bool>,
-    /// **Client Only**
-    ///
-    /// Whether to close the launcher upon
-    /// starting the game.
+
+    /// Whether to close launcher after
+    /// the client (game) starts.
     ///
     /// **Default: `false`**
     ///
-    /// This keeps *just the game* running
-    /// after you open it. However:
-    /// - The impact of keeping the launcher open
-    ///   is downright **negligible**. Quantum Launcher
-    ///   is **very** lightweight. You won't feel any
-    ///   difference even on slow computers
-    /// - By doing this you lose access to easy log viewing
-    ///   and the ability to easily kill the game process if stuck
-    ///
-    /// Ultimately if you want one less icon in your taskbar then go ahead.
+    /// Only enable this if you want one less
+    /// icon in your taskbar, as the impact of
+    /// leaving the launcher open is negligible
+    /// and a net positive.
     pub close_on_start: Option<bool>,
 
     pub global_settings: Option<GlobalSettings>,
 
-    /// Controls how this instance's Java arguments interact with global Java arguments.
-    /// See [`JavaArgsMode`] documentation for more info.
-    ///
-    /// **Default: `JavaArgsMode::Combine`**
+    /// How this instance's Java arguments interact with global Java arguments.
+    /// Default: `Combine`. See [`JavaArgsMode`] for more info.
     pub java_args_mode: Option<JavaArgsMode>,
 
     /// Controls how this instance's pre-launch prefix commands interact with global pre-launch prefix.
@@ -248,6 +230,11 @@ pub struct InstanceConfigJson {
     ///
     /// **Default: `None`** (use official Minecraft jar)
     pub custom_jar: Option<CustomJarConfig>,
+    /// Information related to the currently-installed
+    /// version of the game
+    pub version_info: Option<VersionInfo>,
+    /// An override for the main class when launching the game.
+    /// Mainly only used for debugging purposes.
     pub main_class_override: Option<String>,
 }
 
@@ -404,7 +391,7 @@ impl InstanceConfigJson {
         match mode {
             PreLaunchPrefixMode::Fallback => {
                 if instance_prefix.is_empty() {
-                    global_prefix.to_owned()
+                    global_prefix.clone()
                 } else {
                     instance_prefix
                 }
@@ -428,6 +415,15 @@ impl InstanceConfigJson {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct ModTypeInfo {
+    pub version: Option<String>,
+    /// If an unofficial implementation of the loader
+    /// was used, which one (eg: Legacy Fabric).
+    pub backend_implementation: Option<String>,
+    pub optifine_jar: Option<String>,
+}
+
 /// Settings that can both be set on a per-instance basis
 /// and also have a global default.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -449,4 +445,9 @@ pub struct GlobalSettings {
     /// This is an optional list of commands to prepend
     /// to the launch command (e.g., "prime-run" for NVIDIA GPU usage on Linux).
     pub pre_launch_prefix: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VersionInfo {
+    pub is_special_lwjgl3: bool,
 }

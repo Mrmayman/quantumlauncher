@@ -1,17 +1,16 @@
 use iced::{futures::executor::block_on, Task};
 use ql_core::{
-    err, err_no_log, file_utils::DirItem, info, info_no_log, open_file_explorer, InstanceSelection,
+    err, err_no_log, file_utils::DirItem, info_no_log, open_file_explorer, InstanceSelection,
     IntoIoError, IntoStringError, LOGGER,
 };
 use ql_instances::UpdateCheckInfo;
-use ql_mod_manager::loaders;
-use std::{collections::HashMap, fmt::Write};
+use std::fmt::Write;
 use tokio::io::AsyncWriteExt;
 
 use crate::state::{
-    CustomJarState, InstanceLog, LaunchTabId, Launcher, ManageModsMessage, MenuExportInstance,
+    CustomJarState, GameProcess, LaunchTabId, Launcher, ManageModsMessage, MenuExportInstance,
     MenuLaunch, MenuLauncherUpdate, MenuLicense, MenuServerCreate, MenuWelcome, Message,
-    ProgressBar, ServerProcess, State,
+    ProgressBar, State,
 };
 
 impl Launcher {
@@ -27,8 +26,7 @@ impl Launcher {
             }
 
             Message::CoreTryQuit => {
-                let safe_to_exit = self.client_processes.is_empty()
-                    && self.server_processes.is_empty()
+                let safe_to_exit = self.processes.is_empty()
                     && (self.key_escape_back(false).0 || matches!(self.state, State::Launch(_)));
 
                 if safe_to_exit {
@@ -37,9 +35,7 @@ impl Launcher {
                 }
             }
 
-            Message::CoreTickConfigSaved(result)
-            | Message::LaunchKillEnd(result)
-            | Message::UpdateDownloadEnd(result) => {
+            Message::CoreTickConfigSaved(result) | Message::UpdateDownloadEnd(result) => {
                 if let Err(err) = result {
                     self.set_error(err);
                 }
@@ -52,10 +48,8 @@ impl Launcher {
             Message::ServerCreateEnd(Err(err))
             | Message::ServerCreateVersionsLoaded(Err(err))
             | Message::UninstallLoaderEnd(Err(err))
-            | Message::ServerStartFinish(Err(err))
             | Message::InstallForgeEnd(Err(err))
-            | Message::LaunchEndedLog(Err(err))
-            | Message::ServerStopped(Err(err))
+            | Message::LaunchGameExited(Err(err))
             | Message::CoreListLoaded(Err(err)) => self.set_error(err),
 
             Message::WelcomeContinueToTheme => {
@@ -74,6 +68,10 @@ impl Launcher {
                 self.selected_instance = Some(InstanceSelection::new(&name, is_server));
                 self.load_edit_instance(None);
             }
+            Message::LauncherSettings(msg) => return self.update_launcher_settings(msg),
+            Message::InstallOptifine(msg) => return self.update_install_optifine(msg),
+            Message::InstallPaper(msg) => return self.update_install_paper(msg),
+
             Message::LaunchUsernameSet(username) => {
                 self.config.username = username;
             }
@@ -150,48 +148,26 @@ impl Launcher {
 
                 return Task::batch(tasks);
             }
-            Message::UninstallLoaderForgeStart => {
-                let instance = self.selected_instance.clone().unwrap();
+            Message::UninstallLoaderStart => {
+                let instance = self.instance().clone();
                 return Task::perform(
-                    async move { loaders::forge::uninstall(instance).await.strerr() },
+                    ql_mod_manager::loaders::uninstall_loader(instance),
                     Message::UninstallLoaderEnd,
                 );
             }
-            Message::UninstallLoaderOptiFineStart => {
-                let instance_name = self
-                    .selected_instance
-                    .as_ref()
-                    .unwrap()
-                    .get_name()
-                    .to_owned();
-                return Task::perform(
-                    async { loaders::optifine::uninstall(instance_name).await.strerr() },
-                    Message::UninstallLoaderEnd,
-                );
-            }
-            Message::UninstallLoaderFabricStart => {
-                let instance_name = self.selected_instance.clone().unwrap();
-                return Task::perform(
-                    async move { loaders::fabric::uninstall(instance_name).await.strerr() },
-                    Message::UninstallLoaderEnd,
-                );
-            }
-            Message::InstallForgeStart { is_neoforge } => {
-                return self.install_forge(is_neoforge);
+            Message::InstallForge(kind) => {
+                return self.install_forge(kind);
             }
             Message::InstallForgeEnd(Ok(())) | Message::UninstallLoaderEnd(Ok(())) => {
                 return self.go_to_edit_mods_menu(false);
             }
-            Message::LaunchEndedLog(Ok((status, name))) => {
-                info!("Game exited with status: {status}");
-                self.set_game_crashed(status, &name);
+            Message::LaunchGameExited(Ok((status, instance))) => {
+                self.set_game_exited(status, &instance);
             }
             Message::LaunchKill => return self.kill_selected_instance(),
             Message::LaunchCopyLog => {
-                let (name, is_server) = self.selected_instance.as_ref().unwrap().get_pair();
-                let logs = self.get_logs(is_server);
-
-                if let Some(log) = logs.get(name) {
+                let instance = self.instance();
+                if let Some(log) = self.logs.get(instance) {
                     return iced::clipboard::write(log.log.join(""));
                 }
             }
@@ -200,11 +176,9 @@ impl Launcher {
                     menu.is_uploading_mclogs = true;
                 }
 
-                let selected_instance = self.selected_instance.as_ref().unwrap();
-                let (name, is_server) = selected_instance.get_pair();
-                let logs = self.get_logs(is_server);
+                let instance = self.instance();
 
-                if let Some(log) = logs.get(name) {
+                if let Some(log) = self.logs.get(instance) {
                     let log_content = log.log.join("");
                     if !log_content.trim().is_empty() {
                         return Task::perform(
@@ -241,9 +215,6 @@ impl Launcher {
             #[cfg(not(feature = "auto_update"))]
             Message::UpdateDownloadStart | Message::UpdateCheckResult(_) => return Task::none(),
 
-            Message::LauncherSettings(msg) => return self.update_launcher_settings(msg),
-
-            Message::InstallOptifine(msg) => return self.update_install_optifine(msg),
             Message::ServerManageOpen {
                 selected_server,
                 message,
@@ -312,43 +283,32 @@ impl Launcher {
             }
             Message::ServerCreateVersionsLoaded(Ok(vec)) => {
                 self.server_version_list_cache = Some(vec.clone());
-                self.state = State::ServerCreate(MenuServerCreate::Loaded {
-                    versions: Box::new(iced::widget::combo_box::State::new(vec)),
-                    selected_version: None,
-                    name: String::new(),
-                });
-            }
-            Message::ServerStartFinish(Ok((child, is_classic_server))) => {
-                self.java_recv = None;
-                return self.add_server_to_processes(child, is_classic_server);
-            }
-            Message::ServerStopped(Ok((status, name))) => {
-                if status.success() {
-                    info!("Server {name} stopped.");
-                } else {
-                    info!("Server {name} crashed with status: {status}");
-                }
-
-                // TODO: Implement server crash handling
-                if let Some(log) = self.server_logs.get_mut(&name) {
-                    log.has_crashed = !status.success();
+                if let State::ServerCreate(_) = &self.state {
+                    self.state = State::ServerCreate(MenuServerCreate::Loaded {
+                        versions: Box::new(iced::widget::combo_box::State::new(vec)),
+                        selected_version: None,
+                        name: String::new(),
+                    });
                 }
             }
-            Message::ServerCommandEdit(selected_server, command) => {
-                if let Some(log) = self.server_logs.get_mut(&selected_server) {
+            Message::ServerCommandEdit(command) => {
+                let server = self.selected_instance.as_ref().unwrap();
+                debug_assert!(server.is_server());
+                if let Some(log) = self.logs.get_mut(server) {
                     log.command = command;
                 }
             }
-            Message::ServerCommandSubmit(selected_server) => {
+            Message::ServerCommandSubmit => {
+                let server = self.selected_instance.as_ref().unwrap();
+                debug_assert!(server.is_server());
                 if let (
                     Some(log),
-                    Some(ServerProcess {
-                        stdin: Some(stdin), ..
+                    Some(GameProcess {
+                        server_input: Some((stdin, _)),
+                        ..
                     }),
-                ) = (
-                    self.server_logs.get_mut(&selected_server),
-                    self.server_processes.get_mut(&selected_server),
-                ) {
+                ) = (self.logs.get_mut(server), self.processes.get_mut(server))
+                {
                     let log_cloned = format!("{}\n", log.command);
                     let future = stdin.write_all(log_cloned.as_bytes());
                     // Make the input command visible in the log
@@ -357,38 +317,6 @@ impl Launcher {
                     log.command.clear();
                     _ = block_on(future);
                 }
-            }
-            Message::InstallPaperStart => {
-                self.state = State::InstallPaper;
-                let instance_name = self
-                    .selected_instance
-                    .as_ref()
-                    .unwrap()
-                    .get_name()
-                    .to_owned();
-                return Task::perform(
-                    async move { loaders::paper::install(instance_name).await.strerr() },
-                    Message::InstallPaperEnd,
-                );
-            }
-            Message::InstallPaperEnd(result) => {
-                if let Err(err) = result {
-                    self.set_error(err);
-                } else {
-                    return self.go_to_edit_mods_menu(false);
-                }
-            }
-            Message::UninstallLoaderPaperStart => {
-                let get_name = self
-                    .selected_instance
-                    .as_ref()
-                    .unwrap()
-                    .get_name()
-                    .to_owned();
-                return Task::perform(
-                    async move { loaders::paper::uninstall(get_name).await.strerr() },
-                    Message::UninstallLoaderEnd,
-                );
             }
             Message::CoreListLoaded(Ok((list, is_server))) => {
                 if is_server {
@@ -412,9 +340,15 @@ impl Launcher {
                 self.state = State::ConfirmAction {
                     msg1: format!("uninstall {name}"),
                     msg2: "This should be fine, you can always reinstall it later".to_owned(),
-                    yes: (*msg).clone(),
+                    yes: Message::Multiple(vec![
+                        Message::ShowScreen("Uninstalling...".to_owned()),
+                        (*msg).clone(),
+                    ]),
                     no: Message::ManageMods(ManageModsMessage::ScreenOpenWithoutUpdate),
                 }
+            }
+            Message::ShowScreen(msg) => {
+                self.state = State::GenericMessage(msg);
             }
             Message::CoreEvent(event, status) => return self.iced_event(event, status),
             Message::LaunchChangeTab(launch_tab_id) => {
@@ -604,13 +538,5 @@ impl Launcher {
             selected_tab,
             content: iced::widget::text_editor::Content::with_text(selected_tab.get_text()),
         });
-    }
-
-    pub fn get_logs(&self, is_server: bool) -> &HashMap<String, InstanceLog> {
-        if is_server {
-            &self.server_logs
-        } else {
-            &self.client_logs
-        }
     }
 }

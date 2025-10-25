@@ -1,8 +1,6 @@
-use clap::{Arg, ArgAction, Command};
-use itertools::Itertools;
+use clap::{Parser, Subcommand};
 use owo_colors::{OwoColorize, Style};
-use ql_core::{err, LAUNCHER_VERSION_NAME, WEBSITE};
-use ql_instances::ARG_REDACT_SECTIONS;
+use ql_core::{err, LAUNCHER_VERSION_NAME, REDACT_SENSITIVE_INFO, WEBSITE};
 
 use crate::{
     cli::helpers::render_row,
@@ -12,91 +10,91 @@ use crate::{
 mod command;
 mod helpers;
 
-fn command() -> Command {
-    Command::new(if cfg!(target_os = "windows") {
-        ".\\quantum_launcher.exe"
-    } else {
-        "./quantum_launcher"
-    })
-    .arg_required_else_help(false)
-    .author("Mrmayman")
-    .version(LAUNCHER_VERSION_NAME)
-    .long_about(long_about())
-    .subcommand(Command::new("create")
-        .args([
-            Arg::new("instance_name").help("The name of the instance to create").required(true),
-            Arg::new("version").help("The version of Minecraft to download").required(true),
-            Arg::new("--skip-assets")
-                .short('s')
-                .long("skip-assets")
-                .required(false)
-                .help("Skips downloading game assets (sound/music) to speed up downloads")
-                .action(ArgAction::SetTrue),
-        ])
-        .about("Creates a new installation (instance) of Minecraft")
-    )
-    .subcommand(get_launch_subcommand())
-    .subcommand(
-        get_list_instance_command("list")
-            .alias("list-instances")
-            .short_flag('l')
-            .about("Lists all installed Minecraft instances")
-            .long_about("Lists all installed Minecraft instances. Can be paired with hyphen-separated-flags like name-loader, name-version, loader-name-version"),
-    )
-    .subcommand(
-        get_list_instance_command("list-servers")
-            .about("Lists all installed Minecraft servers")
-            .long_about("Lists all installed Minecraft servers. Can be paired with hyphen-separated-flags like name-loader, name-version, loader-name-version")
-            .hide(true),
-    )
-    .subcommand(Command::new("delete")
-        .args([
-            Arg::new("instance_name").help("The name of the instance to delete").required(true),
-            Arg::new("--force")
-                .short('f')
-                .long("force")
-                .required(false)
-                .help("Forces deletion without confirmation. DANGEROUS")
-                .action(ArgAction::SetTrue),
-        ])
-        .about("Deletes an instance of Minecraft")
-    )
-    .subcommand(Command::new("list-available-versions").short_flag('a').about("Lists all downloadable Minecraft versions"))
-    .subcommand(Command::new("--no-sandbox").hide(true)) // This one doesn't do anything, but on Windows i686 it's automatically passed?
-    .arg(
-        Arg::new("--no-redact-args").long("no-redact-args")
-            .action(ArgAction::SetTrue).help("Stops censoring sensitive data in arguments")
-    )
+#[derive(Parser)]
+#[cfg_attr(target_os = "windows", command(name = ".\\quantum_launcher.exe"))]
+#[cfg_attr(not(target_os = "windows"), command(name = "./quantum_launcher"))]
+#[command(version = LAUNCHER_VERSION_NAME)]
+#[command(long_about = long_about())]
+#[command(author = "Mrmayman")]
+struct Cli {
+    #[clap(subcommand)]
+    command: Option<QSubCommand>,
+    /// Some systems mistakenly pass this. It's unused though.
+    #[arg(long, hide = true)]
+    no_sandbox: Option<bool>,
+    #[arg(long)]
+    no_redact_info: bool,
+    #[arg(short, long)]
+    #[arg(help = "Manage servers, instead of instances")]
+    #[arg(hide = true)]
+    server: bool,
 }
 
-fn get_launch_subcommand() -> Command {
-    Command::new("launch")
-        .about("Launches the specified instance")
-        .arg_required_else_help(true)
-        .args([
-            Arg::new("instance_name")
-                .help("The name of the instance to launch")
-                .required(true),
-            Arg::new("username")
-                .help("Username of the player")
-                .required(true),
-            Arg::new("--use-account")
-                .short('a')
-                .long("use-account")
-                .help("Whether to use a logged in account of the given username (if any)")
-                .required(false)
-                .action(ArgAction::SetTrue),
-        ])
+#[derive(Subcommand)]
+enum QSubCommand {
+    #[command(about = "Creates a new Minecraft instance")]
+    Create {
+        instance_name: String,
+        #[arg(help = "Version of Minecraft to download")]
+        version: String,
+        #[arg(short, long)]
+        #[arg(help = "Skips downloading game assets (sound/music) to speed up downloads")]
+        skip_assets: bool,
+    },
+    #[command(about = "Launches an instance")]
+    Launch {
+        instance_name: String,
+        #[arg(help = "Username to play with")]
+        username: String,
+        #[arg(short, long, short_alias = 'a')]
+        #[arg(help = "Whether to use a logged in account of the given username (if any)")]
+        use_account: bool,
+    },
+    #[command(aliases = ["list", "list-instances"], short_flag = 'l')]
+    #[command(about = "Lists installed instances")]
+    ListInstalled { properties: Option<Vec<String>> },
+    #[command(about = "Deletes the specified instance")]
+    Delete {
+        instance_name: String,
+        #[arg(short, long)]
+        #[arg(help = "Forces deletion without confirmation. DANGEROUS")]
+        force: bool,
+    },
+    #[clap(subcommand)]
+    #[clap(alias = "loaders")]
+    Loader(QLoader),
+    #[command(about = "Lists downloadable versions", short_flag = 'a')]
+    ListAvailableVersions,
 }
 
-fn get_list_instance_command(name: &'static str) -> Command {
-    Command::new(name).arg(
-        Arg::new("fields")
-            .help("Fields to display (any combination of name, version, loader)")
-            .num_args(1..) // accept 1 or more
-            .action(ArgAction::Append)
-            .value_parser(["name", "version", "loader"]),
-    )
+#[derive(Subcommand)]
+#[command(
+    about = "Manages mod loaders",
+    long_about = r"Install, uninstall and look up mod loaders.
+
+Supported loaders: Fabric, Forge, Quilt, NeoForge, Paper, OptiFine
+(case-insensitive)"
+)]
+enum QLoader {
+    #[command(long_about = r"
+Installs the specified loader
+
+Supported loaders: Fabric, Forge, Quilt, NeoForge, Paper, OptiFine
+(case-insensitive)")]
+    Install {
+        instance: String,
+        loader: String,
+        more: Option<String>,
+        #[arg(long)]
+        version: Option<String>,
+    },
+    Uninstall {
+        instance: String,
+    },
+    #[command(about = "Info about the currently-installed loader")]
+    Info {
+        instance: String,
+    },
 }
 
 fn long_about() -> String {
@@ -178,34 +176,55 @@ fn get_right_text() -> String {
 }
 
 pub fn start_cli(is_dir_err: bool) {
-    let command = command();
-    let matches = command.clone().get_matches();
-
-    let dont_redact: &bool = matches.get_one("--no-redact-args").unwrap();
-    *ARG_REDACT_SECTIONS.lock().unwrap() = !dont_redact;
-
-    if let Some(subcommand) = matches.subcommand() {
+    let cli = Cli::parse();
+    *REDACT_SENSITIVE_INFO.lock().unwrap() = !cli.no_redact_info;
+    if let Some(subcommand) = cli.command {
         if is_dir_err {
             std::process::exit(1);
         }
-        match subcommand.0 {
-            "list" | "list-instances" => {
-                let command = get_list_instance_subcommand(subcommand.1);
-                quit(command::list_instances(&command, false));
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+
+        match subcommand {
+            QSubCommand::Create {
+                instance_name,
+                version,
+                skip_assets,
+            } => {
+                quit(command::create_instance(
+                    instance_name,
+                    version,
+                    skip_assets,
+                    &runtime,
+                    cli.server,
+                ));
             }
-            "list-servers" => {
-                let command = get_list_instance_subcommand(subcommand.1);
-                quit(command::list_instances(&command, true));
+            QSubCommand::Launch {
+                instance_name,
+                username,
+                use_account,
+            } => {
+                quit(command::launch_instance(
+                    instance_name,
+                    username,
+                    use_account,
+                    &runtime,
+                    cli.server,
+                ));
             }
-            "list-available-versions" => {
+            QSubCommand::ListAvailableVersions => {
                 command::list_available_versions();
                 std::process::exit(0);
             }
-            "launch" => quit(command::launch_instance(subcommand)),
-            "create" => quit(command::create_instance(subcommand)),
-            "delete" => quit(command::delete_instance(subcommand)),
-            "--no-sandbox" => {}
-            err => panic!("Unimplemented command! {err}"),
+            QSubCommand::Delete {
+                instance_name,
+                force,
+            } => quit(command::delete_instance(instance_name, force)),
+            QSubCommand::ListInstalled { properties } => {
+                quit(command::list_instances(properties.as_deref(), cli.server))
+            }
+            QSubCommand::Loader(cmd) => {
+                quit(runtime.block_on(command::loader(cmd, cli.server)));
+            }
         }
     } else {
         print_intro();
@@ -219,23 +238,4 @@ fn quit(res: Result<(), Box<dyn std::error::Error + 'static>>) {
     } else {
         0
     });
-}
-
-fn get_list_instance_subcommand(matches: &clap::ArgMatches) -> Vec<PrintCmd> {
-    if let Some(values) = matches.get_many::<String>("fields") {
-        values
-            .map(|val| match val.as_str() {
-                "name" => PrintCmd::Name,
-                "version" => PrintCmd::Version,
-                "loader" => PrintCmd::Loader,
-                invalid => panic!(
-                    "Invalid field {invalid}! Use any combination of name, version, and loader."
-                ),
-            })
-            .unique()
-            .collect()
-    } else {
-        // Default to showing name if no args passed
-        vec![PrintCmd::Name]
-    }
 }

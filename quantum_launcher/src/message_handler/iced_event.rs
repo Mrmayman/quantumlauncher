@@ -3,8 +3,9 @@ use crate::message_update::MSG_RESIZE;
 use crate::state::{
     CreateInstanceMessage, LaunchTabId, Launcher, LauncherSettingsMessage, LauncherSettingsTab,
     MenuCreateInstance, MenuEditJarMods, MenuEditMods, MenuEditPresets, MenuExportInstance,
-    MenuInstallFabric, MenuInstallOptifine, MenuLaunch, MenuLauncherSettings, MenuLauncherUpdate,
-    MenuLoginAlternate, MenuLoginMS, MenuRecommendedMods, MenuServerCreate, Message, State,
+    MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLaunch, MenuLauncherSettings,
+    MenuLauncherUpdate, MenuLoginAlternate, MenuLoginMS, MenuRecommendedMods, MenuServerCreate,
+    Message, State,
 };
 use iced::{
     keyboard::{self, key::Named, Key},
@@ -12,7 +13,7 @@ use iced::{
 };
 use ql_core::jarmod::JarMods;
 use ql_core::{err, info, info_no_log, jarmod::JarMod, InstanceSelection};
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
 use std::path::Path;
 
 impl Launcher {
@@ -58,7 +59,7 @@ impl Launcher {
                         path.extension().map(OsStr::to_ascii_lowercase),
                         path.file_name().and_then(OsStr::to_str),
                     ) {
-                        return self.drag_and_drop(&path, extension, filename);
+                        return self.drag_and_drop(&path, &extension, filename);
                     }
                 }
                 iced::window::Event::RedrawRequested(_)
@@ -211,7 +212,7 @@ impl Launcher {
         Task::none()
     }
 
-    fn drag_and_drop(&mut self, path: &Path, extension: OsString, filename: &str) -> Task<Message> {
+    fn drag_and_drop(&mut self, path: &Path, extension: &OsStr, filename: &str) -> Task<Message> {
         if let State::EditMods(_) = &self.state {
             if extension == "jar" || extension == "disabled" {
                 self.load_jar_from_path(path, filename);
@@ -355,6 +356,9 @@ impl Launcher {
                 MenuRecommendedMods::Loaded { .. }
                 | MenuRecommendedMods::InstallALoader
                 | MenuRecommendedMods::NotSupported,
+            )
+            | State::InstallPaper(
+                MenuInstallPaper::Loading { .. } | MenuInstallPaper::Loaded { .. },
             ) => {
                 should_return_to_mods_screen = true;
             }
@@ -364,7 +368,7 @@ impl Launcher {
             State::ModsDownload(menu) if menu.mods_download_in_progress.is_empty() => {
                 should_return_to_mods_screen = true;
             }
-            State::InstallPaper
+            State::InstallPaper(_)
             | State::ExportInstance(_)
             | State::InstallForge(_)
             | State::InstallJava

@@ -3,23 +3,18 @@ use std::{
     fmt::Display,
     path::Path,
     str::FromStr,
-    sync::{
-        mpsc::{self, Receiver},
-        Arc, Mutex,
-    },
+    sync::mpsc::{self, Receiver},
 };
 
 use iced::Task;
 use notify::Watcher;
 use ql_core::{
-    err, file_utils, GenericProgress, InstanceSelection, IntoIoError, IntoStringError, IoError,
-    JsonFileError, ListEntry, ModId, Progress, LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
+    err, file_utils, read_log::LogLine, GenericProgress, InstanceSelection, IntoIoError,
+    IntoStringError, IoError, JsonFileError, LaunchedProcess, ListEntry, ModId, Progress,
+    LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
 };
-use ql_instances::{
-    auth::{ms::CLIENT_ID, AccountData, AccountType},
-    LogLine,
-};
-use tokio::process::{Child, ChildStdin};
+use ql_instances::auth::{ms::CLIENT_ID, AccountData, AccountType};
+use tokio::process::ChildStdin;
 
 use crate::{
     config::LauncherConfig,
@@ -73,10 +68,9 @@ pub struct Launcher {
     pub server_version_list_cache: Option<Vec<ListEntry>>,
     pub client_list: Option<Vec<String>>,
     pub server_list: Option<Vec<String>>,
-    pub client_processes: HashMap<String, ClientProcess>,
-    pub server_processes: HashMap<String, ServerProcess>,
-    pub client_logs: HashMap<String, InstanceLog>,
-    pub server_logs: HashMap<String, InstanceLog>,
+
+    pub processes: HashMap<InstanceSelection, GameProcess>,
+    pub logs: HashMap<InstanceSelection, InstanceLog>,
 
     pub window_size: (f32, f32),
     pub mouse_pos: (f32, f32),
@@ -99,17 +93,10 @@ impl CustomJarState {
     }
 }
 
-pub struct ClientProcess {
-    pub child: Arc<Mutex<Child>>,
+pub struct GameProcess {
+    pub child: LaunchedProcess,
     pub receiver: Option<Receiver<LogLine>>,
-}
-
-pub struct ServerProcess {
-    pub child: Arc<Mutex<Child>>,
-    pub receiver: Option<Receiver<String>>,
-    pub stdin: Option<ChildStdin>,
-    pub is_classic_server: bool,
-    pub has_issued_stop_command: bool,
+    pub server_input: Option<(ChildStdin, bool)>,
 }
 
 impl Launcher {
@@ -202,10 +189,8 @@ impl Launcher {
             selected_instance: None,
             custom_jar: None,
 
-            client_processes: HashMap::new(),
-            client_logs: HashMap::new(),
-            server_processes: HashMap::new(),
-            server_logs: HashMap::new(),
+            logs: HashMap::new(),
+            processes: HashMap::new(),
 
             keys_pressed: HashSet::new(),
             mod_updates_checked: HashMap::new(),
@@ -269,10 +254,8 @@ impl Launcher {
             tick_timer: 0,
             mouse_pos: (0.0, 0.0),
 
-            client_processes: HashMap::new(),
-            client_logs: HashMap::new(),
-            server_processes: HashMap::new(),
-            server_logs: HashMap::new(),
+            logs: HashMap::new(),
+            processes: HashMap::new(),
             accounts: HashMap::new(),
             keys_pressed: HashSet::new(),
             mod_updates_checked: HashMap::new(),
@@ -283,6 +266,10 @@ impl Launcher {
             accounts_selected: Some(OFFLINE_ACCOUNT_NAME.to_owned()),
             modifiers_pressed: iced::keyboard::Modifiers::empty(),
         }
+    }
+
+    pub fn instance(&self) -> &InstanceSelection {
+        self.selected_instance.as_ref().unwrap()
     }
 
     #[allow(clippy::needless_pass_by_value)]

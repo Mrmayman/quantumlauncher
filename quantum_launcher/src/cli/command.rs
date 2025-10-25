@@ -2,13 +2,17 @@ use owo_colors::{OwoColorize, Style};
 use ql_core::{
     err, info,
     json::{InstanceConfigJson, VersionDetails},
-    InstanceSelection, IntoIoError, IntoJsonError, IntoStringError, ListEntry, Loader,
-    LAUNCHER_DIR,
+    InstanceSelection, IntoStringError, ListEntry, Loader, OptifineUniqueVersion, LAUNCHER_DIR,
 };
 use ql_instances::auth::{self, AccountType};
-use std::process::exit;
+use ql_mod_manager::loaders::LoaderInstallResult;
+use std::{path::PathBuf, process::exit};
 
-use crate::{cli::helpers::render_row, config::LauncherConfig, state::get_entries};
+use crate::{
+    cli::{helpers::render_row, QLoader},
+    config::LauncherConfig,
+    state::get_entries,
+};
 
 use super::PrintCmd;
 
@@ -34,10 +38,26 @@ pub fn list_available_versions() {
 }
 
 pub fn list_instances(
-    cmds: &[PrintCmd],
+    properties: Option<&[String]>,
     is_server: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use std::fmt::Write;
+
+    let mut cmds: Vec<PrintCmd> = properties
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|n| match n.as_str() {
+            "name" => Some(PrintCmd::Name),
+            "version" => Some(PrintCmd::Version),
+            "loader" => Some(PrintCmd::Loader),
+            _ => None,
+        })
+        .collect();
+    if cmds.is_empty() {
+        cmds.push(PrintCmd::Name);
+    }
+
+    let runtime = tokio::runtime::Runtime::new()?;
 
     let dirname = if is_server { "servers" } else { "instances" };
     let (instances, _) = tokio::runtime::Runtime::new()?.block_on(get_entries(is_server))?;
@@ -47,28 +67,33 @@ pub fn list_instances(
     let mut cmds_loader = String::new();
 
     for instance in instances {
-        for cmd in cmds {
+        let instance_dir = LAUNCHER_DIR.join(dirname).join(&instance);
+        for cmd in &cmds {
             match cmd {
                 PrintCmd::Name => {
                     _ = writeln!(cmds_name, "{}", instance.bold().underline());
                 }
                 PrintCmd::Version => {
-                    let instance_dir = LAUNCHER_DIR.join(dirname).join(&instance);
-
-                    let path = instance_dir.join("details.json");
-                    let json = std::fs::read_to_string(&path).path(path)?;
-                    let mut json: VersionDetails = serde_json::from_str(&json).json(json)?;
-                    json.fix();
-
-                    cmds_version.push_str(&json.id);
+                    match runtime.block_on(VersionDetails::load_from_path(&instance_dir)) {
+                        Ok(json) => {
+                            cmds_version.push_str(&json.id);
+                        }
+                        Err(err) => {
+                            err!("{err}");
+                        }
+                    }
                     cmds_version.push('\n');
                 }
                 PrintCmd::Loader => {
-                    let instance_dir = LAUNCHER_DIR.join(dirname).join(&instance);
-                    let path = instance_dir.join("config.json");
-                    let config_json = std::fs::read_to_string(&path).path(path)?;
-                    let config_json: InstanceConfigJson =
-                        serde_json::from_str(&config_json).json(config_json)?;
+                    let config_json =
+                        match runtime.block_on(InstanceConfigJson::read_from_dir(&instance_dir)) {
+                            Ok(json) => json,
+                            Err(err) => {
+                                err!("{err}");
+                                cmds_loader.push('\n');
+                                continue;
+                            }
+                        };
                     let m = config_json.mod_type;
 
                     match Loader::try_from(m.as_str()) {
@@ -121,32 +146,40 @@ pub fn list_instances(
 }
 
 pub fn create_instance(
-    subcommand: (&str, &clap::ArgMatches),
+    instance_name: String,
+    version: String,
+    skip_assets: bool,
+    runtime: &tokio::runtime::Runtime,
+    servers: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let instance_name: &String = subcommand.1.get_one("instance_name").unwrap();
-    let version: &String = subcommand.1.get_one("version").unwrap();
-    let skip_assets: bool = *subcommand.1.get_one("--skip-assets").unwrap();
-
-    let runtime = tokio::runtime::Runtime::new()?;
-    runtime.block_on(ql_instances::create_instance(
-        instance_name.clone(),
-        ListEntry {
-            name: version.clone(),
-            is_classic_server: false,
-        },
-        None,
-        !skip_assets,
-    ))?;
+    if servers {
+        runtime.block_on(ql_servers::create_server(
+            instance_name,
+            ListEntry {
+                is_classic_server: version.starts_with("c0."),
+                name: version,
+            },
+            None,
+        ))?;
+    } else {
+        runtime.block_on(ql_instances::create_instance(
+            instance_name,
+            ListEntry {
+                name: version.clone(),
+                is_classic_server: false,
+            },
+            None,
+            !skip_assets,
+        ))?;
+    }
 
     Ok(())
 }
 
 pub fn delete_instance(
-    subcommand: (&str, &clap::ArgMatches),
+    instance_name: String,
+    force: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let instance_name: &String = subcommand.1.get_one("instance_name").unwrap();
-    let force: bool = *subcommand.1.get_one("--force").unwrap();
-
     if !force {
         println!(
             "{} {instance_name}?",
@@ -193,55 +226,43 @@ fn confirm_action() -> bool {
 }
 
 pub fn launch_instance(
-    subcommand: (&str, &clap::ArgMatches),
+    instance_name: String,
+    username: String,
+    use_account: bool,
+    runtime: &tokio::runtime::Runtime,
+    servers: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let instance_name: &String = subcommand.1.get_one("instance_name").unwrap();
-    let username: &String = subcommand.1.get_one("username").unwrap();
-    let use_account: bool = *subcommand.1.get_one("--use-account").unwrap();
+    let account = refresh_account(&username, use_account, runtime)?;
 
-    let runtime = tokio::runtime::Runtime::new()?;
-
-    let account = refresh_account(username, use_account, &runtime)?;
-
-    let child = runtime.block_on(ql_instances::launch(
-        instance_name.clone(),
-        username.clone(),
-        None,
-        account.clone(),
-        // No global defaults in CLI mode
-        None,
-        Vec::new(),
-    ))?;
-
-    if let (Some(stdout), Some(stderr)) = {
-        let mut child = child.lock().unwrap();
-        (child.stdout.take(), child.stderr.take())
-    } {
-        let mut censors = Vec::new();
-        if let Some(token) = account.as_ref().and_then(|n| n.access_token.as_ref()) {
-            censors.push(token.clone());
-        }
-
-        match runtime.block_on(ql_instances::read_logs(
-            stdout,
-            stderr,
-            child,
-            None,
+    let child = if servers {
+        // TODO: stdin input
+        runtime.block_on(ql_servers::run(instance_name.clone(), None))?
+    } else {
+        runtime.block_on(ql_instances::launch(
             instance_name.clone(),
-            censors,
-        )) {
+            username,
+            None,
+            account.clone(),
+            None, // No global defaults in CLI mode
+            Vec::new(),
+        ))?
+    };
+
+    let mut censors = Vec::new();
+    if let Some(token) = account.as_ref().and_then(|n| n.access_token.as_ref()) {
+        censors.push(token.clone());
+    }
+
+    if let Some(f) = child.read_logs(censors, None) {
+        match runtime.block_on(f) {
             Ok((s, _)) => {
                 info!("Game exited with code {s}");
                 exit(s.code().unwrap_or_default());
             }
-            Err(err) => {
-                err!("{err}");
-                exit(1);
-            }
+            Err(err) => Err(err)?,
         }
-    } else {
-        exit(0);
     }
+    Ok(())
 }
 
 fn refresh_account(
@@ -291,4 +312,113 @@ fn refresh_account(
     } else {
         None
     })
+}
+
+pub async fn loader(cmd: QLoader, servers: bool) -> Result<(), Box<dyn std::error::Error>> {
+    match cmd {
+        QLoader::Info { instance } => {
+            let json =
+                InstanceConfigJson::read(&InstanceSelection::new(&instance, servers)).await?;
+            println!("Kind: {}", json.mod_type);
+            if let Some(info) = json.mod_type_info {
+                if let Some(version) = info.version {
+                    println!("Version: {version}");
+                }
+                if let Some(backend) = info.backend_implementation {
+                    println!("Backend: {backend}");
+                }
+                if let Some(jar) = info.optifine_jar {
+                    println!("OptiFine Installation: {jar}");
+                }
+            }
+        }
+        QLoader::Install {
+            instance,
+            loader,
+            more,
+            version,
+        } => {
+            if loader.eq_ignore_ascii_case("vanilla") {
+                err!("Vanilla refers to the base game.\n    Maybe you meant `./quantum_launcher loader uninstall ...`");
+                exit(1);
+            }
+            let Ok(loader) = Loader::try_from(loader.as_str()) else {
+                exit(1)
+            };
+
+            let instance = InstanceSelection::new(&instance, servers);
+            let mt = InstanceConfigJson::read(&instance).await?.mod_type;
+
+            if Loader::try_from(mt.as_str()).is_ok_and(|n| n == loader) {
+                err!("{mt} is already installed!");
+                exit(0);
+            }
+            if !(mt == "Vanilla"
+                || (mt == "Forge" && matches!(loader, Loader::OptiFine))
+                || (mt == "OptiFine" && matches!(loader, Loader::Forge)))
+            {
+                err!(
+                    r"You can't install a loader on top of another loader!
+    Did you mean to uninstall the other one first: `./quantum_launcher loader uninstall ...`"
+                );
+                exit(1);
+            }
+
+            match ql_mod_manager::loaders::install_specified_loader(
+                instance.clone(),
+                loader,
+                None,
+                version,
+            )
+            .await?
+            {
+                LoaderInstallResult::Ok => {}
+                LoaderInstallResult::NeedsOptifine => {
+                    install_optifine(more, instance).await?;
+                }
+                LoaderInstallResult::Unsupported => {
+                    err!("This loader is unsupported!");
+                    exit(1);
+                }
+            }
+        }
+        QLoader::Uninstall { instance } => {
+            let instance = InstanceSelection::new(&instance, servers);
+            ql_mod_manager::loaders::uninstall_loader(instance).await?;
+        }
+    }
+    Ok(())
+}
+
+async fn install_optifine(
+    more: Option<String>,
+    instance: InstanceSelection,
+) -> Result<(), Box<dyn std::error::Error + 'static>> {
+    let details = VersionDetails::load(&instance).await?;
+    if details.get_id() == "b1.7.3" {
+        ql_mod_manager::loaders::optifine::install_b173(
+            instance,
+            OptifineUniqueVersion::B1_7_3.get_url().0,
+        )
+        .await?;
+        return Ok(());
+    }
+
+    let Some(more) = more else {
+        err!(
+            r"Please download the OptiFine installer at: https://optifine.net/downloads
+    and pass the path via: `quantum_launcher loader install optifine path/to/installer.jar`"
+        );
+        exit(1);
+    };
+
+    ql_mod_manager::loaders::optifine::install(
+        instance.get_name().to_owned(),
+        PathBuf::from(more),
+        None,
+        None,
+        OptifineUniqueVersion::from_version(details.get_id()),
+    )
+    .await?;
+    Ok(())
 }
