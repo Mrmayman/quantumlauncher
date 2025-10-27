@@ -13,13 +13,11 @@ use ql_java_handler::JavaInstallError;
 
 mod create;
 mod list_versions;
-mod read_log;
 mod run;
 mod server_properties;
 // mod ssh;
 pub use create::{create_server, delete_server};
 pub use list_versions::list;
-pub use read_log::read_logs;
 pub use run::run;
 pub use server_properties::ServerProperties;
 // pub use ssh::run_tunnel;

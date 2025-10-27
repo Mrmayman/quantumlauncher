@@ -8,8 +8,9 @@ use ql_mod_manager::store::ModIndex;
 use std::{collections::HashSet, path::PathBuf};
 
 use crate::state::{
-    Launcher, ManageJarModsMessage, ManageModsMessage, MenuCurseforgeManualDownload,
-    MenuEditJarMods, MenuEditMods, Message, ProgressBar, SelectedState, State,
+    ExportModsMessage, Launcher, ManageJarModsMessage, ManageModsMessage,
+    MenuCurseforgeManualDownload, MenuEditJarMods, MenuEditMods, Message, ProgressBar,
+    SelectedState, State,
 };
 
 impl Launcher {
@@ -92,7 +93,7 @@ impl Launcher {
                     if paths
                         .iter()
                         .filter_map(|n| n.extension())
-                        .any(|n| n.to_ascii_lowercase() != "jar")
+                        .any(|n| !n.eq_ignore_ascii_case("jar"))
                     {
                         self.mod_updates_checked.remove(selected_instance);
                     }
@@ -134,33 +135,58 @@ impl Launcher {
                 Err(err) => self.set_error(err),
             },
             ManageModsMessage::DeleteSelected => {
-                if let State::EditMods(menu) = &self.state {
-                    let command = Self::get_delete_mods_command(
-                        self.selected_instance.clone().unwrap(),
-                        menu,
-                    );
-                    let mods_dir = self.get_selected_dot_minecraft_dir().unwrap().join("mods");
-                    let file_paths = menu
+                if let State::EditMods(menu) = &mut self.state {
+                    let selected_instance = self.selected_instance.clone().unwrap();
+                    let mods_dir = selected_instance.get_dot_minecraft_path().join("mods");
+                    let command = Self::get_delete_mods_command(selected_instance, menu);
+
+                    let local_mods_paths: Vec<&String> = menu
                         .selected_mods
                         .iter()
                         .filter_map(|s_mod| {
                             if let SelectedMod::Local { file_name } = s_mod {
-                                Some(file_name.clone())
+                                Some(file_name)
                             } else {
                                 None
                             }
                         })
-                        .map(|n| mods_dir.join(n))
-                        .map(delete_file_wrapper)
-                        .map(|n| {
-                            Task::perform(n, |n| {
-                                Message::ManageMods(ManageModsMessage::LocalDeleteFinished(n))
-                            })
-                        });
-                    let delete_local_command = Task::batch(file_paths);
+                        .collect();
+                    for path in &local_mods_paths {
+                        menu.locally_installed_mods.remove(*path);
+                    }
+                    let delete_local_command = Task::batch(
+                        local_mods_paths
+                            .into_iter()
+                            .map(|n| mods_dir.join(n))
+                            .map(delete_file_wrapper)
+                            .map(|n| {
+                                Task::perform(n, |n| {
+                                    Message::ManageMods(ManageModsMessage::LocalDeleteFinished(n))
+                                })
+                            }),
+                    );
 
                     return Task::batch([command, delete_local_command]);
                 }
+            }
+            ManageModsMessage::DeleteOptiforge(name) => {
+                let mods_dir = self.get_selected_dot_minecraft_dir().unwrap().join("mods");
+                if let State::EditMods(menu) = &mut self.state {
+                    menu.locally_installed_mods.remove(&name);
+                    if let Some(mod_info) = &mut menu.config.mod_type_info {
+                        if mod_info.optifine_jar.as_ref().is_some_and(|n| n == &name) {
+                            mod_info.optifine_jar = None;
+                            if let Err(err) =
+                                block_on(menu.config.save(self.selected_instance.as_ref().unwrap()))
+                            {
+                                self.set_error(err);
+                            }
+                        }
+                    }
+                }
+                return Task::perform(delete_file_wrapper(mods_dir.join(&name)), |n| {
+                    Message::ManageMods(ManageModsMessage::LocalDeleteFinished(n))
+                });
             }
             ManageModsMessage::DeleteFinished(result) => match result {
                 Ok(_) => {
@@ -630,9 +656,7 @@ impl Launcher {
         {
             if let Some(filename) = path.file_name() {
                 let dest = self
-                    .selected_instance
-                    .as_ref()
-                    .unwrap()
+                    .instance()
                     .get_instance_path()
                     .join("jarmods")
                     .join(filename);
@@ -643,8 +667,7 @@ impl Launcher {
         }
     }
 
-    pub fn update_export_mods(&mut self, msg: crate::state::ExportModsMessage) -> Task<Message> {
-        use crate::state::ExportModsMessage;
+    pub fn update_export_mods(&mut self, msg: ExportModsMessage) -> Task<Message> {
         match msg {
             ExportModsMessage::ExportAsPlainText => {
                 if let State::ExportMods(menu) = &self.state {

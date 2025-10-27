@@ -141,7 +141,7 @@ impl GameLauncher {
         info!("Downloading missing native libraries");
 
         for library in &self.version_json.libraries {
-            if !GameDownloader::download_libraries_library_is_allowed(library) {
+            if !library.is_allowed() {
                 continue;
             }
 

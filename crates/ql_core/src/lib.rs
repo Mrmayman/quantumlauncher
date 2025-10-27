@@ -13,9 +13,25 @@
 //! - And much more
 
 #![allow(clippy::cast_precision_loss)]
-#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_sign_loss)]
+use crate::read_log::{read_logs, LogLine, ReadError};
+use futures::StreamExt;
+use json::VersionDetails;
+use regex::Regex;
+use std::{
+    ffi::OsStr,
+    fmt::{Debug, Display},
+    future::Future,
+    path::{Path, PathBuf},
+    pin::Pin,
+    process::ExitStatus,
+    sync::{mpsc::Sender, Arc, LazyLock, Mutex},
+};
+use tokio::process::Child;
 
 pub mod clean;
+pub mod constants;
 mod error;
 /// Common utilities for working with files.
 pub mod file_utils;
@@ -26,34 +42,25 @@ mod loader;
 /// Logging macros.
 pub mod print;
 mod progress;
+pub mod read_log;
 mod urlcache;
-
-use std::{
-    ffi::OsStr,
-    fmt::{Debug, Display},
-    future::Future,
-    path::{Path, PathBuf},
-    sync::LazyLock,
-};
 
 pub use error::{
     DownloadFileError, IntoIoError, IntoJsonError, IntoStringError, IoError, JsonDownloadError,
     JsonError, JsonFileError,
 };
 pub use file_utils::{RequestError, LAUNCHER_DIR};
-use futures::StreamExt;
-use json::VersionDetails;
 pub use loader::Loader;
 pub use print::{logger_finish, LogType, LoggingState, LOGGER};
 pub use progress::{DownloadProgress, GenericProgress, Progress};
 pub use urlcache::url_cache_get;
 
-use regex::Regex;
-
 pub static REGEX_SNAPSHOT: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\d{2}w\d*[a-zA-Z]+").unwrap());
 
 pub const CLASSPATH_SEPARATOR: char = if cfg!(unix) { ':' } else { ';' };
+
+pub static REDACT_SENSITIVE_INFO: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(true));
 
 pub const WEBSITE: &str = "https://mrmayman.github.io/quantumlauncher";
 
@@ -448,6 +455,7 @@ pub enum OptifineUniqueVersion {
     V1_2_5,
     B1_7_3,
     B1_6_6,
+    Forge,
 }
 
 impl OptifineUniqueVersion {
@@ -456,13 +464,17 @@ impl OptifineUniqueVersion {
         VersionDetails::load(instance)
             .await
             .ok()
-            .and_then(|n| match n.get_id() {
-                "1.5.2" => Some(OptifineUniqueVersion::V1_5_2),
-                "1.2.5" => Some(OptifineUniqueVersion::V1_2_5),
-                "b1.7.3" => Some(OptifineUniqueVersion::B1_7_3),
-                "b1.6.6" => Some(OptifineUniqueVersion::B1_6_6),
-                _ => None,
-            })
+            .and_then(|n| Self::from_version(n.get_id()))
+    }
+
+    pub fn from_version(version: &str) -> Option<Self> {
+        match version {
+            "1.5.2" => Some(OptifineUniqueVersion::V1_5_2),
+            "1.2.5" => Some(OptifineUniqueVersion::V1_2_5),
+            "b1.7.3" => Some(OptifineUniqueVersion::B1_7_3),
+            "b1.6.6" => Some(OptifineUniqueVersion::B1_6_6),
+            _ => None,
+        }
     }
 
     #[must_use]
@@ -472,6 +484,7 @@ impl OptifineUniqueVersion {
             OptifineUniqueVersion::V1_2_5 => ("https://optifine.net/adloadx?f=OptiFine_1.5.2_HD_U_D2.zip", false),
             OptifineUniqueVersion::B1_7_3 => ("https://b2.mcarchive.net/file/mcarchive/47df260a369eb2f79750ec24e4cfd9da93b9aac076f97a1332302974f19e6024/OptiFine_1_7_3_HD_G.zip", true),
             OptifineUniqueVersion::B1_6_6 => ("https://optifine.net/adloadx?f=beta_OptiFog_Optimine_1.6.6.zip", false),
+            OptifineUniqueVersion::Forge => unreachable!("There isn't a direct URL for Optifine+Forge"),
         }
     }
 }
@@ -522,4 +535,35 @@ pub async fn find_forge_shim_file(dir: &Path) -> Option<PathBuf> {
     .await
     .ok()
     .flatten()
+}
+
+#[derive(Debug, Clone)]
+pub struct LaunchedProcess {
+    pub child: Arc<Mutex<Child>>,
+    pub instance: InstanceSelection,
+    pub is_classic_server: bool,
+}
+
+impl LaunchedProcess {
+    pub fn read_logs(
+        &self,
+        censors: Vec<String>,
+        sender: Option<Sender<LogLine>>,
+    ) -> Option<
+        Pin<Box<dyn Future<Output = Result<(ExitStatus, InstanceSelection), ReadError>> + Send>>,
+    > {
+        let mut c = self.child.lock().unwrap();
+        let (Some(stdout), Some(stderr)) = (c.stdout.take(), c.stderr.take()) else {
+            return None;
+        };
+
+        Some(Box::pin(read_logs(
+            stdout,
+            stderr,
+            self.child.clone(),
+            sender,
+            self.instance.clone(),
+            censors,
+        )))
+    }
 }

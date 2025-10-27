@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use ql_core::{impl_3_errs_jri, IoError, JsonError, RequestError};
 use thiserror::Error;
 
-const FABRIC_INSTALL_ERR_PREFIX: &str = "while installing Fabric:\n";
+const FABRIC_INSTALL_ERR_PREFIX: &str = "while managing Fabric/Quilt:\n";
 
 #[derive(Debug, Error)]
 pub enum FabricInstallError {

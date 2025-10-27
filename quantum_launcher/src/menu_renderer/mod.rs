@@ -178,15 +178,13 @@ impl MenuCreateInstance {
             } => {
                 let already_exists = list.is_some_and(|n| n.contains(instance_name));
 
-                let create_button = widget::button(
-                    widget::row![icon_manager::create(), "Create Instance"]
-                        .spacing(10)
-                        .padding(5),
-                )
-                .on_press_maybe(
-                    (selected_version.is_some() && !instance_name.is_empty() && !already_exists)
-                        .then(|| Message::CreateInstance(CreateInstanceMessage::Start)),
-                );
+                let create_button = button_with_icon(icon_manager::create(), "Create Instance", 16)
+                    .on_press_maybe(
+                        (selected_version.is_some()
+                            && !instance_name.is_empty()
+                            && !already_exists)
+                            .then(|| Message::CreateInstance(CreateInstanceMessage::Start)),
+                    );
 
                 let create_button: Element = if selected_version.is_none() {
                     tooltip(
@@ -237,7 +235,14 @@ impl MenuCreateInstance {
                             Position::Bottom
                         ),
                         create_button,
-                        widget::text("To install Fabric/Forge/OptiFine/etc and mods, click on Mods after installing the instance").size(12),
+                        widget::horizontal_rule(1),
+                        widget::column![
+                            widget::text("- To install Fabric/Forge/OptiFine/etc and mods, click on Mods after installing the instance").size(12),
+                            widget::row!(
+                                widget::text("- To sideload your own custom JARs, create an instance with a similar version, then go to").size(12),
+                                widget::text(" \"Edit->Custom Jar File\"").size(12)
+                            ).wrap(),
+                        ].spacing(5)
                     ].push_maybe(
                         {
                             let real_platform = if cfg!(target_arch = "x86") { "x86_64" } else { "aarch64" };
@@ -413,7 +418,7 @@ impl MenuCurseforgeManualDownload {
                         widget::button(widget::text("Open link").size(14)).on_press(Message::CoreOpenLink(url)),
                         widget::text(&entry.name)
                     ]
-                    .align_y(iced::Alignment::Center)
+                    .align_y(Alignment::Center)
                     .spacing(10)
                     .into()
                 }))
@@ -549,7 +554,7 @@ pub fn view_account_login<'a>() -> Element<'a> {
                     }
                 )),
             ]
-            .align_x(iced::Alignment::Center)
+            .align_x(Alignment::Center)
             .spacing(5),
             widget::horizontal_space(),
         ],
@@ -608,7 +613,7 @@ pub fn view_log_upload_result(url: &'_ str, is_server: bool) -> Element<'_> {
                     widget::button("Open").on_press(Message::CoreOpenLink(url.to_string()))
                 ]
                 .spacing(10)
-                .align_y(iced::Alignment::Center)
+                .align_y(Alignment::Center)
             )
             .padding(10),
             widget::vertical_space(),

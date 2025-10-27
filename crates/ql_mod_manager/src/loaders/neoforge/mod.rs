@@ -1,16 +1,20 @@
 use chrono::DateTime;
 use ql_core::{
-    file_utils, info, json::VersionDetails, no_window, pt, GenericProgress, InstanceSelection,
-    IntoIoError, IntoJsonError, IoError, CLASSPATH_SEPARATOR, REGEX_SNAPSHOT,
+    file_utils, info,
+    json::{instance_config::ModTypeInfo, VersionDetails},
+    pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError,
+    CLASSPATH_SEPARATOR, REGEX_SNAPSHOT,
 };
-use ql_java_handler::{get_java_binary, JavaVersion, JAVA};
 use serde::Deserialize;
 use std::{fmt::Write, io::Cursor, path::Path, sync::mpsc::Sender};
-use tokio::process::Command;
+use tokio::fs;
 
 use crate::loaders::change_instance_type;
+use run_installer::compile_and_run_installer;
 
 use super::forge::{ForgeInstallError, ForgeInstallProgress};
+
+mod run_installer;
 
 const NEOFORGE_VERSIONS_URL: &str =
     "https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge";
@@ -37,7 +41,7 @@ pub async fn install(
 
     let instance_dir = instance.get_instance_path();
     let neoforge_dir = instance_dir.join("forge");
-    tokio::fs::create_dir_all(&neoforge_dir)
+    fs::create_dir_all(&neoforge_dir)
         .await
         .path(&neoforge_dir)?;
     if !instance.is_server() {
@@ -45,7 +49,7 @@ pub async fn install(
     }
 
     let installer_path = neoforge_dir.join(INSTALLER_NAME);
-    tokio::fs::write(&installer_path, &installer_bytes)
+    fs::write(&installer_path, &installer_bytes)
         .await
         .path(&installer_path)?;
 
@@ -57,18 +61,30 @@ pub async fn install(
     )
     .await?;
 
-    delete(&neoforge_dir, "ForgeInstaller.java").await?;
-    delete(&neoforge_dir, "ForgeInstaller.class").await?;
-    delete(&neoforge_dir, "launcher_profiles.json").await?;
-    delete(&neoforge_dir, "launcher_profiles_microsoft_store.json").await?;
-
-    if !instance.is_server() {
+    if instance.is_server() {
+        fs::remove_dir_all(&neoforge_dir).await.path(neoforge_dir)?;
+        delete(&instance_dir, "installer.jar.log").await?;
+        delete(&instance_dir, "run.bat").await?;
+        delete(&instance_dir, "run.sh").await?;
+        delete(&instance_dir, "user_jvm_args.txt").await?;
+    } else {
         download_libraries(f_progress, &json, &installer_bytes, &neoforge_dir).await?;
+        delete(&neoforge_dir, "launcher_profiles.json").await?;
+        delete(&neoforge_dir, "launcher_profiles_microsoft_store.json").await?;
     }
 
     info!("Finished installing NeoForge");
 
-    change_instance_type(&instance_dir, "NeoForge".to_owned()).await?;
+    change_instance_type(
+        &instance_dir,
+        "NeoForge".to_owned(),
+        Some(ModTypeInfo {
+            version: Some(neoforge_version),
+            backend_implementation: None,
+            optifine_jar: None,
+        }),
+    )
+    .await?;
 
     Ok(())
 }
@@ -82,7 +98,7 @@ async fn download_libraries(
     let jar_version_json = get_version_json(installer_bytes, neoforge_dir, json).await?;
 
     let libraries_path = neoforge_dir.join("libraries");
-    tokio::fs::create_dir_all(&libraries_path)
+    fs::create_dir_all(&libraries_path)
         .await
         .path(&libraries_path)?;
 
@@ -99,7 +115,7 @@ async fn download_libraries(
         info!("Downloading library {i}/{len}: {}", library.name);
         send_progress(
             f_progress,
-            ForgeInstallProgress::P5DownloadingLibrary {
+            ForgeInstallProgress::P6DownloadingLibrary {
                 num: i,
                 out_of: len,
             },
@@ -137,24 +153,22 @@ async fn download_libraries(
         }
 
         let dir_path = file_path.parent().unwrap();
-        tokio::fs::create_dir_all(dir_path).await.path(dir_path)?;
+        fs::create_dir_all(dir_path).await.path(dir_path)?;
 
         // WTF: I am NOT dealing with the unpack200 augmented library NONSENSE
         // because I haven't seen the launcher using it ONCE.
         // Please open an issue if you actually need it.
         let file_bytes = file_utils::download_file_to_bytes(&url, false).await?;
-        tokio::fs::write(&file_path, &file_bytes)
-            .await
-            .path(&file_path)?;
+        fs::write(&file_path, &file_bytes).await.path(&file_path)?;
     }
 
     let classpath_path = neoforge_dir.join("classpath.txt");
-    tokio::fs::write(&classpath_path, &classpath)
+    fs::write(&classpath_path, &classpath)
         .await
         .path(&classpath_path)?;
 
     let classpath_path = neoforge_dir.join("clean_classpath.txt");
-    tokio::fs::write(&classpath_path, &clean_classpath)
+    fs::write(&classpath_path, &clean_classpath)
         .await
         .path(&classpath_path)?;
     Ok(())
@@ -196,30 +210,23 @@ async fn get_version_json(
     neoforge_dir: &Path,
     json: &VersionDetails,
 ) -> Result<ql_core::json::forge::JsonDetails, ForgeInstallError> {
-    let mut zip =
-        zip::ZipArchive::new(Cursor::new(installer_bytes)).map_err(ForgeInstallError::Zip)?;
+    let mut zip = zip::ZipArchive::new(Cursor::new(installer_bytes))?;
 
-    for i in 0..zip.len() {
-        let mut file = zip.by_index(i).map_err(ForgeInstallError::Zip)?;
-        let name = file.name().to_owned();
+    let mut file = zip
+        .by_name("version.json")
+        .map_err(|_| ForgeInstallError::NoInstallJson(json.get_id().to_owned()))?;
+    let forge_json = std::io::read_to_string(&mut file)
+        .map_err(|n| ForgeInstallError::ZipIoError(n, "version.json".to_owned()))?;
 
-        if name == "version.json" {
-            let forge_json = std::io::read_to_string(&mut file)
-                .map_err(|n| ForgeInstallError::ZipIoError(n, name.clone()))?;
+    let out_jar_version_path = neoforge_dir.join("details.json");
+    fs::write(&out_jar_version_path, &forge_json)
+        .await
+        .path(&out_jar_version_path)?;
 
-            let out_jar_version_path = neoforge_dir.join("details.json");
-            tokio::fs::write(&out_jar_version_path, &forge_json)
-                .await
-                .path(&out_jar_version_path)?;
+    let jar_version_json: ql_core::json::forge::JsonDetails =
+        serde_json::from_str(&forge_json).json(forge_json)?;
 
-            let jar_version_json: ql_core::json::forge::JsonDetails =
-                serde_json::from_str(&forge_json).json(forge_json)?;
-
-            return Ok(jar_version_json);
-        }
-    }
-
-    Err(ForgeInstallError::NoInstallJson(json.get_id().to_owned()))
+    Ok(jar_version_json)
 }
 
 fn send_progress(f_progress: Option<&Sender<ForgeInstallProgress>>, message: ForgeInstallProgress) {
@@ -273,82 +280,22 @@ pub async fn get_versions(
 
 async fn delete(dir: &Path, path: &str) -> Result<(), IoError> {
     let delete_path = dir.join(path);
+    if delete_path == dir || path.trim().is_empty() {
+        return Ok(());
+    }
     if delete_path.exists() {
-        tokio::fs::remove_file(&delete_path)
-            .await
-            .path(delete_path)?;
+        fs::remove_file(&delete_path).await.path(delete_path)?;
     }
-    Ok(())
-}
-
-async fn compile_and_run_installer(
-    neoforge_dir: &Path,
-    j_progress: Option<&Sender<GenericProgress>>,
-    f_progress: Option<&Sender<ForgeInstallProgress>>,
-    is_server: bool,
-) -> Result<(), ForgeInstallError> {
-    send_progress(f_progress, ForgeInstallProgress::P4RunningInstaller);
-    let javac_path = get_java_binary(JavaVersion::Java21, "javac", j_progress).await?;
-    let java_source_file = include_str!("../../../../assets/installers/ForgeInstaller.java")
-        .replace("CLIENT", if is_server { "SERVER" } else { "CLIENT" })
-        .replace("new File(\".\")", "new File(\".\"), a -> true");
-    let source_path = neoforge_dir.join("ForgeInstaller.java");
-    tokio::fs::write(&source_path, java_source_file)
-        .await
-        .path(source_path)?;
-
-    pt!("Compiling Installer");
-    let mut command = Command::new(&javac_path);
-    command
-        .args(["-cp", INSTALLER_NAME, "ForgeInstaller.java", "-d", "."])
-        .current_dir(neoforge_dir);
-    no_window!(command);
-
-    let output = command.output().await.path(javac_path)?;
-    if !output.status.success() {
-        return Err(ForgeInstallError::CompileError(
-            String::from_utf8(output.stdout)?,
-            String::from_utf8(output.stderr)?,
-        ));
-    }
-
-    let java_path = get_java_binary(JavaVersion::Java21, JAVA, None).await?;
-
-    pt!("Running Installer");
-    let mut command = Command::new(&java_path);
-    command
-        .args([
-            "-cp",
-            &format!("{INSTALLER_NAME}{CLASSPATH_SEPARATOR}."),
-            "ForgeInstaller",
-        ])
-        .current_dir(neoforge_dir);
-
-    let output = command.output().await.path(java_path)?;
-
-    if !output.status.success() {
-        return Err(ForgeInstallError::InstallerError(
-            String::from_utf8(output.stdout)?,
-            String::from_utf8(output.stderr)?,
-        ));
-    }
-
     Ok(())
 }
 
 async fn create_required_jsons(neoforge_dir: &Path) -> Result<(), ForgeInstallError> {
     const CONTENTS: &str = "{}";
 
-    let launcher_profiles_json_path = neoforge_dir.join("launcher_profiles.json");
-    tokio::fs::write(&launcher_profiles_json_path, "{}")
-        .await
-        .path(launcher_profiles_json_path)?;
-
-    let launcher_profiles_json_microsoft_store_path =
-        neoforge_dir.join("launcher_profiles_microsoft_store.json");
-    tokio::fs::write(&launcher_profiles_json_microsoft_store_path, CONTENTS)
-        .await
-        .path(launcher_profiles_json_microsoft_store_path)?;
+    let p = neoforge_dir.join("launcher_profiles.json");
+    fs::write(&p, "{}").await.path(p)?;
+    let p = neoforge_dir.join("launcher_profiles_microsoft_store.json");
+    fs::write(&p, CONTENTS).await.path(p)?;
 
     Ok(())
 }

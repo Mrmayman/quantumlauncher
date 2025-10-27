@@ -1,5 +1,4 @@
 use chrono::DateTime;
-use ql_mod_manager::loaders::fabric::just_get_a_version;
 use std::{
     path::Path,
     sync::{mpsc::Sender, Arc, Mutex},
@@ -14,6 +13,7 @@ use ql_core::{
     },
     pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, ListEntry, Loader,
 };
+use ql_mod_manager::loaders::fabric::{self, get_list_of_versions_from_backend};
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 
@@ -27,6 +27,7 @@ pub struct MmcPack {
 pub struct MmcPackComponent {
     pub cachedName: String,
     pub cachedVersion: String,
+    pub uid: String,
 }
 
 #[derive(Debug, Clone)]
@@ -35,6 +36,7 @@ pub struct InstanceRecipe {
     mc_version: String,
     loader: Option<Loader>,
     loader_version: Option<String>,
+    force_vanilla_launch: bool,
 }
 
 impl InstanceRecipe {
@@ -70,12 +72,61 @@ pub async fn import(
     info!("Importing MultiMC instance...");
     let mmc_pack: MmcPack = serde_json::from_str(mmc_pack).json(mmc_pack.to_owned())?;
 
-    let ini = {
-        let ini_path = temp_dir.join("instance.cfg");
-        let ini = fs::read_to_string(&ini_path).await.path(ini_path)?;
-        ini::Ini::load_from_str(&filter_bytearray(&ini))?
-    };
+    let ini = read_config_ini(temp_dir).await?;
+    let instance = get_instance(&ini)?;
+    let instance_recipe = get_instance_recipe(&mmc_pack).await?;
 
+    create_minecraft_instance(
+        download_assets,
+        sender.clone(),
+        instance.get_name(),
+        instance_recipe.mc_version.clone(),
+    )
+    .await?;
+
+    install_loader(&sender, &instance, &instance_recipe).await?;
+
+    copy_files(temp_dir, sender, &instance).await?;
+
+    if instance
+        .get_instance_path()
+        .join("patches/org.lwjgl.json")
+        .exists()
+    {
+        let mut details = VersionDetails::load(&instance).await?;
+        details.libraries.retain(|lib| {
+            if let Some(name) = &lib.name {
+                if name.starts_with("org.mcphackers:legacy-lwjgl3:") {
+                    pt!("Removing legacy-lwjgl3 for compatibility reasons...");
+                    return false;
+                }
+            }
+            true
+        });
+        details.save(&instance).await?;
+    }
+
+    let mut config = InstanceConfigJson::read(&instance).await?;
+    setup_config(&ini, &instance_recipe, &mut config);
+    config.save(&instance).await?;
+
+    info!("Finished importing MultiMC instance");
+    Ok(instance)
+}
+
+fn setup_config(ini: &ini::Ini, instance_recipe: &InstanceRecipe, config: &mut InstanceConfigJson) {
+    if instance_recipe.force_vanilla_launch {
+        config.main_class_override = Some("net.minecraft.client.Minecraft".to_owned());
+    }
+
+    if let Some(jvmargs) = ini.get_from(Some("General"), "JvmArgs") {
+        let mut java_args = config.java_args.clone().unwrap_or_default();
+        java_args.extend(jvmargs.split_whitespace().map(str::to_owned));
+        config.java_args = Some(java_args);
+    }
+}
+
+fn get_instance(ini: &ini::Ini) -> Result<InstanceSelection, InstancePackageError> {
     let instance_name = ini
         .get_from(Some("General"), "name")
         .or(ini.get_from(None::<String>, "name"))
@@ -83,60 +134,73 @@ pub async fn import(
             InstancePackageError::IniFieldMissing("General".to_owned(), "name".to_owned())
         })?
         .to_owned();
-    let instance_selection = InstanceSelection::new(&instance_name, false);
+    Ok(InstanceSelection::new(&instance_name, false))
+}
 
-    let mut instance_recipe = InstanceRecipe {
+async fn read_config_ini(temp_dir: &Path) -> Result<ini::Ini, InstancePackageError> {
+    let ini_path = temp_dir.join("instance.cfg");
+    let ini = fs::read_to_string(&ini_path).await.path(ini_path)?;
+    Ok(ini::Ini::load_from_str(&filter_bytearray(&ini))?)
+}
+
+async fn get_instance_recipe(mmc_pack: &MmcPack) -> Result<InstanceRecipe, InstancePackageError> {
+    let mut recipe = InstanceRecipe {
         is_lwjgl3: false,
         mc_version: "(MultiMC) Couldn't find minecraft version".to_owned(),
         loader: None,
         loader_version: None,
+        force_vanilla_launch: false,
     };
 
     for component in &mmc_pack.components {
+        if component.uid.starts_with("custom.jarmod.") {
+            recipe.force_vanilla_launch = true; // ?
+        }
+
         match component.cachedName.as_str() {
             "Minecraft" => {
-                instance_recipe.mc_version = component.cachedVersion.clone();
+                recipe.mc_version = component.cachedVersion.clone();
             }
 
             "Forge" => {
-                instance_recipe.loader = Some(Loader::Forge);
-                instance_recipe.loader_version = Some(component.cachedVersion.clone());
+                recipe.loader = Some(Loader::Forge);
+                recipe.loader_version = Some(component.cachedVersion.clone());
             }
             "NeoForge" => {
-                instance_recipe.loader = Some(Loader::Forge);
-                instance_recipe.loader_version = Some(component.cachedVersion.clone());
+                recipe.loader = Some(Loader::Forge);
+                recipe.loader_version = Some(component.cachedVersion.clone());
             }
             "Fabric Loader" => {
-                instance_recipe.loader = Some(Loader::Fabric);
-                instance_recipe.loader_version = Some(component.cachedVersion.clone());
+                recipe.loader = Some(Loader::Fabric);
+                recipe.loader_version = Some(component.cachedVersion.clone());
             }
             "Quilt Loader" => {
-                instance_recipe.loader = Some(Loader::Forge);
-                instance_recipe.loader_version = Some(component.cachedVersion.clone());
+                recipe.loader = Some(Loader::Forge);
+                recipe.loader_version = Some(component.cachedVersion.clone());
             }
 
-            "LWJGL 3" => instance_recipe.is_lwjgl3 = true,
+            "LWJGL 3" => recipe.is_lwjgl3 = true,
 
             "LWJGL 2" | "Intermediary Mappings" => {}
             name => err!("Unknown MultiMC Component: {name}"),
         }
     }
 
-    instance_recipe.setup_lwjgl3().await?;
-    mmc_minecraft(
-        download_assets,
-        sender.clone(),
-        &instance_name,
-        instance_recipe.mc_version.clone(),
-    )
-    .await?;
+    recipe.setup_lwjgl3().await?;
+    Ok(recipe)
+}
 
+async fn install_loader(
+    sender: &Option<Arc<Sender<GenericProgress>>>,
+    instance: &InstanceSelection,
+    instance_recipe: &InstanceRecipe,
+) -> Result<(), InstancePackageError> {
     if let Some(loader) = instance_recipe.loader {
         match loader {
             n @ (Loader::Fabric | Loader::Quilt) => {
                 install_fabric(
                     sender.as_deref(),
-                    &instance_selection,
+                    instance,
                     instance_recipe.loader_version.clone(),
                     matches!(n, Loader::Quilt),
                 )
@@ -145,7 +209,7 @@ pub async fn import(
             n @ (Loader::Forge | Loader::Neoforge) => {
                 mmc_forge(
                     sender.clone(),
-                    &instance_selection,
+                    instance,
                     instance_recipe.loader_version.clone(),
                     matches!(n, Loader::Neoforge),
                 )
@@ -156,18 +220,7 @@ pub async fn import(
             }
         }
     }
-
-    copy_files(temp_dir, sender, &instance_selection).await?;
-
-    let mut config = InstanceConfigJson::read(&instance_selection).await?;
-    if let Some(jvmargs) = ini.get_from(Some("General"), "JvmArgs") {
-        let mut java_args = config.java_args.clone().unwrap_or_default();
-        java_args.extend(jvmargs.split_whitespace().map(str::to_owned));
-        config.java_args = Some(java_args);
-    }
-    config.save(&instance_selection).await?;
-    info!("Finished importing MultiMC instance");
-    Ok(instance_selection)
+    Ok(())
 }
 
 async fn install_fabric(
@@ -176,13 +229,19 @@ async fn install_fabric(
     version: Option<String>,
     is_quilt: bool,
 ) -> Result<(), InstancePackageError> {
+    let backend = if is_quilt {
+        fabric::BackendType::Quilt
+    } else {
+        fabric::BackendType::Fabric
+    };
+
     let version_json = VersionDetails::load(instance_selection).await?;
     if !version_json.is_before_or_eq(V_OFFICIAL_FABRIC_SUPPORT) {
         ql_mod_manager::loaders::fabric::install(
             version,
             instance_selection.clone(),
             sender,
-            is_quilt,
+            backend,
         )
         .await?;
         return Ok(());
@@ -199,7 +258,12 @@ async fn install_fabric(
         if let Some(version) = version.clone() {
             version
         } else {
-            just_get_a_version(instance_selection, is_quilt).await?
+            // Using 1.14.4 just to get the overall list of versions.
+            get_list_of_versions_from_backend("1.14.4", backend, false)
+                .await?
+                .first()
+                .map(|n| n.loader.version.clone())
+                .unwrap_or_else(|| " No versions found! ".to_owned())
         }
     );
     let fabric_json_text = file_utils::download_file_to_string(&url, false).await?;
@@ -217,7 +281,9 @@ async fn install_fabric(
             return Ok::<_, InstancePackageError>(());
         }
         let path_str = library.get_path();
-        let url = library.get_url();
+        let Some(url) = library.get_url() else {
+            return Ok::<_, InstancePackageError>(());
+        };
         let path = libraries_dir.join(&path_str);
 
         let parent_dir = path
@@ -299,7 +365,7 @@ async fn copy_folder_over(
     Ok(())
 }
 
-async fn mmc_minecraft(
+async fn create_minecraft_instance(
     download_assets: bool,
     sender: Option<Arc<Sender<GenericProgress>>>,
     instance_name: &str,

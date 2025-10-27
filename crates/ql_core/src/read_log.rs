@@ -13,7 +13,10 @@ use tokio::{
     process::{Child, ChildStderr, ChildStdout},
 };
 
-use ql_core::{err, json::VersionDetails, IoError, JsonError, JsonFileError};
+use crate::{
+    err, json::VersionDetails, InstanceSelection, IoError, JsonError, JsonFileError,
+    REDACT_SENSITIVE_INFO,
+};
 
 /// Reads log output from the given instance
 /// and sends it to the given sender.
@@ -40,14 +43,14 @@ use ql_core::{err, json::VersionDetails, IoError, JsonError, JsonFileError};
 ///   disconnecting the channel
 /// - Tokio *somehow* fails to read the `stdout` or `stderr`
 #[allow(clippy::missing_panics_doc)]
-pub async fn read_logs(
+pub(crate) async fn read_logs(
     stdout: ChildStdout,
     stderr: ChildStderr,
     child: Arc<Mutex<Child>>,
     sender: Option<Sender<LogLine>>,
-    instance_name: String,
+    instance: InstanceSelection,
     censors: Vec<String>,
-) -> Result<(ExitStatus, String), ReadError> {
+) -> Result<(ExitStatus, InstanceSelection), ReadError> {
     // TODO: Use the "newfangled" approach of the Modrinth launcher:
     // https://github.com/modrinth/code/blob/main/packages/app-lib/src/state/process.rs#L208
     //
@@ -56,7 +59,7 @@ pub async fn read_logs(
     // Also, the Modrinth app is GNU GPLv3 so I guess it's
     // safe for me to take some code.
 
-    let uses_xml = is_xml(&instance_name).await?;
+    let uses_xml = !instance.is_server() && is_xml(instance.get_name()).await?;
 
     let mut stdout_reader = BufReader::new(stdout).lines();
     let mut stderr_reader = BufReader::new(stderr).lines();
@@ -66,20 +69,13 @@ pub async fn read_logs(
     let mut has_errored = false;
 
     loop {
-        let status = {
-            // If the child has failed to lock
-            // (because the `Mutex` was poisoned)
-            // then we know something else has panicked,
-            // so might as well panic too.
-            //
-            // WTF: (this is a metaphor for real life lol)
+        {
             let mut child = child.lock().unwrap();
-            child.try_wait()
+            if let Ok(Some(status)) = child.try_wait() {
+                // Game has exited.
+                return Ok((status, instance));
+            }
         };
-        if let Ok(Some(status)) = status {
-            // Game has exited.
-            return Ok((status, instance_name));
-        }
 
         tokio::select! {
             line = stdout_reader.next_line() => {
@@ -88,7 +84,9 @@ pub async fn read_logs(
                     if uses_xml {
                         xml_parse(sender.as_ref(), &mut xml_cache, &line, &mut has_errored);
                     } else {
-                        line.push('\n');
+                        if !line.ends_with('\n') {
+                            line.push('\n');
+                        }
                         send(sender.as_ref(), LogLine::Message(line));
                     }
                 } // else EOF
@@ -96,7 +94,9 @@ pub async fn read_logs(
             line = stderr_reader.next_line() => {
                 if let Some(mut line) = line? {
                     line = censor(&line, &censors);
-                    line.push('\n');
+                    if !line.ends_with('\n') {
+                        line.push('\n');
+                    }
                     send(sender.as_ref(), LogLine::Error(line));
                 }
             }
@@ -105,9 +105,13 @@ pub async fn read_logs(
 }
 
 fn censor(input: &str, censors: &[String]) -> String {
-    censors.iter().fold(input.to_string(), |acc, censor| {
-        acc.replace(censor, "[REDACTED]")
-    })
+    if *REDACT_SENSITIVE_INFO.lock().unwrap() {
+        censors.iter().fold(input.to_string(), |acc, censor| {
+            acc.replace(censor, "[REDACTED]")
+        })
+    } else {
+        input.to_string()
+    }
 }
 
 fn send(sender: Option<&Sender<LogLine>>, msg: LogLine) {
@@ -153,13 +157,15 @@ fn xml_parse(
         _ => &xml,
     };
 
-    if let Ok(log_event) = quick_xml::de::from_str(text) {
+    if let Ok(mut log_event) = quick_xml::de::from_str::<LogEvent>(text) {
+        log_event.fix_tabs();
         send(sender, LogLine::Info(log_event));
         xml_cache.clear();
     } else {
         let no_unicode = any_ascii::any_ascii(text);
-        match quick_xml::de::from_str(&no_unicode) {
-            Ok(log_event) => {
+        match quick_xml::de::from_str::<LogEvent>(&no_unicode) {
+            Ok(mut log_event) => {
+                log_event.fix_tabs();
                 send(sender, LogLine::Info(log_event));
                 xml_cache.clear();
             }
@@ -177,10 +183,7 @@ fn xml_parse(
 }
 
 async fn is_xml(instance_name: &str) -> Result<bool, ReadError> {
-    let json = VersionDetails::load(&ql_core::InstanceSelection::Instance(
-        instance_name.to_owned(),
-    ))
-    .await?;
+    let json = VersionDetails::load(&InstanceSelection::Instance(instance_name.to_owned())).await?;
 
     Ok(json.logging.is_some())
 }
@@ -313,6 +316,12 @@ impl LogEvent {
             _ = writeln!(out, "\nCaused by {throwable}");
         }
         out
+    }
+
+    pub fn fix_tabs(&mut self) {
+        if let Some(message) = &mut self.message {
+            *message = message.replace('\t', "\n\t");
+        }
     }
 }
 

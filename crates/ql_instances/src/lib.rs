@@ -46,7 +46,7 @@
 //! It's designed to cope with real world conditions,
 //! but may not be ideal. Feel free to report bugs if found.
 
-#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::cast_precision_loss)]
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_sign_loss)]
 
@@ -56,12 +56,9 @@ mod instance;
 mod json_profiles;
 mod launcher_update_detector;
 
-use std::sync::{LazyLock, Mutex};
-
-pub use download::{constants::OS_NAME, create_instance, DownloadError};
+pub use download::{create_instance, DownloadError};
 pub use instance::launch::launch;
 pub use instance::list_versions::list_versions;
-pub use instance::read_log::{read_logs, LogEvent, LogLine, ReadError};
 pub use launcher_update_detector::{
     check_for_launcher_updates, install_launcher_update, UpdateCheckInfo, UpdateError,
 };
@@ -77,5 +74,3 @@ const LAUNCHER_VERSION: semver::Version = semver::Version {
     pre: Prerelease::EMPTY,
     build: BuildMetadata::EMPTY,
 };
-
-pub static ARG_REDACT_SECTIONS: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(true));

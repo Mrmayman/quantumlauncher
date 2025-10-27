@@ -18,9 +18,9 @@
 //! - NeoForge
 //! - Paper (for servers)
 
-#![allow(clippy::missing_errors_doc)]
-#![allow(clippy::doc_markdown)]
 #![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_sign_loss)]
 
 /// Installers and Uninstallers for loaders (Fabric/Forge/Optifine/Quilt/Paper).
 pub mod loaders;

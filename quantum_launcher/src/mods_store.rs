@@ -13,7 +13,7 @@ use crate::state::{InstallModsMessage, Launcher, MenuModsDownload, Message, Stat
 
 impl Launcher {
     pub fn open_mods_store(&mut self) -> Result<Task<Message>, JsonFileError> {
-        let selection = self.selected_instance.as_ref().unwrap();
+        let selection = self.instance();
 
         let config = block_on(InstanceConfigJson::read(selection))?;
         let version_json = if let State::EditMods(menu) = &self.state {

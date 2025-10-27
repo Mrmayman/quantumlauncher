@@ -366,10 +366,10 @@ impl Launcher {
         else {
             return Ok(Task::none());
         };
+
         let mut disallowed = vec![
             '/', '\\', ':', '*', '?', '"', '<', '>', '|', '\'', '\0', '\u{7F}',
         ];
-
         disallowed.extend('\u{1}'..='\u{1F}');
 
         // Remove disallowed characters
@@ -407,7 +407,7 @@ impl Launcher {
                 .strerr()?;
 
             Ok(Task::perform(
-                get_entries(self.selected_instance.as_ref().unwrap().is_server()),
+                get_entries(self.instance().is_server()),
                 Message::CoreListLoaded,
             ))
         }

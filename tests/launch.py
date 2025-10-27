@@ -3,28 +3,33 @@ import re
 import subprocess
 import sys
 import time
-from typing import List, Tuple
 
 from . import procs
 from .types import Version, PID
 
-_ANSI_ESCAPE: re.Pattern[str] = re.compile(r'\x1b\[[0-9;]*[mK]')
+TIMEOUT = 60
 
-IS_XWAYLAND = os.environ.get("WAYLAND_DISPLAY") is not None and os.environ.get("DISPLAY") is not None
+_ANSI_ESCAPE: re.Pattern[str] = re.compile(r"\x1b\[[0-9;]*[mK]")
+_PID_LOG: re.Pattern[str] = re.compile(r"(?:\[info\] Launched!\s+|-\s+)PID: (\d+)")
+
+IS_XWAYLAND = (
+    os.environ.get("WAYLAND_DISPLAY") is not None
+    and os.environ.get("DISPLAY") is not None
+)
 IS_X11 = os.getenv("XDG_SESSION_TYPE") == "x11"
-IS_WINDOWS = sys.platform.startswith("win")
+IS_WINDOWS: bool = sys.platform.startswith("win")
 
 
-def _remove_ansi_colors(text):
-    return _ANSI_ESCAPE.sub('', text)
+def _remove_ansi_colors(text: str):
+    return _ANSI_ESCAPE.sub("", text)
 
 
 def _launch(instance: Version) -> PID | None:
     process = subprocess.Popen(
-        [procs.QL_BIN, "launch", instance, "test`"],
+        [procs.QL_BIN, "launch", instance.name, "test"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     if not process.stdout:
@@ -32,7 +37,6 @@ def _launch(instance: Version) -> PID | None:
         sys.exit(1)
 
     pid: PID | None = None
-    pattern = re.compile(r'\[info] Launched! PID: (\d+)')
 
     for line in process.stdout:
         clean_line = _remove_ansi_colors(line)
@@ -40,13 +44,13 @@ def _launch(instance: Version) -> PID | None:
             print("Error: Game crashed instantly!")
             process.kill()
             return None
-        match = re.search(pattern, clean_line)
+        match = re.search(_PID_LOG, clean_line)
         if match:
             pid = PID(match.group(1))
             break
 
     if not pid:
-        print("Error: No PID found!")
+        print("Error: Launcher exited unexpectedly!")
         process.kill()
         return None
 
@@ -81,13 +85,12 @@ if sys.platform.startswith("win"):
     SendMessageW = user32.SendMessageW
     PostMessageW = user32.PostMessageW
 
-    g_found: List[Tuple[int, str]] = []
+    g_found: list[tuple[int, str]] = []
     g_pid: int = 0
 
-
-    def _get_windows_for_pid(pid: int) -> List[int]:
+    def _get_windows_for_pid(pid: int) -> list[int]:
         # Return list of hwnd for windows belonging to pid
-        found: List[int] = []
+        found: list[int] = []
 
         @EnumWindowsProc
         def _enum(hwnd, l_param):
@@ -115,7 +118,6 @@ if sys.platform.startswith("win"):
             print(f"    Warning: EnumWindows failed with error {err}")
         return found
 
-
     def _attempt_to_close_window(hwnd: int) -> None:
         # Send WM_CLOSE to each handle; prefer SendMessage (synchronous) then fallback to PostMessage
         try:
@@ -126,49 +128,59 @@ if sys.platform.startswith("win"):
             except:
                 pass
 
-
-    def _close_window_windows(pid: PID) -> bool:
+    def _close_window_windows(pid: PID, name: str) -> bool:
         wins = _get_windows_for_pid(pid)
         if not wins:
             return False
 
-        print(f"\n✅ Window found!")
+        print(f"\r✅ {name} passed")
         for hwnd in wins:
             _attempt_to_close_window(hwnd)
         procs.kill_process(pid)
         return True
 
 
-def _close_window_unix(result: bytes, pid: int) -> None:
+def _close_window_unix(result: bytes, pid: PID, name: str) -> None:
     window_ids: list[str] = result.decode().strip().splitlines()
-    print(f"\n✅ Window found! {'(by name), ' if len(window_ids) == 0 else ''}")
+    print(
+        f"\r✅ {name} passed {'(by name)' if len(window_ids) == 0 else ''}            "
+    )
     procs.kill_process(pid)
 
 
-def _wait_for_window(pid: PID, timeout: int, name: str) -> bool:
+def _wait_for_window(pid: PID, name: str) -> bool:
     start_time = time.time()
-    check_interval = max(1, timeout // 30)
+    check_interval = max(1, TIMEOUT // 30)
     print(f"Checking {name} ({pid}).", end="")
     sys.stdout.flush()
 
-    while time.time() - start_time < timeout:
+    while time.time() - start_time < TIMEOUT:
         if not _is_process_alive(pid):
             print("\nError: Game crashed!")
             return False
 
         if IS_WINDOWS:
-            if _close_window_windows(pid):
+            if _close_window_windows(pid, name):
                 return True
         elif IS_XWAYLAND or IS_X11:
             try:
-                # Uses same logic as of x11
-                result = subprocess.check_output(["xdotool", "search", "--pid", str(pid)])
-                _close_window_unix(result, pid)
+                result = subprocess.check_output(
+                    ["xdotool", "search", "--pid", str(pid)]
+                )
+                _close_window_unix(result, pid, name)
                 return True
             except subprocess.CalledProcessError:
                 try:
-                    result = subprocess.check_output(["xdotool", "search", "--classname", "Minecraft*", "windowclose"])
-                    _close_window_unix(result, pid)
+                    result = subprocess.check_output(
+                        [
+                            "xdotool",
+                            "search",
+                            "--classname",
+                            "Minecraft*",
+                            "windowclose",
+                        ]
+                    )
+                    _close_window_unix(result, pid, name)
                     return True
                 except subprocess.CalledProcessError:
                     pass  # No window yet
@@ -183,11 +195,10 @@ def _wait_for_window(pid: PID, timeout: int, name: str) -> bool:
     return False
 
 
-def test(name: Version, timeout: int) -> bool:
+def test(name: Version) -> bool:
     pid: PID | None = _launch(name)
     if pid:
-        res = _wait_for_window(pid, timeout, name)
-        print()
+        res = _wait_for_window(pid, name)
         if not res:
             print("Test failed (window)!")
             return False

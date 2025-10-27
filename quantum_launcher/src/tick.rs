@@ -6,16 +6,16 @@ use std::{
 use chrono::Datelike;
 use iced::Task;
 use ql_core::{
-    json::InstanceConfigJson, InstanceSelection, IntoIoError, IntoJsonError, IntoStringError,
-    JsonFileError, ModId,
+    constants::OS_NAME, json::InstanceConfigJson, InstanceSelection, IntoIoError, IntoJsonError,
+    IntoStringError, JsonFileError, ModId,
 };
 use ql_mod_manager::store::{ModConfig, ModIndex};
 
 use crate::state::{
-    EditInstanceMessage, InstallModsMessage, InstanceLog, LaunchTabId, Launcher,
+    EditInstanceMessage, GameProcess, InstallModsMessage, InstanceLog, LaunchTabId, Launcher,
     ManageJarModsMessage, MenuCreateInstance, MenuEditMods, MenuExportInstance, MenuInstallFabric,
     MenuInstallOptifine, MenuLaunch, MenuLoginMS, MenuModsDownload, MenuRecommendedMods,
-    MenuServerCreate, Message, ModListEntry, ServerProcess, State,
+    MenuServerCreate, Message, ModListEntry, State,
 };
 
 impl Launcher {
@@ -37,8 +37,7 @@ impl Launcher {
                     let config = edit.config.clone();
                     self.tick_edit_instance(config, &mut commands);
                 }
-                self.tick_client_processes_and_logs();
-                self.tick_server_processes_and_logs();
+                self.tick_processes_and_logs();
 
                 if self.tick_timer % 5 == 0 {
                     let launcher_config = self.config.clone();
@@ -87,7 +86,9 @@ impl Launcher {
                     return self.go_to_main_menu_with_message(Some("Installed Java"));
                 }
             }
-            State::ModsDownload(menu) => return menu.tick(self.selected_instance.clone().unwrap()),
+            State::ModsDownload(_) => {
+                return MenuModsDownload::tick(self.selected_instance.clone().unwrap())
+            }
             State::LauncherSettings(_) => {
                 let launcher_config = self.config.clone();
                 return Task::perform(
@@ -156,7 +157,7 @@ impl Launcher {
             | State::GenericMessage(_)
             | State::CurseforgeManualDownload(_)
             | State::LogUploadResult { .. }
-            | State::InstallPaper
+            | State::InstallPaper(_)
             | State::ExportMods(_) => {}
         }
 
@@ -173,87 +174,39 @@ impl Launcher {
         commands.push(cmd);
     }
 
-    fn tick_client_processes_and_logs(&mut self) {
+    fn tick_processes_and_logs(&mut self) {
         let mut killed_processes = Vec::new();
-        for (name, process) in &self.client_processes {
-            Launcher::read_game_logs(&mut self.client_logs, process, name);
-            if let Ok(Some(_)) = process.child.lock().unwrap().try_wait() {
+        for (name, process) in &mut self.processes {
+            Self::read_game_logs(process, name, &mut self.logs);
+            if let Ok(Some(_)) = process.child.child.lock().unwrap().try_wait() {
                 // Game process has exited.
                 killed_processes.push(name.to_owned());
             }
         }
         for name in killed_processes {
-            self.client_processes.remove(&name);
-        }
-    }
-
-    fn tick_server_processes_and_logs(&mut self) {
-        let mut killed_processes = Vec::new();
-        for (name, process) in &self.server_processes {
-            if let Ok(Some(_)) = process.child.lock().unwrap().try_wait() {
-                // Game process has exited.
-                killed_processes.push(name.to_owned());
-            } else {
-                Self::tick_server_logs(process, name, &mut self.server_logs);
-            }
-        }
-        for name in killed_processes {
-            self.server_processes.remove(&name);
-        }
-    }
-
-    fn tick_server_logs(
-        process: &ServerProcess,
-        name: &String,
-        server_logs: &mut HashMap<String, InstanceLog>,
-    ) {
-        while let Some(message) = process.receiver.as_ref().and_then(|n| n.try_recv().ok()) {
-            let message = message.replace('\t', &" ".repeat(8));
-            let mut log_start = vec![
-                format!(
-                    "Starting Minecraft Server ({})\n",
-                    Self::get_current_date_formatted()
-                ),
-                format!("OS: {}\n", ql_instances::OS_NAME),
-            ];
-
-            if let Some(log) = server_logs.get_mut(name) {
-                if log.log.is_empty() {
-                    log.log = log_start;
-                }
-                log.log.push(message);
-            } else {
-                log_start.push(message);
-
-                server_logs.insert(
-                    name.to_owned(),
-                    InstanceLog {
-                        log: log_start,
-                        has_crashed: false,
-                        command: String::new(),
-                    },
-                );
-            }
+            self.processes.remove(&name);
         }
     }
 
     fn read_game_logs(
-        logs: &mut HashMap<String, InstanceLog>,
-        process: &crate::state::ClientProcess,
-        name: &String,
+        process: &GameProcess,
+        name: &InstanceSelection,
+        logs: &mut HashMap<InstanceSelection, InstanceLog>,
     ) {
-        let Some(receiver) = process.receiver.as_ref() else {
-            return;
-        };
-        while let Ok(message) = receiver.try_recv() {
+        while let Some(message) = process.receiver.as_ref().and_then(|n| n.try_recv().ok()) {
             let message = message.to_string().replace('\t', &" ".repeat(8));
 
             let mut log_start = vec![
                 format!(
-                    "Launching Minecraft ({})\n",
+                    "{} ({})\n",
+                    if name.is_server() {
+                        "Starting Minecraft server"
+                    } else {
+                        "Launching Minecraft"
+                    },
                     Self::get_current_date_formatted()
                 ),
-                format!("OS: {}\n", ql_instances::OS_NAME),
+                format!("OS: {OS_NAME}\n"),
             ];
 
             if !logs.contains_key(name) {
@@ -308,7 +261,7 @@ impl Launcher {
 }
 
 impl MenuModsDownload {
-    pub fn tick(&mut self, selected_instance: InstanceSelection) -> Task<Message> {
+    pub fn tick(selected_instance: InstanceSelection) -> Task<Message> {
         Task::perform(
             async move { ModIndex::load(&selected_instance).await },
             |n| Message::InstallMods(InstallModsMessage::IndexUpdated(n.strerr())),
