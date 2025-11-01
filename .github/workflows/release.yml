@@ -172,7 +172,7 @@ jobs:
         with:
           submodules: false
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v6
       - run: ls -al quantum-launcher-*
 
       - name: Calculate tag name
