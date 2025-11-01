@@ -35,3 +35,7 @@ build
 
 .flatpak-builder
 repo
+
+
+#mdbook
+book

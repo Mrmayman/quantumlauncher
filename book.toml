@@ -1,0 +1,5 @@
+[book]
+authors = ["mrmayman <navneetkrishna22@gmail.com>"]
+language = "en"
+src = "docs"
+title = "Quantum Launcher Documentation"

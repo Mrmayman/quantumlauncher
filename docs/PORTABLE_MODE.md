@@ -13,12 +13,12 @@ You can leave the file empty for portable mode
 Here the portable mode file structure will be:
 ```
 your_dir/
-    quantum_launcher.exe
-    qldir.txt
-    QuantumLauncher/
-        instances/
-        logs/
-        config.json
+├── quantum_launcher.exe
+├── qldir.txt
+└── QuantumLauncher/
+    ├── instances/
+    ├── logs/
+    └── config.json
 ```
 
 ## 2) Portable mode: Flattened structure
@@ -27,11 +27,11 @@ flattened file structure in portable mode.
 
 ```
 your_dir/
-    quantum_launcher.exe
-    qldir.txt
-    instances/
-    logs/
-    config.json
+├── quantum_launcher.exe
+├── qldir.txt
+├── instances/
+├── logs/
+└── config.json
 ```
 
 ## 3) Custom paths
