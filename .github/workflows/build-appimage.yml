@@ -86,7 +86,7 @@ jobs:
           
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ env.PROJECT_NAME }}-${{ matrix.build }}
           path: ${{ env.PROJECT_NAME }}-${{ matrix.build }}.AppImage

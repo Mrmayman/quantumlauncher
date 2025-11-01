@@ -46,7 +46,7 @@ jobs:
           mkdir dist
           cp ~/rpmlocal/${{ matrix.arch }}/* dist/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: quantum-launcher-${{ matrix.os }}-${{ matrix.version }}-${{ matrix.arch }}
           path: dist
