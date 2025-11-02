@@ -3,8 +3,9 @@ use std::str::FromStr;
 
 use iced::futures::executor::block_on;
 use iced::{widget::scrollable::AbsoluteOffset, Task};
+use owo_colors::OwoColorize;
 use ql_core::{
-    err, err_no_log, info, InstanceSelection, IntoStringError, ModId, OptifineUniqueVersion,
+    err, err_no_log, info, pt, InstanceSelection, IntoStringError, ModId, OptifineUniqueVersion,
 };
 use ql_mod_manager::{
     loaders,
@@ -606,7 +607,13 @@ impl Launcher {
                     );
                 }
             }
-            DiscordRpcMessage::ActivitySetFinished(_) => todo!(),
+            DiscordRpcMessage::ActivitySetFinished(res) => {
+                if let Err(err) = res {
+                    err_no_log!("While setting discord activity: {err}");
+                } else {
+                    pt!("{}", "Discord activity set!".bright_black());
+                }
+            }
         }
         Task::none()
     }

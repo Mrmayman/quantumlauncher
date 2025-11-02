@@ -30,10 +30,10 @@ use std::{borrow::Cow, sync::Arc, time::Duration};
 use config::LauncherConfig;
 use iced::{Settings, Task};
 use owo_colors::OwoColorize;
-use presenceforge::AsyncDiscordIpcClient;
+use presenceforge::{ActivityBuilder, AsyncDiscordIpcClient};
 use state::{get_entries, Launcher, Message, ServerProcess};
 
-use ql_core::{err, err_no_log, file_utils, info, IntoStringError, JsonFileError};
+use ql_core::{err, err_no_log, file_utils, info, IntoStringError, JsonFileError, WEBSITE};
 
 use crate::state::{CustomJarState, Dbg, DiscordRpcMessage, DISCORD_RPC_CLIENT_ID};
 
@@ -107,7 +107,15 @@ impl Launcher {
                     t.strerr()
                         .map(|t| Dbg(Arc::new(tokio::sync::Mutex::new(t)))),
                 ))
-            });
+            })
+            .chain(Task::done(Message::DiscordRpc(
+                DiscordRpcMessage::ActivitySet(
+                    ActivityBuilder::new()
+                        .large_image("logo")
+                        .button("Download", WEBSITE)
+                        .build(),
+                ),
+            )));
 
         (
             Launcher::load_new(None, is_new_user, config).unwrap_or_else(Launcher::with_error),
