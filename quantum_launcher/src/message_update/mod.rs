@@ -3,7 +3,9 @@ use std::str::FromStr;
 
 use iced::futures::executor::block_on;
 use iced::{widget::scrollable::AbsoluteOffset, Task};
-use ql_core::{err, info, InstanceSelection, IntoStringError, ModId, OptifineUniqueVersion};
+use ql_core::{
+    err, err_no_log, info, InstanceSelection, IntoStringError, ModId, OptifineUniqueVersion,
+};
 use ql_mod_manager::{
     loaders,
     store::{get_description, QueryType},
@@ -16,6 +18,7 @@ mod manage_mods;
 mod presets;
 mod recommended;
 
+use crate::state::DiscordRpcMessage;
 use crate::{
     state::{
         self, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage, Launcher,
@@ -578,6 +581,34 @@ impl Launcher {
             temp_scale: self.config.ui_scale.unwrap_or(1.0),
             selected_tab: state::LauncherSettingsTab::UserInterface,
         });
+    }
+
+    pub fn update_discord_rpc(&mut self, msg: DiscordRpcMessage) -> Task<Message> {
+        match msg {
+            DiscordRpcMessage::Loaded(t) => match t {
+                Ok(t) => self.discord_rpc = Some(t.0),
+                Err(err)
+                    if err.contains("No such file or directory")
+                        || err.contains("Failed to discover Discord socket") =>
+                {
+                    // Discord isn't open
+                }
+                Err(err) => err_no_log!("While connecting to discord: {err}"),
+            },
+            DiscordRpcMessage::ActivitySet(activity) => {
+                if let Some(rpc) = self.discord_rpc.clone() {
+                    return Task::perform(
+                        async move {
+                            let mut rpc = rpc.lock().await;
+                            rpc.set_activity(&activity).await
+                        },
+                        |t| Message::DiscordRpc(DiscordRpcMessage::ActivitySetFinished(t.strerr())),
+                    );
+                }
+            }
+            DiscordRpcMessage::ActivitySetFinished(_) => todo!(),
+        }
+        Task::none()
     }
 }
 

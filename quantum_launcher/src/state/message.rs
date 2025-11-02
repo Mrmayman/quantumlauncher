@@ -6,6 +6,7 @@ use std::{
 };
 
 use iced::widget;
+use presenceforge::{Activity, AsyncDiscordIpcClient};
 use ql_core::{
     file_utils::DirItem, jarmod::JarMods, InstanceSelection, ListEntry, ModId, StoreBackendType,
 };
@@ -260,6 +261,13 @@ pub enum LauncherSettingsMessage {
 }
 
 #[derive(Debug, Clone)]
+pub enum DiscordRpcMessage {
+    Loaded(Res<Dbg<Arc<tokio::sync::Mutex<AsyncDiscordIpcClient>>>>),
+    ActivitySet(Activity),
+    ActivitySetFinished(Res),
+}
+
+#[derive(Debug, Clone)]
 pub enum Message {
     Nothing,
     #[allow(unused)]
@@ -280,6 +288,7 @@ pub enum Message {
     EditPresets(EditPresetsMessage),
     LauncherSettings(LauncherSettingsMessage),
     RecommendedMods(RecommendedModMessage),
+    DiscordRpc(DiscordRpcMessage),
 
     LaunchInstanceSelected {
         name: String,
@@ -372,4 +381,18 @@ pub enum Message {
     LicenseOpen,
     LicenseChangeTab(LicenseTab),
     LicenseAction(widget::text_editor::Action),
+}
+
+pub struct Dbg<T>(pub T);
+
+impl<T> std::fmt::Debug for Dbg<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Dbg").finish()
+    }
+}
+
+impl<T: Clone> Clone for Dbg<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
 }

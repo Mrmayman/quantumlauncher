@@ -11,6 +11,7 @@ use std::{
 
 use iced::Task;
 use notify::Watcher;
+use presenceforge::AsyncDiscordIpcClient;
 use ql_core::{
     err, file_utils, GenericProgress, InstanceSelection, IntoIoError, IntoStringError, IoError,
     JsonFileError, ListEntry, ModId, Progress, LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
@@ -77,6 +78,7 @@ pub struct Launcher {
     pub server_processes: HashMap<String, ServerProcess>,
     pub client_logs: HashMap<String, InstanceLog>,
     pub server_logs: HashMap<String, InstanceLog>,
+    pub discord_rpc: Option<Arc<tokio::sync::Mutex<AsyncDiscordIpcClient>>>,
 
     pub window_size: (f32, f32),
     pub mouse_pos: (f32, f32),
@@ -201,6 +203,7 @@ impl Launcher {
             server_version_list_cache: None,
             selected_instance: None,
             custom_jar: None,
+            discord_rpc: None,
 
             client_processes: HashMap::new(),
             client_logs: HashMap::new(),
@@ -261,6 +264,7 @@ impl Launcher {
             selected_instance: None,
             server_version_list_cache: None,
             custom_jar: None,
+            discord_rpc: None,
 
             is_log_open: false,
             is_launching_game: false,
@@ -304,6 +308,8 @@ impl Launcher {
         Task::perform(get_entries(false), Message::CoreListLoaded)
     }
 }
+
+pub const DISCORD_RPC_CLIENT_ID: &str = "1422991467944611871";
 
 fn load_account(
     accounts: &mut HashMap<String, AccountData>,

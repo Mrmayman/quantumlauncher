@@ -228,6 +228,17 @@ macro_rules! pt {
     }};
 }
 
+/// Print a point message, i.e. a small step in some process.
+/// Not saved to a log file.
+#[macro_export]
+macro_rules! pt_no_log {
+    ($($arg:tt)*) => {{
+        let plain_text = $crate::print::strip_ansi_codes(&format!("{}", format_args!($($arg)*)));
+        println!("{} {}", owo_colors::OwoColorize::bold(&"-"), format_args!($($arg)*));
+        $crate::print::print_to_storage(&plain_text, $crate::print::LogType::Point);
+    }};
+}
+
 /// Regex: ESC [ ... letters
 /// ESC = `\x1B` or `\u{1b}`
 static ANSI_REGEX: LazyLock<Regex> =

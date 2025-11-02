@@ -25,16 +25,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #![allow(clippy::cast_sign_loss)]
 #![allow(clippy::cast_precision_loss)]
 
-use std::{borrow::Cow, time::Duration};
+use std::{borrow::Cow, sync::Arc, time::Duration};
 
 use config::LauncherConfig;
 use iced::{Settings, Task};
+use owo_colors::OwoColorize;
+use presenceforge::AsyncDiscordIpcClient;
 use state::{get_entries, Launcher, Message, ServerProcess};
 
-use ql_core::{err, err_no_log, file_utils, info, info_no_log, IntoStringError, JsonFileError};
-use ql_instances::OS_NAME;
+use ql_core::{err, err_no_log, file_utils, info, IntoStringError, JsonFileError};
 
-use crate::state::CustomJarState;
+use crate::state::{CustomJarState, Dbg, DiscordRpcMessage, DISCORD_RPC_CLIENT_ID};
 
 /// The CLI interface of the launcher.
 mod cli;
@@ -100,11 +101,20 @@ impl Launcher {
 
         let get_entries_command = Task::perform(get_entries(false), Message::CoreListLoaded);
 
+        let discord_rpc_command =
+            Task::perform(AsyncDiscordIpcClient::new(DISCORD_RPC_CLIENT_ID), |t| {
+                Message::DiscordRpc(DiscordRpcMessage::Loaded(
+                    t.strerr()
+                        .map(|t| Dbg(Arc::new(tokio::sync::Mutex::new(t)))),
+                ))
+            });
+
         (
             Launcher::load_new(None, is_new_user, config).unwrap_or_else(Launcher::with_error),
             Task::batch([
                 check_for_updates_command,
                 get_entries_command,
+                discord_rpc_command,
                 Task::perform(ql_core::clean::dir("logs"), |n| {
                     Message::CoreCleanComplete(n.strerr())
                 }),
@@ -158,9 +168,8 @@ fn main() {
     let (launcher_dir, is_dir_err) = load_launcher_dir();
     cli::start_cli(is_dir_err);
 
-    info_no_log!("Starting up the launcher... (OS: {OS_NAME})");
     if let Some(dir) = &launcher_dir {
-        eprintln!("- {}", dir.to_string_lossy());
+        eprintln!("- {}", dir.to_string_lossy().underline());
     }
 
     let icon = load_icon();

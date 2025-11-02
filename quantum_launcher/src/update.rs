@@ -1,6 +1,7 @@
 use iced::{futures::executor::block_on, Task};
+use owo_colors::OwoColorize;
 use ql_core::{
-    err, err_no_log, file_utils::DirItem, info, info_no_log, open_file_explorer, InstanceSelection,
+    err, err_no_log, file_utils::DirItem, info, open_file_explorer, pt_no_log, InstanceSelection,
     IntoIoError, IntoStringError, LOGGER,
 };
 use ql_instances::UpdateCheckInfo;
@@ -32,7 +33,7 @@ impl Launcher {
                     && (self.key_escape_back(false).0 || matches!(self.state, State::Launch(_)));
 
                 if safe_to_exit {
-                    info_no_log!("CTRL-Q pressed, closing launcher...");
+                    pt_no_log!("CTRL-Q pressed, closing launcher...");
                     std::process::exit(1);
                 }
             }
@@ -66,10 +67,11 @@ impl Launcher {
             }
 
             Message::Account(msg) => return self.update_account(msg),
-            Message::ManageMods(message) => return self.update_manage_mods(message),
-            Message::ExportMods(message) => return self.update_export_mods(message),
-            Message::ManageJarMods(message) => return self.update_manage_jar_mods(message),
-            Message::RecommendedMods(message) => return self.update_recommended_mods(message),
+            Message::ManageMods(msg) => return self.update_manage_mods(msg),
+            Message::ExportMods(msg) => return self.update_export_mods(msg),
+            Message::ManageJarMods(msg) => return self.update_manage_jar_mods(msg),
+            Message::RecommendedMods(msg) => return self.update_recommended_mods(msg),
+            Message::DiscordRpc(msg) => return self.update_discord_rpc(msg),
             Message::LaunchInstanceSelected { name, is_server } => {
                 self.selected_instance = Some(InstanceSelection::new(&name, is_server));
                 self.load_edit_instance(None);
@@ -227,7 +229,7 @@ impl Launcher {
             #[cfg(feature = "auto_update")]
             Message::UpdateCheckResult(Ok(info)) => match info {
                 UpdateCheckInfo::UpToDate => {
-                    info_no_log!("Launcher is latest version. No new updates");
+                    pt_no_log!("{}", "Launcher is up-to-date".bright_black());
                 }
                 UpdateCheckInfo::NewVersion { url } => {
                     self.state = State::UpdateFound(MenuLauncherUpdate {

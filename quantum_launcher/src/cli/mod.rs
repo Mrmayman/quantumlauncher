@@ -2,7 +2,7 @@ use clap::{Arg, ArgAction, Command};
 use itertools::Itertools;
 use owo_colors::{OwoColorize, Style};
 use ql_core::{err, LAUNCHER_VERSION_NAME, WEBSITE};
-use ql_instances::ARG_REDACT_SECTIONS;
+use ql_instances::{ARG_REDACT_SECTIONS, OS_NAME};
 
 use crate::{
     cli::helpers::render_row,
@@ -162,15 +162,14 @@ fn get_right_text() -> String {
 
     let message = format!(
         r"{TEXT}
- {}
- {}
- {}
+ {desc}
+ {os1} {os2}
 
  For a list of commands type
  {help}",
-        "A simple, powerful Minecraft launcher".green().bold(),
-        "This window shows debug info;".bright_black(),
-        "feel free to ignore it".bright_black(),
+        os1 = "Platform:".bright_black(),
+        os2 = OS_NAME.yellow(),
+        desc = "A simple, powerful Minecraft launcher".green().bold(),
         help = "./quantum_launcher --help".yellow()
     );
 
