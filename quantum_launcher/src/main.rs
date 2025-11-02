@@ -101,21 +101,14 @@ impl Launcher {
 
         let get_entries_command = Task::perform(get_entries(false), Message::CoreListLoaded);
 
-        let discord_rpc_command =
-            Task::perform(AsyncDiscordIpcClient::new(DISCORD_RPC_CLIENT_ID), |t| {
-                Message::DiscordRpc(DiscordRpcMessage::Loaded(
-                    t.strerr()
-                        .map(|t| Dbg(Arc::new(tokio::sync::Mutex::new(t)))),
-                ))
-            })
-            .chain(Task::done(Message::DiscordRpc(
-                DiscordRpcMessage::ActivitySet(
-                    ActivityBuilder::new()
-                        .large_image("logo")
-                        .button("Download", WEBSITE)
-                        .build(),
-                ),
-            )));
+        let discord_rpc_command = load_discord_rpc().chain(Task::done(Message::DiscordRpc(
+            DiscordRpcMessage::ActivitySet(
+                ActivityBuilder::new()
+                    .large_image("logo")
+                    .button("Download", WEBSITE)
+                    .build(),
+            ),
+        )));
 
         (
             Launcher::load_new(None, is_new_user, config).unwrap_or_else(Launcher::with_error),
@@ -326,4 +319,21 @@ fn do_migration() {
             info!("Migration successful!\nYour launcher files are now in ~./local/share/QuantumLauncher")
         }
     }
+}
+
+fn load_discord_rpc() -> Task<Message> {
+    Task::perform(
+        async move {
+            let mut c = AsyncDiscordIpcClient::new(DISCORD_RPC_CLIENT_ID)
+                .await
+                .strerr()?;
+            c.connect().await.strerr()?;
+            Ok(c)
+        },
+        |t| {
+            Message::DiscordRpc(DiscordRpcMessage::Loaded(
+                t.map(|t| Dbg(Arc::new(tokio::sync::Mutex::new(t)))),
+            ))
+        },
+    )
 }
