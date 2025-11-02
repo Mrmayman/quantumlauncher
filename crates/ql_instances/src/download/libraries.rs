@@ -5,6 +5,7 @@ use std::{
     sync::Mutex,
 };
 
+use cfg_if::cfg_if;
 use ql_core::{
     do_jobs, err, file_utils, info,
     json::version::{
@@ -222,48 +223,7 @@ impl GameDownloader {
 
         for (os, download) in classifiers {
             #[allow(unused)]
-            if !(OS_NAMES.iter().any(|os_name| {
-                #[cfg(all(target_os = "windows", target_arch = "x86"))]
-                let matches = os == "natives-windows-32";
-                #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-                let matches = (os == "natives-windows-64") || (os == "natives-windows");
-
-                #[cfg(any(
-                    all(target_os = "linux", target_arch = "aarch64"),
-                    feature = "simulate_linux_arm64"
-                ))]
-                let matches = os == "natives-linux-arm64";
-                #[cfg(all(target_os = "linux", target_arch = "arm"))]
-                let matches = os == "natives-linux-arm32";
-
-                #[cfg(any(
-                    all(target_os = "macos", target_arch = "aarch64"),
-                    feature = "simulate_macos_arm64"
-                ))]
-                let matches = os == "natives-osx-arm64";
-
-                #[cfg(not(any(
-                    all(
-                        target_os = "windows",
-                        any(target_arch = "x86_64", target_arch = "x86")
-                    ),
-                    all(
-                        target_os = "linux",
-                        any(
-                            target_arch = "aarch64",
-                            target_arch = "arm",
-                            feature = "simulate_linux_arm64"
-                        )
-                    ),
-                    any(
-                        all(target_os = "macos", target_arch = "aarch64"),
-                        feature = "simulate_macos_arm64"
-                    )
-                )))]
-                let matches = *os == format!("natives-{os_name}");
-
-                matches
-            })) {
+            if !(OS_NAMES.iter().any(|os_name| os_is_compatible(os_name, os))) {
                 pt!("Skipping OS: {os}");
                 continue;
             }
@@ -322,23 +282,17 @@ impl GameDownloader {
 
             for rule in rules {
                 if let Some(ref os) = rule.os {
-                    #[cfg(any(
+                    cfg_if!(if #[cfg(any(
                         target_arch = "aarch64",
                         target_arch = "arm",
                         target_arch = "x86",
                         feature = "simulate_linux_arm64",
                         feature = "simulate_macos_arm64"
-                    ))]
-                    let target = format!("{OS_NAME}-{ARCH}");
-
-                    #[cfg(not(any(
-                        target_arch = "aarch64",
-                        target_arch = "arm",
-                        target_arch = "x86",
-                        feature = "simulate_linux_arm64",
-                        feature = "simulate_macos_arm64"
-                    )))]
-                    let target = OS_NAME;
+                    ))] {
+                        let target = format!("{OS_NAME}-{ARCH}");
+                    } else {
+                        let target = OS_NAME;
+                    });
 
                     if os.name == target {
                         allowed = rule.action == "allow";
@@ -389,26 +343,21 @@ async fn extractlib_name_natives(
         return Ok(());
     }
 
-    #[cfg(target_arch = "arm")]
-    let is_compatible = name.contains("arm32");
-    #[cfg(target_arch = "x86")]
-    let is_compatible = name.contains("x86") && !name.contains("x86_64");
-    #[cfg(any(
+    cfg_if!(if #[cfg(target_arch = "arm")] {
+        let is_compatible = name.contains("arm32");
+    } else if #[cfg(target_arch = "x86")] {
+        let is_compatible = name.contains("x86") && !name.contains("x86_64");
+    } else if #[cfg(any(
         target_arch = "aarch64",
         feature = "simulate_linux_arm64",
         feature = "simulate_macos_arm64"
-    ))]
-    let is_compatible = name.contains("aarch") || name.contains("arm64");
-    #[cfg(not(any(
-        target_arch = "aarch64",
-        target_arch = "arm",
-        target_arch = "x86",
-        feature = "simulate_linux_arm64",
-        feature = "simulate_macos_arm64"
-    )))]
-    let is_compatible = !(name.contains("aarch")
-        || name.contains("arm")
-        || (name.contains("x86") && !name.contains("x86_64")));
+    ))] {
+        let is_compatible = name.contains("aarch") || name.contains("arm64");
+    } else {
+        let is_compatible = !(name.contains("aarch")
+            || name.contains("arm")
+            || (name.contains("x86") && !name.contains("x86_64")));
+    });
 
     if is_compatible {
         info!("Downloading native (2): {name}");
@@ -433,25 +382,21 @@ async fn extractlib_natives_field(
         return Ok(());
     };
 
-    #[cfg(any(
+    cfg_if!(if #[cfg(any(
         target_arch = "aarch64",
         target_arch = "arm",
         target_arch = "x86",
         feature = "simulate_linux_arm64",
         feature = "simulate_macos_arm64",
-    ))]
-    let Some(natives_name) = natives.get(&format!("{OS_NAME}-{ARCH}")) else {
-        return Ok(());
-    };
-    #[cfg(not(any(
-        target_arch = "aarch64",
-        target_arch = "arm",
-        feature = "simulate_linux_arm64",
-        feature = "simulate_macos_arm64",
-    )))]
-    let Some(natives_name) = natives.get(OS_NAME) else {
-        return Ok(());
-    };
+    ))] {
+        let Some(natives_name) = natives.get(&format!("{OS_NAME}-{ARCH}")) else {
+            return Ok(());
+        };
+    } else {
+        let Some(natives_name) = natives.get(OS_NAME) else {
+            return Ok(());
+        };
+    });
 
     info!("Extracting natives (1): {name}");
     pt!("Extracting main jar: {name}");
@@ -533,4 +478,39 @@ fn supports_os(classifiers: &BTreeMap<String, LibraryClassifier>) -> bool {
 pub fn extract_zip_file(archive: &[u8], target_dir: &Path) -> Result<(), zip::result::ZipError> {
     file_utils::extract_zip_archive(Cursor::new(archive), target_dir, true)?;
     Ok(())
+}
+
+fn os_is_compatible(os_name: &str, os: &str) -> bool {
+    cfg_if!(if #[cfg(target_os = "windows")] {
+        if #[cfg(target_arch = "x86")] {
+            return os == "natives-windows-32";
+        } else if #[cfg(target_arch = "x86_64")] {
+            return (os == "natives-windows-64") || (os == "natives-windows");
+        }
+    }
+
+    // Linux ARM 64-bit
+    else if #[cfg(any(
+        all(target_os = "linux", target_arch = "aarch64"),
+        feature = "simulate_linux_arm64"
+    ))] {
+        return os == "natives-linux-arm64";
+    }
+
+    // Linux ARM 32-bit
+    else if #[cfg(all(target_os = "linux", target_arch = "arm"))] {
+        return os == "natives-linux-arm32";
+    }
+
+    // macOS ARM 64-bit
+    else if #[cfg(any(
+        all(target_os = "macos", target_arch = "aarch64"),
+        feature = "simulate_macos_arm64"
+    ))] {
+        return os == "natives-osx-arm64";
+    }
+
+    else {
+        return *os == format!("natives-{os_name}");
+    });
 }

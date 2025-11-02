@@ -3602,6 +3602,7 @@ name = "ql_instances"
 version = "0.0.0"
 dependencies = [
  "any_ascii",
+ "cfg-if",
  "chrono",
  "indicatif",
  "keyring",
@@ -3615,7 +3616,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.14",
  "tokio",
- "urlencoding",
  "zip",
 ]
 

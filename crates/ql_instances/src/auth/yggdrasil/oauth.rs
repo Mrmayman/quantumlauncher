@@ -6,9 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use super::{Error, CLIENT_ID};
 
-pub const SCOPE: &str =
-    "Yggdrasil.PlayerProfiles.Read Yggdrasil.Server.Join Yggdrasil.MinecraftToken.Create User.Read";
-
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct UserInfo {
     #[serde(rename = "uid")]
@@ -55,8 +52,10 @@ struct DeviceTokenResponse {
 
 /// Step 1: Request device code
 pub async fn request_device_code() -> Result<DeviceCodeResponse, Error> {
-    let encoded_scope = urlencoding::encode(SCOPE);
-    let body = format!("client_id={CLIENT_ID}&scope={encoded_scope}");
+    const SCOPE: &str =
+        "Yggdrasil.PlayerProfiles.Read%20Yggdrasil.Server.Join%20Yggdrasil.MinecraftToken.Create%20User.Read";
+
+    let body = format!("client_id={CLIENT_ID}&scope={SCOPE}");
     let resp = CLIENT
         .post("https://open.littleskin.cn/oauth/device_code")
         .header("Accept", "application/json")

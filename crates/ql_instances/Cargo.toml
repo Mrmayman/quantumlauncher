@@ -24,16 +24,14 @@ tokio = { workspace = true }
 
 serde = { workspace = true }
 serde_json = { workspace = true }
-quick-xml = { version = "0.37", features = ["encoding", "serialize"] }
 
 owo-colors = { workspace = true }
-indicatif = "0.17"
 thiserror = { workspace = true }
 
-# Removing UNICODE characters from XML log
-any_ascii = "0.3"
-
-urlencoding = "2"
+quick-xml = { version = "0.37", features = ["encoding", "serialize"] }
+indicatif = "0.17"
+cfg-if = "1"
+any_ascii = "0.3" # Removing UNICODE characters from XML log
 
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
