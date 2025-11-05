@@ -38,6 +38,18 @@ pub async fn launch(name: String, timeout: f32) -> bool {
         }
         tokio::time::sleep(Duration::from_secs_f32(timeout / 30.0)).await;
 
+        {
+            let exit_code = child.child.lock().unwrap().try_wait().ok().flatten();
+            if let Some(code) = exit_code {
+                if code.success() {
+                    err!("\nProcess mysteriously exited!");
+                } else {
+                    err!("\nProcess exited with code: {code}");
+                }
+                return false;
+            }
+        }
+
         if search_for_window(pid, &sys) {
             return true;
         }

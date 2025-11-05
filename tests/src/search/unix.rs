@@ -1,6 +1,15 @@
 use ql_core::err;
 
 pub fn search_for_window(pid: u32, sys: &sysinfo::System) -> bool {
+    if which::which("xdotool").is_err() {
+        err!("xdotool isn't installed! Please install it first.");
+        std::process::exit(1);
+    }
+
+    if which::which("xrandr").is_err() {
+        err!("xrandr isn't installed! The game might break without it");
+    }
+
     match duct::cmd("xdotool", &["search", "--pid", pid.to_string().as_str()])
         .stdout_capture()
         .run()

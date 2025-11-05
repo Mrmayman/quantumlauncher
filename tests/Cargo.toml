@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-windows = { version = "0.52.0", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading"] }
 ql_instances = { path = "../crates/ql_instances" }
 ql_mod_manager = { path = "../crates/ql_mod_manager" }
 ql_core = { path = "../crates/ql_core" }
@@ -17,6 +16,10 @@ owo-colors = { workspace = true }
 
 duct = "1"
 sysinfo = "0.36"
+which = "8.0.0"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.52.0", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading"] }
 
 [features]
 default = ["tokio/rt-multi-thread"]

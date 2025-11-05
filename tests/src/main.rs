@@ -17,6 +17,7 @@ mod version;
 #[command(author = "Mrmayman")]
 struct Cli {
     #[arg(short, long)]
+    #[arg(help = "Whether to reuse existing test files instead of redownloading them")]
     existing: bool,
     #[arg(
         long,
@@ -24,8 +25,10 @@ struct Cli {
     )]
     skip_lwjgl3: bool,
     #[arg(long)]
+    #[arg(help = "How long to wait for a window, per instance, before giving up (default: 60).")]
     timeout: Option<f32>,
     #[arg(short, long)]
+    #[arg(help = "See all the logs to diagnose issues")]
     verbose: bool,
 }
 
