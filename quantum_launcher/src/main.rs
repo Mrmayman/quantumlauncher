@@ -27,14 +27,14 @@ use std::{borrow::Cow, time::Duration};
 
 use config::LauncherConfig;
 use iced::{Settings, Task};
-use state::{get_entries, Launcher, Message};
+use state::{Launcher, Message};
 
 use ql_core::{
     constants::OS_NAME, err, err_no_log, file_utils, info, info_no_log, IntoStringError,
     JsonFileError,
 };
 
-use crate::state::CustomJarState;
+use crate::state::{CustomJarState, InstanceCache};
 
 /// The CLI interface of the launcher.
 mod cli;
@@ -98,13 +98,16 @@ impl Launcher {
         #[cfg(not(feature = "auto_update"))]
         let check_for_updates_command = Task::none();
 
-        let get_entries_command = Task::perform(get_entries(false), Message::CoreListLoaded);
+        let mut launcher =
+            Launcher::load_new(None, is_new_user, config).unwrap_or_else(Launcher::with_error);
+        let (cache, load_cache_command) = InstanceCache::new();
+        launcher.cache = cache;
 
         (
-            Launcher::load_new(None, is_new_user, config).unwrap_or_else(Launcher::with_error),
+            launcher,
             Task::batch([
                 check_for_updates_command,
-                get_entries_command,
+                load_cache_command,
                 Task::perform(ql_core::clean::dir("logs"), |n| {
                     Message::CoreCleanComplete(n.strerr())
                 }),

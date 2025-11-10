@@ -8,9 +8,8 @@ use ql_core::{
 use crate::{
     message_handler::format_memory,
     state::{
-        dir_watch, get_entries, CustomJarState, EditInstanceMessage, Launcher, MenuEditInstance,
-        MenuLaunch, Message, State, ADD_JAR_NAME, NONE_JAR_NAME, OPEN_FOLDER_JAR_NAME,
-        REMOVE_JAR_NAME,
+        CustomJarState, EditInstanceMessage, Launcher, MenuEditInstance, MenuLaunch, Message,
+        PathWatcher, State, ADD_JAR_NAME, NONE_JAR_NAME, OPEN_FOLDER_JAR_NAME, REMOVE_JAR_NAME,
     },
 };
 
@@ -267,18 +266,17 @@ impl Launcher {
                             cx.choices = items.clone();
                         }
                         None => {
-                            let (recv, watcher) = match dir_watch(LAUNCHER_DIR.join("custom_jars"))
-                            {
-                                Ok(n) => n,
-                                Err(err) => {
-                                    err!("Couldn't load list of custom jars (2)! {err}");
-                                    return Ok(Task::none());
-                                }
-                            };
+                            let watcher =
+                                match PathWatcher::new(LAUNCHER_DIR.join("custom_jars"), true) {
+                                    Ok(n) => n,
+                                    Err(err) => {
+                                        err!("Couldn't load list of custom jars (2)! {err}");
+                                        return Ok(Task::none());
+                                    }
+                                };
                             self.custom_jar = Some(CustomJarState {
                                 choices: items.clone(),
-                                recv,
-                                _watcher: watcher,
+                                watcher,
                             })
                         }
                     }
@@ -406,10 +404,7 @@ impl Launcher {
                 .path(&old_path)
                 .strerr()?;
 
-            Ok(Task::perform(
-                get_entries(self.instance().is_server()),
-                Message::CoreListLoaded,
-            ))
+            Ok(self.cache.force_update_list())
         }
     }
 

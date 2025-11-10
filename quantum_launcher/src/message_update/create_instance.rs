@@ -20,7 +20,7 @@ impl Launcher {
             CreateInstanceMessage::End(result) => match result {
                 Ok(instance) => {
                     self.selected_instance = Some(InstanceSelection::Instance(instance));
-                    return self.go_to_launch_screen(Some("Created Instance".to_owned()));
+                    self.go_to_launch_screen(Some("Created Instance".to_owned()));
                 }
                 Err(n) => self.set_error(n),
             },
@@ -32,9 +32,8 @@ impl Launcher {
                     *download_assets = t;
                 }
             }
-            CreateInstanceMessage::Cancel => {
-                return self.go_to_launch_screen(Option::<String>::None)
-            }
+            CreateInstanceMessage::Cancel => self.go_to_launch_screen(Option::<String>::None),
+
             CreateInstanceMessage::Import => {
                 if let Some(file) = rfd::FileDialog::new()
                     .set_title("Select an instance...")
@@ -66,7 +65,7 @@ impl Launcher {
                     let is_valid_modpack = instance.is_some();
                     self.selected_instance = instance;
                     if is_valid_modpack {
-                        return self.go_to_launch_screen(None::<String>);
+                        self.go_to_launch_screen(None::<String>);
                     }
                     self.set_error(
                         r#"the file you imported isn't a valid QuantumLauncher/MultiMC instance.

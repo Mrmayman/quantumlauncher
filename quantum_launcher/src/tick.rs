@@ -83,7 +83,7 @@ impl Launcher {
                 };
                 if has_finished {
                     self.java_recv = None;
-                    return self.go_to_main_menu_with_message(Some("Installed Java"));
+                    self.go_to_main_menu_with_message(Some("Installed Java"));
                 }
             }
             State::ModsDownload(_) => {

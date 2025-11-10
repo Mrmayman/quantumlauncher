@@ -99,10 +99,10 @@ impl Launcher {
             State::GenericMessage(msg) => widget::column![widget::text(msg)].padding(10).into(),
             State::AccountLogin => view_account_login(),
             State::EditMods(menu) => menu.view(self.instance(), self.tick_timer, &self.images),
-            State::Create(menu) => menu.view(self.client_list.as_ref()),
+            State::Create(menu) => menu.view(self.cache.client_list.as_ref()),
             State::ConfirmAction {
-                msg1,
-                msg2,
+                action: msg1,
+                subtitle: msg2,
                 yes,
                 no,
             } => view_confirm(msg1, msg2, yes, no),

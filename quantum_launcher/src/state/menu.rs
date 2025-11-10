@@ -3,6 +3,7 @@ use std::{
     time::Instant,
 };
 
+use crate::{config::SIDEBAR_WIDTH_DEFAULT, message_handler::get_locally_installed_mods};
 use iced::{widget::scrollable::AbsoluteOffset, Task};
 use ql_core::{
     file_utils::DirItem,
@@ -11,12 +12,11 @@ use ql_core::{
     DownloadProgress, GenericProgress, InstanceSelection, ListEntry, ModId, OptifineUniqueVersion,
     SelectedMod, StoreBackendType,
 };
+use ql_mod_manager::loaders::paper::PaperVersion;
 use ql_mod_manager::{
     loaders::{self, forge::ForgeInstallProgress, optifine::OptifineInstallProgress},
     store::{CurseforgeNotAllowed, ModConfig, ModIndex, QueryType, RecommendedMod, SearchResult},
 };
-use ql_mod_manager::loaders::paper::PaperVersion;
-use crate::{config::SIDEBAR_WIDTH_DEFAULT, message_handler::get_locally_installed_mods};
 
 use super::{ManageModsMessage, Message, ProgressBar};
 
@@ -447,14 +447,15 @@ pub enum State {
     Error {
         error: String,
     },
-    /// "Are you sure you want to {msg1}?"
-    /// screen. Used for confirming if the user
-    /// wants to do certain actions.
+    /// ```txt
+    /// Are you sure you want to {action}?
+    /// {subtitle}
+    /// ```
     ConfirmAction {
-        msg1: String,
-        msg2: String,
-        yes: Message,
-        no: Message,
+        action: String,
+        subtitle: String,
+        yes: Box<Message>,
+        no: Box<Message>,
     },
     GenericMessage(String),
 

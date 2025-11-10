@@ -49,8 +49,7 @@ impl Launcher {
             | Message::ServerCreateVersionsLoaded(Err(err))
             | Message::UninstallLoaderEnd(Err(err))
             | Message::InstallForgeEnd(Err(err))
-            | Message::LaunchGameExited(Err(err))
-            | Message::CoreListLoaded(Err(err)) => self.set_error(err),
+            | Message::LaunchGameExited(Err(err)) => self.set_error(err),
 
             Message::WelcomeContinueToTheme => {
                 self.state = State::Welcome(MenuWelcome::P2Theme);
@@ -71,6 +70,7 @@ impl Launcher {
             Message::LauncherSettings(msg) => return self.update_launcher_settings(msg),
             Message::InstallOptifine(msg) => return self.update_install_optifine(msg),
             Message::InstallPaper(msg) => return self.update_install_paper(msg),
+            Message::CoreCache(msg) => return self.update_core_cache(msg),
 
             Message::LaunchUsernameSet(username) => {
                 self.config.username = username;
@@ -79,7 +79,7 @@ impl Launcher {
             Message::LaunchEnd(result) => return self.finish_launching(result),
             Message::CreateInstance(message) => return self.update_create_instance(message),
             Message::DeleteInstanceMenu => self.go_to_delete_instance_menu(),
-            Message::DeleteInstance => return self.delete_instance_confirm(),
+            Message::DeleteInstance => self.delete_instance_confirm(),
 
             Message::LaunchScreenOpen {
                 message,
@@ -88,7 +88,7 @@ impl Launcher {
                 if clear_selection {
                     self.selected_instance = None;
                 }
-                return self.go_to_launch_screen(message);
+                self.go_to_launch_screen(message);
             }
             Message::EditInstance(message) => match self.update_edit_instance(message) {
                 Ok(n) => return n,
@@ -140,11 +140,13 @@ impl Launcher {
                 if self
                     .custom_jar
                     .as_ref()
-                    .and_then(|n| n.recv.try_recv().ok())
-                    .is_some()
+                    .map(|n| n.watcher.tick())
+                    .unwrap_or(false)
                 {
+                    println!("custom jar");
                     tasks.push(CustomJarState::load());
                 }
+                tasks.push(self.cache.update());
 
                 return Task::batch(tasks);
             }
@@ -220,7 +222,7 @@ impl Launcher {
                 message,
             } => {
                 self.selected_instance = selected_server.map(InstanceSelection::Server);
-                return self.go_to_server_manage_menu(message);
+                self.go_to_server_manage_menu(message);
             }
             Message::ServerCreateScreenOpen => {
                 if let Some(cache) = &self.server_version_list_cache {
@@ -279,7 +281,7 @@ impl Launcher {
             }
             Message::ServerCreateEnd(Ok(name)) => {
                 self.selected_instance = Some(InstanceSelection::Server(name));
-                return self.go_to_server_manage_menu(Some("Created Server".to_owned()));
+                self.go_to_server_manage_menu(Some("Created Server".to_owned()));
             }
             Message::ServerCreateVersionsLoaded(Ok(vec)) => {
                 self.server_version_list_cache = Some(vec.clone());
@@ -318,13 +320,6 @@ impl Launcher {
                     _ = block_on(future);
                 }
             }
-            Message::CoreListLoaded(Ok((list, is_server))) => {
-                if is_server {
-                    self.server_list = Some(list);
-                } else {
-                    self.client_list = Some(list);
-                }
-            }
             Message::CoreCopyText(txt) => {
                 return iced::clipboard::write(txt);
             }
@@ -338,13 +333,15 @@ impl Launcher {
             Message::EditPresets(msg) => return self.update_edit_presets(msg),
             Message::UninstallLoaderConfirm(msg, name) => {
                 self.state = State::ConfirmAction {
-                    msg1: format!("uninstall {name}"),
-                    msg2: "This should be fine, you can always reinstall it later".to_owned(),
-                    yes: Message::Multiple(vec![
+                    action: format!("uninstall {name}"),
+                    subtitle: "You can always reinstall it later".to_owned(),
+                    yes: Box::new(Message::Multiple(vec![
                         Message::ShowScreen("Uninstalling...".to_owned()),
                         (*msg).clone(),
-                    ]),
-                    no: Message::ManageMods(ManageModsMessage::ScreenOpenWithoutUpdate),
+                    ])),
+                    no: Box::new(Message::ManageMods(
+                        ManageModsMessage::ScreenOpenWithoutUpdate,
+                    )),
                 }
             }
             Message::ShowScreen(msg) => {
@@ -476,7 +473,7 @@ impl Launcher {
                         if let Err(err) = std::fs::write(&path, bytes).path(path) {
                             self.set_error(err);
                         } else {
-                            return self.go_to_launch_screen(None::<String>);
+                            self.go_to_launch_screen(None::<String>);
                         }
                     }
                 }

@@ -340,7 +340,7 @@ impl Launcher {
             }
             State::ConfirmAction { no, .. } => {
                 if affect {
-                    return (true, self.update(no.clone()));
+                    return (true, self.update(*no.clone()));
                 }
             }
             State::InstallOptifine(MenuInstallOptifine::Choosing { .. })
@@ -392,7 +392,8 @@ impl Launcher {
 
         if affect {
             if should_return_to_main_screen {
-                return (true, self.go_to_launch_screen::<String>(None));
+                self.go_to_launch_screen::<String>(None);
+                return (true, Task::none());
             }
             if should_return_to_mods_screen {
                 return (true, self.go_to_edit_mods_menu(false));
@@ -432,13 +433,8 @@ impl Launcher {
             };
             (menu.is_viewing_server, menu.sidebar_height)
         };
-        let list = if is_viewing_server {
-            self.server_list.clone()
-        } else {
-            self.client_list.clone()
-        };
 
-        let Some(list) = list else {
+        let Some(list) = self.cache.get_list(is_viewing_server).cloned() else {
             return Task::none();
         };
 

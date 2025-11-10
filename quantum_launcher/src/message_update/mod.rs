@@ -3,7 +3,9 @@ use std::str::FromStr;
 
 use iced::futures::executor::block_on;
 use iced::{widget::scrollable::AbsoluteOffset, Task};
-use ql_core::{err, info, InstanceSelection, IntoStringError, ModId, OptifineUniqueVersion};
+use ql_core::{
+    err, err_no_log, info, InstanceSelection, IntoStringError, ModId, OptifineUniqueVersion,
+};
 use ql_mod_manager::{
     loaders,
     store::{get_description, QueryType},
@@ -16,7 +18,7 @@ mod manage_mods;
 mod presets;
 mod recommended;
 
-use crate::state::{InstallPaperMessage, MenuInstallPaper};
+use crate::state::{CacheMessage, InstallPaperMessage, MenuInstallPaper};
 use crate::{
     state::{
         self, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage, Launcher,
@@ -317,11 +319,12 @@ impl Launcher {
 
         if let QueryType::ModPacks = menu.query_type {
             self.state = State::ConfirmAction {
-                msg1: format!("install the modpack: {}", hit.title),
-                msg2: "This might take a while, install many files, and use a lot of network..."
-                    .to_owned(),
-                yes: Message::InstallMods(InstallModsMessage::InstallModpack(id)),
-                no: Message::InstallMods(InstallModsMessage::Open),
+                action: format!("install the modpack: {}", hit.title),
+                subtitle:
+                    "This might take a while, install many files, and use a lot of network..."
+                        .to_owned(),
+                yes: Box::new(Message::InstallMods(InstallModsMessage::InstallModpack(id))),
+                no: Box::new(Message::InstallMods(InstallModsMessage::Open)),
             };
             Task::none()
         } else {
@@ -492,13 +495,13 @@ impl Launcher {
             }
             LauncherSettingsMessage::ClearJavaInstalls => {
                 self.state = State::ConfirmAction {
-                    msg1: "delete auto-installed Java files".to_owned(),
-                    msg2: "They will get reinstalled automatically as needed".to_owned(),
-                    yes: Message::LauncherSettings(
+                    action: "delete auto-installed Java files".to_owned(),
+                    subtitle: "They will get reinstalled automatically as needed".to_owned(),
+                    yes: Box::new(Message::LauncherSettings(
                         LauncherSettingsMessage::ClearJavaInstallsConfirm,
-                    ),
-                    no: Message::LauncherSettings(LauncherSettingsMessage::ChangeTab(
-                        state::LauncherSettingsTab::Internal,
+                    )),
+                    no: Box::new(Message::LauncherSettings(
+                        LauncherSettingsMessage::ChangeTab(state::LauncherSettingsTab::Internal),
                     )),
                 }
             }
@@ -664,6 +667,43 @@ impl Launcher {
                     self.set_error(err);
                 } else {
                     return self.go_to_edit_mods_menu(false);
+                }
+            }
+        }
+        Task::none()
+    }
+
+    pub fn update_core_cache(&mut self, msg: CacheMessage) -> Task<Message> {
+        match msg {
+            CacheMessage::List(res) => match res {
+                Ok((l, is_server)) => {
+                    return self.cache.set_list(l, is_server);
+                }
+                Err(err) => {
+                    err_no_log!("Couldn't load list (cache): {err}");
+                }
+            },
+            CacheMessage::Details(instance, res) => match res {
+                Ok(n) => {
+                    self.cache.details.insert(instance, *n);
+                }
+                Err(_) => {
+                    self.cache.details.remove(&instance);
+                }
+            },
+            CacheMessage::Config(instance, res) => match res {
+                Ok(n) => {
+                    self.cache.config.insert(instance, *n);
+                }
+                Err(_) => {
+                    self.cache.config.remove(&instance);
+                }
+            },
+            CacheMessage::DetailsAndConfigWatcher(res) => {
+                if let Ok((instance, watcher)) = res {
+                    self.cache
+                        .watch_details_and_config
+                        .insert(instance, watcher);
                 }
             }
         }

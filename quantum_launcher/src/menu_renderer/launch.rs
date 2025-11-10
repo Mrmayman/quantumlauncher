@@ -232,11 +232,7 @@ impl Launcher {
     ) -> Element<'a> {
         let difference = self.mouse_pos.0 - f32::from(menu.sidebar_width);
 
-        let list = if menu.is_viewing_server {
-            self.server_list.as_deref()
-        } else {
-            self.client_list.as_deref()
-        };
+        let list = self.cache.get_list(menu.is_viewing_server);
 
         let is_hovered = difference < SIDEBAR_DRAG_LEEWAY
             && difference > 0.0

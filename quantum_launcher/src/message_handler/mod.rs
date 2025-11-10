@@ -1,7 +1,6 @@
 use crate::state::{GameProcess, MenuInstallOptifine};
 use crate::tick::sort_dependencies;
 use crate::{
-    get_entries,
     state::{
         EditPresetsMessage, ManageModsMessage, MenuEditInstance, MenuEditMods, MenuInstallForge,
         MenuLaunch, MenuLauncherUpdate, ProgressBar, SelectedState, State, OFFLINE_ACCOUNT_NAME,
@@ -119,19 +118,18 @@ impl Launcher {
         Task::none()
     }
 
-    pub fn delete_instance_confirm(&mut self) -> Task<Message> {
+    pub fn delete_instance_confirm(&mut self) {
         if let State::ConfirmAction { .. } = &self.state {
             let selected_instance = self.instance();
             let deleted_instance_dir = selected_instance.get_instance_path();
             if let Err(err) = std::fs::remove_dir_all(&deleted_instance_dir) {
                 self.set_error(err);
-                return Task::none();
+                return;
             }
 
             self.selected_instance = None;
-            return self.go_to_launch_screen(Some("Deleted Instance".to_owned()));
+            self.go_to_launch_screen(Some("Deleted Instance".to_owned()));
         }
-        Task::none()
     }
 
     pub fn load_edit_instance_inner(
@@ -271,7 +269,7 @@ impl Launcher {
         }
     }
 
-    pub fn go_to_server_manage_menu(&mut self, message: Option<String>) -> Task<Message> {
+    pub fn go_to_server_manage_menu(&mut self, message: Option<String>) {
         if let State::Launch(menu) = &mut self.state {
             menu.is_viewing_server = true;
             if let Some(message) = message {
@@ -288,7 +286,6 @@ impl Launcher {
             }
             self.state = State::Launch(menu_launch);
         }
-        Task::perform(get_entries(true), Message::CoreListLoaded)
     }
 
     pub fn install_forge(&mut self, kind: ForgeKind) -> Task<Message> {
@@ -341,10 +338,7 @@ impl Launcher {
         command
     }
 
-    pub fn go_to_main_menu_with_message(
-        &mut self,
-        message: Option<impl ToString>,
-    ) -> Task<Message> {
+    pub fn go_to_main_menu_with_message(&mut self, message: Option<impl ToString>) {
         let message = message.map(|n| n.to_string());
         match &self.selected_instance {
             None | Some(InstanceSelection::Instance(_)) => self.go_to_launch_screen(message),
@@ -494,13 +488,13 @@ impl Launcher {
 
     pub fn go_to_delete_instance_menu(&mut self) {
         self.state = State::ConfirmAction {
-            msg1: format!("delete the instance {}", self.instance().get_name()),
-            msg2: "All your data, including worlds, will be lost".to_owned(),
-            yes: Message::DeleteInstance,
-            no: Message::LaunchScreenOpen {
+            action: format!("delete the instance {}", self.instance().get_name()),
+            subtitle: "All your data, including worlds, will be lost".to_owned(),
+            yes: Box::new(Message::DeleteInstance),
+            no: Box::new(Message::LaunchScreenOpen {
                 message: None,
                 clear_selection: false,
-            },
+            }),
         };
     }
 

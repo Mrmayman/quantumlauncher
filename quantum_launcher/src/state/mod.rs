@@ -1,13 +1,11 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
-    path::Path,
     str::FromStr,
-    sync::mpsc::{self, Receiver},
+    sync::mpsc::Receiver,
 };
 
 use iced::Task;
-use notify::Watcher;
 use ql_core::{
     err, file_utils, read_log::LogLine, GenericProgress, InstanceSelection, IntoIoError,
     IntoStringError, IoError, JsonFileError, LaunchedProcess, ListEntry, ModId, Progress,
@@ -21,9 +19,11 @@ use crate::{
     stylesheet::styles::{LauncherTheme, LauncherThemeColor, LauncherThemeLightness},
 };
 
+mod cache;
 mod images;
 mod menu;
 mod message;
+pub use cache::*;
 pub use images::ImageState;
 pub use menu::*;
 pub use message::*;
@@ -66,8 +66,7 @@ pub struct Launcher {
 
     pub client_version_list_cache: Option<Vec<ListEntry>>,
     pub server_version_list_cache: Option<Vec<ListEntry>>,
-    pub client_list: Option<Vec<String>>,
-    pub server_list: Option<Vec<String>>,
+    pub cache: InstanceCache,
 
     pub processes: HashMap<InstanceSelection, GameProcess>,
     pub logs: HashMap<InstanceSelection, InstanceLog>,
@@ -81,8 +80,7 @@ pub struct Launcher {
 
 pub struct CustomJarState {
     pub choices: Vec<String>,
-    pub recv: Receiver<notify::Event>,
-    pub _watcher: notify::RecommendedWatcher,
+    pub watcher: PathWatcher,
 }
 
 impl CustomJarState {
@@ -181,8 +179,7 @@ impl Launcher {
             window_size: (window_width, window_height),
             accounts_selected: Some(selected_account),
 
-            client_list: None,
-            server_list: None,
+            cache: InstanceCache::default(),
             java_recv: None,
             client_version_list_cache: None,
             server_version_list_cache: None,
@@ -240,8 +237,7 @@ impl Launcher {
             state: State::Error { error },
 
             java_recv: None,
-            client_list: None,
-            server_list: None,
+            cache: InstanceCache::default(),
             client_version_list_cache: None,
             selected_instance: None,
             server_version_list_cache: None,
@@ -279,7 +275,7 @@ impl Launcher {
         self.state = State::Error { error }
     }
 
-    pub fn go_to_launch_screen<T: Display>(&mut self, message: Option<T>) -> Task<Message> {
+    pub fn go_to_launch_screen<T: Display>(&mut self, message: Option<T>) {
         let mut menu_launch = match message {
             Some(message) => MenuLaunch::with_message(message.to_string()),
             None => MenuLaunch::default(),
@@ -288,7 +284,6 @@ impl Launcher {
             menu_launch.sidebar_width = width as u16;
         }
         self.state = State::Launch(menu_launch);
-        Task::perform(get_entries(false), Message::CoreListLoaded)
     }
 }
 
@@ -496,20 +491,4 @@ pub async fn load_custom_jars() -> Result<Vec<String>, IoError> {
     list.push(OPEN_FOLDER_JAR_NAME.to_owned());
 
     Ok(list)
-}
-
-pub fn dir_watch<P: AsRef<Path>>(
-    path: P,
-) -> notify::Result<(mpsc::Receiver<notify::Event>, notify::RecommendedWatcher)> {
-    let (tx, rx) = mpsc::channel();
-
-    // `notify` runs callbacks in its own thread.
-    let mut watcher: notify::RecommendedWatcher = notify::recommended_watcher(move |res| {
-        if let Ok(event) = res {
-            _ = tx.send(event);
-        }
-    })?;
-    watcher.watch(path.as_ref(), notify::RecursiveMode::NonRecursive)?;
-
-    Ok((rx, watcher))
 }

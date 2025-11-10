@@ -1,10 +1,17 @@
-use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+    process::ExitStatus,
+    sync::{Arc, Mutex},
+};
 
-use crate::message_handler::ForgeKind;
+use crate::{message_handler::ForgeKind, state::InstanceInfoWatcher};
 use iced::widget;
 use ql_core::{
-    file_utils::DirItem, jarmod::JarMods, InstanceSelection, LaunchedProcess, ListEntry, ModId,
-    StoreBackendType,
+    file_utils::DirItem,
+    jarmod::JarMods,
+    json::{InstanceConfigJson, VersionDetails},
+    InstanceSelection, LaunchedProcess, ListEntry, ModId, StoreBackendType,
 };
 use ql_instances::{
     auth::{
@@ -234,6 +241,16 @@ pub enum AccountMessage {
     LittleSkinDeviceCodeError(String),
 }
 
+type Yeehaw<T> = Arc<Mutex<T>>;
+
+#[derive(Debug, Clone)]
+pub enum CacheMessage {
+    List(Res<(Vec<String>, bool)>),
+    DetailsAndConfigWatcher(Res<(InstanceSelection, Yeehaw<InstanceInfoWatcher>)>),
+    Details(InstanceSelection, Res<Box<VersionDetails>>),
+    Config(InstanceSelection, Res<Box<InstanceConfigJson>>),
+}
+
 #[derive(Debug, Clone)]
 pub enum LauncherSettingsMessage {
     Open,
@@ -321,6 +338,7 @@ pub enum Message {
     ExportInstanceFinished(Res<Vec<u8>>),
     ExportInstanceLoaded(Res<Vec<DirItem>>),
 
+    CoreCache(CacheMessage),
     CoreCopyError,
     CoreCopyLog,
     CoreOpenLink(String),
@@ -328,7 +346,6 @@ pub enum Message {
     CoreCopyText(String),
     CoreTick,
     CoreTickConfigSaved(Res),
-    CoreListLoaded(Res<(Vec<String>, bool)>),
     CoreOpenChangeLog,
     CoreOpenIntro,
     CoreEvent(iced::Event, iced::event::Status),
