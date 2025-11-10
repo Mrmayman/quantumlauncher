@@ -266,7 +266,7 @@ impl Preset {
 }
 
 async fn get_instance_type(instance_name: &InstanceSelection) -> Result<String, ModError> {
-    let config = InstanceConfigJson::read(instance_name).await?;
+    let config = InstanceConfigJson::load(instance_name).await?;
     Ok(config.mod_type)
 }
 

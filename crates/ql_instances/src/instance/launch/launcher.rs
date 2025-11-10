@@ -64,7 +64,7 @@ impl GameLauncher {
             .await
             .path(&minecraft_dir)?;
 
-        let config_json = InstanceConfigJson::read_from_dir(&instance_dir).await?;
+        let config_json = InstanceConfigJson::load_from_dir(&instance_dir).await?;
 
         let instance = InstanceSelection::Instance(instance_name.clone());
         let mut version_json = VersionDetails::load(&instance).await?;

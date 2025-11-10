@@ -139,7 +139,7 @@ async fn get_original_jar(
 ) -> Result<PathBuf, JarModError> {
     let json = VersionDetails::load(instance).await?;
     let optifine = JsonOptifine::read(instance.get_name()).await.ok();
-    let config = InstanceConfigJson::read(instance).await.ok();
+    let config = InstanceConfigJson::load(instance).await.ok();
     let custom_jar_path = config.and_then(|c| c.custom_jar).map(|c| c.name);
 
     let path = get_jar_path(

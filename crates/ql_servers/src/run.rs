@@ -89,7 +89,7 @@ impl ServerLauncher {
         let dir = LAUNCHER_DIR.join("servers").join(name);
         Ok(Self {
             version_json: VersionDetails::load_from_path(&dir).await?,
-            config: InstanceConfigJson::read_from_dir(&dir).await?,
+            config: InstanceConfigJson::load_from_dir(&dir).await?,
             dir,
         })
     }

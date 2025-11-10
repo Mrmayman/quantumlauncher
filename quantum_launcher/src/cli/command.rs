@@ -86,7 +86,7 @@ pub fn list_instances(
                 }
                 PrintCmd::Loader => {
                     let config_json =
-                        match runtime.block_on(InstanceConfigJson::read_from_dir(&instance_dir)) {
+                        match runtime.block_on(InstanceConfigJson::load_from_dir(&instance_dir)) {
                             Ok(json) => json,
                             Err(err) => {
                                 err!("{err}");
@@ -318,7 +318,7 @@ pub async fn loader(cmd: QLoader, servers: bool) -> Result<(), Box<dyn std::erro
     match cmd {
         QLoader::Info { instance } => {
             let json =
-                InstanceConfigJson::read(&InstanceSelection::new(&instance, servers)).await?;
+                InstanceConfigJson::load(&InstanceSelection::new(&instance, servers)).await?;
             println!("Kind: {}", json.mod_type);
             if let Some(info) = json.mod_type_info {
                 if let Some(version) = info.version {
@@ -347,7 +347,7 @@ pub async fn loader(cmd: QLoader, servers: bool) -> Result<(), Box<dyn std::erro
             };
 
             let instance = InstanceSelection::new(&instance, servers);
-            let mt = InstanceConfigJson::read(&instance).await?.mod_type;
+            let mt = InstanceConfigJson::load(&instance).await?.mod_type;
 
             if Loader::try_from(mt.as_str()).is_ok_and(|n| n == loader) {
                 err!("{mt} is already installed!");

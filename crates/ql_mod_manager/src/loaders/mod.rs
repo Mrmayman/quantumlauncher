@@ -28,7 +28,7 @@ async fn change_instance_type(
     instance_type: String,
     extras: Option<ModTypeInfo>,
 ) -> Result<(), JsonFileError> {
-    let mut config = InstanceConfigJson::read_from_dir(instance_dir).await?;
+    let mut config = InstanceConfigJson::load_from_dir(instance_dir).await?;
 
     config.mod_type = instance_type;
     config.mod_type_info = extras;
@@ -141,7 +141,7 @@ fn pipe_progress(rec: Receiver<ForgeInstallProgress>, snd: &Sender<GenericProgre
 }
 
 pub async fn uninstall_loader(instance: InstanceSelection) -> Result<(), String> {
-    let loader = InstanceConfigJson::read(&instance).await.strerr()?.mod_type;
+    let loader = InstanceConfigJson::load(&instance).await.strerr()?.mod_type;
     let Ok(loader) = Loader::try_from(loader.as_str()) else {
         return Ok(());
     };

@@ -100,7 +100,7 @@ pub async fn install(
     info!("Started installing OptiFine");
     send_progress(progress_sender, OptifineInstallProgress::P1Start);
 
-    let mut config = InstanceConfigJson::read_from_dir(&instance_path).await?;
+    let mut config = InstanceConfigJson::load_from_dir(&instance_path).await?;
 
     match optifine_unique_version {
         Some(OptifineUniqueVersion::Forge) => {

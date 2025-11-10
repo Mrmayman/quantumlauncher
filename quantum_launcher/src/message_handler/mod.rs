@@ -169,7 +169,7 @@ impl Launcher {
         ) -> Result<Task<Message>, JsonFileError> {
             let instance = this.selected_instance.as_ref().unwrap();
 
-            let config_json = InstanceConfigJson::read(instance).await?;
+            let config_json = InstanceConfigJson::load(instance).await?;
             let version_json = Box::new(VersionDetails::load(instance).await?);
 
             let mods = ModIndex::load(instance).await?;
@@ -613,7 +613,7 @@ async fn copy_optifine_over(instance: &InstanceSelection) -> Result<(), String> 
     let new_path = mods_dir.join("optifine.jar");
     tokio::fs::copy(&installer_path, &new_path).await.strerr()?;
 
-    let mut config = InstanceConfigJson::read(instance).await.strerr()?;
+    let mut config = InstanceConfigJson::load(instance).await.strerr()?;
     config
         .mod_type_info
         .get_or_insert_with(ModTypeInfo::default)

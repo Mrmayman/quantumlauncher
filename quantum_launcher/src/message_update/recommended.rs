@@ -15,7 +15,7 @@ impl Launcher {
                 let config = if let State::EditMods(menu) = &self.state {
                     menu.config.clone()
                 } else {
-                    match block_on(InstanceConfigJson::read(self.instance())) {
+                    match block_on(InstanceConfigJson::load(self.instance())) {
                         Ok(n) => n,
                         Err(err) => {
                             self.set_error(err);
@@ -55,7 +55,7 @@ impl Launcher {
                     let config = match if let State::RecommendedMods(menu) = &self.state {
                         menu.get_config(instance)
                     } else {
-                        block_on(InstanceConfigJson::read(instance))
+                        block_on(InstanceConfigJson::load(instance))
                     } {
                         Ok(c) => c,
                         Err(e) => {
@@ -142,7 +142,7 @@ impl MenuRecommendedMods {
         {
             Ok(config.clone())
         } else {
-            block_on(InstanceConfigJson::read(instance))
+            block_on(InstanceConfigJson::load(instance))
         }
     }
 }

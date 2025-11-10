@@ -253,7 +253,7 @@ impl InstanceConfigJson {
     /// - `dir`/`config.json` doesn't exist or isn't a file
     /// - `config.json` file couldn't be loaded
     /// - `config.json` couldn't be parsed into valid JSON
-    pub async fn read_from_dir(dir: &Path) -> Result<Self, JsonFileError> {
+    pub async fn load_from_dir(dir: &Path) -> Result<Self, JsonFileError> {
         let config_json_path = dir.join("config.json");
         let config_json = tokio::fs::read_to_string(&config_json_path)
             .await
@@ -267,8 +267,8 @@ impl InstanceConfigJson {
     /// # Errors
     /// - `config.json` file couldn't be loaded
     /// - `config.json` couldn't be parsed into valid JSON
-    pub async fn read(instance: &InstanceSelection) -> Result<Self, JsonFileError> {
-        Self::read_from_dir(&instance.get_instance_path()).await
+    pub async fn load(instance: &InstanceSelection) -> Result<Self, JsonFileError> {
+        Self::load_from_dir(&instance.get_instance_path()).await
     }
 
     /// Saves the launcher-specific instance configuration to disk,

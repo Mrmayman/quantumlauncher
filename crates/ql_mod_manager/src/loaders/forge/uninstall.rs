@@ -30,7 +30,7 @@ async fn uninstall_client(instance: &str) -> Result<(), String> {
         }
     }
 
-    let mut config = InstanceConfigJson::read_from_dir(&instance_dir)
+    let mut config = InstanceConfigJson::load_from_dir(&instance_dir)
         .await
         .strerr()?;
     config.mod_type = if let Some(jar) = config

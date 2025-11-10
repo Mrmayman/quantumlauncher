@@ -106,7 +106,7 @@ pub async fn import(
         details.save(&instance).await?;
     }
 
-    let mut config = InstanceConfigJson::read(&instance).await?;
+    let mut config = InstanceConfigJson::load(&instance).await?;
     setup_config(&ini, &instance_recipe, &mut config);
     config.save(&instance).await?;
 
@@ -315,7 +315,7 @@ async fn install_fabric(
     }))
     .await?;
 
-    let mut config = InstanceConfigJson::read(instance_selection).await?;
+    let mut config = InstanceConfigJson::load(instance_selection).await?;
     config.main_class_override = Some(fabric_json.mainClass.clone());
     config.mod_type = "Fabric".to_owned();
     config.save(instance_selection).await?;

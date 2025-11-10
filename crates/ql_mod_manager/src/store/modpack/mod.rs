@@ -59,7 +59,7 @@ pub async fn install_modpack(
         .map_or("overrides".to_owned(), |n| n.overrides.clone());
 
     let mc_dir = instance.get_dot_minecraft_path();
-    let config = InstanceConfigJson::read(&instance).await?;
+    let config = InstanceConfigJson::load(&instance).await?;
     let json = VersionDetails::load(&instance).await?;
 
     let mut is_valid = false;
