@@ -160,7 +160,7 @@ fn main() {
 
     info_no_log!("Starting up the launcher... (OS: {OS_NAME})");
     if let Some(dir) = &launcher_dir {
-        eprintln!("- {}", dir.to_string_lossy());
+        eprintln!("- {}", ql_core::redact_path(&dir.to_string_lossy()));
     }
 
     let icon = load_icon();

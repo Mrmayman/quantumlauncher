@@ -101,7 +101,7 @@ async fn delete_file(mods_dir: &Path, file: &str) -> Result<(), ModError> {
     let path = mods_dir.join(file);
     if let Err(err) = tokio::fs::remove_file(&path).await {
         if let std::io::ErrorKind::NotFound = err.kind() {
-            err!("File does not exist, skipping: {path:?}");
+            err!("File does not exist, skipping: {}", ql_core::redact_path(&path.to_string_lossy()));
         } else {
             let err = IoError::Io {
                 error: err.to_string(),
