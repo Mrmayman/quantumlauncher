@@ -148,7 +148,13 @@ impl Launcher {
                 {
                     tasks.push(CustomJarState::load());
                 }
-                tasks.push(self.cache.update());
+
+                let is_saving_config = if let State::Launch(menu) = &self.state {
+                    matches!(menu.tab, LaunchTabId::Edit)
+                } else {
+                    false
+                };
+                tasks.push(self.cache.update(!is_saving_config));
 
                 return Task::batch(tasks);
             }
@@ -508,7 +514,12 @@ impl Launcher {
     }
 
     pub fn load_edit_instance(&mut self, new_tab: Option<LaunchTabId>) {
-        let memory_mb = self.i_config().ram_in_mb;
+        let memory_mb = if self.selected_instance.is_some() {
+            self.i_config().ram_in_mb
+        } else {
+            0
+        };
+
         if let State::Launch(MenuLaunch {
             tab, edit_instance, ..
         }) = &mut self.state

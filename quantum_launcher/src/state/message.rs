@@ -242,9 +242,10 @@ pub enum AccountMessage {
 #[derive(Debug, Clone)]
 pub enum CacheMessage {
     List(Res<(Vec<String>, bool)>),
-    DetailsAndConfigWatcher(Res<(InstanceSelection, Yeehaw<InstanceInfoWatcher>)>),
+    DetailsAndConfigWatcher(InstanceSelection, Yeehaw<InstanceInfoWatcher>),
     Details(InstanceSelection, Res<Box<VersionDetails>>),
     Config(InstanceSelection, Res<Box<InstanceConfigJson>>),
+    PopupError(String),
 }
 
 #[derive(Debug, Clone)]

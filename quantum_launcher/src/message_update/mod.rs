@@ -708,11 +708,14 @@ impl Launcher {
                     self.cache.config.remove(&instance);
                 }
             },
-            CacheMessage::DetailsAndConfigWatcher(res) => {
-                if let Ok((instance, watcher)) = res {
-                    self.cache
-                        .watch_details_and_config
-                        .insert(instance, watcher);
+            CacheMessage::DetailsAndConfigWatcher(instance, watcher) => {
+                self.cache.watch_info.insert(instance, watcher);
+            }
+            CacheMessage::PopupError(err) => {
+                if let State::Launch(menu) = &mut self.state {
+                    menu.message = format!("Cache: {err}");
+                } else {
+                    err!("Cache: {err}");
                 }
             }
         }

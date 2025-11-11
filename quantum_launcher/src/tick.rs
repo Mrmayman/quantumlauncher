@@ -32,7 +32,9 @@ impl Launcher {
                 let mut commands = Vec::new();
 
                 if let LaunchTabId::Edit = tab {
-                    self.tick_edit_instance(self.i_config().clone(), &mut commands);
+                    if self.selected_instance.is_some() {
+                        self.tick_edit_instance(self.i_config().clone(), &mut commands);
+                    }
                 }
                 self.tick_processes_and_logs();
 

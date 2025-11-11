@@ -72,7 +72,7 @@ pub struct InstanceCache {
     pub server_list: Option<Vec<String>>,
     watch_clients: Option<PathWatcher>,
     watch_servers: Option<PathWatcher>,
-    pub watch_details_and_config: HashMap<InstanceSelection, Arc<Mutex<InstanceInfoWatcher>>>,
+    pub watch_info: HashMap<InstanceSelection, Arc<Mutex<InstanceInfoWatcher>>>,
 
     pub config: DashMap<InstanceSelection, InstanceConfigJson>,
     pub details: DashMap<InstanceSelection, VersionDetails>,
@@ -123,38 +123,33 @@ impl InstanceCache {
     }
 
     pub fn set_list(&mut self, list: Vec<String>, is_server: bool) -> Task<Message> {
-        self.watch_details_and_config.clear();
+        self.watch_info.clear();
         let mut tasks = Vec::new();
 
-        let base_path = LAUNCHER_DIR.join(if is_server { "servers" } else { "instances" });
         for item in &list {
-            let path = base_path.join(item);
             let instance = InstanceSelection::new(item, is_server);
+            let i2 = instance.clone();
 
             tasks.push(Task::perform(
-                async move {
-                    let a = path.join("details.json");
-                    let b = path.join("config.json");
-                    let d = tokio::join!(
-                        tokio::task::spawn_blocking(move || PathWatcher::new(a, false)),
-                        tokio::task::spawn_blocking(move || PathWatcher::new(b, false))
-                    );
-                    match d {
-                        (Ok(Ok(n1)), Ok(Ok(n2))) => Ok((n1, n2)),
-                        (Ok(Ok(_)), Ok(Err(err))) | (Ok(Err(err)), _) => Err(err.to_string()),
-                        (Ok(_), Err(err)) | (Err(err), _) => Err(err.to_string()),
-                    }
-                },
+                async move { load_info_watchers(&i2).await },
                 move |n| {
-                    Message::CoreCache(CacheMessage::DetailsAndConfigWatcher(n.map(|n| {
-                        (
-                            instance.clone(),
-                            Arc::new(Mutex::new(InstanceInfoWatcher {
-                                details: n.0,
-                                config: n.1,
-                            })),
-                        )
-                    })))
+                    n.map(|(watcher, config, details)| {
+                        Message::Multiple(vec![
+                            Message::CoreCache(CacheMessage::DetailsAndConfigWatcher(
+                                instance.clone(),
+                                Arc::new(Mutex::new(watcher)),
+                            )),
+                            Message::CoreCache(CacheMessage::Config(
+                                instance.clone(),
+                                Ok(Box::new(config)),
+                            )),
+                            Message::CoreCache(CacheMessage::Details(
+                                instance.clone(),
+                                Ok(Box::new(details)),
+                            )),
+                        ])
+                    })
+                    .unwrap_or_else(|err| Message::CoreCache(CacheMessage::PopupError(err)))
                 },
             ));
         }
@@ -169,7 +164,7 @@ impl InstanceCache {
     }
 
     pub fn force_update_list(&mut self) -> Task<Message> {
-        self.watch_details_and_config.clear();
+        self.watch_info.clear();
         Task::batch([
             Task::perform(get_entries(false), |n| {
                 Message::CoreCache(CacheMessage::List(n))
@@ -180,12 +175,12 @@ impl InstanceCache {
         ])
     }
 
-    pub fn update(&mut self) -> Task<Message> {
+    pub fn update(&mut self, update_config: bool) -> Task<Message> {
         let mut tasks = Vec::new();
 
         if let Some(w) = &self.watch_clients {
             if w.tick() {
-                self.watch_details_and_config.clear();
+                self.watch_info.clear();
                 tasks.push(Task::perform(get_entries(false), |n| {
                     Message::CoreCache(CacheMessage::List(n))
                 }));
@@ -193,14 +188,14 @@ impl InstanceCache {
         }
         if let Some(w) = &self.watch_servers {
             if w.tick() {
-                self.watch_details_and_config.clear();
+                self.watch_info.clear();
                 tasks.push(Task::perform(get_entries(true), |n| {
                     Message::CoreCache(CacheMessage::List(n))
                 }));
             }
         }
 
-        for (instance, w) in &self.watch_details_and_config {
+        for (instance, w) in &self.watch_info {
             let watcher = w.lock().unwrap();
             if watcher.details.tick() {
                 let instance = instance.clone();
@@ -215,7 +210,7 @@ impl InstanceCache {
                     },
                 ));
             }
-            if watcher.config.tick() {
+            if update_config && watcher.config.tick() {
                 let instance = instance.clone();
                 let i2 = instance.clone();
                 tasks.push(Task::perform(
@@ -232,4 +227,26 @@ impl InstanceCache {
 
         Task::batch(tasks)
     }
+}
+
+async fn load_info_watchers(
+    instance: &InstanceSelection,
+) -> Result<(InstanceInfoWatcher, InstanceConfigJson, VersionDetails), String> {
+    let idir = instance.get_instance_path();
+    let cf = idir.join("config.json");
+    let dt = idir.join("details.json");
+    let (wconfig, wdetails, config, details) = tokio::join!(
+        tokio::task::spawn_blocking(move || PathWatcher::new(cf, false)),
+        tokio::task::spawn_blocking(move || PathWatcher::new(dt, false)),
+        InstanceConfigJson::load(instance),
+        VersionDetails::load(instance)
+    );
+    Ok((
+        InstanceInfoWatcher {
+            config: wconfig.strerr()?.strerr()?,
+            details: wdetails.strerr()?.strerr()?,
+        },
+        config.strerr()?,
+        details.strerr()?,
+    ))
 }
