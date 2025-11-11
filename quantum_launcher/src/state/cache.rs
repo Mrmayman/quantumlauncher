@@ -7,6 +7,7 @@ use std::{
     },
 };
 
+use dashmap::DashMap;
 use iced::Task;
 use notify::{
     event::{AccessKind, AccessMode},
@@ -48,16 +49,9 @@ impl PathWatcher {
     }
 
     pub fn tick(&self) -> bool {
-        if let Ok(e) = self.receiver.try_recv() {
-            if let EventKind::Access(AccessKind::Open(AccessMode::Any)) = e.kind {
-                false
-            } else {
-                println!("{e:?}");
-                true
-            }
-        } else {
-            false
-        }
+        self.receiver
+            .try_recv()
+            .is_ok_and(|e| !matches!(e.kind, EventKind::Access(AccessKind::Open(AccessMode::Any))))
     }
 }
 
@@ -80,8 +74,8 @@ pub struct InstanceCache {
     watch_servers: Option<PathWatcher>,
     pub watch_details_and_config: HashMap<InstanceSelection, Arc<Mutex<InstanceInfoWatcher>>>,
 
-    pub config: HashMap<InstanceSelection, InstanceConfigJson>,
-    pub details: HashMap<InstanceSelection, VersionDetails>,
+    pub config: DashMap<InstanceSelection, InstanceConfigJson>,
+    pub details: DashMap<InstanceSelection, VersionDetails>,
 }
 
 impl InstanceCache {
@@ -191,7 +185,6 @@ impl InstanceCache {
 
         if let Some(w) = &self.watch_clients {
             if w.tick() {
-                println!("ticked clients");
                 self.watch_details_and_config.clear();
                 tasks.push(Task::perform(get_entries(false), |n| {
                     Message::CoreCache(CacheMessage::List(n))
@@ -200,7 +193,6 @@ impl InstanceCache {
         }
         if let Some(w) = &self.watch_servers {
             if w.tick() {
-                println!("ticked servers");
                 self.watch_details_and_config.clear();
                 tasks.push(Task::perform(get_entries(true), |n| {
                     Message::CoreCache(CacheMessage::List(n))
@@ -224,7 +216,6 @@ impl InstanceCache {
                 ));
             }
             if watcher.config.tick() {
-                println!("(notify): config ({instance:?})");
                 let instance = instance.clone();
                 let i2 = instance.clone();
                 tasks.push(Task::perform(

@@ -21,9 +21,7 @@ use crate::state::{
 impl Launcher {
     pub fn tick(&mut self) -> Task<Message> {
         match &mut self.state {
-            State::Launch(MenuLaunch {
-                edit_instance, tab, ..
-            }) => {
+            State::Launch(MenuLaunch { tab, .. }) => {
                 if let Some(receiver) = &mut self.java_recv {
                     if receiver.tick() {
                         self.state = State::InstallJava;
@@ -33,9 +31,8 @@ impl Launcher {
 
                 let mut commands = Vec::new();
 
-                if let (Some(edit), LaunchTabId::Edit) = (&edit_instance, tab) {
-                    let config = edit.config.clone();
-                    self.tick_edit_instance(config, &mut commands);
+                if let LaunchTabId::Edit = tab {
+                    self.tick_edit_instance(self.i_config().clone(), &mut commands);
                 }
                 self.tick_processes_and_logs();
 
@@ -131,7 +128,7 @@ impl Launcher {
                 }
             }
             State::RecommendedMods(menu) => {
-                if let MenuRecommendedMods::Loading { progress, .. } = menu {
+                if let MenuRecommendedMods::Loading(progress) = menu {
                     progress.tick();
                 }
             }

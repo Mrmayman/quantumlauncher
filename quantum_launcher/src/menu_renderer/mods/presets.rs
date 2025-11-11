@@ -128,7 +128,7 @@ impl MenuRecommendedMods {
         ));
 
         match self {
-            MenuRecommendedMods::Loading { progress, .. } => progress.view().padding(10).into(),
+            MenuRecommendedMods::Loading(progress) => progress.view().padding(10).into(),
             MenuRecommendedMods::InstallALoader => {
                 widget::column![
                     back_button,
@@ -142,7 +142,7 @@ impl MenuRecommendedMods {
                     "No recommended mods found :)"
                 ].padding(10).spacing(5).into()
             }
-            MenuRecommendedMods::Loaded { mods, .. } => {
+            MenuRecommendedMods::Loaded(mods) => {
                 let content: Element =
                     widget::column!(
                         back_button,
@@ -164,10 +164,11 @@ impl MenuRecommendedMods {
                         }))
                         .spacing(10)
                     )
+                    .padding(10)
                     .spacing(10)
                     .into();
 
-                widget::scrollable(widget::column![content].padding(10))
+                widget::scrollable(content)
                     .style(|t: &LauncherTheme, status| t.style_scrollable_flat_dark(status))
                     .into()
             }

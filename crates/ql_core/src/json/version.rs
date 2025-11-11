@@ -67,6 +67,20 @@ pub struct VersionDetails {
     pub q_patch_overrides: Vec<String>,
 }
 
+const JSON_1_12_2: &str = include_str!("1.12.2.json");
+
+impl Default for VersionDetails {
+    fn default() -> Self {
+        serde_json::from_str(JSON_1_12_2).unwrap()
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn parses_1_12_2() {
+    _ = VersionDetails::default();
+}
+
 impl VersionDetails {
     /// Loads a Minecraft instance JSON from disk,
     /// based on a specific `InstanceSelection`

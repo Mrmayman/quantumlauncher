@@ -4,20 +4,24 @@ use crate::{
     state::{CustomJarState, EditInstanceMessage, MenuEditInstance, Message, NONE_JAR_NAME},
     stylesheet::{color::Color, styles::LauncherTheme},
 };
+use dashmap::mapref::one::Ref;
 use iced::{widget, Length};
 use ql_core::json::{
-    instance_config::{JavaArgsMode, PreLaunchPrefixMode},
-    GlobalSettings,
+    instance_config::{CustomJarConfig, JavaArgsMode, PreLaunchPrefixMode},
+    GlobalSettings, InstanceConfigJson,
 };
 use ql_core::InstanceSelection;
 
 use super::Element;
+
+type RCfg<'a> = Ref<'a, InstanceSelection, InstanceConfigJson>;
 
 impl MenuEditInstance {
     pub fn view<'a>(
         &'a self,
         selected_instance: &InstanceSelection,
         jar_choices: Option<&'a CustomJarState>,
+        config: RCfg<'a>,
     ) -> Element<'a> {
         let ts = |n: &LauncherTheme| n.style_text(Color::SecondLight);
 
@@ -27,7 +31,7 @@ impl MenuEditInstance {
                     widget::column![
                         widget::text(selected_instance.get_name().to_owned()).size(20).font(FONT_MONO),
                         widget::text!("{} {}  ",
-                            self.config.mod_type,
+                            config.mod_type,
                             if selected_instance.is_server() {
                                 "Server"
                             } else {
@@ -44,10 +48,10 @@ impl MenuEditInstance {
                 .style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::Dark)),
 
                 widget::container(
-                    self.item_java_override()
+                    self.item_java_override(config.java_override.clone())
                 ).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
                 widget::container(
-                    self.item_custom_jar(jar_choices)
+                    self.item_custom_jar(jar_choices, config.custom_jar.as_ref())
                 ).width(Length::Fill).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::Dark)),
                 widget::container(
                     self.item_mem_alloc(),
@@ -55,13 +59,13 @@ impl MenuEditInstance {
                 widget::container(
                     widget::Column::new()
                     .push_maybe((!selected_instance.is_server()).then_some(widget::column![
-                        widget::checkbox("Close launcher after game opens", self.config.close_on_start.unwrap_or(false))
+                        widget::checkbox("Close launcher after game opens", config.close_on_start.unwrap_or(false))
                             .on_toggle(|t| Message::EditInstance(EditInstanceMessage::CloseLauncherToggle(t))),
                     ].spacing(5)))
                     .push(
                         widget::column![
                             widget::Space::with_height(5),
-                            widget::checkbox("DEBUG: Enable log system (recommended)", self.config.enable_logger.unwrap_or(true))
+                            widget::checkbox("DEBUG: Enable log system (recommended)", config.enable_logger.unwrap_or(true))
                                 .on_toggle(|t| Message::EditInstance(EditInstanceMessage::LoggingToggle(t))),
                             widget::text("Once disabled, logs will be printed in launcher STDOUT.\nRun the launcher executable from the terminal/command prompt to see it").size(12).style(ts),
                             widget::horizontal_space(),
@@ -71,13 +75,13 @@ impl MenuEditInstance {
                     .spacing(10)
                 ).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::Dark)),
                 widget::container(
-                    self.item_args()
+                    self.item_args(&config)
                 ).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
                 widget::container(
                     widget::Column::new()
                         .push_maybe((!selected_instance.is_server()).then_some(
                             resolution_dialog(
-                                self.config.global_settings.as_ref(),
+                                config.global_settings.as_ref(),
                                 |n| Message::EditInstance(EditInstanceMessage::WindowWidthChanged(n)),
                                 |n| Message::EditInstance(EditInstanceMessage::WindowHeightChanged(n)),
                                 false
@@ -97,8 +101,11 @@ impl MenuEditInstance {
         ).style(LauncherTheme::style_scrollable_flat_extra_dark).into()
     }
 
-    fn item_args(&self) -> widget::Column<'_, Message, LauncherTheme> {
-        let current_mode = self.config.java_args_mode.unwrap_or_default();
+    fn item_args(
+        &self,
+        config: &InstanceConfigJson,
+    ) -> widget::Column<'static, Message, LauncherTheme> {
+        let current_mode = config.java_args_mode.unwrap_or_default();
 
         widget::column!(
             widget::container(
@@ -118,7 +125,7 @@ impl MenuEditInstance {
             widget::text("Java arguments:").size(20),
             widget::column!(
                 Self::get_java_args_list(
-                    self.config.java_args.as_deref(),
+                    config.java_args.clone(),
                     |n| Message::EditInstance(EditInstanceMessage::JavaArgDelete(n)),
                     |n| Message::EditInstance(EditInstanceMessage::JavaArgShiftUp(n)),
                     |n| Message::EditInstance(EditInstanceMessage::JavaArgShiftDown(n)),
@@ -130,7 +137,7 @@ impl MenuEditInstance {
             widget::text("Game arguments:").size(20),
             widget::column!(
                 Self::get_java_args_list(
-                    self.config.game_args.as_deref(),
+                    config.game_args.clone(),
                     |n| Message::EditInstance(EditInstanceMessage::GameArgDelete(n)),
                     |n| Message::EditInstance(EditInstanceMessage::GameArgShiftUp(n)),
                     |n| Message::EditInstance(EditInstanceMessage::GameArgShiftDown(n)),
@@ -145,7 +152,7 @@ impl MenuEditInstance {
                     widget::text("Interaction with global pre-launch prefix:").size(14),
                     widget::pick_list(
                         PreLaunchPrefixMode::ALL,
-                        Some(self.config.pre_launch_prefix_mode.unwrap_or_default()),
+                        Some(config.pre_launch_prefix_mode.unwrap_or_default()),
                         |mode| {
                             Message::EditInstance(EditInstanceMessage::PreLaunchPrefixModeChanged(
                                 mode,
@@ -156,7 +163,7 @@ impl MenuEditInstance {
                     .width(200)
                     .text_size(14),
                     Self::get_prefix_mode_description(
-                        self.config.pre_launch_prefix_mode.unwrap_or_default()
+                        config.pre_launch_prefix_mode.unwrap_or_default()
                     ),
                 ]
                 .padding(10)
@@ -164,10 +171,10 @@ impl MenuEditInstance {
             ),
             widget::column!(
                 Self::get_java_args_list(
-                    self.config
+                    config
                         .global_settings
                         .as_ref()
-                        .and_then(|n| n.pre_launch_prefix.as_deref()),
+                        .and_then(|n| n.pre_launch_prefix.clone()),
                     |n| Message::EditInstance(EditInstanceMessage::PreLaunchPrefixDelete(n)),
                     |n| Message::EditInstance(EditInstanceMessage::PreLaunchPrefixShiftUp(n)),
                     |n| Message::EditInstance(EditInstanceMessage::PreLaunchPrefixShiftDown(n)),
@@ -232,14 +239,14 @@ impl MenuEditInstance {
         .spacing(5)
     }
 
-    fn item_java_override(&self) -> widget::Column<'_, Message, LauncherTheme> {
+    fn item_java_override<'a>(
+        &self,
+        java_override: Option<String>,
+    ) -> widget::Column<'a, Message, LauncherTheme> {
         widget::column![
             "Custom Java executable (full path)",
-            widget::text_input(
-                "Leave blank if none",
-                self.config.java_override.as_deref().unwrap_or_default()
-            )
-            .on_input(|t| Message::EditInstance(EditInstanceMessage::JavaOverride(t)))
+            widget::text_input("Leave blank if none", &java_override.unwrap_or_default())
+                .on_input(|t| Message::EditInstance(EditInstanceMessage::JavaOverride(t)))
         ]
         .padding(10)
         .spacing(10)
@@ -248,6 +255,7 @@ impl MenuEditInstance {
     fn item_custom_jar<'a>(
         &'a self,
         jar_choices: Option<&'a CustomJarState>,
+        custom_jar: Option<&CustomJarConfig>,
     ) -> widget::Column<'a, Message, LauncherTheme> {
         let ts = |n: &LauncherTheme| n.style_text(Color::SecondLight);
 
@@ -255,9 +263,7 @@ impl MenuEditInstance {
             widget::pick_list(
                 choices.choices.as_slice(),
                 Some(
-                    self.config
-                        .custom_jar
-                        .as_ref()
+                    custom_jar
                         .map(|n| n.name.clone())
                         .unwrap_or(NONE_JAR_NAME.to_owned()),
                 ),
@@ -281,17 +287,14 @@ use "Mods->Jar Mods""#
             widget::Space::with_height(2),
             picker,
             widget::Column::new().push_maybe(
-                self.config.custom_jar.is_some().then_some(
+                custom_jar.is_some().then_some(
                     widget::column![
                         widget::text("Try this in case the game crashes otherwise")
                             .size(12)
                             .style(ts),
                         widget::checkbox(
                             "Auto-set mainClass",
-                            self.config
-                                .custom_jar
-                                .as_ref()
-                                .is_some_and(|n| n.autoset_main_class)
+                            custom_jar.is_some_and(|n| n.autoset_main_class)
                         )
                         .on_toggle(|n| Message::EditInstance(
                             EditInstanceMessage::AutoSetMainClassToggle(n)
@@ -307,7 +310,7 @@ use "Mods->Jar Mods""#
     }
 
     fn get_java_args_list<'a>(
-        args: Option<&'a [String]>,
+        args: Option<Vec<String>>,
         mut msg_delete: impl FnMut(usize) -> Message,
         mut msg_up: impl FnMut(usize) -> Message,
         mut msg_down: impl FnMut(usize) -> Message,
@@ -398,7 +401,7 @@ pub fn resolution_dialog<'a>(
 }
 
 pub fn global_java_args_dialog<'a>(
-    java_args: Option<&'a [String]>,
+    java_args: Option<Vec<String>>,
     add_msg: Message,
     delete_msg: impl Fn(usize) -> Message + 'a,
     edit_msg: &'a dyn Fn(String, usize) -> Message,
@@ -425,7 +428,7 @@ You can override or customize their behaviour on a per-instance basis too."
 }
 
 pub fn global_pre_launch_prefix_dialog<'a>(
-    prefix_args: Option<&'a [String]>,
+    prefix_args: Option<Vec<String>>,
     add_msg: Message,
     delete_msg: impl Fn(usize) -> Message + 'a,
     edit_msg: &'a dyn Fn(String, usize) -> Message,

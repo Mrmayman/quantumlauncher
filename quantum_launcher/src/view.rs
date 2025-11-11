@@ -98,7 +98,12 @@ impl Launcher {
             .into(),
             State::GenericMessage(msg) => widget::column![widget::text(msg)].padding(10).into(),
             State::AccountLogin => view_account_login(),
-            State::EditMods(menu) => menu.view(self.instance(), self.tick_timer, &self.images),
+            State::EditMods(menu) => menu.view(
+                self.instance(),
+                self.tick_timer,
+                &self.images,
+                &self.i_config(),
+            ),
             State::Create(menu) => menu.view(self.cache.client_list.as_ref()),
             State::ConfirmAction {
                 action: msg1,
@@ -115,7 +120,13 @@ impl Launcher {
                 .into(),
             // TODO: maybe remove window_size argument?
             // It's not needed right now, but could be in the future.
-            State::ModsDownload(menu) => menu.view(&self.images, self.window_size, self.tick_timer),
+            State::ModsDownload(menu) => menu.view(
+                &self.images,
+                self.window_size,
+                self.tick_timer,
+                &self.i_config(),
+                &self.i_details(),
+            ),
             State::LauncherSettings(menu) => menu.view(&self.config, self.window_size),
             State::InstallPaper(menu) => menu.view(self.tick_timer),
             State::ChangeLog => {

@@ -25,6 +25,7 @@ impl MenuEditMods {
         selected_instance: &'a InstanceSelection,
         tick_timer: usize,
         images: &'a ImageState,
+        config: &InstanceConfigJson,
     ) -> Element<'a> {
         if let Some(progress) = &self.mod_update_progress {
             return widget::column!(widget::text("Updating mods").size(20), progress.view())
@@ -34,8 +35,8 @@ impl MenuEditMods {
         }
 
         let menu_main = widget::row!(
-            self.get_sidebar(selected_instance, tick_timer),
-            self.get_mod_list(images)
+            self.get_sidebar(selected_instance, tick_timer, config),
+            self.get_mod_list(images, config)
         );
 
         if self.drag_and_drop_hovered {
@@ -86,11 +87,12 @@ impl MenuEditMods {
         &'a self,
         selected_instance: &'a InstanceSelection,
         tick_timer: usize,
+        config: &InstanceConfigJson,
     ) -> widget::Scrollable<'a, Message, LauncherTheme> {
         widget::scrollable(
             widget::column!(
                 back_button().on_press(back_to_launch_screen(selected_instance, None)),
-                self.get_mod_installer_buttons(selected_instance),
+                Self::get_mod_installer_buttons(config, selected_instance),
                 widget::column!(
                     button_with_icon(icon_manager::download_with_size(14), "Download Content", 15)
                         .on_press(Message::InstallMods(InstallModsMessage::Open)),
@@ -158,8 +160,11 @@ impl MenuEditMods {
         }
     }
 
-    fn get_mod_installer_buttons(&'_ self, selected_instance: &InstanceSelection) -> Element<'_> {
-        match self.config.mod_type.as_str() {
+    fn get_mod_installer_buttons(
+        config: &InstanceConfigJson,
+        selected_instance: &InstanceSelection,
+    ) -> Element<'static> {
+        match config.mod_type.as_str() {
             "Vanilla" => match selected_instance {
                 InstanceSelection::Instance(_) => widget::column![
                     "Install:",
@@ -215,32 +220,30 @@ impl MenuEditMods {
             "Forge" => widget::Column::new()
                 .push_maybe(
                     (!selected_instance.is_server())
-                        .then(|| Self::get_optifine_install_button(&self.config)),
+                        .then(|| Self::get_optifine_install_button(&config)),
                 )
-                .push(Self::get_uninstall_panel(&self.config.mod_type))
+                .push(Self::get_uninstall_panel(&config.mod_type))
                 .spacing(5)
                 .into(),
             "OptiFine" => widget::column!(
                 widget::button(widget::text("Install Forge with OptiFine").size(14))
                     .on_press(Message::InstallForge(ForgeKind::OptiFine)),
-                Self::get_uninstall_panel(&self.config.mod_type,),
+                Self::get_uninstall_panel(&config.mod_type,),
             )
             .spacing(5)
             .into(),
 
             "NeoForge" | "Fabric" | "Quilt" | "Paper" => {
-                Self::get_uninstall_panel(&self.config.mod_type).into()
+                Self::get_uninstall_panel(&config.mod_type).into()
             }
 
-            _ => {
-                widget::column!(widget::text!("Unknown mod type: {}", self.config.mod_type)).into()
-            }
+            _ => widget::column!(widget::text!("Unknown mod type: {}", config.mod_type)).into(),
         }
     }
 
     fn get_optifine_install_button(
         config: &InstanceConfigJson,
-    ) -> widget::Button<'_, Message, LauncherTheme> {
+    ) -> widget::Button<'static, Message, LauncherTheme> {
         if let Some(optifine) = config
             .mod_type_info
             .as_ref()
@@ -255,21 +258,19 @@ impl MenuEditMods {
                 .spacing(11)
                 .padding(2),
             )
-            .on_press_with(|| {
-                Message::UninstallLoaderConfirm(
-                    Box::new(Message::ManageMods(ManageModsMessage::DeleteOptiforge(
-                        optifine.to_owned(),
-                    ))),
-                    "OptiFine".to_owned(),
-                )
-            })
+            .on_press(Message::UninstallLoaderConfirm(
+                Box::new(Message::ManageMods(ManageModsMessage::DeleteOptiforge(
+                    optifine.to_owned(),
+                ))),
+                "OptiFine".to_owned(),
+            ))
         } else {
             widget::button(widget::text("Install OptiFine with Forge").size(14))
                 .on_press(Message::InstallOptifine(InstallOptifineMessage::ScreenOpen))
         }
     }
 
-    fn get_uninstall_panel(mod_type: &'_ str) -> widget::Button<'_, Message, LauncherTheme> {
+    fn get_uninstall_panel(mod_type: &str) -> widget::Button<'static, Message, LauncherTheme> {
         widget::button(
             widget::row![
                 icon_manager::delete_with_size(14),
@@ -296,7 +297,11 @@ impl MenuEditMods {
             .into()
     }
 
-    fn get_mod_list<'a>(&'a self, images: &'a ImageState) -> Element<'a> {
+    fn get_mod_list<'a>(
+        &'a self,
+        images: &'a ImageState,
+        config: &InstanceConfigJson,
+    ) -> Element<'a> {
         if self.sorted_mods_list.is_empty() {
             return widget::column!(
                 "Download some mods to get started",
@@ -314,7 +319,7 @@ impl MenuEditMods {
             widget::column!(
                 widget::Column::new()
                     .push_maybe(
-                        (self.config.mod_type == "Vanilla" && !self.sorted_mods_list.is_empty())
+                        (config.mod_type == "Vanilla" && !self.sorted_mods_list.is_empty())
                         .then_some(
                             widget::container(
                                 widget::text(

@@ -415,6 +415,32 @@ impl InstanceConfigJson {
     }
 }
 
+impl Default for InstanceConfigJson {
+    fn default() -> Self {
+        Self {
+            mod_type: "Vanilla".to_owned(),
+            ram_in_mb: 2048,
+            mod_type_info: None,
+            java_override: None,
+            enable_logger: None,
+            java_args: None,
+            game_args: None,
+            #[allow(deprecated)]
+            omniarchive: None,
+            is_classic_server: None,
+            is_server: None,
+            do_gc_tuning: None,
+            close_on_start: None,
+            global_settings: None,
+            java_args_mode: None,
+            pre_launch_prefix_mode: None,
+            custom_jar: None,
+            version_info: None,
+            main_class_override: None,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct ModTypeInfo {
     pub version: Option<String>,

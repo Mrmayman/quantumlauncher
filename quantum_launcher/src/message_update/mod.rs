@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use iced::futures::executor::block_on;
 use iced::{widget::scrollable::AbsoluteOffset, Task};
+use ql_core::json::{InstanceConfigJson, VersionDetails};
 use ql_core::{
     err, err_no_log, info, InstanceSelection, IntoStringError, ModId, OptifineUniqueVersion,
 };
@@ -18,7 +19,7 @@ mod manage_mods;
 mod presets;
 mod recommended;
 
-use crate::state::{CacheMessage, InstallPaperMessage, MenuInstallPaper};
+use crate::state::{CacheMessage, InstallPaperMessage, MenuInstallPaper, MenuModsDownload};
 use crate::{
     state::{
         self, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage, Launcher,
@@ -157,40 +158,17 @@ impl Launcher {
                 }
             }
             InstallModsMessage::Scrolled(viewport) => {
-                let total_height =
-                    viewport.content_bounds().height - (viewport.bounds().height * 2.0);
-                let absolute_offset = viewport.absolute_offset();
-                let scroll_px = absolute_offset.y;
-
-                if let State::ModsDownload(menu) = &mut self.state {
-                    if menu.results.is_none() {
-                        menu.has_continuation_ended = false;
-                    }
-
-                    menu.scroll_offset = absolute_offset;
-                    if (scroll_px > total_height)
-                        && !menu.is_loading_continuation
-                        && !menu.has_continuation_ended
-                    {
-                        menu.is_loading_continuation = true;
-
-                        let offset = if let Some(results) = &menu.results {
-                            results.offset + results.mods.len()
-                        } else {
-                            0
-                        };
-                        return menu.search_store(is_server, offset);
-                    }
-                }
+                return self.modstore_scrolled(is_server, viewport);
             }
             InstallModsMessage::Open => match self.open_mods_store() {
                 Ok(command) => return command,
                 Err(err) => self.set_error(err),
             },
             InstallModsMessage::SearchInput(input) => {
+                let (config, details) = self.info_cl();
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.query = input;
-                    return menu.search_store(is_server, 0);
+                    return menu.search_store(is_server, 0, &config, &details);
                 }
             }
             InstallModsMessage::Click(i) => {
@@ -259,19 +237,17 @@ impl Launcher {
             }
 
             InstallModsMessage::ChangeBackend(backend) => {
+                let (config, details) = self.info_cl();
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.backend = backend;
-                    menu.results = None;
-                    menu.scroll_offset = AbsoluteOffset::default();
-                    return menu.search_store(is_server, 0);
+                    return menu.reload(is_server, &config, &details);
                 }
             }
             InstallModsMessage::ChangeQueryType(query) => {
+                let (config, details) = self.info_cl();
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.query_type = query;
-                    menu.results = None;
-                    menu.scroll_offset = AbsoluteOffset::default();
-                    return menu.search_store(is_server, 0);
+                    return menu.reload(is_server, &config, &details);
                 }
             }
             InstallModsMessage::InstallModpack(id) => {
@@ -289,6 +265,46 @@ impl Launcher {
                     },
                     |n| Message::InstallMods(InstallModsMessage::DownloadComplete(n.strerr())),
                 );
+            }
+        }
+        Task::none()
+    }
+
+    pub fn info_cl(&self) -> (InstanceConfigJson, VersionDetails) {
+        let config = self.i_config().clone();
+        let details = self.i_details().clone();
+        (config, details)
+    }
+
+    fn modstore_scrolled(
+        &mut self,
+        is_server: bool,
+        viewport: iced::widget::scrollable::Viewport,
+    ) -> Task<Message> {
+        let total_height = viewport.content_bounds().height - (viewport.bounds().height * 2.0);
+        let absolute_offset = viewport.absolute_offset();
+        let scroll_px = absolute_offset.y;
+
+        let (config, details) = self.info_cl();
+
+        if let State::ModsDownload(menu) = &mut self.state {
+            if menu.results.is_none() {
+                menu.has_continuation_ended = false;
+            }
+
+            menu.scroll_offset = absolute_offset;
+            if (scroll_px > total_height)
+                && !menu.is_loading_continuation
+                && !menu.has_continuation_ended
+            {
+                menu.is_loading_continuation = true;
+
+                let offset = if let Some(results) = &menu.results {
+                    results.offset + results.mods.len()
+                } else {
+                    0
+                };
+                return menu.search_store(is_server, offset, &config, &details);
             }
         }
         Task::none()
@@ -342,12 +358,7 @@ impl Launcher {
     pub fn update_install_optifine(&mut self, message: InstallOptifineMessage) -> Task<Message> {
         match message {
             InstallOptifineMessage::ScreenOpen => {
-                let is_forge_installed = if let State::EditMods(menu) = &self.state {
-                    menu.config.mod_type == "Forge"
-                } else {
-                    false
-                };
-                let optifine_unique_version = if is_forge_installed {
+                let optifine_unique_version = if self.i_config().mod_type == "Forge" {
                     Some(OptifineUniqueVersion::Forge)
                 } else {
                     block_on(OptifineUniqueVersion::get(self.instance()))
@@ -636,15 +647,13 @@ impl Launcher {
                 Err(err) => self.set_error(err),
             },
             InstallPaperMessage::ScreenOpen => {
-                if let State::EditMods(menu) = &self.state {
-                    let (task, handle) = Task::perform(
-                        loaders::paper::get_list_of_versions(menu.version_json.get_id().to_owned()),
-                        |n| Message::InstallPaper(InstallPaperMessage::VersionsLoaded(n.strerr())),
-                    )
-                    .abortable();
-                    self.state = State::InstallPaper(MenuInstallPaper::Loading { _handle: handle });
-                    return task;
-                }
+                let (task, handle) = Task::perform(
+                    loaders::paper::get_list_of_versions(self.i_details().get_id().to_owned()),
+                    |n| Message::InstallPaper(InstallPaperMessage::VersionsLoaded(n.strerr())),
+                )
+                .abortable();
+                self.state = State::InstallPaper(MenuInstallPaper::Loading { _handle: handle });
+                return task;
             }
             InstallPaperMessage::ButtonClicked => {
                 let instance_name = self.instance().get_name().to_owned();
@@ -708,6 +717,19 @@ impl Launcher {
             }
         }
         Task::none()
+    }
+}
+
+impl MenuModsDownload {
+    fn reload(
+        &mut self,
+        is_server: bool,
+        config: &InstanceConfigJson,
+        details: &VersionDetails,
+    ) -> Task<Message> {
+        self.results = None;
+        self.scroll_offset = AbsoluteOffset::default();
+        self.search_store(is_server, 0, config, details)
     }
 }
 

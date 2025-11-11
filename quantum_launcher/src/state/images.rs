@@ -1,8 +1,6 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Mutex,
-};
+use std::collections::{HashMap, HashSet};
 
+use dashmap::DashMap;
 use iced::{widget, Task};
 
 use crate::{menu_renderer::Element, state::Message};
@@ -15,7 +13,7 @@ pub struct ImageState {
     /// A queue to request that an image be loaded.
     /// The `bool` represents whether it's a small
     /// icon or not.
-    to_load: Mutex<HashMap<String, bool>>,
+    to_load: DashMap<String, bool>,
 }
 
 impl ImageState {
@@ -34,10 +32,10 @@ impl ImageState {
     pub fn get_imgs_to_load(&mut self) -> Vec<Task<Message>> {
         let mut commands = Vec::new();
 
-        let mut images_to_load = self.to_load.lock().unwrap();
-        images_to_load.retain(|n, _| !n.is_empty());
+        self.to_load.retain(|n, _| !n.is_empty());
 
-        for (url, is_icon) in images_to_load.iter() {
+        for item in self.to_load.iter() {
+            let (url, is_icon) = item.pair();
             if !self.downloads_in_progress.contains(url) {
                 self.downloads_in_progress.insert(url.to_owned());
                 commands.push(Task::perform(
@@ -47,7 +45,7 @@ impl ImageState {
             }
         }
 
-        images_to_load.clear();
+        self.to_load.clear();
         commands
     }
 
@@ -67,8 +65,7 @@ impl ImageState {
                 e.into()
             }
         } else {
-            let mut to_load = self.to_load.lock().unwrap();
-            to_load.insert(url.to_owned(), size.is_some());
+            self.to_load.insert(url.to_owned(), size.is_some());
             fallback
         }
     }

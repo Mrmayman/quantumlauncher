@@ -3,10 +3,8 @@ use std::{collections::HashMap, time::Instant};
 
 use iced::futures::executor::block_on;
 use iced::{widget::scrollable::AbsoluteOffset, Task};
-use ql_core::{
-    json::{instance_config::InstanceConfigJson, version::VersionDetails},
-    InstanceSelection, IntoStringError, JsonFileError, Loader, StoreBackendType,
-};
+use ql_core::json::{InstanceConfigJson, VersionDetails};
+use ql_core::{InstanceSelection, IntoStringError, JsonFileError, Loader, StoreBackendType};
 use ql_mod_manager::store::{ModIndex, Query, QueryType};
 
 use crate::state::{InstallModsMessage, Launcher, MenuModsDownload, Message, State};
@@ -15,18 +13,10 @@ impl Launcher {
     pub fn open_mods_store(&mut self) -> Result<Task<Message>, JsonFileError> {
         let selection = self.instance();
 
-        let config = block_on(InstanceConfigJson::load(selection))?;
-        let version_json = if let State::EditMods(menu) = &self.state {
-            menu.version_json.clone()
-        } else {
-            Box::new(block_on(VersionDetails::load(selection))?)
-        };
         let mod_index = block_on(ModIndex::load(selection))?;
 
         let mut menu = MenuModsDownload {
             scroll_offset: AbsoluteOffset::default(),
-            config,
-            version_json,
             latest_load: Instant::now(),
             query: String::new(),
             results: None,
@@ -43,6 +33,8 @@ impl Launcher {
         let command = menu.search_store(
             matches!(&self.selected_instance, Some(InstanceSelection::Server(_))),
             0,
+            &self.i_config(),
+            &self.i_details(),
         );
         self.state = State::ModsDownload(menu);
         Ok(command)
@@ -50,12 +42,18 @@ impl Launcher {
 }
 
 impl MenuModsDownload {
-    pub fn search_store(&mut self, is_server: bool, offset: usize) -> Task<Message> {
-        let loader = Loader::try_from(self.config.mod_type.as_str()).ok();
+    pub fn search_store(
+        &mut self,
+        is_server: bool,
+        offset: usize,
+        config: &InstanceConfigJson,
+        version_json: &VersionDetails,
+    ) -> Task<Message> {
+        let loader = Loader::try_from(config.mod_type.as_str()).ok();
 
         let query = Query {
             name: self.query.clone(),
-            version: self.version_json.get_id().to_owned(),
+            version: version_json.get_id().to_owned(),
             loader,
             server_side: is_server,
             // open_source: false, // TODO: Add Open Source filter

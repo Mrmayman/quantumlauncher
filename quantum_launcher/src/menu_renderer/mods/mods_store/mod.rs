@@ -1,5 +1,8 @@
 use iced::{widget, Length};
-use ql_core::{ModId, StoreBackendType};
+use ql_core::{
+    json::{InstanceConfigJson, VersionDetails},
+    ModId, StoreBackendType,
+};
 use ql_mod_manager::store::{QueryType, SearchMod};
 
 use crate::{
@@ -16,7 +19,13 @@ mod markdown;
 impl MenuModsDownload {
     /// Renders the main store page, with the search bar,
     /// back button and list of searched mods.
-    fn view_main<'a>(&'a self, images: &'a ImageState, tick_timer: usize) -> Element<'a> {
+    fn view_main<'a>(
+        &'a self,
+        images: &'a ImageState,
+        tick_timer: usize,
+        config: &InstanceConfigJson,
+        version_json: &VersionDetails,
+    ) -> Element<'a> {
         let mods_list = self.get_mods_list(images, tick_timer);
 
         widget::row!(
@@ -34,7 +43,7 @@ impl MenuModsDownload {
             widget::Column::new()
                 .push_maybe(
                     (self.query_type == QueryType::Shaders
-                        && self.config.mod_type != "OptiFine"
+                        && config.mod_type != "OptiFine"
 
                         // Iris Shaders Mod
                         && !self.mod_index.mods.contains_key("YL57xq9U") // Modrinth ID
@@ -49,7 +58,7 @@ impl MenuModsDownload {
                 )
                 .push_maybe(
                     (self.query_type == QueryType::Mods
-                        && self.config.mod_type == "Vanilla")
+                        && config.mod_type == "Vanilla")
                     .then_some(
                         widget::container(
                             widget::text(
@@ -58,7 +67,7 @@ impl MenuModsDownload {
                             ).size(12)
                         ).padding(10).width(Length::Fill).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
                     )
-                ).push_maybe((self.query_type == QueryType::Mods && self.version_json.is_legacy_version())
+                ).push_maybe((self.query_type == QueryType::Mods && version_json.is_legacy_version())
                     .then_some(
                         widget::container(
                             widget::text(
@@ -221,15 +230,17 @@ impl MenuModsDownload {
         images: &'a ImageState,
         window_size: (f32, f32),
         tick_timer: usize,
+        config: &InstanceConfigJson,
+        version_json: &VersionDetails,
     ) -> Element<'a> {
         // If we opened a mod (`self.opened_mod`) then
         // render the mod description page.
         // else render the main store page.
         let (Some(selection), Some(results)) = (&self.opened_mod, &self.results) else {
-            return self.view_main(images, tick_timer);
+            return self.view_main(images, tick_timer, config, version_json);
         };
         let Some(hit) = results.mods.get(*selection) else {
-            return self.view_main(images, tick_timer);
+            return self.view_main(images, tick_timer, config, version_json);
         };
         self.view_project_description(hit, images, window_size, results.backend, tick_timer)
     }

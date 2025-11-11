@@ -6,11 +6,8 @@ use std::{
 use crate::{config::SIDEBAR_WIDTH_DEFAULT, message_handler::get_locally_installed_mods};
 use iced::{widget::scrollable::AbsoluteOffset, Task};
 use ql_core::{
-    file_utils::DirItem,
-    jarmod::JarMods,
-    json::{InstanceConfigJson, VersionDetails},
-    DownloadProgress, GenericProgress, InstanceSelection, ListEntry, ModId, OptifineUniqueVersion,
-    SelectedMod, StoreBackendType,
+    file_utils::DirItem, jarmod::JarMods, DownloadProgress, GenericProgress, InstanceSelection,
+    ListEntry, ModId, OptifineUniqueVersion, SelectedMod, StoreBackendType,
 };
 use ql_mod_manager::loaders::paper::PaperVersion;
 use ql_mod_manager::{
@@ -83,7 +80,6 @@ impl MenuLaunch {
 
 /// The screen where you can edit an instance/server.
 pub struct MenuEditInstance {
-    pub config: InstanceConfigJson,
     pub instance_name: String,
     pub old_instance_name: String,
     pub slider_value: f32,
@@ -149,12 +145,8 @@ impl PartialEq<ModListEntry> for SelectedMod {
 
 pub struct MenuEditMods {
     pub mod_update_progress: Option<ProgressBar<GenericProgress>>,
-
-    pub config: InstanceConfigJson,
+    // TODO: Use `version_json` for dynamically adjusting installable loader buttons
     pub mods: ModIndex,
-    // TODO: Use this for dynamically adjusting installable loader buttons
-    pub version_json: Box<VersionDetails>,
-
     pub locally_installed_mods: HashSet<String>,
     pub sorted_mods_list: Vec<ModListEntry>,
 
@@ -170,6 +162,7 @@ pub struct MenuEditMods {
     pub drag_and_drop_hovered: bool,
     pub submenu1_shown: bool,
 
+    // TODO: Make this shit draggable
     pub width_name: f32,
 }
 
@@ -310,13 +303,11 @@ pub struct MenuModsDownload {
     pub query: String,
     pub results: Option<SearchResult>,
     pub mod_descriptions: HashMap<ModId, String>,
-    pub version_json: Box<VersionDetails>,
     pub opened_mod: Option<usize>,
     pub latest_load: Instant,
     pub mods_download_in_progress: BTreeMap<ModId, String>,
     pub scroll_offset: AbsoluteOffset,
 
-    pub config: InstanceConfigJson,
     pub mod_index: ModIndex,
 
     pub backend: StoreBackendType,
@@ -369,14 +360,8 @@ pub struct MenuEditPresets {
 }
 
 pub enum MenuRecommendedMods {
-    Loading {
-        progress: ProgressBar<GenericProgress>,
-        config: InstanceConfigJson,
-    },
-    Loaded {
-        mods: Vec<(bool, RecommendedMod)>,
-        config: InstanceConfigJson,
-    },
+    Loading(ProgressBar<GenericProgress>),
+    Loaded(Vec<(bool, RecommendedMod)>),
     InstallALoader,
     NotSupported,
 }

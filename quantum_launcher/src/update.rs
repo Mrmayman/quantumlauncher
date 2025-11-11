@@ -7,10 +7,13 @@ use ql_instances::UpdateCheckInfo;
 use std::fmt::Write;
 use tokio::io::AsyncWriteExt;
 
-use crate::state::{
-    CustomJarState, GameProcess, LaunchTabId, Launcher, ManageModsMessage, MenuExportInstance,
-    MenuLaunch, MenuLauncherUpdate, MenuLicense, MenuServerCreate, MenuWelcome, Message,
-    ProgressBar, State,
+use crate::{
+    message_handler::format_memory,
+    state::{
+        CustomJarState, GameProcess, LaunchTabId, Launcher, ManageModsMessage, MenuEditInstance,
+        MenuExportInstance, MenuLaunch, MenuLauncherUpdate, MenuLicense, MenuServerCreate,
+        MenuWelcome, Message, ProgressBar, State,
+    },
 };
 
 impl Launcher {
@@ -143,7 +146,6 @@ impl Launcher {
                     .map(|n| n.watcher.tick())
                     .unwrap_or(false)
                 {
-                    println!("custom jar");
                     tasks.push(CustomJarState::load());
                 }
                 tasks.push(self.cache.update());
@@ -506,6 +508,7 @@ impl Launcher {
     }
 
     pub fn load_edit_instance(&mut self, new_tab: Option<LaunchTabId>) {
+        let memory_mb = self.i_config().ram_in_mb;
         if let State::Launch(MenuLaunch {
             tab, edit_instance, ..
         }) = &mut self.state
@@ -513,10 +516,19 @@ impl Launcher {
             if let (LaunchTabId::Edit, Some(selected_instance)) =
                 (new_tab.unwrap_or(*tab), self.selected_instance.as_ref())
             {
-                if let Err(err) = Self::load_edit_instance_inner(edit_instance, selected_instance) {
-                    err!("Could not open edit instance menu: {err}");
-                    *edit_instance = None;
-                }
+                let slider_value = f32::log2(memory_mb as f32);
+
+                // Use this to check for performance impact
+                // std::thread::sleep(std::time::Duration::from_millis(500));
+
+                let instance_name = selected_instance.get_name();
+
+                *edit_instance = Some(MenuEditInstance {
+                    slider_value,
+                    instance_name: instance_name.to_owned(),
+                    old_instance_name: instance_name.to_owned(),
+                    slider_text: format_memory(memory_mb),
+                });
             } else {
                 *edit_instance = None;
             }

@@ -190,7 +190,7 @@ impl LauncherSettingsTab {
                 .spacing(10),
                 widget::horizontal_rule(1),
                 widget::column![global_java_args_dialog(
-                    config.extra_java_args.as_deref(),
+                    config.extra_java_args.clone(),
                     Message::LauncherSettings(LauncherSettingsMessage::GlobalJavaArgsAdd),
                     |idx| Message::LauncherSettings(LauncherSettingsMessage::GlobalJavaArgDelete(
                         idx
@@ -212,7 +212,7 @@ impl LauncherSettingsTab {
                     config
                         .global_settings
                         .as_ref()
-                        .and_then(|n| n.pre_launch_prefix.as_deref()),
+                        .and_then(|n| n.pre_launch_prefix.clone()),
                     Message::LauncherSettings(LauncherSettingsMessage::GlobalPreLaunchPrefixAdd),
                     |idx| Message::LauncherSettings(
                         LauncherSettingsMessage::GlobalPreLaunchPrefixDelete(idx)

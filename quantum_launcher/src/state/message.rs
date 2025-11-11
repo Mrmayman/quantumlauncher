@@ -1,11 +1,9 @@
-use std::{
-    collections::HashSet,
-    path::PathBuf,
-    process::ExitStatus,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
 
-use crate::{message_handler::ForgeKind, state::InstanceInfoWatcher};
+use crate::{
+    message_handler::ForgeKind,
+    state::{InstanceInfoWatcher, Yeehaw},
+};
 use iced::widget;
 use ql_core::{
     file_utils::DirItem,
@@ -240,8 +238,6 @@ pub enum AccountMessage {
     },
     LittleSkinDeviceCodeError(String),
 }
-
-type Yeehaw<T> = Arc<Mutex<T>>;
 
 #[derive(Debug, Clone)]
 pub enum CacheMessage {

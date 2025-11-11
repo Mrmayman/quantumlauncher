@@ -2,7 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
     str::FromStr,
-    sync::mpsc::Receiver,
+    sync::{mpsc::Receiver, Arc, Mutex},
 };
 
 use iced::Task;
@@ -36,6 +36,7 @@ pub const REMOVE_JAR_NAME: &str = "- Remove Selected";
 pub const OPEN_FOLDER_JAR_NAME: &str = "> Open Folder";
 pub const NONE_JAR_NAME: &str = "(None)";
 
+pub type Yeehaw<T> = Arc<Mutex<T>>;
 type Res<T = ()> = Result<T, String>;
 
 pub struct InstanceLog {

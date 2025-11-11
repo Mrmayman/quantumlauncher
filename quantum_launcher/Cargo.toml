@@ -76,7 +76,9 @@ image = { workspace = true }
 # - HTML Rendering:
 html5ever = "0.27"
 markup5ever_rcdom = "0.3"
+
 notify = "8"
+dashmap = "6"
 
 # iced::widget::markdown doesn't have inline
 # HTML support, so I made my own renderer.

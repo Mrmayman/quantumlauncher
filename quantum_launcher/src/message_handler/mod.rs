@@ -2,19 +2,20 @@ use crate::state::{GameProcess, MenuInstallOptifine};
 use crate::tick::sort_dependencies;
 use crate::{
     state::{
-        EditPresetsMessage, ManageModsMessage, MenuEditInstance, MenuEditMods, MenuInstallForge,
-        MenuLaunch, MenuLauncherUpdate, ProgressBar, SelectedState, State, OFFLINE_ACCOUNT_NAME,
+        EditPresetsMessage, ManageModsMessage, MenuEditMods, MenuInstallForge, MenuLaunch,
+        MenuLauncherUpdate, ProgressBar, SelectedState, State, OFFLINE_ACCOUNT_NAME,
     },
     Launcher, Message,
 };
 use iced::futures::executor::block_on;
 use iced::Task;
+use paste::paste;
 use ql_core::json::instance_config::ModTypeInfo;
 use ql_core::json::VersionDetails;
 use ql_core::read_log::ReadError;
 use ql_core::{
     err, json::instance_config::InstanceConfigJson, GenericProgress, InstanceSelection,
-    IntoIoError, IntoJsonError, IntoStringError, JsonFileError,
+    IntoIoError, IntoStringError, JsonFileError,
 };
 use ql_core::{info, LaunchedProcess};
 use ql_instances::auth::AccountData;
@@ -34,7 +35,48 @@ pub const SIDEBAR_LIMIT_LEFT: f32 = 135.0;
 
 mod iced_event;
 
+macro_rules! instance_getter {
+    ($name:ident, $field:ident, $info:ty) => {
+        pub fn $name(&'_ self) -> dashmap::mapref::one::Ref<'_, InstanceSelection, $info> {
+            let instance = self.selected_instance.clone().unwrap();
+
+            self.cache
+                .$field
+                .entry(instance.clone())
+                .or_insert_with(|| match block_on(<$info>::load(&instance)) {
+                    Ok(config) => config,
+                    Err(err) => {
+                        err!("While getting config: {err}");
+                        <$info>::default()
+                    }
+                })
+                .downgrade()
+        }
+
+        paste!(
+            #[allow(unused)]
+            pub fn [<$name _mut>](&'_ self) -> dashmap::mapref::one::RefMut<'_, InstanceSelection, $info> {
+                let instance = self.selected_instance.clone().unwrap();
+
+                self.cache
+                    .$field
+                    .entry(instance.clone())
+                    .or_insert_with(|| match block_on(<$info>::load(&instance)) {
+                        Ok(config) => config,
+                        Err(err) => {
+                            err!("While getting config: {err}");
+                            <$info>::default()
+                        }
+                    })
+            }
+        );
+    };
+}
+
 impl Launcher {
+    instance_getter!(i_config, config, InstanceConfigJson);
+    instance_getter!(i_details, details, VersionDetails);
+
     pub fn launch_game(&mut self, account_data: Option<AccountData>) -> Task<Message> {
         let username = if let Some(account_data) = &account_data {
             // Logged in account
@@ -132,43 +174,12 @@ impl Launcher {
         }
     }
 
-    pub fn load_edit_instance_inner(
-        edit_instance: &mut Option<MenuEditInstance>,
-        selected_instance: &InstanceSelection,
-    ) -> Result<(), JsonFileError> {
-        let config_path = selected_instance.get_instance_path().join("config.json");
-
-        let config_json = std::fs::read_to_string(&config_path).path(config_path)?;
-        let config_json: InstanceConfigJson =
-            serde_json::from_str(&config_json).json(config_json)?;
-
-        let slider_value = f32::log2(config_json.ram_in_mb as f32);
-        let memory_mb = config_json.ram_in_mb;
-
-        // Use this to check for performance impact
-        // std::thread::sleep(std::time::Duration::from_millis(500));
-
-        let instance_name = selected_instance.get_name();
-
-        *edit_instance = Some(MenuEditInstance {
-            config: config_json,
-            slider_value,
-            instance_name: instance_name.to_owned(),
-            old_instance_name: instance_name.to_owned(),
-            slider_text: format_memory(memory_mb),
-        });
-        Ok(())
-    }
-
     pub fn go_to_edit_mods_menu(&mut self, check_updates: bool) -> Task<Message> {
         async fn inner(
             this: &mut Launcher,
             check_updates: bool,
         ) -> Result<Task<Message>, JsonFileError> {
             let instance = this.selected_instance.as_ref().unwrap();
-
-            let config_json = InstanceConfigJson::load(instance).await?;
-            let version_json = Box::new(VersionDetails::load(instance).await?);
 
             let mods = ModIndex::load(instance).await?;
             let update_local_mods_task =
@@ -179,7 +190,7 @@ impl Launcher {
 
             let (update_cmd, update_check_handle) = if !check_updates
                 || this.mod_updates_checked.contains_key(instance)
-                || config_json.mod_type == "Vanilla"
+                || this.i_config().mod_type == "Vanilla"
             {
                 (Task::none(), None)
             } else {
@@ -198,7 +209,6 @@ impl Launcher {
             };
 
             this.state = State::EditMods(MenuEditMods {
-                config: config_json,
                 mods,
                 selected_mods: HashSet::new(),
                 shift_selected_mods: HashSet::new(),
@@ -209,7 +219,6 @@ impl Launcher {
                 locally_installed_mods,
                 drag_and_drop_hovered: false,
                 update_check_handle,
-                version_json,
                 submenu1_shown: false,
                 width_name: 220.0,
                 list_shift_index: None,
@@ -573,13 +582,13 @@ pub async fn get_locally_installed_mods(
     set
 }
 
-pub fn format_memory(memory_bytes: usize) -> String {
+pub fn format_memory(memory_mb: usize) -> String {
     const MB_TO_GB: usize = 1024;
 
-    if memory_bytes >= MB_TO_GB {
-        format!("{:.2} GB", memory_bytes as f64 / MB_TO_GB as f64)
+    if memory_mb >= MB_TO_GB {
+        format!("{:.2} GB", memory_mb as f64 / MB_TO_GB as f64)
     } else {
-        format!("{memory_bytes} MB")
+        format!("{memory_mb} MB")
     }
 }
 

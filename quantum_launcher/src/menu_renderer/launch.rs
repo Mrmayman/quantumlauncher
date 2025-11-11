@@ -110,7 +110,7 @@ impl Launcher {
                 LaunchTabId::Log => self.get_log_pane(menu).into(),
                 LaunchTabId::Edit => {
                     if let Some(menu) = &menu.edit_instance {
-                        menu.view(selected, self.custom_jar.as_ref())
+                        menu.view(selected, self.custom_jar.as_ref(), self.i_config())
                     } else {
                         widget::column!(
                             "Error: Could not read config json!",

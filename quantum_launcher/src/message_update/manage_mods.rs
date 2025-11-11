@@ -170,23 +170,7 @@ impl Launcher {
                 }
             }
             ManageModsMessage::DeleteOptiforge(name) => {
-                let mods_dir = self.get_selected_dot_minecraft_dir().unwrap().join("mods");
-                if let State::EditMods(menu) = &mut self.state {
-                    menu.locally_installed_mods.remove(&name);
-                    if let Some(mod_info) = &mut menu.config.mod_type_info {
-                        if mod_info.optifine_jar.as_ref().is_some_and(|n| n == &name) {
-                            mod_info.optifine_jar = None;
-                            if let Err(err) =
-                                block_on(menu.config.save(self.selected_instance.as_ref().unwrap()))
-                            {
-                                self.set_error(err);
-                            }
-                        }
-                    }
-                }
-                return Task::perform(delete_file_wrapper(mods_dir.join(&name)), |n| {
-                    Message::ManageMods(ManageModsMessage::LocalDeleteFinished(n))
-                });
+                return self.uninstall_optiforge(name);
             }
             ManageModsMessage::DeleteFinished(result) => match result {
                 Ok(_) => {
@@ -368,6 +352,25 @@ impl Launcher {
             }
         }
         Task::none()
+    }
+
+    fn uninstall_optiforge(&mut self, name: String) -> Task<Message> {
+        let mods_dir = self.get_selected_dot_minecraft_dir().unwrap().join("mods");
+        if let State::EditMods(menu) = &mut self.state {
+            menu.locally_installed_mods.remove(&name);
+            if let Some(mod_info) = &mut self.i_config_mut().mod_type_info {
+                if mod_info.optifine_jar.as_ref().is_some_and(|n| n == &name) {
+                    mod_info.optifine_jar = None;
+                    _ = block_on(
+                        self.i_config()
+                            .save(self.selected_instance.as_ref().unwrap()),
+                    );
+                }
+            }
+        }
+        Task::perform(delete_file_wrapper(mods_dir.join(&name)), |n| {
+            Message::ManageMods(ManageModsMessage::LocalDeleteFinished(n))
+        })
     }
 
     fn get_delete_mods_command(
