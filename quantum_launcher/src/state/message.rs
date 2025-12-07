@@ -320,6 +320,14 @@ impl ListMessage {
     }
 }
 
+#[cfg(feature = "discord_rpc")]
+pub type Discord = std::sync::Arc<tokio::sync::RwLock<Dbg<presenceforge::AsyncDiscordIpcClient>>>;
+#[cfg(feature = "discord_rpc")]
+#[derive(Debug, Clone)]
+pub enum DiscordMessage {
+    Loaded(Res<Discord>),
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     Nothing,
@@ -341,6 +349,8 @@ pub enum Message {
     EditPresets(EditPresetsMessage),
     LauncherSettings(LauncherSettingsMessage),
     RecommendedMods(RecommendedModMessage),
+    #[cfg(feature = "discord_rpc")]
+    Discord(DiscordMessage),
 
     LaunchInstanceSelected {
         name: String,
@@ -417,4 +427,12 @@ pub enum Message {
     LicenseOpen,
     LicenseChangeTab(LicenseTab),
     LicenseAction(widget::text_editor::Action),
+}
+
+#[allow(unused)]
+pub struct Dbg<T>(pub T);
+impl<T> std::fmt::Debug for Dbg<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Dbg(...)")
+    }
 }

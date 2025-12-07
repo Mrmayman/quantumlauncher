@@ -33,6 +33,7 @@ owo-colors = "3"
 chrono = "0.4"
 thiserror = "2"
 clap = { version = "4", features = ["help", "derive"] }
+cfg-if = "1"
 
 # Note: 5.1 not used because of MSRV
 zip = { version = "5.0.1", default-features = false, features = ["deflate"] }

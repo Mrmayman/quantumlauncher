@@ -660,4 +660,23 @@ impl Launcher {
             // }
         }
     }
+
+    #[cfg(feature = "discord_rpc")]
+    pub fn update_discord_msg(&mut self, msg: state::DiscordMessage) -> Task<Message> {
+        match msg {
+            state::DiscordMessage::Loaded(res) => match res {
+                Ok(client) => {
+                    ql_core::info_no_log!("Connected to discord (profile status)");
+                    self.discord = Some(client);
+                    // TODO: set discord activities
+                }
+
+                // Discord hasn't started
+                Err(err) if err.contains("No such file or directory") => {}
+
+                Err(err) => err_no_log!("Couldn't connect to discord: {err}"),
+            },
+        }
+        Task::none()
+    }
 }

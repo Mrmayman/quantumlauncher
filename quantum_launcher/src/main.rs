@@ -93,20 +93,31 @@ impl Launcher {
         config: Result<LauncherConfig, JsonFileError>,
     ) -> (Self, Task<Message>) {
         #[cfg(feature = "auto_update")]
-        let check_for_updates_command = Task::perform(
+        let check_for_updates = Task::perform(
             async move { ql_instances::check_for_launcher_updates().await.strerr() },
             Message::UpdateCheckResult,
         );
         #[cfg(not(feature = "auto_update"))]
-        let check_for_updates_command = Task::none();
+        let check_for_updates = Task::none();
 
-        let get_entries_command = Task::perform(get_entries(false), Message::CoreListLoaded);
+        let instance_list = Task::perform(get_entries(false), Message::CoreListLoaded);
+
+        #[cfg(feature = "discord_rpc")]
+        let discord = Task::perform(load_discord_rpc(), |t| {
+            Message::Discord(state::DiscordMessage::Loaded(
+                t.strerr()
+                    .map(|n| std::sync::Arc::new(tokio::sync::RwLock::new(state::Dbg(n)))),
+            ))
+        });
+        #[cfg(not(feature = "discord_rpc"))]
+        let discord = Task::none();
 
         (
             Launcher::load_new(None, is_new_user, config).unwrap_or_else(Launcher::with_error),
             Task::batch([
-                check_for_updates_command,
-                get_entries_command,
+                check_for_updates,
+                instance_list,
+                discord,
                 Task::perform(ql_core::clean::dir("logs"), |n| {
                     Message::CoreCleanComplete(n.strerr())
                 }),
@@ -314,4 +325,12 @@ fn do_migration() {
             info!("Migration successful!\nYour launcher files are now in ~./local/share/QuantumLauncher");
         }
     }
+}
+
+#[cfg(feature = "discord_rpc")]
+async fn load_discord_rpc(
+) -> Result<presenceforge::AsyncDiscordIpcClient, presenceforge::DiscordIpcError> {
+    let mut client = presenceforge::AsyncDiscordIpcClient::new(state::DISCORD_CLIENT_ID).await?;
+    client.connect().await?;
+    Ok::<_, presenceforge::DiscordIpcError>(client)
 }

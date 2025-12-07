@@ -20,10 +20,12 @@ build = "build.rs"
 embed-resource = "3"
 
 [features]
-default = ["wgpu", "tiny_skia", "auto_update"]
+default = ["wgpu", "tiny_skia", "auto_update", "discord_rpc"]
 wgpu = ["iced/wgpu"]
 tiny_skia = ["iced/tiny-skia"]
-# checking for updates, autoupdater
+discord_rpc = ["dep:presenceforge"]
+# Checking for updates, auto-updater.
+# Useful to disable for packaged builds like flatpak.
 auto_update = []
 
 debug = ["iced/debug"]
@@ -55,7 +57,9 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 chrono = { workspace = true }
+cfg-if = { workspace = true }
 
+presenceforge = { version = "0.1", optional = true, features = ["tokio-runtime"] }
 urlencoding = "2" # URL encoding in log uploads
 paste = "1" # Icon widget macro
 rfd = { version = "0.15", default-features = false, features = [
@@ -70,7 +74,7 @@ terminal_size = "0.4"
 
 # OS APIs
 notify = "8"
-open = "5.3.2"
+open = "5"
 dark-light = "2"
 
 [target.'cfg(target_os = "windows")'.dependencies]

@@ -37,6 +37,9 @@ pub const NONE_JAR_NAME: &str = "(None)";
 
 type Res<T = ()> = Result<T, String>;
 
+#[cfg(feature = "discord_rpc")]
+pub const DISCORD_CLIENT_ID: &str = "1422991467944611871";
+
 pub struct InstanceLog {
     pub log: Vec<String>,
     pub has_crashed: bool,
@@ -59,6 +62,8 @@ pub struct Launcher {
     pub custom_jar: Option<CustomJarState>,
     pub mod_updates_checked: HashMap<InstanceSelection, Vec<(ModId, String, bool)>>,
     pub autosave: HashSet<AutoSaveKind>,
+    #[cfg(feature = "discord_rpc")]
+    pub discord: Option<Discord>,
 
     pub accounts: HashMap<String, AccountData>,
     pub accounts_dropdown: Vec<String>,
@@ -175,6 +180,8 @@ impl Launcher {
             version_list_cache: VersionListCache::default(),
             selected_instance: None,
             custom_jar: None,
+            #[cfg(feature = "discord_rpc")]
+            discord: None,
 
             logs: HashMap::new(),
             processes: HashMap::new(),
@@ -231,6 +238,8 @@ impl Launcher {
             server_list: None,
             selected_instance: None,
             custom_jar: None,
+            #[cfg(feature = "discord_rpc")]
+            discord: None,
 
             is_log_open: false,
             is_launching_game: false,

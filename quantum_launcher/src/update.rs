@@ -67,6 +67,8 @@ impl Launcher {
             Message::ManageJarMods(msg) => return self.update_manage_jar_mods(msg),
             Message::RecommendedMods(msg) => return self.update_recommended_mods(msg),
             Message::Window(msg) => return self.update_window_msg(msg),
+            #[cfg(feature = "discord_rpc")]
+            Message::Discord(msg) => return self.update_discord_msg(msg),
 
             Message::LaunchInstanceSelected { name, is_server } => {
                 self.selected_instance = Some(InstanceSelection::new(&name, is_server));
@@ -468,7 +470,13 @@ impl Launcher {
     }
 
     fn task_read_system_theme(&mut self) -> Task<Message> {
-        const INTERVAL: usize = 4;
+        cfg_if::cfg_if!(
+            if #[cfg(any(target_os = "windows", target_os = "macos"))] {
+                const INTERVAL: usize = 4;
+            } else {
+                const INTERVAL: usize = 10;
+            }
+        );
 
         let is_auto_theme = self
             .config
