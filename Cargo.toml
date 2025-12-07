@@ -32,10 +32,6 @@ futures = { version = "0.3", default-features = false, features = ["executor"] }
 owo-colors = "3"
 chrono = "0.4"
 thiserror = "2"
-rfd = { version = "0.15", default-features = false, features = [
-    "xdg-portal",
-    "tokio",
-] }
 clap = { version = "4", features = ["help", "derive"] }
 
 # Note: 5.1 not used because of MSRV

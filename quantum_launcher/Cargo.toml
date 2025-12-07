@@ -37,7 +37,7 @@ ql_core = { path = "../crates/ql_core" }
 ql_servers = { path = "../crates/ql_servers" }
 ql_packager = { path = "../crates/ql_packager" }
 
-# For the GUI
+# GUI
 iced = { version = "0.13", default-features = false, features = [
     "tokio",
     "image",
@@ -51,21 +51,17 @@ frostmark = { git = "https://github.com/Mrmayman/frostmark.git", rev = "971a143f
 # For table widget, I don't need this
 # tabular = { git = "https://github.com/Mrmayman/tabular.git" }
 
-# For parsing JSON
 serde = { workspace = true }
 serde_json = { workspace = true }
-
-# For URL encoding in log uploads
-urlencoding = "2"
-
-# For managing async tasks
 tokio = { workspace = true }
-# For managing the logging time/date
 chrono = { workspace = true }
-# For the icon widget macro
-paste = "1"
-# For the file picker
-rfd = { workspace = true }
+
+urlencoding = "2" # URL encoding in log uploads
+paste = "1" # Icon widget macro
+rfd = { version = "0.15", default-features = false, features = [
+    "xdg-portal",
+    "tokio",
+] } # File picker
 
 # Terminal
 owo-colors = { workspace = true }
@@ -76,9 +72,6 @@ terminal_size = "0.4"
 notify = "8"
 open = "5.3.2"
 dark-light = "2"
-
-# iced::widget::markdown doesn't have inline
-# HTML support, so I made my own renderer.
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.61", features = ["Win32_System_Console"] }
