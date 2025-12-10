@@ -480,18 +480,24 @@ impl Launcher {
             0
         };
 
-        if did_scroll {
-            self.load_edit_instance(None);
-        }
+        let task_reload_saves = if did_scroll {
+            self.load_tab_edit_instance(None);
+            self.load_tab_saves(None, true)
+        } else {
+            Task::none()
+        };
 
         let scroll_pos = idx as f32 / (list.len() as f32 - 1.0);
         let scroll_pos = scroll_pos * sidebar_height;
-        iced::widget::scrollable::scroll_to(
-            iced::widget::scrollable::Id::new("MenuLaunch:sidebar"),
-            iced::widget::scrollable::AbsoluteOffset {
-                x: 0.0,
-                y: scroll_pos,
-            },
-        )
+        Task::batch([
+            iced::widget::scrollable::scroll_to(
+                iced::widget::scrollable::Id::new("MenuLaunch:sidebar"),
+                iced::widget::scrollable::AbsoluteOffset {
+                    x: 0.0,
+                    y: scroll_pos,
+                },
+            ),
+            task_reload_saves,
+        ])
     }
 }

@@ -4,8 +4,11 @@ use crate::{
     config::LauncherConfig,
     icon_manager,
     menu_renderer::{
-        button_with_icon, center_x, get_mode_selector, onboarding::x86_warning,
-        settings::get_theme_selector, Element, DISCORD,
+        get_mode_selector,
+        onboarding::x86_warning,
+        settings::get_theme_selector,
+        ui::{button_with_icon, center_x},
+        Element, DISCORD,
     },
     state::{AccountMessage, MenuWelcome, Message},
 };

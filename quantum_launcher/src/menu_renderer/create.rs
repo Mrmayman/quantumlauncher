@@ -9,7 +9,9 @@ use ql_core::{ListEntry, ListEntryKind};
 use crate::{
     icon_manager,
     menu_renderer::{
-        back_button, button_with_icon, ctxbox, sidebar, sidebar_button, tooltip, tsubtitle, Element,
+        sidebar, tsubtitle,
+        ui::{back_button, button_with_icon, ctxbox, sidebar_button, tooltip},
+        Element,
     },
     state::{CreateInstanceMessage, MenuCreateInstance, Message},
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},

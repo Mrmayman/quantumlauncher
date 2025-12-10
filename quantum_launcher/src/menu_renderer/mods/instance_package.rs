@@ -2,7 +2,11 @@ use iced::{widget, Length};
 
 use crate::{
     icon_manager,
-    menu_renderer::{back_button, back_to_launch_screen, button_with_icon, Element},
+    menu_renderer::{
+        back_to_launch_screen,
+        ui::{back_button, button_with_icon},
+        Element,
+    },
     state::{MenuExportInstance, Message},
 };
 

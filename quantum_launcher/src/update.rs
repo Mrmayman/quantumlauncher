@@ -1,7 +1,7 @@
 use iced::{futures::executor::block_on, Task};
 use ql_core::{
     err, err_no_log, file_utils::DirItem, info_no_log, InstanceSelection, IntoIoError,
-    IntoStringError,
+    IntoStringError, LAUNCHER_DIR,
 };
 use ql_instances::UpdateCheckInfo;
 use std::fmt::Write;
@@ -10,9 +10,9 @@ use tokio::io::AsyncWriteExt;
 use crate::{
     message_handler::{SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
     state::{
-        AutoSaveKind, CustomJarState, GameProcess, LaunchTabId, Launcher, LauncherSettingsMessage,
-        ManageModsMessage, MenuExportInstance, MenuLaunch, MenuLauncherUpdate, MenuLicense,
-        MenuWelcome, Message, ProgressBar, State,
+        dir_watch, AutoSaveKind, CustomJarState, GameProcess, LaunchTabId, Launcher,
+        LauncherSettingsMessage, ManageModsMessage, MenuExportInstance, MenuLaunch,
+        MenuLauncherUpdate, MenuLicense, MenuWelcome, Message, ProgressBar, SavesInfo, State,
     },
     stylesheet::styles::LauncherThemeLightness,
 };
@@ -71,7 +71,8 @@ impl Launcher {
 
             Message::LaunchInstanceSelected { name, is_server } => {
                 self.selected_instance = Some(InstanceSelection::new(&name, is_server));
-                self.load_edit_instance(None);
+                self.load_tab_edit_instance(None);
+                return self.load_tab_saves(None, true);
             }
             Message::LauncherSettings(msg) => return self.update_launcher_settings(msg),
             Message::InstallOptifine(msg) => return self.update_install_optifine(msg),
@@ -294,7 +295,8 @@ impl Launcher {
             }
             Message::CoreEvent(event, status) => return self.iced_event(event, status),
             Message::LaunchChangeTab(launch_tab_id) => {
-                self.load_edit_instance(Some(launch_tab_id));
+                self.load_tab_edit_instance(Some(launch_tab_id));
+                return self.load_tab_saves(Some(launch_tab_id), false);
             }
             Message::CoreLogToggle => {
                 self.is_log_open = !self.is_log_open;
@@ -461,9 +463,52 @@ impl Launcher {
                     }
                 }
             }
+            Message::SavesLoaded(instance_name, result) => {
+                if let State::Launch(menu) = &mut self.state {
+                    menu.tab_saves = Some(result.and_then(|list| {
+                        let (recv, watcher) = dir_watch(
+                            LAUNCHER_DIR
+                                .join("instances")
+                                .join(&instance_name)
+                                .join(".minecraft/saves"),
+                        )
+                        .strerr()?;
+                        Ok(SavesInfo {
+                            watcher,
+                            recv,
+                            list,
+                        })
+                    }))
+                }
+            }
             Message::CoreFocusNext => {
                 return iced::widget::focus_next();
             }
+        }
+        Task::none()
+    }
+
+    pub fn load_tab_saves(
+        &mut self,
+        launch_tab_id: Option<LaunchTabId>,
+        force: bool,
+    ) -> Task<Message> {
+        let State::Launch(menu) = &mut self.state else {
+            return Task::none();
+        };
+
+        if let (Some(instance), LaunchTabId::Saves) =
+            (&self.selected_instance, launch_tab_id.unwrap_or(menu.tab))
+        {
+            let name = instance.get_name().to_owned();
+
+            if force || menu.tab_saves.is_none() {
+                return Task::perform(ql_core::saves::read_saves_info(name.clone()), move |r| {
+                    Message::SavesLoaded(name.clone(), r.strerr())
+                });
+            }
+        } else if force {
+            menu.tab_saves = None;
         }
         Task::none()
     }
@@ -488,14 +533,16 @@ impl Launcher {
         }
     }
 
-    pub fn load_edit_instance(&mut self, new_tab: Option<LaunchTabId>) {
+    pub fn load_tab_edit_instance(&mut self, new_tab: Option<LaunchTabId>) {
         if let State::Launch(_) = &self.state {
         } else {
             _ = self.go_to_launch_screen(None::<String>);
         }
 
         if let State::Launch(MenuLaunch {
-            tab, edit_instance, ..
+            tab,
+            tab_edit_instance: edit_instance,
+            ..
         }) = &mut self.state
         {
             if let (LaunchTabId::Edit, Some(selected_instance)) =

@@ -5,7 +5,10 @@ use crate::{
     state::{AccountMessage, MenuLoginAlternate, MenuLoginMS, Message, NEW_ACCOUNT_NAME},
 };
 
-use super::{back_button, button_with_icon, center_x, Element};
+use super::{
+    ui::{back_button, button_with_icon, center_x},
+    Element,
+};
 
 impl MenuLoginAlternate {
     pub fn view(&'_ self, tick_timer: usize) -> Element<'_> {

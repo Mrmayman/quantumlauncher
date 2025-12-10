@@ -17,7 +17,7 @@ use crate::{
 macro_rules! iflet_config {
     ($state:expr, $field:ident : $pat:pat, $body:block) => {
         if let State::Launch(MenuLaunch {
-            edit_instance: Some(MenuEditInstance {
+            tab_edit_instance: Some(MenuEditInstance {
                 config: InstanceConfigJson {
                     $field: $pat,
                     ..
@@ -52,7 +52,7 @@ impl Launcher {
         match message {
             EditInstanceMessage::JavaOverride(n) => {
                 if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
+                    tab_edit_instance: Some(menu),
                     ..
                 }) = &mut self.state
                 {
@@ -61,7 +61,7 @@ impl Launcher {
             }
             EditInstanceMessage::MemoryChanged(new_slider_value) => {
                 if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
+                    tab_edit_instance: Some(menu),
                     ..
                 }) = &mut self.state
                 {
@@ -72,7 +72,7 @@ impl Launcher {
             }
             EditInstanceMessage::LoggingToggle(t) => {
                 if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
+                    tab_edit_instance: Some(menu),
                     ..
                 }) = &mut self.state
                 {
@@ -81,7 +81,7 @@ impl Launcher {
             }
             EditInstanceMessage::CloseLauncherToggle(t) => {
                 if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
+                    tab_edit_instance: Some(menu),
                     ..
                 }) = &mut self.state
                 {
@@ -115,7 +115,7 @@ impl Launcher {
             }
             EditInstanceMessage::RenameToggle => {
                 if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
+                    tab_edit_instance: Some(menu),
                     ..
                 }) = &mut self.state
                 {
@@ -130,7 +130,7 @@ impl Launcher {
             }
             EditInstanceMessage::RenameEdit(n) => {
                 if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
+                    tab_edit_instance: Some(menu),
                     ..
                 }) = &mut self.state
                 {
@@ -141,7 +141,7 @@ impl Launcher {
             EditInstanceMessage::ConfigSaved(res) => res?,
             EditInstanceMessage::WindowWidthChanged(width) => {
                 if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
+                    tab_edit_instance: Some(menu),
                     ..
                 }) = &mut self.state
                 {
@@ -150,7 +150,7 @@ impl Launcher {
             }
             EditInstanceMessage::WindowHeightChanged(height) => {
                 if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
+                    tab_edit_instance: Some(menu),
                     ..
                 }) = &mut self.state
                 {
@@ -161,7 +161,7 @@ impl Launcher {
                 if path == ADD_JAR_NAME {
                     return Ok(self.add_custom_jar());
                 } else if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
+                    tab_edit_instance: Some(menu),
                     ..
                 }) = &mut self.state
                 {
@@ -199,7 +199,7 @@ impl Launcher {
             },
             EditInstanceMessage::AutoSetMainClassToggle(t) => {
                 if let State::Launch(MenuLaunch {
-                    edit_instance:
+                    tab_edit_instance:
                         Some(MenuEditInstance {
                             config:
                                 InstanceConfigJson {
@@ -274,7 +274,7 @@ impl Launcher {
         // If the currently selected jar got deleted/renamed
         // then unselect it
         if let State::Launch(MenuLaunch {
-            edit_instance: Some(menu),
+            tab_edit_instance: Some(menu),
             ..
         }) = &mut self.state
         {
@@ -291,7 +291,7 @@ impl Launcher {
         if let (
             Some(custom_jars),
             State::Launch(MenuLaunch {
-                edit_instance: Some(menu),
+                tab_edit_instance: Some(menu),
                 ..
             }),
             Some((path, file_name)),
@@ -328,7 +328,7 @@ impl Launcher {
 
     fn rename_instance(&mut self) -> Result<Task<Message>, String> {
         let State::Launch(MenuLaunch {
-            edit_instance: Some(menu),
+            tab_edit_instance: Some(menu),
             ..
         }) = &mut self.state
         else {

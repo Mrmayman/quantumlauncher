@@ -14,7 +14,7 @@ use ql_core::{
     jarmod::JarMods,
     json::{InstanceConfigJson, VersionDetails},
     DownloadProgress, GenericProgress, InstanceSelection, ListEntry, ModId, OptifineUniqueVersion,
-    SelectedMod, StoreBackendType,
+    Save, SelectedMod, StoreBackendType,
 };
 use ql_mod_manager::loaders::paper::PaperVersion;
 use ql_mod_manager::{
@@ -32,6 +32,7 @@ pub enum LaunchTabId {
     Buttons,
     Log,
     Edit,
+    Saves,
 }
 
 impl std::fmt::Display for LaunchTabId {
@@ -43,6 +44,7 @@ impl std::fmt::Display for LaunchTabId {
                 LaunchTabId::Buttons => "Play",
                 LaunchTabId::Log => "Logs",
                 LaunchTabId::Edit => "Edit",
+                LaunchTabId::Saves => "Saves",
             }
         )
     }
@@ -52,8 +54,10 @@ impl std::fmt::Display for LaunchTabId {
 pub struct MenuLaunch {
     pub message: String,
     pub login_progress: Option<ProgressBar<GenericProgress>>,
+
     pub tab: LaunchTabId,
-    pub edit_instance: Option<MenuEditInstance>,
+    pub tab_edit_instance: Option<MenuEditInstance>,
+    pub tab_saves: Option<Result<SavesInfo, String>>,
 
     pub sidebar_scrolled: f32,
     pub sidebar_grid_state: widget::pane_grid::State<bool>,
@@ -84,7 +88,8 @@ impl MenuLaunch {
         Self {
             message,
             tab: LaunchTabId::default(),
-            edit_instance: None,
+            tab_edit_instance: None,
+            tab_saves: None,
             login_progress: None,
             sidebar_scrolled: 100.0,
             is_viewing_server: false,
@@ -100,6 +105,12 @@ impl MenuLaunch {
             self.sidebar_grid_state.resize(split, width);
         }
     }
+}
+
+pub struct SavesInfo {
+    pub watcher: notify::RecommendedWatcher,
+    pub recv: std::sync::mpsc::Receiver<notify::Event>,
+    pub list: Vec<Save>,
 }
 
 /// The screen where you can edit an instance/server.

@@ -1,6 +1,6 @@
 use crate::{
     icon_manager,
-    menu_renderer::{button_with_icon, tsubtitle, FONT_MONO},
+    menu_renderer::{tsubtitle, ui::button_with_icon, FONT_MONO},
     state::{
         CustomJarState, EditInstanceMessage, ListMessage, MenuEditInstance, Message, NONE_JAR_NAME,
     },

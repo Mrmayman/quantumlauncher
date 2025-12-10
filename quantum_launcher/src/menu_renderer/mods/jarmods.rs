@@ -3,7 +3,10 @@ use ql_core::InstanceSelection;
 
 use crate::{
     icon_manager,
-    menu_renderer::{back_button, button_with_icon, link, Element},
+    menu_renderer::{
+        ui::{back_button, button_with_icon, link},
+        Element,
+    },
     state::{ManageJarModsMessage, ManageModsMessage, MenuEditJarMods, Message, SelectedState},
     stylesheet::{color::Color, styles::LauncherTheme},
 };

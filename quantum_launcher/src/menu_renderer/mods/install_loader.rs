@@ -5,7 +5,10 @@ use ql_mod_manager::loaders::fabric::{self, FabricVersionList, FabricVersionList
 use crate::state::{InstallPaperMessage, MenuInstallPaper};
 use crate::{
     icon_manager,
-    menu_renderer::{back_button, button_with_icon, Element},
+    menu_renderer::{
+        ui::{back_button, button_with_icon},
+        Element,
+    },
     state::{
         InstallFabricMessage, InstallOptifineMessage, ManageModsMessage, MenuInstallFabric,
         MenuInstallForge, MenuInstallOptifine, Message,

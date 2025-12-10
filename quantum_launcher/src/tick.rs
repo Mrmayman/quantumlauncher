@@ -22,7 +22,7 @@ impl Launcher {
     pub fn tick(&mut self) -> Task<Message> {
         match &mut self.state {
             State::Launch(MenuLaunch {
-                ref edit_instance,
+                ref tab_edit_instance,
                 ref tab,
                 ..
             }) => {
@@ -35,7 +35,7 @@ impl Launcher {
 
                 let mut commands = Vec::new();
 
-                if let (Some(edit), LaunchTabId::Edit) = (&edit_instance, tab) {
+                if let (Some(edit), LaunchTabId::Edit) = (&tab_edit_instance, tab) {
                     let config = edit.config.clone();
                     self.autosave.remove(&AutoSaveKind::LauncherConfig);
                     self.tick_edit_instance(config, &mut commands);
