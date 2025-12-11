@@ -248,8 +248,7 @@ impl LauncherTheme {
         let border = self.get_border_style(
             &style,
             match style {
-                StyleScrollable::Round => Color::Mid,
-                StyleScrollable::FlatDark => Color::SecondDark,
+                StyleScrollable::Round | StyleScrollable::FlatDark => Color::SecondDark,
                 StyleScrollable::FlatExtraDark => Color::Dark,
             },
         );
@@ -555,10 +554,7 @@ impl LauncherTheme {
                     StyleButton::FlatExtraDark | StyleButton::SemiExtraDark(_) => Color::ExtraDark,
                 };
                 widget::button::Style {
-                    background: Some({
-                        let (palette, color) = self.get_base(color);
-                        iced::Background::Color(palette.get(color))
-                    }),
+                    background: Some(self.get_bg(color)),
                     text_color: self.get(Color::White),
                     border: if let StyleButton::Round = style {
                         Border {

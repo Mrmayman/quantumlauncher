@@ -93,7 +93,7 @@ impl Launcher {
                 }
             }
             CreateInstanceMessage::Cancel => {
-                return self.go_to_launch_screen(Option::<String>::None)
+                return self.go_to_main_menu_with_message(None::<String>)
             }
             CreateInstanceMessage::Import => {
                 if let Some(file) = rfd::FileDialog::new()
@@ -118,7 +118,7 @@ impl Launcher {
                     let is_valid_modpack = instance.is_some();
                     self.selected_instance = instance;
                     if is_valid_modpack {
-                        return self.go_to_launch_screen(None::<String>);
+                        return self.go_to_main_menu_with_message(None::<String>);
                     }
                     self.set_error(
                         r#"the file you imported isn't a valid QuantumLauncher/MultiMC instance.

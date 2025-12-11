@@ -104,23 +104,8 @@ impl Launcher {
         status: iced::event::Status,
     ) -> Task<Message> {
         let ignored = matches!(status, iced::event::Status::Ignored);
-        if ignored {
-            if let Key::Named(Named::Escape) = key {
-                return self.key_escape_back(true).1;
-            }
-            if let Key::Named(Named::ArrowUp) = key {
-                return self.key_change_selected_instance(false);
-            } else if let Key::Named(Named::ArrowDown) = key {
-                return self.key_change_selected_instance(true);
-            } else if let Key::Named(Named::Enter) = key {
-                if modifiers.command() {
-                    return self.launch_start();
-                }
-            } else if let Key::Named(Named::Backspace) = key {
-                if modifiers.command() {
-                    return Task::done(Message::LaunchKill);
-                }
-            }
+        if let (Key::Named(Named::Escape), true) = (key.clone(), ignored) {
+            return self.key_escape_back(true).1;
         }
 
         if let Key::Character(ch) = &key {
@@ -191,7 +176,7 @@ impl Launcher {
             } else if let Key::Named(Named::ArrowDown) = key {
                 return Task::done(Message::LicenseChangeTab(menu.selected_tab.next()));
             }
-        } else if let State::Launch(_) = &self.state {
+        } else if let (State::Launch(_), true) = (&self.state, ignored) {
             if let Key::Named(Named::ArrowUp) = key {
                 return self.key_change_selected_instance(false);
             } else if let Key::Named(Named::ArrowDown) = key {
@@ -276,9 +261,9 @@ impl Launcher {
     }
 
     pub fn key_escape_back(&mut self, affect: bool) -> (bool, Task<Message>) {
-        let mut should_return_to_main_screen = false;
-        let mut should_return_to_mods_screen = false;
-        let mut should_return_to_download_screen = false;
+        let mut ret_to_main_screen = false;
+        let mut ret_to_mods = false;
+        let mut ret_to_mod_store = false;
 
         if affect && self.hide_submenu() {
             return (true, Task::none());
@@ -303,7 +288,7 @@ impl Launcher {
                 is_loading: false, ..
             })
             | State::Welcome(_) => {
-                should_return_to_main_screen = true;
+                ret_to_main_screen = true;
             }
             State::License(_) => {
                 if affect {
@@ -339,13 +324,13 @@ impl Launcher {
             | State::InstallPaper(
                 MenuInstallPaper::Loading { .. } | MenuInstallPaper::Loaded { .. },
             ) => {
-                should_return_to_mods_screen = true;
+                ret_to_mods = true;
             }
             State::ModsDownload(menu) if menu.opened_mod.is_some() => {
-                should_return_to_download_screen = true;
+                ret_to_mod_store = true;
             }
             State::ModsDownload(menu) if menu.mods_download_in_progress.is_empty() => {
-                should_return_to_mods_screen = true;
+                ret_to_mods = true;
             }
             State::InstallPaper(_)
             | State::ExportInstance(_)
@@ -369,13 +354,13 @@ impl Launcher {
         }
 
         if affect {
-            if should_return_to_main_screen {
-                return (true, self.go_to_launch_screen::<String>(None));
+            if ret_to_main_screen {
+                return (true, self.go_to_main_menu_with_message(None::<String>));
             }
-            if should_return_to_mods_screen {
+            if ret_to_mods {
                 return (true, self.go_to_edit_mods_menu(false));
             }
-            if should_return_to_download_screen {
+            if ret_to_mod_store {
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.opened_mod = None;
                     menu.description = None;
@@ -391,11 +376,24 @@ impl Launcher {
         }
 
         (
-            should_return_to_main_screen
-                | should_return_to_mods_screen
-                | should_return_to_download_screen,
+            ret_to_main_screen | ret_to_mods | ret_to_mod_store,
             Task::none(),
         )
+    }
+
+    pub fn server_selected(&self) -> bool {
+        self.selected_instance
+            .as_ref()
+            .is_some_and(|n| n.is_server())
+            || if let State::Launch(menu) = &self.state {
+                menu.is_viewing_server
+            } else if let State::Create(MenuCreateInstance::Choosing { is_server, .. }) =
+                &self.state
+            {
+                *is_server
+            } else {
+                false
+            }
     }
 
     fn hide_submenu(&mut self) -> bool {
@@ -480,18 +478,23 @@ impl Launcher {
             0
         };
 
-        if did_scroll {
-            self.load_edit_instance(None);
-        }
-
         let scroll_pos = idx as f32 / (list.len() as f32 - 1.0);
         let scroll_pos = scroll_pos * sidebar_height;
-        iced::widget::scrollable::scroll_to(
+        let scroll_task = iced::widget::scrollable::scroll_to(
             iced::widget::scrollable::Id::new("MenuLaunch:sidebar"),
             iced::widget::scrollable::AbsoluteOffset {
                 x: 0.0,
                 y: scroll_pos,
             },
-        )
+        );
+
+        if did_scroll {
+            self.load_edit_instance(None);
+            let instance = self.instance().clone();
+            if let State::Launch(menu) = &mut self.state {
+                return Task::batch([menu.reload_notes(instance), scroll_task]);
+            }
+        }
+        scroll_task
     }
 }

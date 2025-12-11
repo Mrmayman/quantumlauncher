@@ -1,6 +1,8 @@
 use std::path::Path;
 
+use frostmark::MarkState;
 use iced::futures::executor::block_on;
+use iced::widget::text_editor;
 use iced::{widget::scrollable::AbsoluteOffset, Task};
 use ql_core::{
     err, err_no_log, InstanceSelection, IntoStringError, Loader, ModId, OptifineUniqueVersion,
@@ -18,6 +20,7 @@ mod presets;
 mod recommended;
 
 use crate::config::UiWindowDecorations;
+use crate::state::{InstanceNotes, MenuLaunch, NotesMessage};
 use crate::{
     config::UiSettings,
     state::{
@@ -187,13 +190,13 @@ impl Launcher {
                 Ok(command) => return command,
                 Err(err) => self.set_error(err),
             },
-            InstallModsMessage::TickDesc => {
+            InstallModsMessage::TickDesc(update_msg) => {
                 if let State::ModsDownload(MenuModsDownload {
-                    description: Some(d),
+                    description: Some(description),
                     ..
                 }) = &mut self.state
                 {
-                    d.update();
+                    description.update(update_msg);
                 }
             }
             InstallModsMessage::SearchInput(input) => {
@@ -663,5 +666,81 @@ impl Launcher {
             //     Task::none()
             // }
         }
+    }
+
+    pub fn update_notes(&mut self, msg: NotesMessage) -> Task<Message> {
+        match msg {
+            NotesMessage::Loaded(res) => match res {
+                Ok(notes) => {
+                    if let State::Launch(menu) = &mut self.state {
+                        let mark_state = MarkState::with_html_and_markdown(&notes);
+                        menu.notes = Some(InstanceNotes::Viewing {
+                            content: notes,
+                            mark_state,
+                        });
+                    }
+                }
+                Err(err) => err_no_log!("While loading instance notes: {err}"),
+            },
+            NotesMessage::OpenEdit => {
+                if let State::Launch(MenuLaunch {
+                    notes: Some(notes), ..
+                }) = &mut self.state
+                {
+                    let content = notes.get_text();
+                    *notes = InstanceNotes::Editing {
+                        text_editor: text_editor::Content::with_text(content),
+                        original: content.to_owned(),
+                    };
+                }
+            }
+            NotesMessage::Edit(action) => {
+                if let State::Launch(MenuLaunch {
+                    notes: Some(InstanceNotes::Editing { text_editor, .. }),
+                    ..
+                }) = &mut self.state
+                {
+                    text_editor.perform(action);
+                }
+            }
+            NotesMessage::SaveEdit => {
+                if let State::Launch(MenuLaunch {
+                    notes: Some(notes), ..
+                }) = &mut self.state
+                {
+                    if let InstanceNotes::Editing { text_editor, .. } = notes {
+                        let content = text_editor.text();
+
+                        *notes = InstanceNotes::Viewing {
+                            mark_state: MarkState::with_html_and_markdown(&content),
+                            content: content.clone(),
+                        };
+
+                        return Task::perform(
+                            ql_instances::notes::write(self.instance().clone(), content),
+                            |r| {
+                                if let Err(err) = r {
+                                    err_no_log!("While saving instance notes: {err}");
+                                }
+                                Message::Nothing
+                            },
+                        );
+                    }
+                }
+            }
+            NotesMessage::CancelEdit => {
+                if let State::Launch(MenuLaunch {
+                    notes: Some(notes), ..
+                }) = &mut self.state
+                {
+                    let content = notes.get_text();
+                    *notes = InstanceNotes::Viewing {
+                        mark_state: MarkState::with_html_and_markdown(content),
+                        content: content.to_owned(),
+                    }
+                }
+            }
+        }
+        Task::none()
     }
 }

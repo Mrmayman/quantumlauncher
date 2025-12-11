@@ -134,10 +134,9 @@ pub fn button_with_icon<'a>(
     widget::button(
         widget::row![icon.into(), widget::text(text).size(size)]
             .align_y(iced::alignment::Vertical::Center)
-            .spacing(10)
-            .padding([7, 13]),
+            .spacing(10),
     )
-    .padding(0)
+    .padding([7, 13])
 }
 
 pub fn shortcut_ctrl<'a>(key: &str) -> Element<'a> {

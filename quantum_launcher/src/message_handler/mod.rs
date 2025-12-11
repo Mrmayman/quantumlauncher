@@ -121,18 +121,24 @@ impl Launcher {
     }
 
     pub fn delete_instance_confirm(&mut self) -> Task<Message> {
-        if let State::ConfirmAction { .. } = &self.state {
-            let selected_instance = self.instance();
-            let deleted_instance_dir = selected_instance.get_instance_path();
-            if let Err(err) = std::fs::remove_dir_all(&deleted_instance_dir) {
-                self.set_error(err);
-                return Task::none();
-            }
+        let State::ConfirmAction { .. } = &self.state else {
+            return Task::none();
+        };
 
-            self.selected_instance = None;
-            return self.go_to_launch_screen(Some("Deleted Instance".to_owned()));
+        let selected_instance = self.instance();
+        let is_server = selected_instance.is_server();
+        let deleted_instance_dir = selected_instance.get_instance_path();
+        if let Err(err) = std::fs::remove_dir_all(&deleted_instance_dir) {
+            self.set_error(err);
+            return Task::none();
         }
-        Task::none()
+
+        self.selected_instance = None;
+        if is_server {
+            self.go_to_server_manage_menu(Some("Deleted Server".to_owned()))
+        } else {
+            self.go_to_launch_screen(Some("Deleted Instance".to_owned()))
+        }
     }
 
     pub fn load_edit_instance_inner(
@@ -297,7 +303,18 @@ impl Launcher {
             menu_launch.resize_sidebar(SIDEBAR_WIDTH);
             self.state = State::Launch(menu_launch);
         }
-        Task::perform(get_entries(true), Message::CoreListLoaded)
+
+        let get_entries = Task::perform(get_entries(true), Message::CoreListLoaded);
+        match &self.selected_instance {
+            Some(InstanceSelection::Instance(_)) => self.selected_instance = None,
+            Some(i @ InstanceSelection::Server(_)) => {
+                if let State::Launch(menu) = &mut self.state {
+                    return Task::batch([get_entries, menu.reload_notes(i.clone())]);
+                }
+            }
+            None => {}
+        }
+        get_entries
     }
 
     pub fn install_forge(&mut self, kind: ForgeKind) -> Task<Message> {
@@ -355,9 +372,10 @@ impl Launcher {
         message: Option<impl ToString>,
     ) -> Task<Message> {
         let message = message.map(|n| n.to_string());
-        match &self.selected_instance {
-            None | Some(InstanceSelection::Instance(_)) => self.go_to_launch_screen(message),
-            Some(InstanceSelection::Server(_)) => self.go_to_server_manage_menu(message),
+        if self.server_selected() {
+            self.go_to_server_manage_menu(message)
+        } else {
+            self.go_to_launch_screen::<String>(message)
         }
     }
 

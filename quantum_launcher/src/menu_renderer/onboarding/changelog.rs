@@ -22,9 +22,9 @@ pub fn changelog<'a>() -> Element<'a> {
         widget::text("UX").size(32),
 
         widget::column![
-        "- Export mods as a text list for easy manual sharing, with optional links and instance details",
-        "- Tweaked and rearranged many menus/messages",
-        "- You can now choose whether to include configuration in mod presets (thanks @Sreehari425)"
+        "- Export mods as a shareable text list with optional links!",
+        "- Write instance-specific notes for coordinates, todo lists, etc!",
+        "- Many UI tweaks everywhere",
         ].spacing(5),
 
         widget::text("Themes").size(32),

@@ -1601,8 +1601,8 @@ dependencies = [
 
 [[package]]
 name = "frostmark"
-version = "0.1.0"
-source = "git+https://github.com/Mrmayman/frostmark.git?rev=971a143fcfb6cc8889c7858cf5cdb12db64a1396#971a143fcfb6cc8889c7858cf5cdb12db64a1396"
+version = "0.2.0-dev"
+source = "git+https://github.com/Mrmayman/frostmark.git?rev=94a4e90456fcc31479c6d58e3b3ca89c8ec5e6c4#94a4e90456fcc31479c6d58e3b3ca89c8ec5e6c4"
 dependencies = [
  "bitflags 2.9.2",
  "comrak",
@@ -5165,8 +5165,6 @@ dependencies = [
  "ql_core",
  "ql_instances",
  "ql_mod_manager",
- "ql_packager",
- "ql_servers",
  "sysinfo",
  "tokio",
  "which",

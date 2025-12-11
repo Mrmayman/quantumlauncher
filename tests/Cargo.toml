@@ -5,15 +5,13 @@ edition = "2021"
 license = "GPL-3.0-only"
 
 [dependencies]
-ql_instances = { path = "../crates/ql_instances" }
-ql_mod_manager = { path = "../crates/ql_mod_manager" }
-ql_core = { path = "../crates/ql_core" }
-ql_servers = { path = "../crates/ql_servers" }
-ql_packager = { path = "../crates/ql_packager" }
+ql_instances.path = "../crates/ql_instances"
+ql_mod_manager.path = "../crates/ql_mod_manager"
+ql_core.path = "../crates/ql_core"
 
-tokio = { workspace = true }
-clap = { workspace = true }
-owo-colors = { workspace = true }
+tokio.workspace = true
+clap.workspace = true
+owo-colors.workspace = true
 
 duct = "1"
 sysinfo = "0.36"

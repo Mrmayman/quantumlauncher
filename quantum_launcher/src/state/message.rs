@@ -158,7 +158,7 @@ pub enum ManageJarModsMessage {
 #[derive(Debug, Clone)]
 pub enum InstallModsMessage {
     Open,
-    TickDesc,
+    TickDesc(frostmark::UpdateMsg),
     SearchInput(String),
     SearchResult(Res<SearchResult>),
 
@@ -329,6 +329,15 @@ impl ListMessage {
 }
 
 #[derive(Debug, Clone)]
+pub enum NotesMessage {
+    Loaded(Res<String>),
+    OpenEdit,
+    Edit(widget::text_editor::Action),
+    SaveEdit,
+    CancelEdit,
+}
+
+#[derive(Debug, Clone)]
 pub enum Message {
     Nothing,
     Error(String),
@@ -350,6 +359,7 @@ pub enum Message {
     EditPresets(EditPresetsMessage),
     LauncherSettings(LauncherSettingsMessage),
     RecommendedMods(RecommendedModMessage),
+    Notes(NotesMessage),
 
     LaunchInstanceSelected {
         name: String,
@@ -357,13 +367,14 @@ pub enum Message {
     },
     LaunchUsernameSet(String),
     LaunchStart,
+    LaunchEnd(Res<LaunchedProcess>),
+    LaunchKill,
+
     LaunchScreenOpen {
         message: Option<String>,
         clear_selection: bool,
         is_server: Option<bool>,
     },
-    LaunchEnd(Res<LaunchedProcess>),
-    LaunchKill,
     LaunchChangeTab(LaunchTabId),
 
     LaunchSidebarResize(f32),

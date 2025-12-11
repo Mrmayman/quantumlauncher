@@ -249,7 +249,7 @@ impl MenuModsDownload {
             widget::column!(MarkWidget::new(desc)
                 .on_clicking_link(Message::CoreOpenLink)
                 .on_drawing_image(|img| { images.view(img.url, img.width, img.height, "".into()) })
-                .on_updating_state(|| Message::InstallMods(InstallModsMessage::TickDesc))
+                .on_updating_state(|n| Message::InstallMods(InstallModsMessage::TickDesc(n)))
                 .font(FONT_DEFAULT)
                 .font_mono(FONT_MONO))
         } else {

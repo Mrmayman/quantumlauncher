@@ -4,16 +4,16 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies]
-ql_core = { path = "../ql_core" }
+ql_core.path = "../ql_core"
 
-thiserror = { workspace = true }
-tokio = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-owo-colors = { workspace = true }
+thiserror.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+owo-colors.workspace = true
 
 # Avengers assemble
 flate2 = "1"
 tar = "0.4"
-zip = { workspace = true }
+zip.workspace = true
 lzma-rs = "0.3"

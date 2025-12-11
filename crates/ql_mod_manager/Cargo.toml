@@ -5,22 +5,22 @@ edition = "2021"
 license = "GPL-3.0-only"
 
 [dependencies]
-ql_core = { path = "../ql_core" }
-ql_java_handler = { path = "../ql_java_handler" }
+ql_core.path = "../ql_core"
+ql_java_handler.path = "../ql_java_handler"
 
-reqwest = { workspace = true }
+reqwest.workspace = true
 
-serde = { workspace = true }
-serde_json = { workspace = true }
+serde.workspace = true
+serde_json.workspace = true
 
-zip = { workspace = true }
+zip.workspace = true
 
-tokio = { workspace = true }
-futures = { workspace = true }
+tokio.workspace = true
+futures.workspace = true
 
-owo-colors = { workspace = true }
-thiserror = { workspace = true }
+owo-colors.workspace = true
+thiserror.workspace = true
 
-image = { workspace = true }
-chrono = { workspace = true }
-regex = { workspace = true }
+image.workspace = true
+chrono.workspace = true
+regex.workspace = true

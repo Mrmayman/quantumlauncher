@@ -3,7 +3,9 @@ use std::{
     time::Instant,
 };
 
-use crate::{config::SIDEBAR_WIDTH, message_handler::get_locally_installed_mods};
+use crate::{
+    config::SIDEBAR_WIDTH, message_handler::get_locally_installed_mods, state::NotesMessage,
+};
 use frostmark::MarkState;
 use iced::{
     widget::{self, scrollable::AbsoluteOffset},
@@ -13,8 +15,8 @@ use ql_core::{
     file_utils::DirItem,
     jarmod::JarMods,
     json::{InstanceConfigJson, VersionDetails},
-    DownloadProgress, GenericProgress, InstanceSelection, ListEntry, ModId, OptifineUniqueVersion,
-    SelectedMod, StoreBackendType,
+    DownloadProgress, GenericProgress, InstanceSelection, IntoStringError, ListEntry, ModId,
+    OptifineUniqueVersion, SelectedMod, StoreBackendType,
 };
 use ql_mod_manager::loaders::paper::PaperVersion;
 use ql_mod_manager::{
@@ -48,12 +50,33 @@ impl std::fmt::Display for LaunchTabId {
     }
 }
 
+pub enum InstanceNotes {
+    Viewing {
+        content: String,
+        mark_state: MarkState,
+    },
+    Editing {
+        original: String,
+        text_editor: widget::text_editor::Content,
+    },
+}
+
+impl InstanceNotes {
+    pub fn get_text(&self) -> &str {
+        match self {
+            InstanceNotes::Viewing { content, .. } => content,
+            InstanceNotes::Editing { original, .. } => original,
+        }
+    }
+}
+
 /// The home screen of the launcher.
 pub struct MenuLaunch {
     pub message: String,
     pub login_progress: Option<ProgressBar<GenericProgress>>,
     pub tab: LaunchTabId,
     pub edit_instance: Option<MenuEditInstance>,
+    pub notes: Option<InstanceNotes>,
 
     pub sidebar_scrolled: f32,
     pub sidebar_grid_state: widget::pane_grid::State<bool>,
@@ -92,6 +115,7 @@ impl MenuLaunch {
             log_scroll: 0,
             is_uploading_mclogs: false,
             sidebar_split,
+            notes: None,
         }
     }
 
@@ -99,6 +123,13 @@ impl MenuLaunch {
         if let Some(split) = self.sidebar_split {
             self.sidebar_grid_state.resize(split, width);
         }
+    }
+
+    pub fn reload_notes(&mut self, instance: InstanceSelection) -> Task<Message> {
+        self.notes = None;
+        Task::perform(ql_instances::notes::read(instance), |n| {
+            Message::Notes(NotesMessage::Loaded(n.strerr()))
+        })
     }
 }
 

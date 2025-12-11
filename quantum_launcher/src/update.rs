@@ -68,10 +68,15 @@ impl Launcher {
             Message::ManageJarMods(msg) => return self.update_manage_jar_mods(msg),
             Message::RecommendedMods(msg) => return self.update_recommended_mods(msg),
             Message::Window(msg) => return self.update_window_msg(msg),
+            Message::Notes(msg) => return self.update_notes(msg),
 
             Message::LaunchInstanceSelected { name, is_server } => {
-                self.selected_instance = Some(InstanceSelection::new(&name, is_server));
+                let inst = InstanceSelection::new(&name, is_server);
+                self.selected_instance = Some(inst.clone());
                 self.load_edit_instance(None);
+                if let State::Launch(menu) = &mut self.state {
+                    return menu.reload_notes(inst);
+                }
             }
             Message::LauncherSettings(msg) => return self.update_launcher_settings(msg),
             Message::InstallOptifine(msg) => return self.update_install_optifine(msg),
@@ -433,7 +438,7 @@ impl Launcher {
                         if let Err(err) = std::fs::write(&path, bytes).path(path) {
                             self.set_error(err);
                         } else {
-                            return self.go_to_launch_screen(None::<String>);
+                            return self.go_to_main_menu_with_message(None::<String>);
                         }
                     }
                 }
@@ -491,7 +496,7 @@ impl Launcher {
     pub fn load_edit_instance(&mut self, new_tab: Option<LaunchTabId>) {
         if let State::Launch(_) = &self.state {
         } else {
-            _ = self.go_to_launch_screen(None::<String>);
+            _ = self.go_to_main_menu_with_message(None::<String>);
         }
 
         if let State::Launch(MenuLaunch {

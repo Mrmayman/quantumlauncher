@@ -5,20 +5,20 @@ edition = "2021"
 license = "GPL-3.0-only"
 
 [dependencies]
-ql_core = { path = "../ql_core" }
-ql_instances = { path = "../ql_instances" }
-ql_servers = { path = "../ql_servers" }
-ql_mod_manager = { path = "../ql_mod_manager" }
+ql_core.path = "../ql_core"
+ql_instances.path = "../ql_instances"
+ql_servers.path = "../ql_servers"
+ql_mod_manager.path = "../ql_mod_manager"
 
-thiserror = { workspace = true }
-owo-colors = { workspace = true }
+thiserror.workspace = true
+owo-colors.workspace = true
 
-tokio = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
-tempfile = { workspace = true }
+tempfile.workspace = true
 
-chrono = { workspace = true }
-zip = { workspace = true }
+chrono.workspace = true
+zip.workspace = true
 rust-ini = { version = "0.21", features = ["inline-comment"] }

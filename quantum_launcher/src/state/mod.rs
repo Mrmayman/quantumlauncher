@@ -276,7 +276,18 @@ impl Launcher {
         };
         menu_launch.resize_sidebar(SIDEBAR_WIDTH);
         self.state = State::Launch(menu_launch);
-        Task::perform(get_entries(false), Message::CoreListLoaded)
+
+        let get_entries = Task::perform(get_entries(false), Message::CoreListLoaded);
+        match &self.selected_instance {
+            Some(i @ InstanceSelection::Instance(_)) => {
+                if let State::Launch(menu) = &mut self.state {
+                    return Task::batch([menu.reload_notes(i.clone()), get_entries]);
+                }
+            }
+            Some(InstanceSelection::Server(_)) => self.selected_instance = None,
+            None => {}
+        }
+        get_entries
     }
 }
 
