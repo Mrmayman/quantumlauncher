@@ -483,9 +483,7 @@ impl Launcher {
                 self.config.ui_mode = Some(theme);
                 self.theme.lightness = theme;
             }
-            LauncherSettingsMessage::Open => {
-                self.go_to_launcher_settings();
-            }
+            LauncherSettingsMessage::Open => self.go_to_launcher_settings(),
             LauncherSettingsMessage::ColorSchemePicked(color) => {
                 self.config.ui_theme = Some(color);
                 self.theme.color = color;
@@ -515,9 +513,7 @@ impl Launcher {
                     .get_or_insert_with(UiSettings::default)
                     .idle_fps = Some(fps as u64);
             }
-            LauncherSettingsMessage::ClearJavaInstalls => {
-                self.confirm_clear_java_installs();
-            }
+            LauncherSettingsMessage::ClearJavaInstalls => self.confirm_clear_java_installs(),
             LauncherSettingsMessage::ClearJavaInstallsConfirm => {
                 return Task::perform(ql_instances::delete_java_installs(), |()| Message::Nothing);
             }
@@ -527,9 +523,7 @@ impl Launcher {
                     menu.selected_tab = tab;
                 }
             }
-            LauncherSettingsMessage::ToggleAntialiasing(t) => {
-                self.config.ui_antialiasing = Some(t);
-            }
+            LauncherSettingsMessage::ToggleAntialiasing(t) => self.config.ui_antialiasing = Some(t),
             LauncherSettingsMessage::ToggleWindowSize(t) => {
                 self.config.c_window().save_window_size = t;
             }
@@ -579,9 +573,7 @@ impl Launcher {
                 Ok(mode) => {
                     self.theme.system_dark_mode = mode == dark_light::Mode::Dark;
                 }
-                Err(err) if err.contains("Timeout reached") => {
-                    // The system is just lagging, nothing we can do
-                }
+                Err(err) if err.contains("Timeout reached") => {} // System lagging
                 Err(err) => {
                     err_no_log!("while loading system theme: {err}");
                 }

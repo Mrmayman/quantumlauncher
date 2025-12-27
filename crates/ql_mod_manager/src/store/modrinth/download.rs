@@ -6,7 +6,7 @@ use std::{
 
 use chrono::DateTime;
 use ql_core::{
-    err, file_utils, info, json::VersionDetails, pt, GenericProgress, InstanceSelection,
+    err, file_utils, info, json::VersionDetails, pt, GenericProgress, InstanceSelection, Loader,
 };
 
 use crate::store::{
@@ -42,7 +42,7 @@ impl ModDownloader {
             .get_loader()
             .await?
             .not_vanilla()
-            .map(|n| n.to_modrinth_str());
+            .map(Loader::to_modrinth_str);
         let currently_installing_mods = HashSet::new();
         Ok(ModDownloader {
             version: version_json.get_id().to_owned(),

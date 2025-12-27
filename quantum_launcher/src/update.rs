@@ -268,7 +268,7 @@ impl Launcher {
                 }
             }
             Message::CoreListLoaded(Ok((list, is_server))) => {
-                self.core_list_loaded(list, is_server)
+                self.core_list_loaded(list, is_server);
             }
             Message::CoreCopyText(txt) => {
                 return iced::clipboard::write(txt);
@@ -502,7 +502,7 @@ impl Launcher {
         if is_auto_theme && interval {
             Task::perform(tokio::task::spawn_blocking(dark_light::detect), |n| {
                 Message::LauncherSettings(LauncherSettingsMessage::LoadedSystemTheme(
-                    n.strerr().and_then(|n| n.strerr()),
+                    n.strerr().and_then(IntoStringError::strerr),
                 ))
             })
         } else {

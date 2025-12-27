@@ -266,7 +266,7 @@ impl Launcher {
                     .width(Length::Fill)
                     .into()
             },
-            |msg| msg.clone(),
+            Clone::clone,
         );
 
         widget::column![

@@ -169,6 +169,7 @@ impl Launcher {
                 .as_ref()
                 .filter(|_| persistent.selected_remembered)
                 .map(|n| InstanceSelection::new(n, false)),
+
             state,
             config,
             theme,

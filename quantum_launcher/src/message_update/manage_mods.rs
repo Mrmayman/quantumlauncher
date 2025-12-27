@@ -531,7 +531,7 @@ impl Launcher {
 
     fn manage_jarmods_toggle_selected(&mut self) {
         if let State::EditJarMods(menu) = &mut self.state {
-            for selected in menu.selected_mods.iter() {
+            for selected in &menu.selected_mods {
                 if let Some(jarmod) = menu
                     .jarmods
                     .mods
@@ -553,7 +553,7 @@ impl Launcher {
                 .get_instance_path()
                 .join("jarmods");
 
-            for selected in menu.selected_mods.iter() {
+            for selected in &menu.selected_mods {
                 if let Some(n) = menu
                     .jarmods
                     .mods

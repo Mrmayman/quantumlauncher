@@ -65,7 +65,7 @@ impl Launcher {
             CreateInstanceMessage::ContextMenuToggle => {
                 iflet!(self, show_category_dropdown; {
                     *show_category_dropdown = !*show_category_dropdown;
-                })
+                });
             }
             CreateInstanceMessage::CategoryToggle(kind) => {
                 iflet!(self, selected_categories; {
@@ -81,7 +81,7 @@ impl Launcher {
                     self.config
                         .c_persistent().create_instance_filters = Some(selected_categories.clone());
                     self.autosave.remove(&AutoSaveKind::LauncherConfig);
-                })
+                });
             }
             CreateInstanceMessage::NameInput(name) => self.update_created_instance_name(name),
             CreateInstanceMessage::Start => return self.create_instance(),
