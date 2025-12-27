@@ -14,18 +14,14 @@ use ql_mod_manager::store::{ModConfig, ModIndex};
 use crate::state::{
     AutoSaveKind, EditInstanceMessage, GameProcess, InstallModsMessage, InstanceLog, LaunchTabId,
     Launcher, ManageJarModsMessage, MenuCreateInstance, MenuEditMods, MenuExportInstance,
-    MenuInstallFabric, MenuInstallOptifine, MenuLaunch, MenuLoginMS, MenuModsDownload,
-    MenuRecommendedMods, Message, ModListEntry, State,
+    MenuInstallFabric, MenuInstallOptifine, MenuLoginMS, MenuModsDownload, MenuRecommendedMods,
+    Message, ModListEntry, State,
 };
 
 impl Launcher {
     pub fn tick(&mut self) -> Task<Message> {
         match &mut self.state {
-            State::Launch(MenuLaunch {
-                ref edit_instance,
-                ref tab,
-                ..
-            }) => {
+            State::Launch(menu) => {
                 if let Some(receiver) = &mut self.java_recv {
                     if receiver.tick() {
                         self.state = State::InstallJava;
@@ -33,15 +29,24 @@ impl Launcher {
                     }
                 }
 
+                if let Some(progress) = &mut menu.launch_progress {
+                    progress.tick();
+                    if progress.progress.has_finished {
+                        menu.launch_progress = None;
+                    }
+                }
+
                 let mut commands = Vec::new();
 
-                if let (Some(edit), LaunchTabId::Edit) = (&edit_instance, tab) {
+                if let (Some(edit), LaunchTabId::Edit) = (&menu.edit_instance, &menu.tab) {
                     let config = edit.config.clone();
                     self.tick_edit_instance(config, &mut commands);
                 }
                 self.tick_processes_and_logs();
 
-                if self.tick_timer % 5 == 0 && self.autosave.insert(AutoSaveKind::LauncherConfig) {
+                if self.tick_timer.is_multiple_of(5)
+                    && self.autosave.insert(AutoSaveKind::LauncherConfig)
+                {
                     let launcher_config = self.config.clone();
                     commands.push(Task::perform(
                         async move { launcher_config.save().await.strerr() },
@@ -157,7 +162,8 @@ impl Launcher {
             | State::CurseforgeManualDownload(_)
             | State::LogUploadResult { .. }
             | State::InstallPaper(_)
-            | State::ExportMods(_) => {}
+            | State::ExportMods(_)
+            | State::EditLwjgl(_) => {}
         }
 
         Task::none()

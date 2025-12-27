@@ -68,6 +68,7 @@ pub struct Launcher {
 
     pub client_list: Option<Vec<String>>,
     pub server_list: Option<Vec<String>>,
+    pub lwjgl_versions_cache: Option<ql_core::json::LwjglVersionList>,
 
     pub processes: HashMap<InstanceSelection, GameProcess>,
     pub logs: HashMap<InstanceSelection, InstanceLog>,
@@ -186,6 +187,7 @@ impl Launcher {
 
             client_list: None,
             server_list: None,
+            lwjgl_versions_cache: None,
             java_recv: None,
             custom_jar: None,
 
@@ -242,6 +244,7 @@ impl Launcher {
             java_recv: None,
             client_list: None,
             server_list: None,
+            lwjgl_versions_cache: None,
             selected_instance: None,
             custom_jar: None,
 

@@ -168,7 +168,6 @@ pub fn delete_instance(
 
     let selected_instance = InstanceSelection::Instance(instance_name.clone());
     let deleted_instance_dir = selected_instance.get_instance_path();
-    std::fs::remove_dir_all(&deleted_instance_dir)?;
     info!("Deleted instance {instance_name}");
 
     Ok(())
@@ -212,6 +211,7 @@ pub async fn launch_instance(
         ql_instances::launch(
             instance_name.clone(),
             username,
+            None,
             None,
             account.clone(),
             None, // No global defaults in CLI mode
