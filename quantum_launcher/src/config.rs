@@ -1,10 +1,12 @@
 use crate::stylesheet::styles::{LauncherTheme, LauncherThemeColor, LauncherThemeLightness};
 use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use ql_core::json::GlobalSettings;
+use ql_core::ListEntryKind;
 use ql_core::{
     err, IntoIoError, IntoJsonError, JsonFileError, LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::{collections::HashMap, path::Path};
 
 pub const SIDEBAR_WIDTH: f32 = 0.33;
@@ -363,6 +365,9 @@ pub struct PersistentSettings {
     pub selected_instance: Option<String>,
     pub selected_server: Option<String>,
     pub selected_remembered: bool,
+
+    /// Remembers version filters (eg: snapshot, release, etc) in Create Instance
+    pub create_instance_filters: Option<HashSet<ListEntryKind>>,
 }
 
 impl Default for PersistentSettings {
@@ -371,6 +376,17 @@ impl Default for PersistentSettings {
             selected_instance: None,
             selected_server: None,
             selected_remembered: true,
+            create_instance_filters: None,
         }
+    }
+}
+
+impl PersistentSettings {
+    #[must_use]
+    pub fn get_create_instance_filters(&self) -> std::collections::HashSet<ListEntryKind> {
+        self.create_instance_filters
+            .clone()
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(ListEntryKind::default_selected)
     }
 }

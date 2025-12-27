@@ -258,7 +258,7 @@ async fn get_instance_recipe(mmc_pack: &MmcPack) -> Result<InstanceRecipe, Insta
             "LWJGL 2" | "Intermediary Mappings" => {}
             name if name.contains("(jar mod)") => {
                 if let Some(jarmod_filename) = component.uid.split('.').next_back() {
-                    recipe.jarmods.push(format!("{}.jar", jarmod_filename));
+                    recipe.jarmods.push(format!("{jarmod_filename}.jar"));
                 }
             }
             name => err!("Unknown MultiMC Component: {name}"),

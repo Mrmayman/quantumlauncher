@@ -21,6 +21,7 @@ use crate::{
 use futures::StreamExt;
 use json::VersionDetails;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use std::{
     fmt::{Debug, Display},
     future::Future,
@@ -336,7 +337,8 @@ impl Display for ListEntry {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[serde(rename_all = "kebab-case")]
 pub enum ListEntryKind {
     Release,
     Snapshot,
@@ -387,6 +389,7 @@ impl ListEntryKind {
         let mut set = std::collections::HashSet::new();
         set.extend(Self::ALL);
         set.remove(&Self::Snapshot);
+        set.remove(&Self::Special);
         set
     }
 }

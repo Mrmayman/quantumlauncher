@@ -18,11 +18,13 @@ pub fn search_for_window(pid: u32, sys: &sysinfo::System) -> bool {
 
     for window in windows.iter() {
         // kCGWindowOwnerPID is a CFString constant
-        let pid_value = window.find(unsafe { core_graphics::window::kCGWindowOwnerPID as *const c_void });
+        let pid_value =
+            window.find(unsafe { core_graphics::window::kCGWindowOwnerPID as *const c_void });
 
         if let Some(pid_value) = pid_value {
             // Value is a CFNumber
-            let pid_number: CFNumber = unsafe { CFNumber::wrap_under_get_rule((*pid_value) as *const _) };
+            let pid_number: CFNumber =
+                unsafe { CFNumber::wrap_under_get_rule((*pid_value) as *const _) };
 
             if let Some(pid_current) = pid_number.to_i32() {
                 if pid_current as u32 == pid {

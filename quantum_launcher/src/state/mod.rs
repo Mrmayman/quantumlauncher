@@ -58,7 +58,6 @@ pub struct Launcher {
     pub java_recv: Option<ProgressBar<GenericProgress>>,
     pub custom_jar: Option<CustomJarState>,
     pub mod_updates_checked: HashMap<InstanceSelection, Vec<(ModId, String, bool)>>,
-
     /// See [`AutoSaveKind`]
     pub autosave: HashSet<AutoSaveKind>,
 
@@ -170,7 +169,6 @@ impl Launcher {
                 .as_ref()
                 .filter(|_| persistent.selected_remembered)
                 .map(|n| InstanceSelection::new(n, false)),
-
             state,
             config,
             theme,
