@@ -120,9 +120,7 @@ impl MenuCreateInstanceChoosing {
                 }),))
                 .style(LauncherTheme::style_scrollable_flat_extra_dark)
                 .height(Length::Fill)
-                .id(iced::widget::scrollable::Id::new(
-                    "MenuCreateInstance:sidebar"
-                ))
+                .id(widget::Id::new("MenuCreateInstance:sidebar"))
             ]
             .spacing(10),
         )
@@ -217,7 +215,7 @@ impl MenuCreateInstanceChoosing {
                 widget::text("If disabled, creating instance will be MUCH faster\nbut no sound or music will play").size(12),
                 Position::FollowCursor
             ),
-            widget::horizontal_rule(1),
+            widget::rule::horizontal(1),
             widget::text("- To install Fabric/Forge/OptiFine/etc and mods, click on Mods after installing the instance").size(12).style(tsubtitle),
             row!(
                 widget::text("- To sideload your own custom JARs, create an instance with a similar version, then go to \"Edit->Custom Jar File\"").size(12).style(tsubtitle)
@@ -233,8 +231,8 @@ impl MenuCreateInstanceChoosing {
         }).spacing(12);
 
         let menu = column![
-            widget::column![main_part, widget::vertical_space()],
-            row![widget::horizontal_space()]
+            widget::column![main_part, widget::space().height(Length::Fill)],
+            row![widget::space().width(Length::Fill)]
                 .push_maybe(
                     EXPERIMENTAL_MMC_IMPORT.read().unwrap().then_some(tooltip(
                         button_with_icon(icons::upload(), "Import from MultiMC...", 16)

@@ -67,6 +67,7 @@ impl Launcher {
                 | iced::window::Event::Moved { .. }
                 | iced::window::Event::Opened { .. }
                 | iced::window::Event::Focused
+                | iced::window::Event::Rescaled(_)
                 | iced::window::Event::Unfocused => {}
             },
             iced::Event::Keyboard(event) => match event {
@@ -99,7 +100,7 @@ impl Launcher {
                 }
                 _ => {}
             },
-            iced::Event::Touch(_) => {}
+            iced::Event::InputMethod(_) | iced::Event::Touch(_) => {}
         }
         Task::none()
     }
@@ -393,8 +394,8 @@ impl Launcher {
                     menu.description = None;
                     return (
                         true,
-                        iced::widget::scrollable::scroll_to(
-                            iced::widget::scrollable::Id::new("MenuModsDownload:main:mods_list"),
+                        iced::widget::operation::scroll_to(
+                            iced::widget::Id::new("MenuModsDownload:main:mods_list"),
                             menu.scroll_offset,
                         ),
                     );
@@ -492,8 +493,8 @@ impl Launcher {
 
         let scroll_pos = idx as f32 / (list.len() as f32 - 1.0);
         let scroll_pos = scroll_pos * sidebar_height;
-        let scroll_task = iced::widget::scrollable::scroll_to(
-            iced::widget::scrollable::Id::new("MenuLaunch:sidebar"),
+        let scroll_task = iced::widget::operation::scroll_to(
+            iced::widget::Id::new("MenuLaunch:sidebar"),
             iced::widget::scrollable::AbsoluteOffset {
                 x: 0.0,
                 y: scroll_pos,

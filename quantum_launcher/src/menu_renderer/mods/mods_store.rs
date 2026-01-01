@@ -70,7 +70,7 @@ impl MenuModsDownload {
                             theme
                                 .style_scrollable_flat_extra_dark(status)
                         )
-                        .id(widget::scrollable::Id::new("MenuModsDownload:main:mods_list"))
+                        .id(widget::Id::new("MenuModsDownload:main:mods_list"))
                         .height(Length::Fill)
                         .width(Length::Fill)
                         .on_scroll(|viewport| {
@@ -151,7 +151,7 @@ impl MenuModsDownload {
                         .map(|(i, hit)| self.view_mod_entry(i, hit, images, results.backend)),
                 )
             }
-            .push(widget::horizontal_space())
+            .push(widget::space().width(Length::Fill))
         } else {
             let dots = ".".repeat((tick_timer % 3) + 1);
             widget::column!(widget::text!("Loading{dots}"))

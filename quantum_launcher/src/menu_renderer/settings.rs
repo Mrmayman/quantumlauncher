@@ -79,7 +79,7 @@ impl MenuLauncherSettings {
 
     fn view_ui_tab<'a>(&'a self, config: &'a LauncherConfig) -> Element<'a> {
         let ui_scale_apply = widget::row![
-            widget::horizontal_space(),
+            widget::space().width(Length::Fill),
             widget::button(widget::text("Apply").size(12))
                 .padding([1.8, 5.0])
                 .on_press(Message::LauncherSettings(
@@ -217,7 +217,7 @@ impl LauncherSettingsTab {
                 widget::text("Game").size(20),
                 button_with_icon(icons::folder(), "Open Launcher Folder", 16)
                     .on_press(Message::CoreOpenPath(LAUNCHER_DIR.clone())),
-                widget::horizontal_rule(1),
+                widget::rule::horizontal(1),
                 resolution_dialog(
                     config.global_settings.as_ref(),
                     |n| Message::LauncherSettings(
@@ -227,7 +227,7 @@ impl LauncherSettingsTab {
                         LauncherSettingsMessage::DefaultMinecraftHeightChanged(n)
                     ),
                 ),
-                widget::horizontal_rule(1),
+                widget::rule::horizontal(1),
                 "Global Java Arguments:",
                 get_args_list(config.extra_java_args.as_deref(), |msg| {
                     Message::LauncherSettings(LauncherSettingsMessage::GlobalJavaArgs(msg))
@@ -245,7 +245,7 @@ impl LauncherSettingsTab {
                     )),
                 ),
                 args_split_by_space(menu.arg_split_by_space),
-                widget::horizontal_rule(1),
+                widget::rule::horizontal(1),
                 widget::row![
                     button_with_icon(icons::bin(), "Clear Java installs", 16).on_press(
                         Message::LauncherSettings(LauncherSettingsMessage::ClearJavaInstalls)
@@ -307,7 +307,7 @@ fn view_about_tab() -> Element<'static> {
             .on_press(Message::CoreOpenLink("https://iced.rs".to_owned()))
             .padding(5)
             .style(|n: &LauncherTheme, status| n.style_button(status, StyleButton::Flat)),
-        widget::horizontal_rule(1),
+        widget::rule::horizontal(1),
         widget::column![
             widget::row![
                 widget::text("QuantumLauncher is free and open source software under the ")

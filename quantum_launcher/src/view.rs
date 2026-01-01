@@ -17,9 +17,9 @@ impl Launcher {
         let round = !self.config.uses_system_decorations();
         let toggler = tooltip(
             widget::button(widget::row![
-                widget::horizontal_space(),
+                widget::space().width(Length::Fill),
                 widget::text(if self.is_log_open { "v" } else { "^" }).size(10),
-                widget::horizontal_space()
+                widget::space().width(Length::Fill)
             ])
             .padding(0)
             .height(DEBUG_LOG_BUTTON_HEIGHT)
@@ -243,7 +243,7 @@ impl Launcher {
         );
         if right {
             widget::Row::new()
-                .push(widget::horizontal_space())
+                .push(widget::space().width(Length::Fill))
                 .push(wmin)
                 .push(wmax)
                 .push(wcls)
@@ -296,7 +296,7 @@ impl Launcher {
                     Interaction::ResizingVertically,
                     Direction::North
                 ),
-                widget::vertical_space(),
+                widget::space().height(Length::Fill),
                 m(
                     (Length::Fill, 10),
                     Interaction::ResizingVertically,

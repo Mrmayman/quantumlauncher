@@ -54,7 +54,7 @@ impl MenuExportMods {
                         .style(tsubtitle),
                 ]
                 .spacing(4),
-                widget::horizontal_space(),
+                widget::space().width(Length::Fill),
                 widget::row![
                     widget::button(widget::text("Copy").size(14))
                         .padding([8, 16])
@@ -84,7 +84,7 @@ impl MenuExportMods {
                         .style(tsubtitle),
                 ]
                 .spacing(4),
-                widget::horizontal_space(),
+                widget::space().width(Length::Fill),
                 widget::row![
                     widget::button(widget::text("Copy").size(14))
                         .padding([8, 16])
@@ -208,7 +208,7 @@ impl MenuExportMods {
                 }
             }
             // preview_elements.push(
-            //     widget::horizontal_rule(1)
+            //     widget::rule::horizontal(1)
             //         .style(|t: &LauncherTheme| t.style_rule(Color::SecondDark, 1))
             //         .into(),
             // );

@@ -62,7 +62,7 @@ impl MenuLoginAlternate {
                     "ElyBy Login"
                 })
                 .size(20),
-                widget::vertical_space(),
+                widget::space().height(Length::Fill),
                 widget::text("Username/Email:").size(12),
                 center_x(
                     widget::text_input("Enter Username/Email...", &self.username)
@@ -110,7 +110,7 @@ impl MenuLoginAlternate {
                 .align_y(Alignment::Center)
                 .spacing(5)
                 .wrap(),
-                widget::vertical_space(),
+                widget::space().height(Length::Fill),
             ]
             .width(Length::Fill)
             .align_x(Alignment::Center)
@@ -145,16 +145,16 @@ impl MenuLoginAlternate {
         .align_y(Alignment::Center)
         .spacing(10);
         widget::column![
-            widget::vertical_space(),
+            widget::space().height(Length::Fill),
             widget::text("LittleSkin Device Login").size(20),
             widget::text("Open this link and enter the code:").size(14),
             widget::Space::with_height(5),
             widget::container(widget::column![code_row, url_row]).padding(10),
             widget::Space::with_height(5),
             widget::text!("Expires in: {}s", time_left).size(13),
-            widget::vertical_space(),
+            widget::space().height(Length::Fill),
             widget::text("Waiting for login...").size(14),
-            widget::vertical_space(),
+            widget::space().height(Length::Fill),
         ]
         .width(Length::Fill)
         .push_maybe(
@@ -177,20 +177,20 @@ impl MenuLoginMS {
                 Message::Account(AccountMessage::Selected(NEW_ACCOUNT_NAME.to_owned()))
             }),
             widget::row!(
-                widget::horizontal_space(),
+                widget::space().width(Length::Fill),
                 widget::column!(
-                    widget::vertical_space(),
+                    widget::space().height(Length::Fill),
                     widget::text("Login to Microsoft").size(20),
                     "Open this link and enter the code:",
                     widget::text!("Code: {}", self.code),
                     widget::button("Copy").on_press(Message::CoreCopyText(self.code.clone())),
                     widget::text!("Link: {}", self.url),
                     widget::button("Open").on_press(Message::CoreOpenLink(self.url.clone())),
-                    widget::vertical_space(),
+                    widget::space().height(Length::Fill),
                 )
                 .spacing(5)
                 .align_x(Alignment::Center),
-                widget::horizontal_space()
+                widget::space().width(Length::Fill)
             )
         ]
         .padding(10)
