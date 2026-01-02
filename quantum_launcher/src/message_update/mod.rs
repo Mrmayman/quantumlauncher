@@ -27,7 +27,7 @@ use crate::{
         self, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage,
         InstallPaperMessage, Launcher, LauncherSettingsMessage, MenuCurseforgeManualDownload,
         MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuModsDownload, Message,
-        ProgressBar, State, WindowMessage,
+        ProgressBar, State,
     },
 };
 
@@ -229,8 +229,8 @@ impl Launcher {
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.opened_mod = None;
                     menu.description = None;
-                    return iced::widget::scrollable::scroll_to(
-                        iced::widget::scrollable::Id::new("MenuModsDownload:main:mods_list"),
+                    return iced::widget::operation::scroll_to(
+                        iced::widget::Id::new("MenuModsDownload:main:mods_list"),
                         menu.scroll_offset,
                     );
                 }
@@ -686,7 +686,7 @@ impl Launcher {
         Task::none()
     }
 
-    pub fn update_window_msg(&mut self, msg: WindowMessage) -> Task<Message> {
+    /*pub fn update_window_msg(&mut self, msg: WindowMessage) -> Task<Message> {
         match msg {
             WindowMessage::Dragged => iced::window::get_latest().and_then(iced::window::drag),
             // WindowMessage::Resized(dir) => {
@@ -707,7 +707,7 @@ impl Launcher {
             //     Task::none()
             // }
         }
-    }
+    }*/
 
     pub fn update_notes(&mut self, msg: NotesMessage) -> Task<Message> {
         match msg {

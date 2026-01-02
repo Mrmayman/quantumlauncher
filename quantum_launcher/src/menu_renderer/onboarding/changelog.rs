@@ -42,7 +42,7 @@ pub fn changelog<'a>(config: &LauncherConfig) -> Element<'a> {
             widget::text("- Babric and Cursed Legacy (b1.7.3)").size(14),
         ].spacing(5),
 
-        widget::horizontal_rule(1),
+        widget::rule::horizontal(1),
         widget::text("UX").size(32),
 
         widget::column![
@@ -97,7 +97,7 @@ pub fn changelog<'a>(config: &LauncherConfig) -> Element<'a> {
             widget::text!("- {cmd} + Enter to confirm").size(14),
         ].spacing(5),
 
-        widget::horizontal_rule(1),
+        widget::rule::horizontal(1),
         widget::text("Experiments").size(32),
 
         widget::text("A few experimental features have been enabled for users to try out.\nPlease try them and report any bugs or feedback!"),
@@ -130,7 +130,7 @@ pub fn changelog<'a>(config: &LauncherConfig) -> Element<'a> {
             widget::text("- If you find incompatibilities, please report them on GitHub/Discord! (upload your instance if possible)").size(14),
         ].spacing(5),
 
-        widget::horizontal_rule(1),
+        widget::rule::horizontal(1),
         widget::text("Technical").size(32),
         widget::column![
             widget::text("- Added pre-launch prefix commands (eg: `prime-run`, `mangohud`, `gamemoderun`, etc)").size(14),
@@ -142,7 +142,7 @@ pub fn changelog<'a>(config: &LauncherConfig) -> Element<'a> {
             widget::text("- Added option to input arguments with spaces").size(14),
         ].spacing(5),
 
-        widget::horizontal_rule(1),
+        widget::rule::horizontal(1),
         widget::text("Fixes").size(32),
         widget::column![
             widget::text("- CurseForge mods without a loader can now be installed").size(14),

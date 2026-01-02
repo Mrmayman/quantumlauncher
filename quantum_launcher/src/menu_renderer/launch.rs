@@ -2,7 +2,6 @@ use cfg_if::cfg_if;
 use frostmark::MarkWidget;
 use iced::keyboard::Modifiers;
 use iced::widget::tooltip::Position;
-use iced::widget::{horizontal_space, vertical_space};
 use iced::{widget, Alignment, Length, Padding};
 use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
 
@@ -97,7 +96,7 @@ impl Launcher {
             .size(14)
             .style(|t: &LauncherTheme| t.style_text(Color::Mid)))
             .push_maybe(cfg!(target_arch = "x86").then(x86_warning))
-            .push(vertical_space())
+            .push(widget::space().height(Length::Fill))
             .push(
                 widget::Row::new()
                     .push_maybe(get_view_servers(menu.is_viewing_server))
@@ -141,9 +140,9 @@ impl Launcher {
         .wrap();
 
         let notes: Element = match &menu.notes {
-            None => vertical_space().into(),
+            None => widget::space().height(Length::Fill).into(),
             Some(InstanceNotes::Viewing { content, .. }) if content.trim().is_empty() => {
-                vertical_space().into()
+                widget::space().height(Length::Fill).into()
             }
             Some(InstanceNotes::Viewing { mark_state, .. }) => widget::scrollable(
                 widget::column![MarkWidget::new(mark_state).heading_scale(0.7).text_size(14)]
@@ -327,7 +326,7 @@ impl Launcher {
                     .is_process_running(&InstanceSelection::new(name, menu.is_viewing_server))
                 {
                     Some(widget::row![
-                        horizontal_space(),
+                        widget::space().width(Length::Fill),
                         icons::play_s(15),
                         widget::Space::with_width(10),
                     ])
@@ -361,12 +360,12 @@ impl Launcher {
             widget::scrollable(list)
                 .height(Length::Fill)
                 .style(LauncherTheme::style_scrollable_flat_extra_dark)
-                .id(widget::scrollable::Id::new("MenuLaunch:sidebar"))
+                .id(widget::Id::new("MenuLaunch:sidebar"))
                 .on_scroll(|n| {
                     let total = n.content_bounds().height - n.bounds().height;
                     Message::LaunchSidebarScroll(total)
                 }),
-            widget::horizontal_rule(1).style(|t: &LauncherTheme| t.style_rule(Color::Dark, 1)),
+            widget::rule::horizontal(1).style(|t: &LauncherTheme| t.style_rule(Color::Dark, 1)),
             self.get_accounts_bar(menu),
         ]
         .spacing(5)
@@ -413,7 +412,11 @@ impl Launcher {
         };
 
         widget::column![
-            widget::row![widget::text(" Accounts:").size(14), horizontal_space(),].push_maybe(
+            widget::row![
+                widget::text(" Accounts:").size(14),
+                widget::space().width(Length::Fill)
+            ]
+            .push_maybe(
                 self.is_account_selected().then_some(
                     widget::button(widget::text("Logout").size(11))
                         .padding(3)
@@ -543,10 +546,14 @@ impl MenuLaunch {
         .wrap();
 
         let settings_button = widget::button(
-            widget::row![horizontal_space(), icons::gear_s(12), horizontal_space()]
-                .width(tab_height(decor) + 4.0)
-                .height(tab_height(decor) + 4.0)
-                .align_y(Alignment::Center),
+            widget::row![
+                widget::space().width(Length::Fill),
+                icons::gear_s(12),
+                widget::space().width(Length::Fill)
+            ]
+            .width(tab_height(decor) + 4.0)
+            .height(tab_height(decor) + 4.0)
+            .align_y(Alignment::Center),
         )
         .padding(0)
         .style(|n, status| n.style_button(status, StyleButton::FlatExtraDark))
@@ -554,10 +561,14 @@ impl MenuLaunch {
 
         widget::mouse_area(
             widget::container(
-                widget::row!(settings_button, tab_bar, horizontal_space())
-                    // .push_maybe(window_handle_buttons)
-                    .height(tab_height(decor) + decorh(decor))
-                    .align_y(Alignment::End),
+                widget::row!(
+                    settings_button,
+                    tab_bar,
+                    widget::space().width(Length::Fill)
+                )
+                // .push_maybe(window_handle_buttons)
+                .height(tab_height(decor) + decorh(decor))
+                .align_y(Alignment::End),
             )
             .width(Length::Fill)
             .style(move |n| {
@@ -592,7 +603,11 @@ fn render_tab_button(tab: LaunchTabId, decor: bool, menu: &'_ MenuLaunch) -> Ele
         name.into()
     };
 
-    let txt = widget::row!(horizontal_space(), txt, horizontal_space());
+    let txt = widget::row!(
+        widget::space().width(Length::Fill),
+        txt,
+        widget::space().width(Length::Fill)
+    );
 
     if menu.tab == tab {
         widget::container(txt)
@@ -661,13 +676,13 @@ fn get_footer_text() -> widget::Column<'static, Message, LauncherTheme> {
 
     widget::column!(
         widget::row!(
-            horizontal_space(),
+            widget::space().width(Length::Fill),
             widget::text!("QuantumLauncher v{LAUNCHER_VERSION_NAME}")
                 .size(12)
                 .style(|t: &LauncherTheme| t.style_text(Color::Mid))
         ),
         widget::row!(
-            horizontal_space(),
+            widget::space().width(Length::Fill),
             widget::text(subtext)
                 .size(10)
                 .style(|t: &LauncherTheme| t.style_text(Color::Mid))

@@ -762,7 +762,7 @@ impl MenuEditMods {
     }
 
     fn scroll_fix(&self) -> Task<Message> {
-        let id = widget::scrollable::Id::new("MenuEditMods:mods");
-        widget::scrollable::scroll_to(id, self.list_scroll)
+        let id = widget::Id::new("MenuEditMods:mods");
+        widget::operation::scroll_to(id, self.list_scroll)
     }
 }

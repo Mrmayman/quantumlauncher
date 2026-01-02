@@ -97,8 +97,8 @@ pub fn underline<'a>(
     widget::stack!(
         widget::column![e.into()],
         widget::column![
-            widget::vertical_space(),
-            widget::horizontal_rule(1).style(move |t: &LauncherTheme| t.style_rule(color, 1)),
+            widget::space().height(Length::Fill),
+            widget::rule::horizontal(1).style(move |t: &LauncherTheme| t.style_rule(color, 1)),
             widget::Space::with_height(1),
         ]
     )
@@ -114,9 +114,9 @@ pub fn underline_maybe<'a>(e: impl Into<Element<'a>>, color: Color, un: bool) ->
 
 pub fn center_x<'a>(e: impl Into<Element<'a>>) -> widget::Row<'a, Message, LauncherTheme> {
     widget::row![
-        widget::horizontal_space(),
+        widget::space().width(Length::Fill),
         e.into(),
-        widget::horizontal_space(),
+        widget::space().width(Length::Fill),
     ]
 }
 
@@ -209,7 +209,7 @@ fn sidebar<'a>(
             widget::scrollable(widget::column(children))
                 .style(LauncherTheme::style_scrollable_flat_extra_dark)
                 .height(Length::Fill)
-                .id(iced::widget::scrollable::Id::new(id))
+                .id(widget::Id::new(id))
         ]
         .spacing(10),
     )
@@ -405,9 +405,9 @@ impl MenuLicense {
 pub fn view_account_login<'a>() -> Element<'a> {
     widget::column![
         back_button().on_press(back_to_launch_screen(None, None)),
-        widget::vertical_space(),
+        widget::space().height(Length::Fill),
         widget::row![
-            widget::horizontal_space(),
+            widget::space().width(Length::Fill),
             widget::column![
                 widget::text("Login").size(20),
                 widget::button("Login with Microsoft").on_press(Message::Account(
@@ -431,9 +431,9 @@ pub fn view_account_login<'a>() -> Element<'a> {
             ]
             .align_x(Alignment::Center)
             .spacing(5),
-            widget::horizontal_space(),
+            widget::space().width(Length::Fill),
         ],
-        widget::vertical_space(),
+        widget::space().height(Length::Fill),
     ]
     .padding(10)
     .spacing(5)
@@ -467,7 +467,7 @@ pub fn view_log_upload_result(url: &'_ str, is_server: bool) -> Element<'_> {
     widget::column![
         back_button().on_press(back_to_launch_screen(Some(is_server), None)),
         widget::column![
-            widget::vertical_space(),
+            widget::space().height(Length::Fill),
             widget::text(format!(
                 "{} log uploaded successfully!",
                 if is_server { "Server" } else { "Game" }
@@ -485,7 +485,7 @@ pub fn view_log_upload_result(url: &'_ str, is_server: bool) -> Element<'_> {
                 .align_y(Alignment::Center)
             )
             .padding(10),
-            widget::vertical_space(),
+            widget::space().height(Length::Fill),
         ]
         .height(Length::Fill)
         .width(Length::Fill)
@@ -507,7 +507,7 @@ pub fn view_confirm<'a>(
     };
 
     widget::column![
-        widget::vertical_space(),
+        widget::space().height(Length::Fill),
         widget::text!("Are you sure you want to {msg1}?").size(20),
         msg2,
         widget::row![
@@ -540,7 +540,7 @@ pub fn view_confirm<'a>(
         ]
         .spacing(5)
         .wrap(),
-        widget::vertical_space(),
+        widget::space().height(Length::Fill),
     ]
     .align_x(Alignment::Center)
     .width(Length::Fill)

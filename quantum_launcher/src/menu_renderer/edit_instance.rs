@@ -8,10 +8,7 @@ use crate::{
     },
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
-use iced::{
-    widget::{self, horizontal_space},
-    Alignment, Length,
-};
+use iced::{widget, Alignment, Length};
 use ql_core::json::{
     instance_config::{MainClassMode, PreLaunchPrefixMode},
     GlobalSettings,
@@ -54,7 +51,7 @@ impl MenuEditInstance {
                         widget::checkbox("DEBUG: Enable log system (recommended)", self.config.enable_logger.unwrap_or(true))
                             .on_toggle(|t| Message::EditInstance(EditInstanceMessage::LoggingToggle(t))),
                         widget::text("Once disabled, logs will be printed in launcher STDOUT.\nRun the launcher executable from the terminal/command prompt to see it").size(12).style(tsubtitle),
-                        widget::horizontal_space(),
+                        widget::space().width(Length::Fill),
                     ].spacing(5)
                 )
                 .spacing(10),
@@ -128,7 +125,7 @@ impl MenuEditInstance {
         widget::column!(
             widget::row![
                 "Java arguments:",
-                widget::horizontal_space(),
+                widget::space().width(Length::Fill),
                 widget::checkbox("Use global arguments", current_mode)
                     .on_toggle(|t| {
                         Message::EditInstance(EditInstanceMessage::JavaArgsModeChanged(t))
@@ -172,8 +169,12 @@ impl MenuEditInstance {
             .text_size(12);
 
         widget::column![
-            widget::row!["Pre-launch prefix:", horizontal_space(), checkbox]
-                .align_y(Alignment::Center),
+            widget::row![
+                "Pre-launch prefix:",
+                widget::space().width(Length::Fill),
+                checkbox
+            ]
+            .align_y(Alignment::Center),
             widget::row![get_args_list(
                 self.config
                     .global_settings
@@ -287,7 +288,7 @@ Heavy modpacks / High settings: 4-8 GB"
         };
 
         widget::column![
-            widget::row!["Custom JAR file", horizontal_space(), picker].align_y(Alignment::Center),
+            widget::row!["Custom JAR file", widget::space().width(Length::Fill), picker].align_y(Alignment::Center),
             widget::text(
                 "For *replacing* the Minecraft JAR, not adding to it.\nTo patch your existing JAR file, use \"Mods->Jarmod Patches\""
             )
@@ -358,7 +359,7 @@ fn item_footer(
             ]
             .spacing(5)
             .wrap(),
-            widget::horizontal_rule(2),
+            widget::rule::horizontal(2),
             button_with_icon(icons::bin(), "Delete Instance", 16)
                 .on_press(Message::DeleteInstanceMenu)
         ]

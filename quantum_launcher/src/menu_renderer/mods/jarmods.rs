@@ -33,7 +33,7 @@ impl MenuEditJarMods {
                             link("McArchive", "https://mcarchive.net".to_owned()),
                         ]
                         .wrap(),
-                        widget::horizontal_rule(1),
+                        widget::rule::horizontal(1),
                         widget::column![
                             "WARNING: JarMods are mainly for OLD Minecraft versions.",
                             widget::Space::with_height(5),

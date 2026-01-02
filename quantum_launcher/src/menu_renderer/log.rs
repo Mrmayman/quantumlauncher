@@ -145,7 +145,7 @@ fn log_inner<'a, T: Clone>(
             .on_press(Message::CoreCopyText(stringify(&msg)))
             .into()
     }))
-    .push(widget::horizontal_space())
+    .push(widget::space().width(Length::Fill))
     .spacing(4);
 
     (len.checked_sub(screen_len).unwrap_or(len), column)

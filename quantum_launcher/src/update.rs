@@ -465,7 +465,7 @@ impl Launcher {
                 }
             }
             Message::CoreFocusNext => {
-                return iced::widget::focus_next();
+                return iced::widget::operation::focus_next();
             }
         }
         Task::none()

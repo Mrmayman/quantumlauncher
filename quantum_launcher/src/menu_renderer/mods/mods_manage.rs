@@ -54,7 +54,7 @@ impl MenuEditMods {
                     .on_press(Message::ManageMods(ManageModsMessage::ExportMenuOpen)),
                 ctx_button("Export QMP Preset")
                     .on_press(Message::EditPresets(EditPresetsMessage::Open)),
-                widget::horizontal_rule(1)
+                widget::rule::horizontal(1)
                     .style(|t: &LauncherTheme| t.style_rule(Color::SecondDark, 1)),
                 ctx_button("See recommended mods").on_press(Message::RecommendedMods(
                     crate::state::RecommendedModMessage::Open
@@ -453,7 +453,7 @@ impl MenuEditMods {
             vertical: widget::scrollable::Scrollbar::new(),
             horizontal: widget::scrollable::Scrollbar::new(),
         })
-        .id(widget::scrollable::Id::new("MenuEditMods:mods"))
+        .id(widget::Id::new("MenuEditMods:mods"))
         .on_scroll(|viewport| {
             Message::ManageMods(ManageModsMessage::ListScrolled(viewport.absolute_offset()))
         })
