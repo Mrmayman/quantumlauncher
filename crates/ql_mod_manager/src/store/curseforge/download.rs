@@ -121,6 +121,7 @@ impl<'a> ModDownloader<'a> {
         };
 
         let dir = match query_type {
+            QueryType::DataPacks => &self.dirs.data_packs,
             QueryType::Mods => &self.dirs.mods,
             QueryType::ResourcePacks => &self.dirs.resource_packs,
             QueryType::Shaders => &self.dirs.shaders,
