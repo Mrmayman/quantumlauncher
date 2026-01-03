@@ -1,4 +1,7 @@
-use iced::{widget, Length};
+use iced::{
+    widget::{self, column},
+    Length,
+};
 use ql_core::{ModId, SelectedMod};
 
 use crate::{
@@ -19,10 +22,10 @@ impl MenuExportMods {
         }
 
         widget::scrollable(
-            widget::column![
+            column![
                 self.get_top_section(),
                 Self::get_controls(),
-                widget::column![
+                column![
                     widget::text("Preview:")
                         .size(18)
                         .style(|theme: &LauncherTheme| { theme.style_text(Color::Light) }),
@@ -43,11 +46,11 @@ impl MenuExportMods {
     }
 
     fn get_controls<'a>() -> widget::Column<'a, Message, LauncherTheme> {
-        widget::column![
+        column![
             widget::text("Choose export format:").size(20),
             widget::row![
                 icons::file_info_s(28),
-                widget::column![
+                column![
                     widget::text("Export as Plain Text").size(17),
                     widget::text("Simple text file with mod names, one per line")
                         .size(13)
@@ -75,7 +78,7 @@ impl MenuExportMods {
             .padding([10, 20]),
             widget::row![
                 icons::file_info_s(28),
-                widget::column![
+                column![
                     widget::text("Export as Markdown")
                         .size(17)
                         .style(|theme: &LauncherTheme| { theme.style_text(Color::Light) }),
@@ -111,7 +114,7 @@ impl MenuExportMods {
     fn get_top_section(&self) -> widget::Column<'_, Message, LauncherTheme> {
         let len = self.selected_mods.len();
 
-        widget::column![
+        column![
             widget::row![
                 back_button().on_press(Message::ManageMods(
                     ManageModsMessage::ScreenOpenWithoutUpdate
@@ -143,7 +146,7 @@ impl MenuExportMods {
     }
 
     fn get_preview_content(&'_ self) -> Element<'_> {
-        const ELEM_HEIGHT: u16 = 26;
+        const ELEM_HEIGHT: u32 = 26;
 
         let mut preview_elements = Vec::new();
 
@@ -161,7 +164,7 @@ impl MenuExportMods {
 
                     let link_element = widget::button(
                         widget::row![
-                            widget::Space::with_width(5),
+                            widget::space().width(5),
                             widget::text("-")
                                 .size(13)
                                 .style(|theme: &LauncherTheme| theme.style_text(Color::Mid)),
@@ -189,7 +192,7 @@ impl MenuExportMods {
                         .unwrap_or(file_name.as_str());
 
                     let text_element = widget::row![
-                        widget::Space::with_width(5),
+                        widget::space().width(5),
                         widget::text("-")
                             .size(13)
                             .style(|theme: &LauncherTheme| theme.style_text(Color::Mid)),
@@ -209,7 +212,7 @@ impl MenuExportMods {
             }
             // preview_elements.push(
             //     widget::rule::horizontal(1)
-            //         .style(|t: &LauncherTheme| t.style_rule(Color::SecondDark, 1))
+            //         .style(|t: &LauncherTheme| t.style_rule(Color::SecondDark))
             //         .into(),
             // );
         }

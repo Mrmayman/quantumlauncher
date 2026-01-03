@@ -70,7 +70,7 @@ pub struct LauncherConfig {
     /// - 1.0: default
     /// - 0.0-1.0: Zoomed out, smaller UI elements
     // Since: v0.4
-    pub ui_scale: Option<f64>,
+    pub ui_scale: Option<f32>,
 
     /// Whether to enable antialiasing or not.
     /// Minor improvement in visual quality,
@@ -223,7 +223,7 @@ impl LauncherConfig {
 
     pub fn c_theme(&self) -> LauncherTheme {
         LauncherTheme {
-            lightness: self.ui_mode.unwrap_or_default(),
+            mode: self.ui_mode.unwrap_or_default(),
             color: self.ui_theme.unwrap_or_default(),
             alpha: self.c_ui_opacity(),
             system_dark_mode: dark_light::detect()

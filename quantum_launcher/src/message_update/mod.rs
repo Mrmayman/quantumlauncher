@@ -481,7 +481,7 @@ impl Launcher {
         match msg {
             LauncherSettingsMessage::ThemePicked(theme) => {
                 self.config.ui_mode = Some(theme);
-                self.theme.lightness = theme;
+                self.theme.mode = theme;
             }
             LauncherSettingsMessage::Open => {
                 self.go_to_launcher_settings();

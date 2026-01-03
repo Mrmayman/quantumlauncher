@@ -1,4 +1,7 @@
-use iced::{widget, Alignment, Length};
+use iced::{
+    widget::{self, column},
+    Alignment, Length,
+};
 
 use crate::{
     icons,
@@ -14,24 +17,24 @@ impl MenuLoginAlternate {
             return self.view_oauth(oauth);
         }
 
-        let status: Element =
-            if self.is_loading {
-                let dots = ".".repeat((tick_timer % 3) + 1);
-                widget::column![widget::text!("Loading{dots}")]
-                    .padding(8)
-                    .into()
-            } else {
-                widget::column![button_with_icon(icons::checkmark(), "Login", 16)
-                    .on_press(Message::Account(AccountMessage::AltLogin))]
-                .align_x(Alignment::Center)
-                .push_maybe(self.is_littleskin.then_some(
-                    widget::button("Login with OAuth").on_press(Message::Account(
-                        AccountMessage::LittleSkinOauthButtonClicked,
-                    )),
-                ))
-                .spacing(5)
-                .into()
-            };
+        let status: Element = if self.is_loading {
+            let dots = ".".repeat((tick_timer % 3) + 1);
+            column![widget::text!("Loading{dots}")].padding(8).into()
+        } else {
+            column![
+                button_with_icon(icons::checkmark(), "Login", 16)
+                    .on_press(Message::Account(AccountMessage::AltLogin)),
+                self.is_littleskin
+                    .then_some(
+                        widget::button("Login with OAuth").on_press(Message::Account(
+                            AccountMessage::LittleSkinOauthButtonClicked,
+                        )),
+                    )
+            ]
+            .align_x(Alignment::Center)
+            .spacing(5)
+            .into()
+        };
 
         let padding = iced::Padding {
             top: 5.0,
@@ -49,13 +52,13 @@ impl MenuLoginAlternate {
             password_input.font(iced::Font::with_name("Password Asterisks"))
         };
 
-        widget::column![
+        column![
             back_button().on_press(if self.is_from_welcome_screen {
                 Message::WelcomeContinueToAuth
             } else {
                 Message::Account(AccountMessage::Selected(NEW_ACCOUNT_NAME.to_owned()))
             }),
-            widget::column![
+            column![
                 widget::text(if self.is_littleskin {
                     "LittleSkin Login"
                 } else {
@@ -71,29 +74,29 @@ impl MenuLoginAlternate {
                 ),
                 widget::row![
                     widget::text("Password:").size(12),
-                    widget::checkbox("Show", self.show_password)
+                    widget::space().width(10),
+                    widget::checkbox(self.show_password)
                         .size(12)
-                        .text_size(12)
                         .on_toggle(|t| Message::Account(AccountMessage::AltShowPassword(t))),
+                    widget::text("Show").size(12),
                 ]
-                .spacing(16),
+                .spacing(5),
                 center_x(password_input),
-                widget::Column::new()
-                    .push_maybe(self.otp.as_deref().map(|otp| {
-                        widget::column![
+                column![
+                    self.otp.as_deref().map(|otp| {
+                        column![
                             widget::text("OTP:").size(12),
                             widget::text_input("Enter Username/Email...", otp)
                                 .padding(padding)
                                 .on_input(|n| Message::Account(AccountMessage::AltOtpInput(n))),
                         ]
                         .spacing(5)
-                    }))
-                    .push_maybe(
-                        self.is_incorrect_password
-                            .then_some(widget::text("Wrong Password!").style(tsubtitle).size(12))
-                    ),
+                    }),
+                    self.is_incorrect_password
+                        .then_some(widget::text("Wrong Password!").style(tsubtitle).size(12)),
+                ],
                 status,
-                widget::Space::with_height(5),
+                widget::space().height(5),
                 widget::row![
                     widget::text("Or").size(14),
                     widget::button(widget::text("Create an account").size(14)).on_press(
@@ -144,24 +147,22 @@ impl MenuLoginAlternate {
         ]
         .align_y(Alignment::Center)
         .spacing(10);
-        widget::column![
+        column![
             widget::space().height(Length::Fill),
             widget::text("LittleSkin Device Login").size(20),
             widget::text("Open this link and enter the code:").size(14),
-            widget::Space::with_height(5),
-            widget::container(widget::column![code_row, url_row]).padding(10),
-            widget::Space::with_height(5),
+            widget::space().height(5),
+            widget::container(column![code_row, url_row]).padding(10),
+            widget::space().height(5),
             widget::text!("Expires in: {}s", time_left).size(13),
             widget::space().height(Length::Fill),
             widget::text("Waiting for login...").size(14),
             widget::space().height(Length::Fill),
-        ]
-        .width(Length::Fill)
-        .push_maybe(
             self.device_code_error
                 .as_ref()
                 .map(|err| widget::text(err).size(14)),
-        )
+        ]
+        .width(Length::Fill)
         .spacing(5)
         .align_x(Alignment::Center)
         .into()
@@ -170,7 +171,7 @@ impl MenuLoginAlternate {
 
 impl MenuLoginMS {
     pub fn view<'a>(&self) -> Element<'a> {
-        widget::column![
+        column![
             back_button().on_press(if self.is_from_welcome_screen {
                 Message::WelcomeContinueToAuth
             } else {
@@ -178,7 +179,7 @@ impl MenuLoginMS {
             }),
             widget::row!(
                 widget::space().width(Length::Fill),
-                widget::column!(
+                column!(
                     widget::space().height(Length::Fill),
                     widget::text("Login to Microsoft").size(20),
                     "Open this link and enter the code:",

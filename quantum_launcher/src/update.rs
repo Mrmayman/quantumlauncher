@@ -69,7 +69,7 @@ impl Launcher {
             Message::ExportMods(msg) => return self.update_export_mods(msg),
             Message::ManageJarMods(msg) => return self.update_manage_jar_mods(msg),
             Message::RecommendedMods(msg) => return self.update_recommended_mods(msg),
-            Message::Window(msg) => return self.update_window_msg(msg),
+            // Message::Window(msg) => return self.update_window_msg(msg),
             Message::Notes(msg) => return self.update_notes(msg),
 
             Message::LaunchInstanceSelected { name, is_server } => {

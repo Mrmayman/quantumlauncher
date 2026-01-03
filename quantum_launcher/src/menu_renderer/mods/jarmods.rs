@@ -1,4 +1,7 @@
-use iced::{widget, Length};
+use iced::{
+    widget::{self, column},
+    Length,
+};
 use ql_core::InstanceSelection;
 
 use crate::{
@@ -13,11 +16,11 @@ impl MenuEditJarMods {
         let menu_main = widget::row!(
             widget::container(
                 widget::scrollable(
-                    widget::column!(
+                    column!(
                         back_button().on_press(Message::ManageMods(
                             ManageModsMessage::ScreenOpenWithoutUpdate
                         )),
-                        widget::column![
+                        column![
                             {
                                 let path = selected_instance.get_instance_path().join("jarmods");
 
@@ -34,9 +37,9 @@ impl MenuEditJarMods {
                         ]
                         .wrap(),
                         widget::rule::horizontal(1),
-                        widget::column![
+                        column![
                             "WARNING: JarMods are mainly for OLD Minecraft versions.",
-                            widget::Space::with_height(5),
+                            widget::space().height(5),
                             widget::text(
                                 "This is easier than copying .class files into Minecraft's jar"
                             )
@@ -73,7 +76,7 @@ impl MenuEditJarMods {
 
     fn get_mod_list(&'_ self) -> Element<'_> {
         if self.jarmods.mods.is_empty() {
-            return widget::column!("Add some mods to get started")
+            return column!("Add some mods to get started")
                 .spacing(10)
                 .padding(10)
                 .width(Length::Fill)
@@ -81,8 +84,8 @@ impl MenuEditJarMods {
         }
 
         widget::container(
-            widget::column!(
-                widget::column![
+            column!(
+                column![
                     widget::text("Select some JarMods to perform actions on them").size(14),
                     widget::row![
                         widget::button("Delete")

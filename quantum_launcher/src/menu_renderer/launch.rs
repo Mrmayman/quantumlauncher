@@ -1,14 +1,16 @@
 use cfg_if::cfg_if;
 use frostmark::MarkWidget;
-use iced::keyboard::Modifiers;
-use iced::widget::tooltip::Position;
-use iced::{widget, Alignment, Length, Padding};
+use iced::{
+    keyboard::Modifiers,
+    widget::{self, column, tooltip::Position},
+    Alignment, Length, Padding,
+};
 use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
 
 use crate::cli::EXPERIMENTAL_SERVERS;
 use crate::menu_renderer::onboarding::x86_warning;
 use crate::menu_renderer::{tsubtitle, underline, underline_maybe, FONT_MONO};
-use crate::state::{InstanceNotes, NotesMessage, WindowMessage};
+use crate::state::{InstanceNotes, NotesMessage};
 use crate::{
     icons,
     menu_renderer::DISCORD,
@@ -76,7 +78,7 @@ impl Launcher {
                     if let Some(menu) = &menu.edit_instance {
                         menu.view(selected, self.custom_jar.as_ref())
                     } else {
-                        widget::column!(
+                        column!(
                             "Error: Could not read config json!",
                             button_with_icon(icons::bin(), "Delete Instance", 16)
                                 .on_press(Message::DeleteInstanceMenu)
@@ -88,35 +90,34 @@ impl Launcher {
                 }
             }
         } else {
-            widget::column!(widget::text(if menu.is_viewing_server {
-                "Select a server\n\nNote: You are trying the *early-alpha* server manager feature.\nYou need playit.gg (or port-forwarding) for others to join"
-            } else {
-                "Select an instance"
-            })
-            .size(14)
-            .style(|t: &LauncherTheme| t.style_text(Color::Mid)))
-            .push_maybe(cfg!(target_arch = "x86").then(x86_warning))
-            .push(widget::space().height(Length::Fill))
-            .push(
-                widget::Row::new()
-                    .push_maybe(get_view_servers(menu.is_viewing_server))
-                    .push(get_footer_text())
-                    .align_y(Alignment::End),
-            )
+            column![widget::text(if menu.is_viewing_server {
+                    "Select a server\n\nNote: You are trying the *early-alpha* server manager feature.\nYou need playit.gg (or port-forwarding) for others to join"
+                } else {
+                    "Select an instance"
+                })
+                .size(14)
+                .style(|t: &LauncherTheme| t.style_text(Color::Mid)),
+                cfg!(target_arch = "x86").then(x86_warning),
+                widget::space().height(Length::Fill),
+                widget::row![
+                    get_view_servers(menu.is_viewing_server),
+                    get_footer_text()
+                ].align_y(Alignment::End),
+            ]
             .padding(16)
             .spacing(10)
             .into()
         };
 
-        widget::column![menu.get_tab_selector(decor)]
-            .push_maybe(view_info_message(menu))
-            .push(
-                widget::container(tab_body)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .style(|t: &LauncherTheme| t.style_container_bg(0.0, None)),
-            )
-            .into()
+        column![
+            menu.get_tab_selector(decor),
+            view_info_message(menu),
+            widget::container(tab_body)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|t: &LauncherTheme| t.style_container_bg(0.0, None)),
+        ]
+        .into()
     }
 
     fn get_tab_main<'a>(
@@ -145,14 +146,13 @@ impl Launcher {
                 widget::space().height(Length::Fill).into()
             }
             Some(InstanceNotes::Viewing { mark_state, .. }) => widget::scrollable(
-                widget::column![MarkWidget::new(mark_state).heading_scale(0.7).text_size(14)]
-                    .padding(5),
+                column![MarkWidget::new(mark_state).heading_scale(0.7).text_size(14)].padding(5),
             )
             .width(Length::Fill)
             .height(Length::Fill)
             .into(),
             Some(InstanceNotes::Editing { text_editor, .. }) => {
-                return widget::column!(
+                return column!(
                     widget::text("Editing Notes").size(20),
                     widget::text_editor(text_editor)
                         .size(14)
@@ -172,38 +172,37 @@ impl Launcher {
             }
         };
 
-        widget::column!(
-            widget::row![widget::text(selected.get_name()).font(FONT_MONO).size(20)]
-                .push_maybe(is_running.then_some(icons::play_s(20)))
-                .push_maybe(
-                    is_running.then_some(
-                        widget::text("Running...")
-                            .size(16)
-                            .style(tsubtitle)
-                            .font(FONT_MONO)
-                    )
+        column!(
+            widget::row![
+                widget::text(selected.get_name()).font(FONT_MONO).size(20),
+                is_running.then_some(icons::play_s(20)),
+                is_running.then_some(
+                    widget::text("Running...")
+                        .size(16)
+                        .style(tsubtitle)
+                        .font(FONT_MONO)
                 )
-                .spacing(16)
-                .align_y(Alignment::Center),
+            ]
+            .spacing(16)
+            .align_y(Alignment::Center),
             main_buttons,
             // widget::button("Export Instance").on_press(Message::ExportInstanceOpen),
             notes,
             widget::row![
-                widget::Column::new()
-                    .push_maybe(get_view_servers(menu.is_viewing_server))
-                    .push(
-                        widget::button(
-                            widget::row![
-                                icons::edit_s(10),
-                                widget::text("Edit Notes").size(12).style(tsubtitle)
-                            ]
-                            .align_y(Alignment::Center)
-                            .spacing(8),
-                        )
-                        .padding([4, 8])
-                        .on_press(Message::Notes(NotesMessage::OpenEdit)),
+                column![
+                    get_view_servers(menu.is_viewing_server),
+                    widget::button(
+                        widget::row![
+                            icons::edit_s(10),
+                            widget::text("Edit Notes").size(12).style(tsubtitle)
+                        ]
+                        .align_y(Alignment::Center)
+                        .spacing(8),
                     )
-                    .spacing(5),
+                    .padding([4, 8])
+                    .on_press(Message::Notes(NotesMessage::OpenEdit)),
+                ]
+                .spacing(5),
                 get_footer_text(),
             ]
             .align_y(Alignment::End)
@@ -268,7 +267,7 @@ impl Launcher {
             |msg| msg.clone(),
         );
 
-        widget::column![
+        column![
             widget::row![
                 widget::button(widget::text("Copy Log").size(14)).on_press(Message::LaunchCopyLog),
                 widget::button(widget::text("Upload Log").size(14)).on_press_maybe(
@@ -279,9 +278,7 @@ impl Launcher {
                     .on_press(Message::CoreOpenLink(DISCORD.to_owned())),
             ]
             .spacing(7),
-            widget::text("Having issues? Copy and send the game log for support").size(12)
-        ]
-        .push_maybe(
+            widget::text("Having issues? Copy and send the game log for support").size(12),
             has_crashed.then_some(
                 widget::text!(
                     "The {} has crashed!",
@@ -293,16 +290,14 @@ impl Launcher {
                 )
                 .size(18),
             ),
-        )
-        .push_maybe(
             menu.is_viewing_server.then_some(
                 widget::text_input("Enter command...", command)
                     .on_input(Message::ServerCommandEdit)
                     .on_submit(Message::ServerCommandSubmit)
                     .width(190),
             ),
-        )
-        .push(log)
+            log
+        ]
         .padding(10)
         .spacing(10)
     }
@@ -328,7 +323,7 @@ impl Launcher {
                     Some(widget::row![
                         widget::space().width(Length::Fill),
                         icons::play_s(15),
-                        widget::Space::with_width(10),
+                        widget::space().width(10),
                     ])
                 } else {
                     None
@@ -338,7 +333,7 @@ impl Launcher {
                 let is_selected = selected_instance_s == Some(name);
 
                 underline_maybe(
-                    widget::button(widget::row![text].push_maybe(playing_icon))
+                    widget::button(widget::row![text, playing_icon])
                         .style(|n: &LauncherTheme, status| {
                             n.style_button(status, StyleButton::FlatExtraDark)
                         })
@@ -353,10 +348,10 @@ impl Launcher {
             }))
         } else {
             let dots = ".".repeat((self.tick_timer % 3) + 1);
-            widget::column![widget::text!("Loading{dots}")].padding(10)
+            column![widget::text!("Loading{dots}")].padding(10)
         };
 
-        let list = widget::column![
+        let list = column![
             widget::scrollable(list)
                 .height(Length::Fill)
                 .style(LauncherTheme::style_scrollable_flat_extra_dark)
@@ -365,24 +360,24 @@ impl Launcher {
                     let total = n.content_bounds().height - n.bounds().height;
                     Message::LaunchSidebarScroll(total)
                 }),
-            widget::rule::horizontal(1).style(|t: &LauncherTheme| t.style_rule(Color::Dark, 1)),
+            widget::rule::horizontal(1).style(|t: &LauncherTheme| t.style_rule(Color::Dark)),
             self.get_accounts_bar(menu),
         ]
         .spacing(5)
         .width(Length::Fill);
 
-        widget::column![
-            widget::mouse_area(
-                widget::container(get_sidebar_new_button(menu, decor))
-                    .align_y(Alignment::End)
-                    .width(Length::Fill)
-                    .height(tab_height(decor) + decorh(decor))
-                    .style(|t: &LauncherTheme| t.style_container_bg_semiround(
-                        [true, false, false, false],
-                        Some((Color::ExtraDark, t.alpha))
-                    ))
-            )
-            .on_press(Message::Window(WindowMessage::Dragged)),
+        column![
+            // widget::mouse_area(
+            widget::container(get_sidebar_new_button(menu, decor))
+                .align_y(Alignment::End)
+                .width(Length::Fill)
+                .height(tab_height(decor) + decorh(decor))
+                .style(|t: &LauncherTheme| t.style_container_bg_semiround(
+                    [true, false, false, false],
+                    Some((Color::ExtraDark, t.alpha))
+                )),
+            // )
+            // .on_press(Message::Window(WindowMessage::Dragged)),
             widget::container(list)
                 .height(Length::Fill)
                 .style(|n| n.style_container_sharp_box(0.0, Color::ExtraDark))
@@ -411,12 +406,10 @@ impl Launcher {
             .into()
         };
 
-        widget::column![
+        column![
             widget::row![
                 widget::text(" Accounts:").size(14),
-                widget::space().width(Length::Fill)
-            ]
-            .push_maybe(
+                widget::space().width(Length::Fill),
                 self.is_account_selected().then_some(
                     widget::button(widget::text("Logout").size(11))
                         .padding(3)
@@ -424,16 +417,14 @@ impl Launcher {
                         .style(|n: &LauncherTheme, status| n
                             .style_button(status, StyleButton::FlatExtraDark))
                 )
-            ),
-            dropdown
-        ]
-        .push_maybe(
+            ],
+            dropdown,
             (self.accounts_selected.as_deref() == Some(OFFLINE_ACCOUNT_NAME)).then_some(
                 widget::text_input("Enter username...", &self.config.username)
                     .on_input(Message::LaunchUsernameSet)
                     .width(Length::Fill),
             ),
-        )
+        ]
         .padding(Padding::from(5).top(0).bottom(7))
         .spacing(5)
         .into()
@@ -559,26 +550,26 @@ impl MenuLaunch {
         .style(|n, status| n.style_button(status, StyleButton::FlatExtraDark))
         .on_press(Message::LauncherSettings(LauncherSettingsMessage::Open));
 
-        widget::mouse_area(
-            widget::container(
-                widget::row!(
-                    settings_button,
-                    tab_bar,
-                    widget::space().width(Length::Fill)
-                )
-                // .push_maybe(window_handle_buttons)
-                .height(tab_height(decor) + decorh(decor))
-                .align_y(Alignment::End),
+        // widget::mouse_area(
+        widget::container(
+            widget::row!(
+                settings_button,
+                tab_bar,
+                widget::space().width(Length::Fill)
             )
-            .width(Length::Fill)
-            .style(move |n| {
-                n.style_container_bg_semiround(
-                    [false, !decor, false, false],
-                    Some((Color::ExtraDark, 1.0)),
-                )
-            }),
+            // .push_maybe(window_handle_buttons)
+            .height(tab_height(decor) + decorh(decor))
+            .align_y(Alignment::End),
         )
-        .on_press(Message::Window(WindowMessage::Dragged))
+        .width(Length::Fill)
+        .style(move |n| {
+            n.style_container_bg_semiround(
+                [false, !decor, false, false],
+                Some((Color::ExtraDark, 1.0)),
+            )
+        })
+        // )
+        // .on_press(Message::Window(WindowMessage::Dragged))
         .into()
     }
 }
@@ -646,13 +637,15 @@ fn render_tab_button(tab: LaunchTabId, decor: bool, menu: &'_ MenuLaunch) -> Ele
 fn get_no_logs_message<'a>() -> widget::Column<'a, Message, LauncherTheme> {
     const BASE_MESSAGE: &str = "No logs found";
 
-    widget::column!(widget::text(BASE_MESSAGE).style(|t: &LauncherTheme| t.style_text(Color::Mid)))
+    column![
+        widget::text(BASE_MESSAGE).style(|t: &LauncherTheme| t.style_text(Color::Mid)),
         // WARN: non x86_64
-        .push_maybe(cfg!(not(target_arch = "x86_64")).then_some(widget::text(
+        cfg!(not(target_arch = "x86_64")).then_some(widget::text(
             "This version is experimental. If you want to get help join our discord",
-        )))
-        .width(Length::Fill)
-        .height(Length::Fill)
+        ))
+    ]
+    .width(Length::Fill)
+    .height(Length::Fill)
 }
 
 fn get_footer_text() -> widget::Column<'static, Message, LauncherTheme> {
@@ -674,7 +667,7 @@ fn get_footer_text() -> widget::Column<'static, Message, LauncherTheme> {
         }
     );
 
-    widget::column!(
+    column!(
         widget::row!(
             widget::space().width(Length::Fill),
             widget::text!("QuantumLauncher v{LAUNCHER_VERSION_NAME}")

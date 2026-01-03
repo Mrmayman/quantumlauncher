@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 
-use iced::{widget, Length};
+use iced::{
+    widget::{self, column},
+    Length,
+};
 use ql_core::SelectedMod;
 
 use crate::{
@@ -16,7 +19,7 @@ use crate::{
 impl MenuEditPresets {
     pub fn view(&'_ self) -> Element<'_> {
         if let Some(progress) = &self.progress {
-            return widget::column!(
+            return column!(
                 widget::text("Installing mods").size(20),
                 progress.view(),
                 widget::text("Check debug log (at the bottom) for more info").size(12),
@@ -27,14 +30,14 @@ impl MenuEditPresets {
         }
 
         if self.is_building {
-            return widget::column!(widget::text("Building Preset").size(20))
+            return column!(widget::text("Building Preset").size(20))
                 .padding(10)
                 .spacing(10)
                 .into();
         }
 
         let p_main = widget::row![
-            widget::column![
+            column![
                 back_button().on_press(Message::ManageMods(
                     ManageModsMessage::ScreenOpenWithoutUpdate
                 )),
@@ -64,15 +67,15 @@ Modrinth/Curseforge modpack"
             .padding(10)
             .spacing(10),
             widget::container(
-                widget::column![
-                    widget::column![widget::button(
-                        if let SelectedState::All = self.selected_state {
+                column![
+                    column![
+                        widget::button(if let SelectedState::All = self.selected_state {
                             "Unselect All"
                         } else {
                             "Select All"
-                        }
-                    )
-                    .on_press(Message::EditPresets(EditPresetsMessage::SelectAll)),]
+                        })
+                        .on_press(Message::EditPresets(EditPresetsMessage::SelectAll)),
+                    ]
                     .padding({
                         let p: iced::Padding = 10.into();
                         p.bottom(0)
@@ -137,21 +140,21 @@ impl MenuRecommendedMods {
         match self {
             MenuRecommendedMods::Loading { progress, .. } => progress.view().padding(10).into(),
             MenuRecommendedMods::InstallALoader => {
-                widget::column![
+                column![
                     back_button,
                     "Install a mod loader (like Fabric/Forge/NeoForge/Quilt/etc, whichever is compatible)",
                     "You need one before you can install mods"
                 ].padding(10).spacing(5).into()
             }
             MenuRecommendedMods::NotSupported => {
-                widget::column![
+                column![
                     back_button,
                     "No recommended mods found :)"
                 ].padding(10).spacing(5).into()
             }
             MenuRecommendedMods::Loaded { mods, .. } => {
                 let content: Element =
-                    widget::column!(
+                    column!(
                         back_button,
                         button_with_icon(icons::download(), "Download Recommended Mods", 16)
                             .on_press(Message::RecommendedMods(
@@ -165,7 +168,7 @@ impl MenuRecommendedMods {
                                     ))
                                 })
                                 .into();
-                            widget::column!(
+                            column!(
                                 elem,
                                 widget::text(n.description)
                                     .shaping(widget::text::Shaping::Advanced)
@@ -179,7 +182,7 @@ impl MenuRecommendedMods {
                     .spacing(10)
                     .into();
 
-                widget::scrollable(widget::column![content].padding(10))
+                widget::scrollable(column![content].padding(10))
                     .style(|t: &LauncherTheme, status| t.style_scrollable_flat_dark(status))
                     .into()
             }

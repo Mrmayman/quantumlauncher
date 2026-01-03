@@ -9,8 +9,8 @@ use iced::Task;
 use notify::Watcher;
 use ql_core::{
     err, err_no_log, file_utils, read_log::LogLine, GenericProgress, InstanceSelection,
-    IntoIoError, IntoStringError, IoError, JsonFileError, LaunchedProcess, ModId, Progress,
-    LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
+    IntoIoError, IntoStringError, IoError, LaunchedProcess, ModId, Progress, LAUNCHER_DIR,
+    LAUNCHER_VERSION_NAME,
 };
 use ql_instances::auth::{ms::CLIENT_ID, AccountData, AccountType};
 use tokio::process::ChildStdin;
@@ -121,8 +121,8 @@ impl Launcher {
     pub fn load_new(
         message: Option<String>,
         is_new_user: bool,
-        config: Result<LauncherConfig, JsonFileError>,
-    ) -> Result<Self, JsonFileError> {
+        config: Result<LauncherConfig, String>,
+    ) -> Result<Self, String> {
         if let Err(err) = file_utils::get_launcher_dir() {
             err!("Could not get launcher dir (This is a bug):");
             return Ok(Self::with_error(format!(

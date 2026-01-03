@@ -86,10 +86,7 @@ mod tick;
 const LAUNCHER_ICON: &[u8] = include_bytes!("../../assets/icon/ql_logo.ico");
 
 impl Launcher {
-    fn new(
-        is_new_user: bool,
-        config: Result<LauncherConfig, JsonFileError>,
-    ) -> (Self, Task<Message>) {
+    fn new(is_new_user: bool, config: Result<LauncherConfig, String>) -> (Self, Task<Message>) {
         #[cfg(feature = "auto_update")]
         let check_for_updates_command = Task::perform(
             async move { ql_instances::check_for_launcher_updates().await.strerr() },
@@ -131,7 +128,7 @@ impl Launcher {
         self.theme.clone()
     }
 
-    fn scale_factor(&self) -> f64 {
+    fn scale_factor(&self) -> f32 {
         self.config.ui_scale.unwrap_or(1.0).max(0.05)
     }
 }
@@ -165,40 +162,42 @@ fn main() {
     }
 
     let icon = load_icon();
-    let config = load_config(launcher_dir.is_some());
+    let config = load_config(launcher_dir.is_some()).strerr();
 
     let c = config.as_ref().cloned().unwrap_or_default();
     let decorations = c.uses_system_decorations();
     let (width, height) = c.c_window_size();
+    let antialiasing = c.ui_antialiasing.unwrap_or(true);
 
-    iced::application("QuantumLauncher", Launcher::update, Launcher::view)
-        .subscription(Launcher::subscription)
-        .scale_factor(Launcher::scale_factor)
-        .theme(Launcher::theme)
-        .settings(Settings {
-            fonts: load_fonts(),
-            default_font: FONT_DEFAULT,
-            antialiasing: config
-                .as_ref()
-                .ok()
-                .and_then(|n| n.ui_antialiasing)
-                .unwrap_or(true),
-            ..Default::default()
-        })
-        .window(iced::window::Settings {
-            icon,
-            exit_on_close_request: false,
-            size: iced::Size { width, height },
-            min_size: Some(iced::Size {
-                width: 420.0,
-                height: 310.0,
-            }),
-            decorations,
-            transparent: true,
-            ..Default::default()
-        })
-        .run_with(move || Launcher::new(is_new_user, config))
-        .unwrap();
+    iced::application(
+        || Launcher::new(is_new_user, config.clone()),
+        Launcher::update,
+        Launcher::view,
+    )
+    .subscription(Launcher::subscription)
+    .scale_factor(Launcher::scale_factor)
+    .theme(Launcher::theme)
+    .settings(Settings {
+        fonts: load_fonts(),
+        default_font: FONT_DEFAULT,
+        antialiasing,
+        ..Default::default()
+    })
+    .window(iced::window::Settings {
+        icon,
+        exit_on_close_request: false,
+        size: iced::Size { width, height },
+        min_size: Some(iced::Size {
+            width: 420.0,
+            height: 310.0,
+        }),
+        decorations,
+        transparent: true,
+        ..Default::default()
+    })
+    .title(|_| "QuantumLauncher".to_owned())
+    .run()
+    .unwrap();
 }
 
 fn load_launcher_dir() -> (Option<std::path::PathBuf>, bool) {

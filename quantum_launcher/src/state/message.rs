@@ -212,7 +212,7 @@ pub enum RecommendedModMessage {
     DownloadEnd(Res<HashSet<CurseforgeNotAllowed>>),
 }
 
-#[derive(Debug, Clone)]
+/*#[derive(Debug, Clone)]
 pub enum WindowMessage {
     Dragged,
     // HOOK: Decorations
@@ -221,7 +221,7 @@ pub enum WindowMessage {
     ClickMinimize,
     ClickMaximize,
     // IsMaximized(bool),
-}
+}*/
 
 #[allow(unused)]
 #[derive(Debug, Clone)]
@@ -266,7 +266,7 @@ pub enum LauncherSettingsMessage {
     LoadedSystemTheme(Res<dark_light::Mode>),
     ThemePicked(LauncherThemeLightness),
     ColorSchemePicked(LauncherThemeColor),
-    UiScale(f64),
+    UiScale(f32),
     UiScaleApply,
     UiOpacity(f32),
     UiIdleFps(f64),
@@ -417,7 +417,7 @@ pub enum Message {
     CoreFocusNext,
     CoreTryQuit,
 
-    Window(WindowMessage),
+    // Window(WindowMessage),
     CoreImageDownloaded(Res<ImageResult>),
 
     CoreLogToggle,

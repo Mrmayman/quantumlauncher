@@ -444,7 +444,7 @@ impl MenuModsDownload {
 }
 
 pub struct MenuLauncherSettings {
-    pub temp_scale: f64,
+    pub temp_scale: f32,
     pub selected_tab: LauncherSettingsTab,
     pub arg_split_by_space: bool,
 }
