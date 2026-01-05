@@ -101,6 +101,19 @@ pub enum EditInstanceMessage {
 
     CustomJarPathChanged(String),
     CustomJarLoaded(Res<Vec<String>>),
+
+    LwjglScreenOpen,
+}
+
+#[derive(Debug, Clone)]
+pub enum EditLwjglMessage {
+    VersionsLoaded(Res<ql_core::json::LwjglVersionList>),
+    VersionSelected(Option<String>),
+    Apply,
+    ApplyChecked(Res<crate::state::ApplyLwjglResult>),
+    MismatchProceed,
+    MismatchRevert,
+    Back,
 }
 
 #[derive(Debug, Clone)]
@@ -356,6 +369,7 @@ pub enum Message {
     Account(AccountMessage),
     CreateInstance(CreateInstanceMessage),
     EditInstance(EditInstanceMessage),
+    EditLwjgl(EditLwjglMessage),
     ManageMods(ManageModsMessage),
     ExportMods(ExportModsMessage),
     ManageJarMods(ManageJarModsMessage),
