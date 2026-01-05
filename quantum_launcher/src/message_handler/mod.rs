@@ -42,7 +42,8 @@ impl Launcher {
     pub fn on_instance_selected(&mut self) -> Task<Message> {
         let instance = self.instance().clone();
 
-        self.load_edit_instance(None);
+        self.load_tab_edit_instance(None);
+        let tsaves = self.load_tab_saves(None, true);
 
         {
             let persistent = self.config.c_persistent();
@@ -55,9 +56,9 @@ impl Launcher {
             }
         }
         if let State::Launch(menu) = &mut self.state {
-            menu.reload_notes(instance)
+            Task::batch([menu.reload_notes(instance), tsaves])
         } else {
-            Task::none()
+            tsaves
         }
     }
 

@@ -1,14 +1,14 @@
-use iced::{widget, Alignment, Length};
+use iced::{widget, Length};
 
 use crate::{
-    config::UiWindowDecorations,
     icons,
     menu_renderer::{
-        button_with_icon, changelog, tooltip, view_account_login, view_confirm, view_error,
-        view_log_upload_result, Element, FONT_MONO,
+        changelog,
+        ui::{button_with_icon, tooltip},
+        view_account_login, view_confirm, view_error, view_log_upload_result, Element, FONT_MONO,
     },
-    state::{Launcher, Message, State, WindowMessage},
-    stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
+    state::{Launcher, Message, State},
+    stylesheet::{styles::LauncherTheme, widgets::StyleButton},
     DEBUG_LOG_BUTTON_HEIGHT,
 };
 
@@ -169,9 +169,9 @@ impl Launcher {
         if let State::Launch(_) = &self.state {
             menu
         } else {
-            let round = !self.config.uses_system_decorations();
+            // let round = !self.config.uses_system_decorations();
             widget::Column::new()
-                .push_maybe({
+                /*.push_maybe({
                     let maximized = self.window_state.is_maximized;
                     let custom_decor = widget::mouse_area(
                         widget::container(self.view_window_decorations())
@@ -186,7 +186,7 @@ impl Launcher {
                     )
                     .on_press(Message::Window(WindowMessage::Dragged));
                     round.then_some(custom_decor)
-                })
+                })*/
                 .push(
                     widget::container(menu)
                         .style(move |t: &LauncherTheme| t.style_container_bg(0.0, None))
@@ -197,7 +197,7 @@ impl Launcher {
         }
     }
 
-    pub fn view_window_decorations(&self) -> widget::Row<'_, Message, LauncherTheme> {
+    /*pub fn view_window_decorations(&self) -> widget::Row<'_, Message, LauncherTheme> {
         const ICON_SIZE: u16 = 10;
 
         fn win_button(icon: widget::Text<'_, LauncherTheme>, m: Message) -> Element<'_> {
@@ -255,7 +255,7 @@ impl Launcher {
                 .push(wmax)
                 .push(wmin)
         }
-    }
+    }*/
 }
 
 // HOOK: Decorations

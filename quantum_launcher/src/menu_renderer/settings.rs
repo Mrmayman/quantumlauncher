@@ -4,8 +4,9 @@ use iced::{widget, Alignment, Length};
 use ql_core::{LAUNCHER_DIR, WEBSITE};
 
 use super::{
-    back_button, button_with_icon, get_mode_selector, sidebar_button, underline, Element, DISCORD,
-    GITHUB,
+    get_mode_selector,
+    ui::{back_button, button_with_icon, sidebar_button, underline},
+    Element, DISCORD, GITHUB,
 };
 use crate::menu_renderer::edit_instance::{args_split_by_space, get_args_list, resolution_dialog};
 use crate::menu_renderer::{back_to_launch_screen, checkered_list, sidebar, tsubtitle};

@@ -16,7 +16,7 @@ use ql_core::{
     jarmod::JarMods,
     json::{instance_config::MainClassMode, InstanceConfigJson, VersionDetails},
     DownloadProgress, GenericProgress, InstanceSelection, IntoStringError, ListEntry, ModId,
-    OptifineUniqueVersion, SelectedMod, StoreBackendType,
+    OptifineUniqueVersion, Save, SelectedMod, StoreBackendType,
 };
 use ql_mod_manager::loaders::paper::PaperVersion;
 use ql_mod_manager::{
@@ -34,6 +34,7 @@ pub enum LaunchTabId {
     Buttons,
     Log,
     Edit,
+    Saves,
 }
 
 impl std::fmt::Display for LaunchTabId {
@@ -45,6 +46,7 @@ impl std::fmt::Display for LaunchTabId {
                 LaunchTabId::Buttons => "Play",
                 LaunchTabId::Log => "Logs",
                 LaunchTabId::Edit => "Edit",
+                LaunchTabId::Saves => "Saves",
             }
         )
     }
@@ -74,9 +76,11 @@ impl InstanceNotes {
 pub struct MenuLaunch {
     pub message: String,
     pub login_progress: Option<ProgressBar<GenericProgress>>,
+
     pub tab: LaunchTabId,
     pub edit_instance: Option<MenuEditInstance>,
     pub notes: Option<InstanceNotes>,
+    pub tab_saves: Option<Result<SavesInfo, String>>,
 
     pub sidebar_scrolled: f32,
     pub sidebar_grid_state: widget::pane_grid::State<bool>,
@@ -108,6 +112,7 @@ impl MenuLaunch {
             message,
             tab: LaunchTabId::default(),
             edit_instance: None,
+            tab_saves: None,
             login_progress: None,
             sidebar_scrolled: 100.0,
             is_viewing_server: false,
@@ -131,6 +136,12 @@ impl MenuLaunch {
             Message::Notes(NotesMessage::Loaded(n.strerr()))
         })
     }
+}
+
+pub struct SavesInfo {
+    pub watcher: notify::RecommendedWatcher,
+    pub recv: std::sync::mpsc::Receiver<notify::Event>,
+    pub list: Vec<Save>,
 }
 
 /// The screen where you can edit an instance/server.

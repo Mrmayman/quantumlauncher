@@ -1,27 +1,28 @@
 use cfg_if::cfg_if;
 use frostmark::MarkWidget;
 use iced::keyboard::Modifiers;
+use iced::widget::image::Handle;
 use iced::widget::tooltip::Position;
 use iced::widget::{horizontal_space, vertical_space};
 use iced::{widget, Alignment, Length, Padding};
 use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
 
 use crate::cli::EXPERIMENTAL_SERVERS;
-use crate::menu_renderer::onboarding::x86_warning;
-use crate::menu_renderer::{tsubtitle, underline, underline_maybe, FONT_MONO};
-use crate::state::{InstanceNotes, NotesMessage, WindowMessage};
+use crate::menu_renderer::checkered_list;
 use crate::{
     icons,
-    menu_renderer::DISCORD,
     state::{
-        AccountMessage, CreateInstanceMessage, InstanceLog, LaunchTabId, Launcher,
-        LauncherSettingsMessage, ManageModsMessage, MenuLaunch, Message, State, NEW_ACCOUNT_NAME,
-        OFFLINE_ACCOUNT_NAME,
+        AccountMessage, CreateInstanceMessage, InstanceLog, InstanceNotes, LaunchTabId, Launcher,
+        LauncherSettingsMessage, ManageModsMessage, MenuLaunch, Message, NotesMessage, SavesInfo,
+        State, NEW_ACCOUNT_NAME, OFFLINE_ACCOUNT_NAME,
     },
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
 
-use super::{button_with_icon, shortcut_ctrl, tooltip, Element};
+use super::{
+    button_with_icon, onboarding::x86_warning, shortcut_ctrl, tooltip, tsubtitle, underline,
+    underline_maybe, Element, DISCORD, FONT_MONO,
+};
 
 pub const TAB_BUTTON_WIDTH: f32 = 64.0;
 
@@ -87,6 +88,7 @@ impl Launcher {
                         .into()
                     }
                 }
+                LaunchTabId::Saves => self.get_saves_pane(selected, menu.tab_saves.as_ref()),
             }
         } else {
             widget::column!(widget::text(if menu.is_viewing_server {
@@ -382,8 +384,8 @@ impl Launcher {
                         [true, false, false, false],
                         Some((Color::ExtraDark, t.alpha))
                     ))
-            )
-            .on_press(Message::Window(WindowMessage::Dragged)),
+            ),
+            // .on_press(Message::Window(WindowMessage::Dragged)),
             widget::container(list)
                 .height(Length::Fill)
                 .style(|n| n.style_container_sharp_box(0.0, Color::ExtraDark))
@@ -508,6 +510,121 @@ impl Launcher {
             ),
         }
     }
+
+    fn get_saves_pane<'a>(
+        &'a self,
+        selected_instance: &InstanceSelection,
+        tabs: Option<&'a Result<SavesInfo, String>>,
+    ) -> Element<'a> {
+        match tabs {
+            Some(Ok(saves)) => self.render_saves(saves, selected_instance),
+            Some(Err(err)) => widget::column![
+                widget::text("Error loading saves").size(18),
+                widget::text(err).size(14),
+            ]
+            .padding(16)
+            .into(),
+            None => widget::column![
+                widget::text("Loading saves...").size(18),
+                widget::text("Scanning world files").size(14),
+                widget::text("This may take a moment for large worlds").size(12),
+            ]
+            .padding(20)
+            .spacing(10)
+            .into(),
+        }
+    }
+
+    fn get_world_icon(save: &ql_core::saves::Save) -> Element<'static> {
+        #[deprecated = "stop using std::fs::read"]
+        const E: () = ();
+        let () = E;
+
+        // HOLY FUCKING SHIT THIS IS BAD
+        if let Some(icon_path) = &save.icon_path {
+            if let Ok(icon_bytes) = std::fs::read(icon_path) {
+                let handle = Handle::from_bytes(icon_bytes);
+                return widget::image(handle).width(32).height(32).into();
+            }
+        }
+
+        icons::folder_s(30).width(32).into()
+    }
+
+    fn render_saves<'a>(
+        &'a self,
+        saves: &'a SavesInfo,
+        instance: &InstanceSelection,
+    ) -> Element<'a> {
+        if saves.list.is_empty() {
+            return widget::column![
+                widget::text("No saves found").size(18),
+                widget::text("Create a world in Minecraft to see it here").size(14),
+            ]
+            .padding(20)
+            .spacing(10)
+            .into();
+        }
+
+        let saves_grid =
+            widget::scrollable(checkered_list(saves.list.iter().map(get_saves_list_entry)))
+                .style(|t: &LauncherTheme, s| t.style_scrollable_flat_dark(s))
+                .width(Length::Fill)
+                .height(Length::Fill);
+
+        let len = saves.list.len();
+
+        widget::column![
+            widget::row![
+                widget::text(format!(
+                    "Found {len} save{}",
+                    if len < 2 { "" } else { "s" }
+                ))
+                .size(20),
+                widget::horizontal_space(),
+                button_with_icon(icons::folder_s(14), "Open Saves Folder", 14).on_press(
+                    Message::CoreOpenPath(match instance {
+                        InstanceSelection::Instance(_) =>
+                            instance.get_dot_minecraft_path().join("saves"),
+                        InstanceSelection::Server(_) => instance.get_instance_path().join("world"),
+                    })
+                )
+            ]
+            .align_y(Alignment::Center)
+            .padding(10)
+            .spacing(10),
+            widget::horizontal_rule(1),
+            saves_grid
+        ]
+        .into()
+    }
+}
+
+fn get_saves_list_entry(save: &ql_core::Save) -> Element<'static> {
+    let icon = Launcher::get_world_icon(save);
+
+    let size_text = if let Some(size) = save.size_bytes {
+        format!("{:.1} MB", size as f64 / 1_048_576.0)
+    } else {
+        "Unknown size".to_string()
+    };
+
+    widget::row![
+        icon,
+        widget::column![
+            widget::text(save.name.clone()).size(16),
+            widget::text(size_text).size(12),
+        ]
+        .spacing(2),
+        widget::horizontal_space(),
+        widget::button(icons::folder())
+            .on_press(Message::CoreOpenPath(save.path.clone()))
+            .padding([5, 8])
+    ]
+    .align_y(iced::Alignment::Center)
+    .spacing(10)
+    .width(Length::Fill)
+    .into()
 }
 
 fn get_view_servers(
@@ -535,9 +652,14 @@ fn get_view_servers(
 impl MenuLaunch {
     fn get_tab_selector(&'_ self, decor: bool) -> Element<'_> {
         let tab_bar = widget::row(
-            [LaunchTabId::Buttons, LaunchTabId::Edit, LaunchTabId::Log]
-                .into_iter()
-                .map(|n| render_tab_button(n, decor, self)),
+            [
+                LaunchTabId::Buttons,
+                LaunchTabId::Edit,
+                LaunchTabId::Saves,
+                LaunchTabId::Log,
+            ]
+            .into_iter()
+            .map(|n| render_tab_button(n, decor, self)),
         )
         .align_y(Alignment::End)
         .wrap();
@@ -567,7 +689,7 @@ impl MenuLaunch {
                 )
             }),
         )
-        .on_press(Message::Window(WindowMessage::Dragged))
+        // .on_press(Message::Window(WindowMessage::Dragged))
         .into()
     }
 }

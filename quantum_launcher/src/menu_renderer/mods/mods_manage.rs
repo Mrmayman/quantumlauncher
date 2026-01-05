@@ -2,19 +2,19 @@ use iced::widget::tooltip::Position;
 use iced::{widget, Alignment, Length};
 use ql_core::{InstanceSelection, Loader, SelectedMod};
 
-use crate::menu_renderer::{ctxbox, dots, select_box, subbutton_with_icon, tsubtitle, FONT_MONO};
-use crate::message_handler::ForgeKind;
-use crate::state::{ImageState, InstallPaperMessage, MenuEditModsModal};
-use crate::stylesheet::widgets::StyleButton;
 use crate::{
     icons,
-    menu_renderer::{back_button, back_to_launch_screen, button_with_icon, tooltip, Element},
-    state::{
-        EditPresetsMessage, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage,
-        ManageJarModsMessage, ManageModsMessage, MenuEditMods, Message, ModListEntry,
-        SelectedState,
+    menu_renderer::{
+        back_button, back_to_launch_screen, button_with_icon, ctxbox, dots, select_box,
+        subbutton_with_icon, tooltip, tsubtitle, Element, FONT_MONO,
     },
-    stylesheet::{color::Color, styles::LauncherTheme},
+    message_handler::ForgeKind,
+    state::{
+        EditPresetsMessage, ImageState, InstallFabricMessage, InstallModsMessage,
+        InstallOptifineMessage, InstallPaperMessage, ManageJarModsMessage, ManageModsMessage,
+        MenuEditMods, MenuEditModsModal, Message, ModListEntry, SelectedState,
+    },
+    stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
 use ql_core::json::InstanceConfigJson;
 

@@ -45,6 +45,8 @@ mod loader;
 pub mod print;
 mod progress;
 pub mod read_log;
+/// Minecraft save file utilities.
+pub mod saves;
 mod urlcache;
 
 pub use crate::json::InstanceConfigJson;
@@ -57,6 +59,7 @@ pub use file_utils::{RequestError, LAUNCHER_DIR};
 pub use loader::Loader;
 pub use print::{logger_finish, LogType, LoggingState, LOGGER};
 pub use progress::{DownloadProgress, GenericProgress, Progress};
+pub use saves::{read_saves_info, Save};
 pub use urlcache::url_cache_get;
 
 pub static REGEX_SNAPSHOT: LazyLock<Regex> =

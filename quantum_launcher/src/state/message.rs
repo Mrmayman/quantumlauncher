@@ -214,7 +214,7 @@ pub enum RecommendedModMessage {
     DownloadEnd(Res<HashSet<CurseforgeNotAllowed>>),
 }
 
-#[derive(Debug, Clone)]
+/*#[derive(Debug, Clone)]
 pub enum WindowMessage {
     Dragged,
     // HOOK: Decorations
@@ -223,7 +223,7 @@ pub enum WindowMessage {
     ClickMinimize,
     ClickMaximize,
     // IsMaximized(bool),
-}
+}*/
 
 #[allow(unused)]
 #[derive(Debug, Clone)]
@@ -419,7 +419,7 @@ pub enum Message {
     CoreFocusNext,
     CoreTryQuit,
 
-    Window(WindowMessage),
+    // Window(WindowMessage),
     CoreImageDownloaded(Res<ImageResult>),
 
     CoreLogToggle,
@@ -445,4 +445,6 @@ pub enum Message {
     LicenseOpen,
     LicenseChangeTab(LicenseTab),
     LicenseAction(widget::text_editor::Action),
+
+    SavesLoaded(String, Res<Vec<ql_core::saves::Save>>),
 }

@@ -27,7 +27,7 @@ use crate::{
         self, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage,
         InstallPaperMessage, Launcher, LauncherSettingsMessage, MenuCurseforgeManualDownload,
         MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuModsDownload, Message,
-        ProgressBar, State, WindowMessage,
+        ProgressBar, State,
     },
 };
 
@@ -719,7 +719,7 @@ impl Launcher {
         Task::none()
     }
 
-    pub fn update_window_msg(&mut self, msg: WindowMessage) -> Task<Message> {
+    /*pub fn update_window_msg(&mut self, msg: WindowMessage) -> Task<Message> {
         match msg {
             WindowMessage::Dragged => iced::window::get_latest().and_then(iced::window::drag),
             // WindowMessage::Resized(dir) => {
@@ -740,7 +740,7 @@ impl Launcher {
             //     Task::none()
             // }
         }
-    }
+    }*/
 
     pub fn update_notes(&mut self, msg: NotesMessage) -> Task<Message> {
         match msg {

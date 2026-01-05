@@ -169,6 +169,9 @@ impl Launcher {
                     Message::LaunchChangeTab(LaunchTabId::Edit)
                 }
                 ("3", ctrl, alt, _, State::Launch(_)) if ctrl | alt => {
+                    Message::LaunchChangeTab(LaunchTabId::Saves)
+                }
+                ("4", ctrl, alt, _, State::Launch(_)) if ctrl | alt => {
                     Message::LaunchChangeTab(LaunchTabId::Log)
                 }
                 (",", true, _, _, State::Launch(_)) => {
