@@ -8,7 +8,7 @@ use crate::{
         button_with_icon, center_x, get_mode_selector, onboarding::x86_warning,
         settings::get_theme_selector, Element, DISCORD,
     },
-    state::{AccountMessage, MenuWelcome, Message},
+    state::{AccountMessage, MainMenuMessage, MenuWelcome, Message},
 };
 
 use super::IMG_LOGO;
@@ -86,7 +86,7 @@ impl MenuWelcome {
                 center_x(
                     widget::text_input("Enter username...", &config.username)
                         .width(200)
-                        .on_input(Message::LaunchUsernameSet)
+                        .on_input(|t| MainMenuMessage::UsernameSet(t).into())
                 ),
                 center_x(
                     widget::button(center_x("Continue"))

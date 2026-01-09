@@ -14,9 +14,7 @@ impl MenuEditJarMods {
             widget::container(
                 widget::scrollable(
                     widget::column!(
-                        back_button().on_press(Message::ManageMods(
-                            ManageModsMessage::ScreenOpenWithoutUpdate
-                        )),
+                        back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
                         widget::column![
                             {
                                 let path = selected_instance.get_instance_path().join("jarmods");
@@ -25,7 +23,7 @@ impl MenuEditJarMods {
                                     .on_press(Message::CoreOpenPath(path))
                             },
                             button_with_icon(icons::new_s(14), "Add file", 14)
-                                .on_press(Message::ManageJarMods(ManageJarModsMessage::AddFile)),
+                                .on_press(ManageJarModsMessage::AddFile.into()),
                         ]
                         .spacing(5),
                         widget::row![
@@ -86,19 +84,19 @@ impl MenuEditJarMods {
                     widget::text("Select some JarMods to perform actions on them").size(14),
                     widget::row![
                         widget::button("Delete")
-                            .on_press(Message::ManageJarMods(ManageJarModsMessage::DeleteSelected)),
+                            .on_press(ManageJarModsMessage::DeleteSelected.into()),
                         widget::button("Toggle")
-                            .on_press(Message::ManageJarMods(ManageJarModsMessage::ToggleSelected)),
+                            .on_press(ManageJarModsMessage::ToggleSelected.into()),
                         widget::button(if matches!(self.selected_state, SelectedState::All) {
                             "Unselect All"
                         } else {
                             "Select All"
                         })
-                        .on_press(Message::ManageJarMods(ManageJarModsMessage::SelectAll)),
+                        .on_press(ManageJarModsMessage::SelectAll.into()),
                         widget::button(icons::arrow_up())
-                            .on_press(Message::ManageJarMods(ManageJarModsMessage::MoveUp)),
+                            .on_press(ManageJarModsMessage::MoveUp.into()),
                         widget::button(icons::arrow_down())
-                            .on_press(Message::ManageJarMods(ManageJarModsMessage::MoveDown)),
+                            .on_press(ManageJarModsMessage::MoveDown.into()),
                     ]
                     .spacing(5)
                     .wrap()
@@ -126,10 +124,7 @@ impl MenuEditJarMods {
                         self.selected_mods.contains(&jarmod.filename),
                     )
                     .on_toggle(move |t| {
-                        Message::ManageJarMods(ManageJarModsMessage::ToggleCheckbox(
-                            jarmod.filename.clone(),
-                            t,
-                        ))
+                        ManageJarModsMessage::ToggleCheckbox(jarmod.filename.clone(), t).into()
                     })
                     .into()
                 })

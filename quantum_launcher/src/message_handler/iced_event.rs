@@ -1,10 +1,10 @@
 use crate::message_update::MSG_RESIZE;
 use crate::state::{
     AutoSaveKind, CreateInstanceMessage, LaunchTab, Launcher, LauncherSettingsMessage,
-    LauncherSettingsTab, MenuCreateInstance, MenuCreateInstanceChoosing, MenuEditMods,
-    MenuEditPresets, MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper,
-    MenuLauncherSettings, MenuLauncherUpdate, MenuLoginAlternate, MenuLoginMS, MenuRecommendedMods,
-    Message, State,
+    LauncherSettingsTab, MainMenuMessage, ManageModsMessage, MenuCreateInstance,
+    MenuCreateInstanceChoosing, MenuEditMods, MenuEditPresets, MenuExportInstance,
+    MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLauncherSettings,
+    MenuLauncherUpdate, MenuLoginAlternate, MenuLoginMS, MenuRecommendedMods, Message, State,
 };
 use iced::{
     keyboard::{self, key::Named, Key},
@@ -131,18 +131,14 @@ impl Launcher {
                 // ========
                 // MANAGE MODS MENU
                 // ========
-                ("a", true, _, true, State::EditMods(_)) => {
-                    Message::ManageMods(crate::state::ManageModsMessage::SelectAll)
-                }
+                ("a", true, _, true, State::EditMods(_)) => ManageModsMessage::SelectAll.into(),
                 // Ctrl-F search in mods list (with toggling)
                 #[rustfmt::skip]
                 ("f", true, _, _, State::EditMods(MenuEditMods { search: Some(_), .. })) => {
-                    Message::ManageMods(crate::state::ManageModsMessage::SetSearch(None))
+                    ManageModsMessage::SetSearch(None).into()
                 },
                 ("f", true, _, _, State::EditMods(_)) => Message::Multiple(vec![
-                    Message::ManageMods(crate::state::ManageModsMessage::SetSearch(Some(
-                        String::new(),
-                    ))),
+                    ManageModsMessage::SetSearch(Some(String::new())).into(),
                     Message::CoreFocusNext,
                 ]),
 
@@ -154,7 +150,7 @@ impl Launcher {
 
                 // Misc
                 ("a", true, _, true, State::EditJarMods(_)) => {
-                    Message::ManageJarMods(crate::state::ManageJarModsMessage::SelectAll)
+                    crate::state::ManageJarModsMessage::SelectAll.into()
                 }
 
                 // ========
@@ -166,13 +162,13 @@ impl Launcher {
                     })
                 }
                 ("1", ctrl, alt, _, State::Launch(_)) if ctrl | alt => {
-                    Message::MChangeTab(LaunchTab::Buttons)
+                    MainMenuMessage::ChangeTab(LaunchTab::Buttons).into()
                 }
                 ("2", ctrl, alt, _, State::Launch(_)) if ctrl | alt => {
-                    Message::MChangeTab(LaunchTab::Edit)
+                    MainMenuMessage::ChangeTab(LaunchTab::Edit).into()
                 }
                 ("3", ctrl, alt, _, State::Launch(_)) if ctrl | alt => {
-                    Message::MChangeTab(LaunchTab::Log)
+                    MainMenuMessage::ChangeTab(LaunchTab::Log).into()
                 }
                 (",", true, _, _, State::Launch(_)) => {
                     Message::LauncherSettings(LauncherSettingsMessage::Open)

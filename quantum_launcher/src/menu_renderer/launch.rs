@@ -10,7 +10,9 @@ use crate::menu_renderer::onboarding::x86_warning;
 use crate::menu_renderer::{
     ctx_button, ctxbox, offset, tsubtitle, underline, underline_maybe, FONT_MONO,
 };
-use crate::state::{GameLogMessage, InstanceNotes, LaunchModal, NotesMessage, WindowMessage};
+use crate::state::{
+    GameLogMessage, InstanceNotes, LaunchModal, MainMenuMessage, NotesMessage, WindowMessage,
+};
 use crate::{
     icons,
     menu_renderer::DISCORD,
@@ -57,24 +59,21 @@ impl Launcher {
                 .on_press(Message::CoreHideModal)
                 .into()
             })
-            .on_resize(10, |t| Message::MSidebarResize(t.ratio))
+            .on_resize(10, |t| MainMenuMessage::SidebarResize(t.ratio).into())
         )
-        .push_maybe(menu.modal.as_ref().and_then(|n| match n {
-            LaunchModal::InstanceOptions => None,
-            LaunchModal::SidebarCtxMenu(instance, (x, y)) => {
-                let i = instance.is_some();
-                Some(offset(
-                    ctxbox(
-                        widget::Column::new()
-                            .spacing(4)
-                            .push_maybe(i.then_some(ctx_button("Play")))
-                            .push_maybe(i.then_some(widget::horizontal_rule(2)))
-                            .push(ctx_button("New Folder")),
-                    )
+        .push_maybe(menu.modal.as_ref().and_then(|n| {
+            match n {
+                LaunchModal::InstanceOptions => None,
+                LaunchModal::SidebarCtxMenu(_instance, (x, y)) => Some(offset(
+                    // Could do something with instance-specific actions in the future
+                    ctxbox({
+                        let new_folder = ctx_button("New Folder");
+                        column![new_folder].spacing(4)
+                    })
                     .width(150),
                     *x,
                     *y,
-                ))
+                )),
             }
         }))
         .into()
@@ -223,9 +222,9 @@ impl Launcher {
                     .push_maybe(get_view_servers(menu.is_viewing_server))
                     .push(
                         widget::row![
-                            widget::button(icons::lines_s(10))
-                                .padding([5, 8])
-                                .on_press(Message::MModal(Some(LaunchModal::InstanceOptions))),
+                            widget::button(icons::lines_s(10)).padding([5, 8]).on_press(
+                                MainMenuMessage::Modal(Some(LaunchModal::InstanceOptions)).into()
+                            ),
                             widget::button(
                                 widget::row![
                                     icons::edit_s(10),
@@ -252,9 +251,9 @@ impl Launcher {
     fn get_mods_button(&self) -> widget::Button<'_, Message, LauncherTheme> {
         button_with_icon(icons::download(), "Mods", 15)
             .on_press(if self.modifiers_pressed.contains(Modifiers::SHIFT) {
-                Message::ManageMods(ManageModsMessage::ScreenOpenWithoutUpdate)
+                ManageModsMessage::ScreenOpenWithoutUpdate.into()
             } else {
-                Message::ManageMods(ManageModsMessage::ScreenOpen)
+                ManageModsMessage::ScreenOpen.into()
             })
             .width(98)
     }
@@ -362,13 +361,16 @@ impl Launcher {
                     .id(widget::scrollable::Id::new("MenuLaunch:sidebar"))
                     .on_scroll(|n| {
                         let total = n.content_bounds().height - n.bounds().height;
-                        Message::MSidebarScroll(total)
+                        MainMenuMessage::SidebarScroll(total).into()
                     })
             )
-            .on_right_press(Message::MModal(Some(LaunchModal::SidebarCtxMenu(
-                None,
-                self.window_state.mouse_pos
-            )))),
+            .on_right_press(
+                MainMenuMessage::Modal(Some(LaunchModal::SidebarCtxMenu(
+                    None,
+                    self.window_state.mouse_pos
+                )))
+                .into()
+            ),
             widget::horizontal_rule(1).style(|t: &LauncherTheme| t.style_rule(Color::Dark, 1)),
             self.get_accounts_bar(menu),
         ]
@@ -411,20 +413,24 @@ impl Launcher {
                         n.style_button(status, StyleButton::FlatExtraDark)
                     })
                     .on_press_maybe((!is_selected).then(|| {
-                        Message::LaunchInstanceSelected(InstanceSelection::new(
+                        MainMenuMessage::InstanceSelected(InstanceSelection::new(
                             &node.name,
                             menu.is_viewing_server,
                         ))
+                        .into()
                     }))
                     .width(Length::Fill),
                     Color::Dark,
                     !is_selected,
                 ))
-                .on_right_press(Message::MModal(Some(LaunchModal::SidebarCtxMenu(
-                    // Tbh should be careful about careless heap allocations
-                    Some(InstanceSelection::new(&node.name, menu.is_viewing_server)),
-                    self.window_state.mouse_pos,
-                ))))
+                .on_right_press(
+                    MainMenuMessage::Modal(Some(LaunchModal::SidebarCtxMenu(
+                        // Tbh should be careful about careless heap allocations
+                        Some(InstanceSelection::new(&node.name, menu.is_viewing_server)),
+                        self.window_state.mouse_pos,
+                    )))
+                    .into(),
+                )
                 .into()
             }
             SidebarNodeKind::Folder(children) => {
@@ -485,7 +491,7 @@ impl Launcher {
         .push_maybe(
             (self.accounts_selected.as_deref() == Some(OFFLINE_ACCOUNT_NAME)).then_some(
                 widget::text_input("Enter username...", &self.config.username)
-                    .on_input(Message::LaunchUsernameSet)
+                    .on_input(|t| MainMenuMessage::UsernameSet(t).into())
                     .width(Length::Fill),
             ),
         )
@@ -509,8 +515,8 @@ impl Launcher {
             tooltip(play_button, "Username is empty!", Position::Bottom).into()
         } else if self.config.username.contains(' ') && !is_account_selected {
             tooltip(play_button, "Username contains spaces!", Position::Bottom).into()
-        } else if let Some(selected_instance) = &self.selected_instance {
-            if self.processes.contains_key(selected_instance) {
+        } else {
+            if self.processes.contains_key(self.instance()) {
                 tooltip(
                     button_with_icon(icons::play(), "Kill", 16)
                         .on_press(Message::LaunchKill)
@@ -529,8 +535,6 @@ impl Launcher {
                 )
                 .into()
             }
-        } else {
-            tooltip(play_button, "Select an instance first!", Position::Bottom).into()
         }
     }
 
@@ -544,7 +548,7 @@ impl Launcher {
             .width(97)
     }
 
-    fn get_server_play_button<'a>(&self) -> iced::widget::Tooltip<'a, Message, LauncherTheme> {
+    fn get_server_play_button<'a>(&'a self) -> iced::widget::Tooltip<'a, Message, LauncherTheme> {
         match &self.selected_instance {
             Some(n) if self.processes.contains_key(n) => tooltip(
                 button_with_icon(icons::play(), "Stop", 16)
@@ -556,11 +560,7 @@ impl Launcher {
             _ => tooltip(
                 button_with_icon(icons::play(), "Start", 16)
                     .width(97)
-                    .on_press_maybe(
-                        self.selected_instance
-                            .is_some()
-                            .then(|| Message::LaunchStart),
-                    ),
+                    .on_press(Message::LaunchStart),
                 "By starting the server, you agree to the EULA",
                 Position::Bottom,
             ),
@@ -680,7 +680,7 @@ fn render_tab_button(tab: LaunchTab, decor: bool, menu: &'_ MenuLaunch) -> Eleme
                 StyleButton::SemiExtraDark([!decor, !decor, false, false]),
             )
         })
-        .on_press(Message::MChangeTab(tab))
+        .on_press(MainMenuMessage::ChangeTab(tab).into())
         .padding(0)
         .into()
     }

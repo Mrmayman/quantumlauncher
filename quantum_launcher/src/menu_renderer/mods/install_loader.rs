@@ -66,9 +66,7 @@ impl MenuInstallOptifine {
         delete_installer: bool,
     ) -> widget::Column<'a, Message, LauncherTheme, iced::Renderer> {
         widget::column!(
-            back_button().on_press(Message::ManageMods(
-                ManageModsMessage::ScreenOpenWithoutUpdate
-            )),
+            back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
             widget::container(
                 widget::column!(
                     widget::text("Install OptiFine").size(20),
@@ -83,14 +81,10 @@ impl MenuInstallOptifine {
             widget::container(
                 widget::column!(
                     "Step 2: Select the installer file",
-                    widget::checkbox("Delete installer after use", delete_installer).on_toggle(
-                        |t| Message::InstallOptifine(
-                            InstallOptifineMessage::DeleteInstallerToggle(t)
-                        )
-                    ),
-                    widget::button("Select File").on_press(Message::InstallOptifine(
-                        InstallOptifineMessage::SelectInstallerStart
-                    ))
+                    widget::checkbox("Delete installer after use", delete_installer)
+                        .on_toggle(|t| InstallOptifineMessage::DeleteInstallerToggle(t).into()),
+                    widget::button("Select File")
+                        .on_press(InstallOptifineMessage::SelectInstallerStart.into())
                 )
                 .padding(10)
                 .spacing(10)
@@ -109,9 +103,7 @@ impl MenuInstallFabric {
                 let dots = ".".repeat((tick_timer % 3) + 1);
 
                 widget::column![
-                    back_button().on_press(Message::ManageMods(
-                        ManageModsMessage::ScreenOpenWithoutUpdate
-                    )),
+                    back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
                     widget::text!("Loading {loader_name} version list{dots}").size(20)
                 ]
             }
@@ -127,9 +119,7 @@ impl MenuInstallFabric {
             }
             MenuInstallFabric::Unsupported(is_quilt) => {
                 widget::column!(
-                    back_button().on_press(Message::ManageMods(
-                        ManageModsMessage::ScreenOpenWithoutUpdate
-                    )),
+                    back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
                     widget::text!(
                         "{} is unsupported for this Minecraft version.",
                         if *is_quilt { "Quilt" } else { "Fabric" }
@@ -142,9 +132,7 @@ impl MenuInstallFabric {
                 ..
             } => {
                 widget::column!(
-                    back_button().on_press(Message::ManageMods(
-                        ManageModsMessage::ScreenOpenWithoutUpdate
-                    )),
+                    back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
                     widget::text!("{backend} is unsupported for this Minecraft version.")
                 )
             }
@@ -182,7 +170,7 @@ impl MenuInstallFabric {
                                     fabric::BackendType::CursedLegacy
                                 ],
                                 Some(backend),
-                                |b| Message::InstallFabric(InstallFabricMessage::ChangeBackend(b))
+                                |b| InstallFabricMessage::ChangeBackend(b).into()
                             ),
                             version_list(list, fabric_version),
                         ]
@@ -206,7 +194,7 @@ impl MenuInstallFabric {
                                     fabric::BackendType::OrnitheMCFabric,
                                 ],
                                 Some(backend),
-                                |b| Message::InstallFabric(InstallFabricMessage::ChangeBackend(b))
+                                |b| InstallFabricMessage::ChangeBackend(b).into()
                             ),
                             version_list(list, fabric_version),
                         ]
@@ -217,14 +205,12 @@ impl MenuInstallFabric {
                 };
 
                 widget::column![
-                    back_button().on_press(Message::ManageMods(
-                        ManageModsMessage::ScreenOpenWithoutUpdate
-                    )),
+                    back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
                     widget::text!("Install {backend} for \"{}\"", selected_instance.get_name())
                         .size(20),
                     picker,
                     button_with_icon(icons::download(), "Install", 16)
-                        .on_press(Message::InstallFabric(InstallFabricMessage::ButtonClicked)),
+                        .on_press(InstallFabricMessage::ButtonClicked.into()),
                 ]
             }
         }
@@ -246,7 +232,7 @@ fn version_list<'a>(
     widget::column![
         widget::text("Version:"),
         widget::row![widget::pick_list(list, Some(selected.clone()), |n| {
-            Message::InstallFabric(InstallFabricMessage::VersionSelected(n.loader.version))
+            InstallFabricMessage::VersionSelected(n.loader.version).into()
         })]
         .push_maybe(
             list.first()
@@ -283,18 +269,14 @@ impl MenuInstallPaper {
         let dots = ".".repeat((tick_timer % 3) + 1);
         match self {
             MenuInstallPaper::Loading { .. } => widget::column![
-                back_button().on_press(Message::ManageMods(
-                    ManageModsMessage::ScreenOpenWithoutUpdate
-                )),
+                back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
                 widget::text!("Loading{dots}").size(20),
             ]
             .padding(10)
             .spacing(10)
             .into(),
             MenuInstallPaper::Loaded { version, versions } => widget::column![
-                back_button().on_press(Message::ManageMods(
-                    ManageModsMessage::ScreenOpenWithoutUpdate
-                )),
+                back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
                 widget::text!("Select Version").size(20),
                 widget::row![widget::pick_list(versions.clone(), Some(version), |v| {
                     Message::InstallPaper(InstallPaperMessage::VersionSelected(v))

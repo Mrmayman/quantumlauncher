@@ -25,7 +25,7 @@ impl MenuModsDownload {
             widget::scrollable(
                 column!(
                     widget::text_input("Search...", &self.query)
-                        .on_input(|n| Message::InstallMods(InstallModsMessage::SearchInput(n))),
+                        .on_input(|n| InstallModsMessage::SearchInput(n).into()),
                     self.get_side_panel(),
                 )
                 .padding(10)
@@ -78,9 +78,7 @@ impl MenuModsDownload {
                         .id(widget::scrollable::Id::new("MenuModsDownload:main:mods_list"))
                         .height(Length::Fill)
                         .width(Length::Fill)
-                        .on_scroll(|viewport| {
-                            Message::InstallMods(InstallModsMessage::Scrolled(viewport))
-                        }),
+                        .on_scroll(|viewport| InstallModsMessage::Scrolled(viewport).into()),
                 )
         )
         .into()
@@ -88,16 +86,14 @@ impl MenuModsDownload {
 
     fn get_side_panel(&'_ self) -> Element<'_> {
         let normal_controls = column!(
-            back_button().on_press(Message::ManageMods(
-                ManageModsMessage::ScreenOpenWithoutUpdate
-            )),
+            back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
             widget::Space::with_height(5),
             widget::text("Select store:").size(18),
             widget::radio(
                 "Modrinth",
                 StoreBackendType::Modrinth,
                 Some(self.backend),
-                |v| { Message::InstallMods(InstallModsMessage::ChangeBackend(v)) }
+                |v| InstallModsMessage::ChangeBackend(v).into()
             )
             .text_size(14)
             .size(14),
@@ -105,7 +101,7 @@ impl MenuModsDownload {
                 "CurseForge",
                 StoreBackendType::Curseforge,
                 Some(self.backend),
-                |v| { Message::InstallMods(InstallModsMessage::ChangeBackend(v)) }
+                |v| InstallModsMessage::ChangeBackend(v).into()
             )
             .text_size(14)
             .size(14),
@@ -113,7 +109,7 @@ impl MenuModsDownload {
             widget::text("Select Type:").size(18),
             widget::column(QueryType::STORE_QUERIES.iter().map(|n| {
                 widget::radio(n.to_string(), *n, Some(self.query_type), |v| {
-                    Message::InstallMods(InstallModsMessage::ChangeQueryType(v))
+                    InstallModsMessage::ChangeQueryType(v).into()
                 })
                 .text_size(14)
                 .size(14)
@@ -205,7 +201,7 @@ impl MenuModsDownload {
                     .style(|t: &LauncherTheme, s| {
                         t.style_button(s, StyleButton::SemiDarkBorder([true; 4]))
                     })
-                    .on_press(Message::InstallMods(InstallModsMessage::Uninstall(i))),
+                    .on_press(InstallModsMessage::Uninstall(i).into()),
                 "Uninstall",
                 widget::tooltip::Position::FollowCursor,
             )
@@ -213,10 +209,7 @@ impl MenuModsDownload {
         } else {
             // Download button
             side_button(icons::download())
-                .on_press_maybe(
-                    (!is_downloading)
-                        .then_some(Message::InstallMods(InstallModsMessage::Download(i))),
-                )
+                .on_press_maybe((!is_downloading).then_some(InstallModsMessage::Download(i).into()))
                 .into()
         };
 
@@ -259,7 +252,7 @@ impl MenuModsDownload {
                 .spacing(10),
             )
             .height(70)
-            .on_press(Message::InstallMods(InstallModsMessage::Click(i)))
+            .on_press(InstallModsMessage::Click(i).into())
         )
         .spacing(5)
         .into()
@@ -290,7 +283,7 @@ impl MenuModsDownload {
             column!(MarkWidget::new(desc)
                 .on_clicking_link(Message::CoreOpenLink)
                 .on_drawing_image(|img| { images.view(img.url, img.width, img.height, "".into()) })
-                .on_updating_state(|n| Message::InstallMods(InstallModsMessage::TickDesc(n)))
+                .on_updating_state(|n| InstallModsMessage::TickDesc(n).into())
                 .font(FONT_DEFAULT)
                 .font_mono(FONT_MONO))
         } else {
@@ -311,8 +304,7 @@ impl MenuModsDownload {
         widget::scrollable(
             column!(
                 row!(
-                    back_button()
-                        .on_press(Message::InstallMods(InstallModsMessage::BackToMainScreen)),
+                    back_button().on_press(InstallModsMessage::BackToMainScreen.into()),
                     widget::tooltip(
                         button_with_icon(icons::globe(), "Open Mod Page", 14)
                             .on_press(Message::CoreOpenLink(url.clone())),
