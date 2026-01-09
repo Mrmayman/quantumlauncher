@@ -8,4 +8,5 @@
 
 # Fixes
 
-- Fixed many concurrent downloading bugs with CurseForge
+- Fixed concurrent downloading bugs with CurseForge
+- Fixed context menus not closing after a click

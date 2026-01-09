@@ -601,9 +601,11 @@ impl LauncherTheme {
             },
             widget::button::Status::Disabled => {
                 let color = match style {
-                    StyleButton::Flat | StyleButton::Round | StyleButton::RoundDark => Color::Dark,
-                    StyleButton::FlatDark
-                    | StyleButton::SemiDark(_)
+                    StyleButton::Flat
+                    | StyleButton::Round
+                    | StyleButton::RoundDark
+                    | StyleButton::FlatDark => Color::Dark,
+                    StyleButton::SemiDark(_)
                     | StyleButton::SemiDarkBorder(_)
                     | StyleButton::SemiExtraDark(_) => Color::ExtraDark,
                     StyleButton::FlatExtraDark => Color::SecondDark,

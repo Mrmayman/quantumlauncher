@@ -411,7 +411,7 @@ impl Launcher {
         )
     }
 
-    fn hide_submenu(&mut self) -> bool {
+    pub fn hide_submenu(&mut self) -> bool {
         if let State::EditMods(menu) = &mut self.state {
             if menu.modal.is_some() {
                 menu.modal = None;

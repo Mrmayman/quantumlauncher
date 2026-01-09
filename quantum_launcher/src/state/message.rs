@@ -429,6 +429,7 @@ pub enum Message {
     CoreCleanComplete(Res),
     CoreFocusNext,
     CoreTryQuit,
+    CoreHideModal,
 
     CoreImageDownloaded(Res<ImageResult>),
 

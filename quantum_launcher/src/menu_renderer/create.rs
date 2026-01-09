@@ -10,7 +10,8 @@ use crate::{
     cli::EXPERIMENTAL_MMC_IMPORT,
     icons,
     menu_renderer::{
-        button_with_icon, ctxbox, dots, shortcut_ctrl, sidebar_button, tooltip, tsubtitle, Element,
+        button_with_icon, ctxbox, dots, offset, shortcut_ctrl, sidebar_button, tooltip, tsubtitle,
+        Element,
     },
     state::{CreateInstanceMessage, MenuCreateInstance, MenuCreateInstanceChoosing, Message},
     stylesheet::{
@@ -56,13 +57,11 @@ impl MenuCreateInstanceChoosing {
         });
 
         widget::stack!(view)
-            .push_maybe(self.show_category_dropdown.then_some(row![
-                widget::Space::with_width(90),
-                column![
-                    widget::Space::with_height(40),
-                    ctxbox(Self::get_category_dropdown(&self.selected_categories))
-                ]
-            ]))
+            .push_maybe(self.show_category_dropdown.then_some(offset(
+                ctxbox(Self::get_category_dropdown(&self.selected_categories)),
+                90,
+                40,
+            )))
             .into()
     }
 

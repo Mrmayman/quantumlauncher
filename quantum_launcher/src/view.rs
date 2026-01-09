@@ -166,7 +166,7 @@ impl Launcher {
             State::RecommendedMods(menu) => menu.view(),
         };
 
-        if let State::Launch(_) = &self.state {
+        widget::mouse_area(if let State::Launch(_) = &self.state {
             menu
         } else {
             let round = !self.config.uses_system_decorations();
@@ -194,7 +194,9 @@ impl Launcher {
                         .height(Length::Fill),
                 )
                 .into()
-        }
+        })
+        .on_press(Message::CoreHideModal)
+        .into()
     }
 
     pub fn view_window_decorations(&self) -> widget::Row<'_, Message, LauncherTheme> {

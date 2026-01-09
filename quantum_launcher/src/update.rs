@@ -428,6 +428,9 @@ impl Launcher {
                     }
                 }
             }
+            Message::CoreHideModal => {
+                self.hide_submenu();
+            }
         }
         Task::none()
     }

@@ -224,6 +224,18 @@ fn sidebar<'a>(
     .style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark))
 }
 
+fn offset<'a>(
+    e: impl Into<Element<'a>>,
+    x: impl Into<iced::Length>,
+    y: impl Into<iced::Length>,
+) -> Element<'a> {
+    row![
+        widget::Space::with_width(x),
+        column![widget::Space::with_height(y), e.into()]
+    ]
+    .into()
+}
+
 fn dots(tick_timer: usize) -> String {
     ".".repeat((tick_timer % 3) + 1)
 }
