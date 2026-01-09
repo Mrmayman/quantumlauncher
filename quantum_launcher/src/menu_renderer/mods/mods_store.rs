@@ -91,7 +91,7 @@ impl MenuModsDownload {
             back_button().on_press(Message::ManageMods(
                 ManageModsMessage::ScreenOpenWithoutUpdate
             )),
-            widget::Space::with_height(5.0),
+            widget::Space::with_height(5),
             widget::text("Select store:").size(18),
             widget::radio(
                 "Modrinth",

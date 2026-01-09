@@ -9,9 +9,9 @@ use owo_colors::OwoColorize;
 use crate::{
     message_handler::{SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
     state::{
-        AutoSaveKind, CustomJarState, GameProcess, LaunchTab, Launcher, LauncherSettingsMessage,
-        ManageModsMessage, MenuExportInstance, MenuLaunch, MenuLicense, MenuWelcome, Message,
-        ProgressBar, State,
+        AutoSaveKind, CustomJarState, GameProcess, LaunchModal, LaunchTab, Launcher,
+        LauncherSettingsMessage, ManageModsMessage, MenuExportInstance, MenuLaunch, MenuLicense,
+        MenuWelcome, Message, ProgressBar, State,
     },
     stylesheet::styles::LauncherThemeLightness,
 };
@@ -421,10 +421,13 @@ impl Launcher {
             }
             Message::MModal(m) => {
                 if let State::Launch(menu) = &mut self.state {
-                    menu.modal = match (m, menu.modal) {
+                    menu.modal = match (&m, &menu.modal) {
                         // Unset if you click on it again
-                        (Some(m), Some(n)) if m == n => None,
-                        (m, _) => m,
+                        (
+                            Some(LaunchModal::InstanceOptions),
+                            Some(LaunchModal::InstanceOptions),
+                        ) => None,
+                        _ => m.clone(),
                     }
                 }
             }

@@ -3,7 +3,7 @@ use iced::{widget, Alignment, Length};
 use ql_core::{InstanceSelection, Loader, SelectedMod};
 
 use crate::menu_renderer::{
-    ctx_button, ctxbox, dots, select_box, subbutton_with_icon, tsubtitle, FONT_MONO,
+    ctx_button, ctxbox, dots, offset, select_box, subbutton_with_icon, tsubtitle, FONT_MONO,
 };
 use crate::message_handler::ForgeKind;
 use crate::state::{ImageState, InstallPaperMessage, MenuEditModsModal};
@@ -66,46 +66,39 @@ impl MenuEditMods {
 
             widget::stack!(
                 menu_main,
-                widget::row![
-                    widget::Space::with_width(MODS_SIDEBAR_WIDTH + 30),
-                    widget::column![widget::Space::with_height(40), ctxbox(submenu).width(200)]
-                ]
+                offset(ctxbox(submenu).width(200), MODS_SIDEBAR_WIDTH + 30, 40),
             )
             .into()
         } else if let Some(MenuEditModsModal::RightClick(id, (x, y))) = &self.modal {
             widget::stack!(
                 menu_main,
-                widget::column![
-                    widget::Space::with_height(y.clamp(0.0, window_height - 130.0)),
-                    widget::row![
-                        widget::Space::with_width(*x),
-                        ctxbox(
-                            widget::column![
-                                ctx_button("Toggle").on_press(Message::ManageMods(
-                                    ManageModsMessage::ToggleSelected
-                                )),
-                                ctx_button("Delete").on_press(Message::ManageMods(
-                                    ManageModsMessage::DeleteSelected
-                                )),
-                                ctx_button("Mod Details").on_press_maybe(
-                                    self.mods.mods.get(&id.get_index_str()).map(|info| {
-                                        Message::Multiple(vec![
-                                            Message::InstallMods(InstallModsMessage::Open),
-                                            Message::InstallMods(
-                                                InstallModsMessage::ChangeBackend(id.get_backend()),
-                                            ),
-                                            Message::InstallMods(InstallModsMessage::SearchInput(
-                                                info.name.clone(),
-                                            )),
-                                        ])
-                                    })
-                                ),
-                            ]
-                            .spacing(4)
-                        )
-                        .width(200)
-                    ]
-                ]
+                offset(
+                    ctxbox(
+                        widget::column![
+                            ctx_button("Toggle")
+                                .on_press(Message::ManageMods(ManageModsMessage::ToggleSelected)),
+                            ctx_button("Delete")
+                                .on_press(Message::ManageMods(ManageModsMessage::DeleteSelected)),
+                            ctx_button("Mod Details").on_press_maybe(
+                                self.mods.mods.get(&id.get_index_str()).map(|info| {
+                                    Message::Multiple(vec![
+                                        Message::InstallMods(InstallModsMessage::Open),
+                                        Message::InstallMods(InstallModsMessage::ChangeBackend(
+                                            id.get_backend(),
+                                        )),
+                                        Message::InstallMods(InstallModsMessage::SearchInput(
+                                            info.name.clone(),
+                                        )),
+                                    ])
+                                })
+                            ),
+                        ]
+                        .spacing(4)
+                    )
+                    .width(200),
+                    *x,
+                    y.clamp(0.0, window_height - 130.0)
+                ),
             )
             .into()
         } else {

@@ -50,9 +50,10 @@ impl std::fmt::Display for LaunchTab {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LaunchModal {
     InstanceOptions,
+    SidebarCtxMenu(Option<InstanceSelection>, (f32, f32)),
     // More in the future
 }
 

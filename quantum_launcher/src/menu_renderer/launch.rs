@@ -7,7 +7,9 @@ use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
 use crate::cli::EXPERIMENTAL_SERVERS;
 use crate::config::sidebar::{SidebarNode, SidebarNodeKind};
 use crate::menu_renderer::onboarding::x86_warning;
-use crate::menu_renderer::{ctx_button, ctxbox, tsubtitle, underline, underline_maybe, FONT_MONO};
+use crate::menu_renderer::{
+    ctx_button, ctxbox, offset, tsubtitle, underline, underline_maybe, FONT_MONO,
+};
 use crate::state::{GameLogMessage, InstanceNotes, LaunchModal, NotesMessage, WindowMessage};
 use crate::{
     icons,
@@ -45,14 +47,36 @@ impl Launcher {
         &'element self,
         menu: &'element MenuLaunch,
     ) -> Element<'element> {
-        widget::pane_grid(&menu.sidebar_grid_state, |_, is_sidebar, _| {
-            if *is_sidebar {
-                self.get_sidebar(menu).into()
-            } else {
-                self.get_tab(menu).into()
+        widget::stack!(
+            widget::pane_grid(&menu.sidebar_grid_state, |_, is_sidebar, _| {
+                widget::mouse_area(if *is_sidebar {
+                    self.get_sidebar(menu)
+                } else {
+                    self.get_tab(menu)
+                })
+                .on_press(Message::CoreHideModal)
+                .into()
+            })
+            .on_resize(10, |t| Message::MSidebarResize(t.ratio))
+        )
+        .push_maybe(menu.modal.as_ref().and_then(|n| match n {
+            LaunchModal::InstanceOptions => None,
+            LaunchModal::SidebarCtxMenu(instance, (x, y)) => {
+                let i = instance.is_some();
+                Some(offset(
+                    ctxbox(
+                        widget::Column::new()
+                            .spacing(4)
+                            .push_maybe(i.then_some(ctx_button("Play")))
+                            .push_maybe(i.then_some(widget::horizontal_rule(2)))
+                            .push(ctx_button("New Folder")),
+                    )
+                    .width(150),
+                    *x,
+                    *y,
+                ))
             }
-        })
-        .on_resize(10, |t| Message::MSidebarResize(t.ratio))
+        }))
         .into()
     }
 
@@ -107,21 +131,24 @@ impl Launcher {
                     .height(Length::Fill)
                     .style(|t: &LauncherTheme| t.style_container_bg(0.0, None)),
             ))
-        .push_maybe(menu.modal.as_ref().map(|n| {
+        .push_maybe(menu.modal.as_ref().and_then(|n| {
             match n {
-                LaunchModal::InstanceOptions => column![
-                    widget::vertical_space(),
-                    ctxbox(
-                        column![
-                            ctx_button("Export Instance").on_press(Message::ExportInstanceOpen),
-                            ctx_button("Create Shortcut").on_press(Message::Nothing),
-                        ]
-                        .spacing(5)
-                    )
-                    .width(150),
-                    widget::Space::with_height(30)
-                ]
-                .padding(12),
+                LaunchModal::InstanceOptions => Some(
+                    column![
+                        widget::vertical_space(),
+                        ctxbox(
+                            column![
+                                ctx_button("Export Instance").on_press(Message::ExportInstanceOpen),
+                                ctx_button("Create Shortcut"),
+                            ]
+                            .spacing(4)
+                        )
+                        .width(150),
+                        widget::Space::with_height(30)
+                    ]
+                    .padding(12),
+                ),
+                LaunchModal::SidebarCtxMenu(_, _) => None,
             }
         }))
         .into()
@@ -328,14 +355,20 @@ impl Launcher {
         };
 
         let list = column![
-            widget::scrollable(list)
-                .height(Length::Fill)
-                .style(LauncherTheme::style_scrollable_flat_extra_dark)
-                .id(widget::scrollable::Id::new("MenuLaunch:sidebar"))
-                .on_scroll(|n| {
-                    let total = n.content_bounds().height - n.bounds().height;
-                    Message::MSidebarScroll(total)
-                }),
+            widget::mouse_area(
+                widget::scrollable(list)
+                    .height(Length::Fill)
+                    .style(LauncherTheme::style_scrollable_flat_extra_dark)
+                    .id(widget::scrollable::Id::new("MenuLaunch:sidebar"))
+                    .on_scroll(|n| {
+                        let total = n.content_bounds().height - n.bounds().height;
+                        Message::MSidebarScroll(total)
+                    })
+            )
+            .on_right_press(Message::MModal(Some(LaunchModal::SidebarCtxMenu(
+                None,
+                self.window_state.mouse_pos
+            )))),
             widget::horizontal_rule(1).style(|t: &LauncherTheme| t.style_rule(Color::Dark, 1)),
             self.get_accounts_bar(menu),
         ]
@@ -370,7 +403,7 @@ impl Launcher {
                     .as_ref()
                     .is_some_and(|n| n.get_name() == &node.name);
 
-                underline_maybe(
+                widget::mouse_area(underline_maybe(
                     widget::button(
                         widget::row![text].push_maybe(self.get_running_icon(menu, &node.name)),
                     )
@@ -386,7 +419,13 @@ impl Launcher {
                     .width(Length::Fill),
                     Color::Dark,
                     !is_selected,
-                )
+                ))
+                .on_right_press(Message::MModal(Some(LaunchModal::SidebarCtxMenu(
+                    // Tbh should be careful about careless heap allocations
+                    Some(InstanceSelection::new(&node.name, menu.is_viewing_server)),
+                    self.window_state.mouse_pos,
+                ))))
+                .into()
             }
             SidebarNodeKind::Folder(children) => {
                 todo!()
