@@ -35,6 +35,12 @@ impl SidebarConfig {
         }
         self.list.push(SidebarNode::new_folder(name.to_owned()));
     }
+
+    pub fn toggle_visibility(&mut self, id: FolderId) {
+        for child in &mut self.list {
+            child.toggle_visibility(id);
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -54,7 +60,7 @@ impl SidebarNode {
                     return true;
                 }
             }
-            SidebarNodeKind::Folder(_, children) => {
+            SidebarNodeKind::Folder { children, .. } => {
                 for child in children {
                     if !child.is_folder() && child.contains_instance(name, instance_kind) {
                         return true;
@@ -66,8 +72,8 @@ impl SidebarNode {
     }
 
     fn walk_mut<F: FnMut(&mut SidebarNode) -> bool>(&mut self, f: &mut F) -> bool {
-        if let SidebarNodeKind::Folder(_, list) = &mut self.kind {
-            list.retain_mut(|node| node.walk_mut(f));
+        if let SidebarNodeKind::Folder { children, .. } = &mut self.kind {
+            children.retain_mut(|node| node.walk_mut(f));
         } else if !f(self) {
             return false;
         }
@@ -75,7 +81,7 @@ impl SidebarNode {
     }
 
     fn new_folder_at(&mut self, selection: &SidebarSelection, name: &str) -> bool {
-        let SidebarNodeKind::Folder(_, children) = &mut self.kind else {
+        let SidebarNodeKind::Folder { children, .. } = &mut self.kind else {
             return false;
         };
         let mut index = None;
@@ -95,14 +101,35 @@ impl SidebarNode {
     }
 
     pub fn is_folder(&self) -> bool {
-        matches!(self.kind, SidebarNodeKind::Folder(_, _))
+        matches!(self.kind, SidebarNodeKind::Folder { .. })
     }
 
     pub fn new_folder(name: String) -> Self {
         SidebarNode {
             name: name.to_owned(),
-            kind: SidebarNodeKind::Folder(FolderId::new(), Vec::new()),
+            kind: SidebarNodeKind::Folder {
+                id: FolderId::new(),
+                children: Vec::new(),
+                is_expanded: true,
+            },
             is_being_dragged: false,
+        }
+    }
+
+    fn toggle_visibility(&mut self, folder_id: FolderId) {
+        if let SidebarNodeKind::Folder {
+            id,
+            children,
+            is_expanded,
+        } = &mut self.kind
+        {
+            if folder_id == *id {
+                *is_expanded = !*is_expanded;
+            } else {
+                for child in children {
+                    child.toggle_visibility(folder_id);
+                }
+            }
         }
     }
 }
@@ -117,11 +144,9 @@ impl PartialEq<SidebarSelection> for SidebarNode {
                     }
                 }
             }
-            SidebarSelection::Folder(name, folder_id) => {
-                if let SidebarNodeKind::Folder(id, _) = &self.kind {
-                    if id == folder_id {
-                        return self.name == *name;
-                    }
+            SidebarSelection::Folder(folder_id) => {
+                if let SidebarNodeKind::Folder { id, .. } = &self.kind {
+                    return id == folder_id;
                 }
             }
         }
@@ -132,7 +157,11 @@ impl PartialEq<SidebarSelection> for SidebarNode {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum SidebarNodeKind {
     Instance(InstanceKind),
-    Folder(FolderId, Vec<SidebarNode>),
+    Folder {
+        id: FolderId,
+        children: Vec<SidebarNode>,
+        is_expanded: bool,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
@@ -167,5 +196,5 @@ impl InstanceKind {
 #[derive(Debug, Clone, PartialEq)]
 pub enum SidebarSelection {
     Instance(String, InstanceKind),
-    Folder(String, FolderId),
+    Folder(FolderId),
 }

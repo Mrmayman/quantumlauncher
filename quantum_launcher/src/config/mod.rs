@@ -187,7 +187,7 @@ impl LauncherConfig {
                 SidebarNodeKind::Instance(instance_kind) => {
                     *instance_kind == kind && instances.contains(&node.name)
                 }
-                SidebarNodeKind::Folder(_, _) => true,
+                SidebarNodeKind::Folder { .. } => true,
             }
         });
         // Add new instances
@@ -280,6 +280,10 @@ impl LauncherConfig {
     pub fn c_persistent(&mut self) -> &mut PersistentSettings {
         self.persistent
             .get_or_insert_with(PersistentSettings::default)
+    }
+
+    pub fn c_sidebar(&mut self) -> &mut SidebarConfig {
+        self.sidebar.get_or_insert_with(SidebarConfig::default)
     }
 }
 

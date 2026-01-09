@@ -1,7 +1,6 @@
 use iced::Task;
 
 use crate::{
-    config::sidebar::SidebarConfig,
     message_handler::{SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
     state::{AutoSaveKind, LaunchModal, Launcher, MainMenuMessage, MenuLaunch, Message, State},
 };
@@ -54,11 +53,13 @@ impl Launcher {
                 if let State::Launch(menu) = &mut self.state {
                     menu.modal = None;
                 }
-                let sidebar = self
-                    .config
-                    .sidebar
-                    .get_or_insert_with(SidebarConfig::default);
+                let sidebar = self.config.c_sidebar();
                 sidebar.new_folder_at(at_position, "New Folder");
+                self.autosave.remove(&AutoSaveKind::LauncherConfig);
+            }
+            MainMenuMessage::ToggleFolderVisibility(id) => {
+                let sidebar = self.config.c_sidebar();
+                sidebar.toggle_visibility(id);
                 self.autosave.remove(&AutoSaveKind::LauncherConfig);
             }
         }

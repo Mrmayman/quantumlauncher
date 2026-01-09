@@ -608,6 +608,7 @@ impl LauncherTheme {
                     StyleButton::SemiDark(_)
                     | StyleButton::SemiDarkBorder(_)
                     | StyleButton::SemiExtraDark(_) => Color::ExtraDark,
+                    // Selected button
                     StyleButton::FlatExtraDark => Color::SecondDark,
                 };
                 widget::button::Style {
