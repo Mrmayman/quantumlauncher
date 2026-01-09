@@ -1,6 +1,7 @@
 use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
 
 use crate::{
+    config::sidebar::SidebarSelection,
     message_handler::ForgeKind,
     state::{LaunchModal, MenuEditModsModal},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
@@ -360,6 +361,7 @@ pub enum MainMenuMessage {
     SidebarResize(f32),
     SidebarScroll(f32),
 
+    NewFolder(Option<SidebarSelection>),
     InstanceSelected(InstanceSelection),
     UsernameSet(String),
 }

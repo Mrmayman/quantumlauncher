@@ -5,7 +5,7 @@ use iced::{keyboard::Modifiers, widget, Alignment, Length, Padding};
 use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
 
 use crate::cli::EXPERIMENTAL_SERVERS;
-use crate::config::sidebar::{SidebarNode, SidebarNodeKind};
+use crate::config::sidebar::{InstanceKind, SidebarNode, SidebarNodeKind, SidebarSelection};
 use crate::menu_renderer::onboarding::x86_warning;
 use crate::menu_renderer::{
     ctx_button, ctxbox, offset, tsubtitle, underline, underline_maybe, FONT_MONO,
@@ -64,11 +64,12 @@ impl Launcher {
         .push_maybe(menu.modal.as_ref().and_then(|n| {
             match n {
                 LaunchModal::InstanceOptions => None,
-                LaunchModal::SidebarCtxMenu(_instance, (x, y)) => Some(offset(
+                LaunchModal::SidebarCtxMenu(instance, (x, y)) => Some(offset(
                     // Could do something with instance-specific actions in the future
                     ctxbox({
-                        let new_folder = ctx_button("New Folder");
-                        column![new_folder].spacing(4)
+                        column![ctx_button("New Folder")
+                            .on_press(MainMenuMessage::NewFolder(instance.clone()).into())]
+                        .spacing(4)
                     })
                     .width(150),
                     *x,
@@ -344,7 +345,7 @@ impl Launcher {
         let list = if let Some(sidebar) = &self.config.sidebar {
             widget::column(
                 sidebar
-                    .get_list(menu.is_viewing_server)
+                    .list
                     .iter()
                     .map(|node| self.get_node_rendered(menu, node)),
             )
@@ -399,11 +400,10 @@ impl Launcher {
     fn get_node_rendered<'a>(&'a self, menu: &'a MenuLaunch, node: &'a SidebarNode) -> Element<'a> {
         let text = widget::text(&node.name).size(15).style(tsubtitle);
         match &node.kind {
-            SidebarNodeKind::Instance => {
-                let is_selected = self
-                    .selected_instance
-                    .as_ref()
-                    .is_some_and(|n| n.get_name() == &node.name);
+            SidebarNodeKind::Instance(kind) => {
+                let is_selected = self.selected_instance.as_ref().is_some_and(|n| {
+                    n.is_server() == kind.is_server() && n.get_name() == &node.name
+                });
 
                 widget::mouse_area(underline_maybe(
                     widget::button(
@@ -426,16 +426,21 @@ impl Launcher {
                 .on_right_press(
                     MainMenuMessage::Modal(Some(LaunchModal::SidebarCtxMenu(
                         // Tbh should be careful about careless heap allocations
-                        Some(InstanceSelection::new(&node.name, menu.is_viewing_server)),
+                        Some(SidebarSelection::Instance(
+                            node.name.clone(),
+                            if menu.is_viewing_server {
+                                InstanceKind::Server
+                            } else {
+                                InstanceKind::Client
+                            },
+                        )),
                         self.window_state.mouse_pos,
                     )))
                     .into(),
                 )
                 .into()
             }
-            SidebarNodeKind::Folder(children) => {
-                todo!()
-            }
+            SidebarNodeKind::Folder(_, children) => "-- Folder".into(),
         }
     }
 

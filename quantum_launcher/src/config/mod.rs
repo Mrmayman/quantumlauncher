@@ -1,4 +1,4 @@
-use crate::config::sidebar::{SidebarConfig, SidebarNode, SidebarNodeKind};
+use crate::config::sidebar::{InstanceKind, SidebarConfig, SidebarNode, SidebarNodeKind};
 use crate::stylesheet::styles::{LauncherTheme, LauncherThemeColor, LauncherThemeLightness};
 use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use ql_core::json::GlobalSettings;
@@ -174,18 +174,28 @@ impl LauncherConfig {
 
     pub fn update_sidebar(&mut self, instances: &[String], is_server: bool) {
         let sidebar = self.sidebar.get_or_insert_with(SidebarConfig::default);
+        let kind = if is_server {
+            InstanceKind::Server
+        } else {
+            InstanceKind::Client
+        };
 
         // Remove nonexistent instances
-        sidebar.walk_mut(is_server, |node| {
+        sidebar.walk_mut(|node| {
             node.is_being_dragged = false;
-            instances.contains(&node.name)
+            match &node.kind {
+                SidebarNodeKind::Instance(instance_kind) => {
+                    *instance_kind == kind && instances.contains(&node.name)
+                }
+                SidebarNodeKind::Folder(_, _) => true,
+            }
         });
         // Add new instances
         for instance in instances {
-            if !sidebar.contains_name(instance, is_server) {
-                sidebar.get_list_mut(is_server).push(SidebarNode {
+            if !sidebar.contains_instance(instance, kind) {
+                sidebar.list.push(SidebarNode {
                     name: instance.clone(),
-                    kind: SidebarNodeKind::Instance,
+                    kind: SidebarNodeKind::Instance(kind),
                     is_being_dragged: false,
                 });
             }

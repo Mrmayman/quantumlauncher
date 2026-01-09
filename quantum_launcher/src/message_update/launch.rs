@@ -1,6 +1,7 @@
 use iced::Task;
 
 use crate::{
+    config::sidebar::SidebarConfig,
     message_handler::{SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
     state::{AutoSaveKind, LaunchModal, Launcher, MainMenuMessage, MenuLaunch, Message, State},
 };
@@ -47,6 +48,17 @@ impl Launcher {
             }
             MainMenuMessage::UsernameSet(username) => {
                 self.config.username = username;
+                self.autosave.remove(&AutoSaveKind::LauncherConfig);
+            }
+            MainMenuMessage::NewFolder(at_position) => {
+                if let State::Launch(menu) = &mut self.state {
+                    menu.modal = None;
+                }
+                let sidebar = self
+                    .config
+                    .sidebar
+                    .get_or_insert_with(SidebarConfig::default);
+                sidebar.new_folder_at(at_position, "New Folder");
                 self.autosave.remove(&AutoSaveKind::LauncherConfig);
             }
         }

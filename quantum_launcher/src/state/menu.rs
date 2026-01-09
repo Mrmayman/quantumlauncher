@@ -4,7 +4,9 @@ use std::{
 };
 
 use crate::{
-    config::SIDEBAR_WIDTH, message_handler::get_locally_installed_mods, state::NotesMessage,
+    config::{sidebar::SidebarSelection, SIDEBAR_WIDTH},
+    message_handler::get_locally_installed_mods,
+    state::NotesMessage,
 };
 use frostmark::MarkState;
 use iced::{
@@ -53,7 +55,7 @@ impl std::fmt::Display for LaunchTab {
 #[derive(Debug, Clone, PartialEq)]
 pub enum LaunchModal {
     InstanceOptions,
-    SidebarCtxMenu(Option<InstanceSelection>, (f32, f32)),
+    SidebarCtxMenu(Option<SidebarSelection>, (f32, f32)),
     // More in the future
 }
 
