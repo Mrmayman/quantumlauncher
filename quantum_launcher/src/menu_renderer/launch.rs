@@ -1,6 +1,6 @@
 use cfg_if::cfg_if;
 use frostmark::MarkWidget;
-use iced::widget::{column, horizontal_space, tooltip::Position, vertical_space};
+use iced::widget::{column, horizontal_space, row, tooltip::Position, vertical_space};
 use iced::{keyboard::Modifiers, widget, Alignment, Length, Padding};
 use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
 
@@ -158,7 +158,7 @@ impl Launcher {
         let selected = self.instance();
         let is_running = self.is_process_running(selected);
 
-        let main_buttons = widget::row![
+        let main_buttons = row![
             if menu.is_viewing_server {
                 self.get_server_play_button().into()
             } else {
@@ -188,7 +188,7 @@ impl Launcher {
                         .size(14)
                         .height(Length::Fill)
                         .on_action(|a| Message::Notes(NotesMessage::Edit(a))),
-                    widget::row![
+                    row![
                         button_with_icon(icons::floppydisk_s(14), "Save", 14)
                             .on_press(Message::Notes(NotesMessage::SaveEdit)),
                         button_with_icon(icons::close_s(14), "Cancel", 14)
@@ -203,7 +203,7 @@ impl Launcher {
         };
 
         column![
-            widget::row![widget::text(selected.get_name()).font(FONT_MONO).size(20)]
+            row![widget::text(selected.get_name()).font(FONT_MONO).size(20)]
                 .push_maybe(is_running.then_some(icons::play_s(20)))
                 .push_maybe(
                     is_running.then_some(
@@ -218,16 +218,16 @@ impl Launcher {
             main_buttons,
             // widget::button("Export Instance").on_press(Message::ExportInstanceOpen),
             notes,
-            widget::row![
+            row![
                 widget::Column::new()
                     .push_maybe(get_view_servers(menu.is_viewing_server))
                     .push(
-                        widget::row![
+                        row![
                             widget::button(icons::lines_s(10)).padding([5, 8]).on_press(
                                 MainMenuMessage::Modal(Some(LaunchModal::InstanceOptions)).into()
                             ),
                             widget::button(
-                                widget::row![
+                                row![
                                     icons::edit_s(10),
                                     widget::text("Edit Notes").size(12).style(tsubtitle)
                                 ]
@@ -300,7 +300,7 @@ impl Launcher {
         );
 
         column![
-            widget::row![
+            row![
                 widget::button(widget::text("Copy Log").size(14))
                     .on_press(Message::GameLog(GameLogMessage::Copy)),
                 widget::button(widget::text("Upload Log").size(14)).on_press_maybe(
@@ -450,7 +450,7 @@ impl Launcher {
         name: &String,
     ) -> Option<widget::Row<'static, Message, LauncherTheme>> {
         if self.is_process_running(&InstanceSelection::new(name, menu.is_viewing_server)) {
-            Some(widget::row![
+            Some(row![
                 horizontal_space(),
                 icons::play_s(15),
                 widget::Space::with_width(10),
@@ -482,7 +482,7 @@ impl Launcher {
         };
 
         column![
-            widget::row![widget::text(" Accounts:").size(14), horizontal_space(),].push_maybe(
+            row![widget::text(" Accounts:").size(14), horizontal_space(),].push_maybe(
                 self.is_account_selected().then_some(
                     widget::button(widget::text("Logout").size(11))
                         .padding(3)
@@ -606,7 +606,7 @@ impl MenuLaunch {
         .wrap();
 
         let settings_button = widget::button(
-            widget::row![horizontal_space(), icons::gear_s(12), horizontal_space()]
+            row![horizontal_space(), icons::gear_s(12), horizontal_space()]
                 .width(tab_height(decor) + 4.0)
                 .height(tab_height(decor) + 4.0)
                 .align_y(Alignment::Center),
@@ -617,7 +617,7 @@ impl MenuLaunch {
 
         widget::mouse_area(
             widget::container(
-                widget::row!(settings_button, tab_bar, horizontal_space())
+                row![settings_button, tab_bar, horizontal_space()]
                     // .push_maybe(window_handle_buttons)
                     .height(tab_height(decor) + decorh(decor))
                     .align_y(Alignment::End),
@@ -655,7 +655,7 @@ fn render_tab_button(tab: LaunchTab, decor: bool, menu: &'_ MenuLaunch) -> Eleme
         name.into()
     };
 
-    let txt = widget::row!(horizontal_space(), txt, horizontal_space());
+    let txt = row![horizontal_space(), txt, horizontal_space()];
 
     if menu.tab == tab {
         widget::container(txt)
@@ -673,7 +673,7 @@ fn render_tab_button(tab: LaunchTab, decor: bool, menu: &'_ MenuLaunch) -> Eleme
             .into()
     } else {
         widget::button(
-            widget::row![txt]
+            row![txt]
                 .width(TAB_BUTTON_WIDTH)
                 .height(tab_height(decor) + 4.0)
                 .padding(padding)
@@ -723,18 +723,18 @@ fn get_footer_text() -> widget::Column<'static, Message, LauncherTheme> {
     );
 
     column![
-        widget::row!(
+        row![
             horizontal_space(),
             widget::text!("QuantumLauncher v{LAUNCHER_VERSION_NAME}")
                 .size(12)
                 .style(|t: &LauncherTheme| t.style_text(Color::Mid))
-        ),
-        widget::row!(
+        ],
+        row![
             horizontal_space(),
             widget::text(subtext)
                 .size(10)
                 .style(|t: &LauncherTheme| t.style_text(Color::Mid))
-        ),
+        ],
     ]
 }
 
@@ -743,7 +743,7 @@ fn get_sidebar_new_button(
     decor: bool,
 ) -> widget::Button<'_, Message, LauncherTheme> {
     widget::button(
-        widget::row![icons::new(), widget::text("New").size(15)]
+        row![icons::new(), widget::text("New").size(15)]
             .align_y(Alignment::Center)
             .height(tab_height(decor) - 6.0)
             .spacing(10),
@@ -769,7 +769,7 @@ fn view_info_message(
 ) -> Option<widget::Container<'_, Message, LauncherTheme>> {
     (!menu.message.is_empty()).then_some(
         widget::container(
-            widget::row![
+            row![
                 widget::button(
                     icons::close()
                         .style(|t: &LauncherTheme| t.style_text(Color::Mid))
