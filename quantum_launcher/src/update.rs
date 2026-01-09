@@ -433,6 +433,9 @@ impl Launcher {
     }
 
     fn core_list_loaded(&mut self, list: Vec<String>, is_server: bool) {
+        self.config.update_sidebar(&list, is_server);
+        self.autosave.remove(&AutoSaveKind::LauncherConfig);
+
         let persistent = self.config.c_persistent();
         if is_server {
             if let Some(n) = &persistent.selected_server {

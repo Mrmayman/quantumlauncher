@@ -1,3 +1,4 @@
+use crate::config::sidebar::{SidebarConfig, SidebarNode, SidebarNodeKind};
 use crate::stylesheet::styles::{LauncherTheme, LauncherThemeColor, LauncherThemeLightness};
 use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use ql_core::json::GlobalSettings;
@@ -8,6 +9,8 @@ use ql_core::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::{collections::HashMap, path::Path};
+
+pub mod sidebar;
 
 pub const SIDEBAR_WIDTH: f32 = 0.33;
 const OPACITY: f32 = 0.9;
@@ -94,6 +97,8 @@ pub struct LauncherConfig {
     pub ui: Option<UiSettings>,
     // Since: v0.5.0
     pub persistent: Option<PersistentSettings>,
+    // Since: v0.5.1
+    pub sidebar: Option<SidebarConfig>,
 }
 
 impl Default for LauncherConfig {
@@ -114,6 +119,7 @@ impl Default for LauncherConfig {
             extra_java_args: None,
             ui: None,
             persistent: None,
+            sidebar: None,
         }
     }
 }
@@ -164,6 +170,26 @@ impl LauncherConfig {
             .await
             .path(config_path)?;
         Ok(())
+    }
+
+    pub fn update_sidebar(&mut self, instances: &[String], is_server: bool) {
+        let sidebar = self.sidebar.get_or_insert_with(SidebarConfig::default);
+
+        // Remove nonexistent instances
+        sidebar.walk_mut(is_server, |node| {
+            node.is_being_dragged = false;
+            instances.contains(&node.name)
+        });
+        // Add new instances
+        for instance in instances {
+            if !sidebar.contains_name(instance, is_server) {
+                sidebar.get_list_mut(is_server).push(SidebarNode {
+                    name: instance.clone(),
+                    kind: SidebarNodeKind::Instance,
+                    is_being_dragged: false,
+                });
+            }
+        }
     }
 
     fn create(path: &Path) -> Result<Self, JsonFileError> {
