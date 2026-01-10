@@ -4,7 +4,8 @@ use crate::state::{
     LauncherSettingsTab, MainMenuMessage, ManageModsMessage, MenuCreateInstance,
     MenuCreateInstanceChoosing, MenuEditMods, MenuEditPresets, MenuExportInstance,
     MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLauncherSettings,
-    MenuLauncherUpdate, MenuLoginAlternate, MenuLoginMS, MenuRecommendedMods, Message, State,
+    MenuLauncherUpdate, MenuLoginAlternate, MenuLoginMS, MenuRecommendedMods, MenuWelcome, Message,
+    State,
 };
 use iced::{
     keyboard::{self, key::Named, Key},
@@ -215,6 +216,20 @@ impl Launcher {
                 if modifiers.command() {
                     return Task::done(Message::CreateInstance(CreateInstanceMessage::Start));
                 }
+            }
+        } else if let State::Welcome(menu) = &mut self.state {
+            if let Key::Named(Named::Enter) = key {
+                *menu = match menu {
+                    MenuWelcome::P1InitialScreen => MenuWelcome::P2Theme,
+                    MenuWelcome::P2Theme => MenuWelcome::P3Auth,
+                    MenuWelcome::P3Auth => {
+                        return Task::done(Message::MScreenOpen {
+                            message: Some("Install Minecraft by clicking \"+ New\"".to_owned()),
+                            clear_selection: true,
+                            is_server: Some(false),
+                        });
+                    }
+                };
             }
         }
         self.keys_pressed.insert(key);

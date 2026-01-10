@@ -1,4 +1,4 @@
-use iced::widget;
+use iced::{widget, Alignment};
 use ql_instances::auth::AccountType;
 
 use crate::{
@@ -36,73 +36,81 @@ impl MenuWelcome {
                     get_mode_selector(config),
                     widget::horizontal_space(),
                 ]
+                .align_y(Alignment::Center)
                 .spacing(10),
                 widget::row![
                     widget::horizontal_space(),
                     "Select Color Scheme:",
-                    get_theme_selector().wrap(),
+                    widget::row![get_theme_selector().wrap()].width(250),
                     widget::horizontal_space(),
                 ]
                 .spacing(10),
                 widget::Space::with_height(5),
-                center_x("Oh, and also..."),
-                center_x(
-                    button_with_icon(icons::discord(), "Join our Discord", 16)
-                        .on_press(Message::CoreOpenLink(DISCORD.to_owned()))
-                ),
+                widget::row![
+                    widget::horizontal_space(),
+                    "Oh, and also consider",
+                    button_with_icon(icons::discord(), "Join our Discord", 14)
+                        .padding([4, 8])
+                        .on_press(Message::CoreOpenLink(DISCORD.to_owned())),
+                    widget::horizontal_space(),
+                ]
+                .align_y(Alignment::Center)
+                .spacing(10),
                 widget::Space::with_height(5),
                 center_x(widget::button("Continue").on_press(Message::WelcomeContinueToAuth)),
                 widget::vertical_space(),
             ]
             .spacing(10)
             .into(),
-            MenuWelcome::P3Auth => widget::column![
-                widget::vertical_space(),
-                center_x(
-                    widget::button("Login to Microsoft").on_press(Message::Account(
-                        AccountMessage::OpenMenu {
-                            is_from_welcome_screen: true,
-                            kind: AccountType::Microsoft
-                        }
-                    ))
-                ),
-                center_x(widget::button("Login to ely.by").on_press(Message::Account(
-                    AccountMessage::OpenMenu {
-                        is_from_welcome_screen: true,
-                        kind: AccountType::ElyBy
-                    }
-                ))),
-                center_x(
-                    widget::button("Login to littleskin").on_press(Message::Account(
-                        AccountMessage::OpenMenu {
-                            is_from_welcome_screen: true,
-                            kind: AccountType::LittleSkin
-                        }
-                    ))
-                ),
-                widget::Space::with_height(7),
-                center_x(widget::text("OR").size(20)),
-                widget::Space::with_height(7),
-                center_x(
-                    widget::text_input("Enter username...", &config.username)
-                        .width(200)
-                        .on_input(|t| MainMenuMessage::UsernameSet(t).into())
-                ),
-                center_x(
-                    widget::button(center_x("Continue"))
-                        .width(200)
-                        .on_press_maybe((!config.username.is_empty()).then_some(
-                            Message::MScreenOpen {
-                                message: None,
-                                clear_selection: true,
-                                is_server: Some(false)
+            MenuWelcome::P3Auth => {
+                let next = Message::MScreenOpen {
+                    message: Some("Install Minecraft by clicking \"+ New\"".to_owned()),
+                    clear_selection: true,
+                    is_server: Some(false),
+                };
+                widget::column![
+                    widget::vertical_space(),
+                    center_x(
+                        widget::button("Login to Microsoft").on_press(Message::Account(
+                            AccountMessage::OpenMenu {
+                                is_from_welcome_screen: true,
+                                kind: AccountType::Microsoft
                             }
                         ))
-                ),
-                widget::vertical_space(),
-            ]
-            .spacing(5)
-            .into(),
+                    ),
+                    center_x(widget::button("Login to ely.by").on_press(Message::Account(
+                        AccountMessage::OpenMenu {
+                            is_from_welcome_screen: true,
+                            kind: AccountType::ElyBy
+                        }
+                    ))),
+                    center_x(
+                        widget::button("Login to littleskin").on_press(Message::Account(
+                            AccountMessage::OpenMenu {
+                                is_from_welcome_screen: true,
+                                kind: AccountType::LittleSkin
+                            }
+                        ))
+                    ),
+                    widget::Space::with_height(7),
+                    center_x(widget::text("OR").size(20)),
+                    widget::Space::with_height(7),
+                    center_x(
+                        widget::text_input("Enter username...", &config.username)
+                            .width(200)
+                            .on_input(|t| MainMenuMessage::UsernameSet(t).into())
+                            .on_submit_maybe((!config.username.is_empty()).then(|| next.clone()))
+                    ),
+                    center_x(
+                        widget::button(center_x("Continue"))
+                            .width(200)
+                            .on_press_maybe((!config.username.is_empty()).then(|| next.clone()))
+                    ),
+                    widget::vertical_space(),
+                ]
+                .spacing(5)
+                .into()
+            }
         }
     }
 }

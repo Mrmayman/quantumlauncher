@@ -97,8 +97,7 @@ impl MenuLauncherSettings {
                     .spacing(5)
                     .align_y(Alignment::Center),
                 widget::Space::with_height(5),
-                "Theme:",
-                get_theme_selector().wrap()
+                widget::row!["Theme:", get_theme_selector().wrap()].spacing(5),
             ]
             .spacing(5)
             .into(),
@@ -188,7 +187,8 @@ fn get_ui_opacity(config: &LauncherConfig) -> widget::Column<'static, Message, L
 
 pub fn get_theme_selector() -> widget::Row<'static, Message, LauncherTheme> {
     widget::row(LauncherThemeColor::ALL.iter().map(|color| {
-        widget::button(widget::text(color.to_string()).size(14))
+        widget::button(widget::text(color.to_string()).size(13))
+            .padding([2, 4])
             .style(|theme: &LauncherTheme, s| {
                 LauncherTheme {
                     color: *color,

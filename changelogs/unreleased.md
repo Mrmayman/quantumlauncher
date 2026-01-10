@@ -1,11 +1,15 @@
 # unreleased changelog
 
-- Added quick uninstall button to Mod Store
-
 # Sidebar
 
 - Added instance folders
 - You can now drag and reorder instances/folders around
+
+# UX
+
+- Added quick uninstall button to Mod Store
+- Improved new-user Welcome screen with keyboard navigation,
+  better layout and more guidance
 
 # Technical
 
@@ -19,4 +23,3 @@
 - Fixed context menus not closing after a click
 - Fixed many concurrent downloading bugs with CurseForge
 - Fixed littleskin OTP login being broken for new users
-
