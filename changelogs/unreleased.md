@@ -16,5 +16,7 @@
 
 # Fixes
 
-- Fixed concurrent downloading bugs with CurseForge
 - Fixed context menus not closing after a click
+- Fixed many concurrent downloading bugs with CurseForge
+- Fixed littleskin OTP login being broken for new users
+

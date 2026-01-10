@@ -1,4 +1,7 @@
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
 use auth::AccountData;
 use iced::Task;
@@ -305,18 +308,17 @@ impl Launcher {
         }
         self.accounts_dropdown.insert(0, username.clone());
 
-        if let Some(accounts) = &mut self.config.accounts {
-            accounts.insert(
-                username.clone(),
-                ConfigAccount {
-                    uuid: data.uuid.clone(),
-                    skin: None,
-                    account_type: Some(data.account_type.to_string()),
-                    keyring_identifier: Some(data.username.clone()),
-                    username_nice: Some(data.nice_username.clone()),
-                },
-            );
-        }
+        let config_accounts = self.config.accounts.get_or_insert_with(HashMap::new);
+        config_accounts.insert(
+            username.clone(),
+            ConfigAccount {
+                uuid: data.uuid.clone(),
+                skin: None,
+                account_type: Some(data.account_type.to_string()),
+                keyring_identifier: Some(data.username.clone()),
+                username_nice: Some(data.nice_username.clone()),
+            },
+        );
 
         self.accounts_selected = Some(username.clone());
         self.accounts.insert(username.clone(), data);
