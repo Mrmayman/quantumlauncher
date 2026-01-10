@@ -60,10 +60,9 @@ impl Launcher {
             })
             .on_resize(10, |t| MainMenuMessage::SidebarResize(t.ratio).into())
         )
-        .push_maybe(menu.modal.as_ref().and_then(|n| {
-            match n {
-                LaunchModal::InstanceOptions => None,
-                LaunchModal::SidebarCtxMenu(instance, (x, y)) => Some(offset(
+        .push_maybe(
+            if let Some(LaunchModal::SidebarCtxMenu(instance, (x, y))) = &menu.modal {
+                Some(offset(
                     // Could do something with instance-specific actions in the future
                     ctxbox({
                         column![ctx_button("New Folder")
@@ -73,9 +72,30 @@ impl Launcher {
                     .width(150),
                     *x,
                     *y,
-                )),
-            }
-        }))
+                ))
+            } else {
+                None
+            },
+        )
+        .push_maybe(
+            if let Some(LaunchModal::Dragging(selection)) = &menu.modal {
+                if let Some(node) = self
+                    .config
+                    .sidebar
+                    .as_ref()
+                    .and_then(|n| n.get_node_from_selection(selection))
+                {
+                    let node = self.get_node_rendered(menu, node, -1);
+                    let (x, y) = self.window_state.mouse_pos;
+                    let win_width = self.window_state.size.0;
+                    Some(offset(node, (x - 200.0).clamp(0.0, win_width), y))
+                } else {
+                    None
+                }
+            } else {
+                None
+            },
+        )
         .into()
     }
 
@@ -130,26 +150,25 @@ impl Launcher {
                     .height(Length::Fill)
                     .style(|t: &LauncherTheme| t.style_container_bg(0.0, None)),
             ))
-        .push_maybe(menu.modal.as_ref().and_then(|n| {
-            match n {
-                LaunchModal::InstanceOptions => Some(
-                    column![
-                        widget::vertical_space(),
-                        ctxbox(
-                            column![
-                                ctx_button("Export Instance").on_press(Message::ExportInstanceOpen),
-                                ctx_button("Create Shortcut"),
-                            ]
-                            .spacing(4)
-                        )
-                        .width(150),
-                        widget::Space::with_height(30)
-                    ]
-                    .padding(12),
-                ),
-                LaunchModal::SidebarCtxMenu(_, _) => None,
-            }
-        }))
+        .push_maybe(if let Some(LaunchModal::InstanceOptions) = &menu.modal {
+            Some(
+                column![
+                    widget::vertical_space(),
+                    ctxbox(
+                        column![
+                            ctx_button("Export Instance").on_press(Message::ExportInstanceOpen),
+                            ctx_button("Create Shortcut"),
+                        ]
+                        .spacing(4)
+                    )
+                    .width(150),
+                    widget::Space::with_height(30)
+                ]
+                .padding(12),
+            )
+        } else {
+            None
+        })
         .into()
     }
 

@@ -16,9 +16,9 @@ impl SidebarConfig {
         false
     }
 
-    pub fn walk_mut<F: FnMut(&mut SidebarNode) -> bool>(&mut self, mut f: F) {
+    pub fn retain_instances<F: FnMut(&SidebarNode) -> bool>(&mut self, mut f: F) {
         let f = &mut f;
-        self.list.retain_mut(|node| node.walk_mut(f));
+        self.list.retain_mut(|node| node.retain_instances(f));
     }
 
     pub fn new_folder_at(&mut self, selection: Option<SidebarSelection>, name: &str) {
@@ -42,6 +42,15 @@ impl SidebarConfig {
             child.toggle_visibility(id);
         }
     }
+
+    pub fn get_node_from_selection(&self, selection: &SidebarSelection) -> Option<&SidebarNode> {
+        for child in &self.list {
+            if let Some(node) = child.get_from_selection(selection) {
+                return Some(node);
+            }
+        }
+        None
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -49,8 +58,6 @@ pub struct SidebarNode {
     pub name: String,
     // icon: Option<String>
     pub kind: SidebarNodeKind,
-    #[serde(skip)]
-    pub is_being_dragged: bool,
 }
 
 impl SidebarNode {
@@ -72,9 +79,9 @@ impl SidebarNode {
         false
     }
 
-    fn walk_mut<F: FnMut(&mut SidebarNode) -> bool>(&mut self, f: &mut F) -> bool {
+    fn retain_instances<F: FnMut(&SidebarNode) -> bool>(&mut self, f: &mut F) -> bool {
         if let SidebarNodeKind::Folder { children, .. } = &mut self.kind {
-            children.retain_mut(|node| node.walk_mut(f));
+            children.retain_mut(|node| node.retain_instances(f));
         } else if !f(self) {
             return false;
         }
@@ -101,22 +108,6 @@ impl SidebarNode {
         true
     }
 
-    pub fn is_folder(&self) -> bool {
-        matches!(self.kind, SidebarNodeKind::Folder { .. })
-    }
-
-    pub fn new_folder(name: String) -> Self {
-        SidebarNode {
-            name: name.to_owned(),
-            kind: SidebarNodeKind::Folder {
-                id: FolderId::new(),
-                children: Vec::new(),
-                is_expanded: true,
-            },
-            is_being_dragged: false,
-        }
-    }
-
     fn toggle_visibility(&mut self, folder_id: FolderId) {
         if let SidebarNodeKind::Folder {
             id,
@@ -131,6 +122,37 @@ impl SidebarNode {
                     child.toggle_visibility(folder_id);
                 }
             }
+        }
+    }
+
+    fn get_from_selection(&self, selection: &SidebarSelection) -> Option<&Self> {
+        if self == selection {
+            return Some(self);
+        }
+        if let SidebarNodeKind::Folder { children, .. } = &self.kind {
+            for child in children {
+                if let Some(sel) = child.get_from_selection(selection) {
+                    return Some(sel);
+                }
+            }
+        }
+        None
+    }
+}
+
+impl SidebarNode {
+    pub fn is_folder(&self) -> bool {
+        matches!(self.kind, SidebarNodeKind::Folder { .. })
+    }
+
+    pub fn new_folder(name: String) -> Self {
+        SidebarNode {
+            name: name.to_owned(),
+            kind: SidebarNodeKind::Folder {
+                id: FolderId::new(),
+                children: Vec::new(),
+                is_expanded: true,
+            },
         }
     }
 }
@@ -209,4 +231,15 @@ impl InstanceKind {
 pub enum SidebarSelection {
     Instance(String, InstanceKind),
     Folder(FolderId),
+}
+
+impl SidebarSelection {
+    pub fn from_node(node: &SidebarNode) -> Self {
+        match node.kind {
+            SidebarNodeKind::Instance(instance_kind) => {
+                Self::Instance(node.name.clone(), instance_kind)
+            }
+            SidebarNodeKind::Folder { id, .. } => Self::Folder(id),
+        }
+    }
 }

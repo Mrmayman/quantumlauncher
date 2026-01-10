@@ -56,7 +56,7 @@ impl std::fmt::Display for LaunchTab {
 pub enum LaunchModal {
     InstanceOptions,
     SidebarCtxMenu(Option<SidebarSelection>, (f32, f32)),
-    // More in the future
+    Dragging(SidebarSelection),
 }
 
 pub enum InstanceNotes {

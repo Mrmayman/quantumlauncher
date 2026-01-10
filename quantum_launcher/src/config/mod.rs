@@ -181,14 +181,11 @@ impl LauncherConfig {
         };
 
         // Remove nonexistent instances
-        sidebar.walk_mut(|node| {
-            node.is_being_dragged = false;
-            match &node.kind {
-                SidebarNodeKind::Instance(instance_kind) => {
-                    *instance_kind == kind && instances.contains(&node.name)
-                }
-                SidebarNodeKind::Folder { .. } => true,
+        sidebar.retain_instances(|node| match &node.kind {
+            SidebarNodeKind::Instance(instance_kind) => {
+                *instance_kind == kind && instances.contains(&node.name)
             }
+            SidebarNodeKind::Folder { .. } => true,
         });
         // Add new instances
         for instance in instances {
@@ -196,7 +193,6 @@ impl LauncherConfig {
                 sidebar.list.push(SidebarNode {
                     name: instance.clone(),
                     kind: SidebarNodeKind::Instance(kind),
-                    is_being_dragged: false,
                 });
             }
         }
