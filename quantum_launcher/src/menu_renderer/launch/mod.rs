@@ -423,7 +423,7 @@ impl Launcher {
     fn get_running_icon(
         &self,
         menu: &MenuLaunch,
-        name: &String,
+        name: &str,
     ) -> Option<widget::Row<'static, Message, LauncherTheme>> {
         if self.is_process_running(&InstanceSelection::new(name, menu.is_viewing_server)) {
             Some(row![
@@ -496,26 +496,24 @@ impl Launcher {
             tooltip(play_button, "Username is empty!", Position::Bottom).into()
         } else if self.config.username.contains(' ') && !is_account_selected {
             tooltip(play_button, "Username contains spaces!", Position::Bottom).into()
+        } else if self.processes.contains_key(self.instance()) {
+            tooltip(
+                button_with_icon(icons::play(), "Kill", 16)
+                    .on_press(Message::LaunchKill)
+                    .width(98),
+                shortcut_ctrl("Backspace"),
+                Position::Bottom,
+            )
+            .into()
+        } else if self.is_launching_game {
+            button_with_icon(icons::play(), "...", 16).width(98).into()
         } else {
-            if self.processes.contains_key(self.instance()) {
-                tooltip(
-                    button_with_icon(icons::play(), "Kill", 16)
-                        .on_press(Message::LaunchKill)
-                        .width(98),
-                    shortcut_ctrl("Backspace"),
-                    Position::Bottom,
-                )
-                .into()
-            } else if self.is_launching_game {
-                button_with_icon(icons::play(), "...", 16).width(98).into()
-            } else {
-                tooltip(
-                    play_button.on_press(Message::LaunchStart),
-                    shortcut_ctrl("Enter"),
-                    Position::Bottom,
-                )
-                .into()
-            }
+            tooltip(
+                play_button.on_press(Message::LaunchStart),
+                shortcut_ctrl("Enter"),
+                Position::Bottom,
+            )
+            .into()
         }
     }
 

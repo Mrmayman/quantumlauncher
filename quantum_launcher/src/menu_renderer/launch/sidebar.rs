@@ -46,7 +46,7 @@ impl Launcher {
             0
         });
         let nesting_outer = move |c| {
-            widget::row((0..nesting).into_iter().map(|_| {
+            widget::row((0..nesting).map(|_| {
                 row![
                     widget::Space::with_width(LEVEL_WIDTH - 2),
                     widget::vertical_rule(1).style(move |t: &LauncherTheme| t.style_rule(c, 1))
