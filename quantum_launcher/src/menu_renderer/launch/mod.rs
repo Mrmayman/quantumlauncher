@@ -5,11 +5,8 @@ use iced::{keyboard::Modifiers, widget, Alignment, Length, Padding};
 use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
 
 use crate::cli::EXPERIMENTAL_SERVERS;
-use crate::config::sidebar::{InstanceKind, SidebarNode, SidebarNodeKind, SidebarSelection};
 use crate::menu_renderer::onboarding::x86_warning;
-use crate::menu_renderer::{
-    ctx_button, ctxbox, offset, tsubtitle, underline, underline_maybe, FONT_MONO,
-};
+use crate::menu_renderer::{ctx_button, ctxbox, offset, tsubtitle, underline, FONT_MONO};
 use crate::state::{
     GameLogMessage, InstanceNotes, LaunchModal, MainMenuMessage, NotesMessage, WindowMessage,
 };
@@ -25,6 +22,8 @@ use crate::{
 };
 
 use super::{button_with_icon, shortcut_ctrl, tooltip, Element};
+
+mod sidebar;
 
 pub const TAB_BUTTON_WIDTH: f32 = 64.0;
 
@@ -395,115 +394,6 @@ impl Launcher {
                 .style(|n| n.style_container_sharp_box(0.0, Color::ExtraDark))
         ]
         .into()
-    }
-
-    fn get_node_rendered<'a>(
-        &'a self,
-        menu: &'a MenuLaunch,
-        node: &'a SidebarNode,
-        nesting: u16,
-    ) -> Element<'a> {
-        const LEVEL_WIDTH: u16 = 15;
-
-        let text = widget::text(&node.name).size(15).style(tsubtitle);
-        let modal = |selected| {
-            MainMenuMessage::Modal(Some(LaunchModal::SidebarCtxMenu(
-                Some(selected),
-                self.window_state.mouse_pos,
-            )))
-        };
-
-        let nesting_inner = widget::Space::with_width(LEVEL_WIDTH * nesting);
-        let nesting_outer = move |c| {
-            widget::row((0..nesting).into_iter().map(|_: u16| {
-                row![
-                    widget::Space::with_width(LEVEL_WIDTH - 2),
-                    widget::vertical_rule(1).style(move |t: &LauncherTheme| t.style_rule(c, 1))
-                ]
-                .into()
-            }))
-        };
-
-        match &node.kind {
-            SidebarNodeKind::Instance(kind) => {
-                let is_selected = self.selected_instance.as_ref().is_some_and(|n| {
-                    n.is_server() == kind.is_server() && n.get_name() == &node.name
-                });
-
-                widget::stack!(
-                    widget::mouse_area(underline_maybe(
-                        widget::button(
-                            row![widget::Space::with_width(2), nesting_inner, text]
-                                .push_maybe(self.get_running_icon(menu, &node.name)),
-                        )
-                        .style(|n: &LauncherTheme, status| {
-                            n.style_button(status, StyleButton::FlatExtraDark)
-                        })
-                        .on_press_maybe((!is_selected).then(|| {
-                            MainMenuMessage::InstanceSelected(InstanceSelection::new(
-                                &node.name,
-                                menu.is_viewing_server,
-                            ))
-                            .into()
-                        }))
-                        .width(Length::Fill),
-                        Color::Dark,
-                        !is_selected,
-                    ))
-                    .on_right_press(
-                        modal(
-                            // Tbh should be careful about careless heap allocations
-                            SidebarSelection::Instance(
-                                node.name.clone(),
-                                if menu.is_viewing_server {
-                                    InstanceKind::Server
-                                } else {
-                                    InstanceKind::Client
-                                },
-                            ),
-                        )
-                        .into(),
-                    ),
-                    nesting_outer(if is_selected {
-                        Color::Mid
-                    } else {
-                        Color::SecondDark
-                    })
-                )
-                .into()
-            }
-            SidebarNodeKind::Folder {
-                id,
-                children,
-                is_expanded,
-            } => widget::stack!(
-                widget::mouse_area(underline(
-                    column![widget::button(row![
-                        nesting_inner,
-                        if *is_expanded { "v  " } else { ">  " },
-                        text
-                    ])
-                    .style(|n: &LauncherTheme, status| {
-                        n.style_button(status, StyleButton::FlatExtraDark)
-                    })
-                    .width(Length::Fill)
-                    .padding([4, 10])
-                    .on_press(MainMenuMessage::ToggleFolderVisibility(*id).into())]
-                    .push_maybe(is_expanded.then(|| {
-                        widget::column(
-                            children
-                                .iter()
-                                .map(|node| self.get_node_rendered(menu, node, nesting + 1)),
-                        )
-                    }))
-                    .width(Length::Fill),
-                    Color::Dark,
-                ))
-                .on_right_press(modal(SidebarSelection::Folder(*id)).into()),
-                nesting_outer(Color::SecondDark)
-            )
-            .into(),
-        }
     }
 
     fn get_running_icon(

@@ -1,3 +1,4 @@
+use ql_core::InstanceSelection;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -151,6 +152,17 @@ impl PartialEq<SidebarSelection> for SidebarNode {
             }
         }
         false
+    }
+}
+
+impl PartialEq<InstanceSelection> for SidebarNode {
+    fn eq(&self, other: &InstanceSelection) -> bool {
+        match &self.kind {
+            SidebarNodeKind::Instance(kind) => {
+                kind.is_server() == other.is_server() && self.name == other.get_name()
+            }
+            SidebarNodeKind::Folder { .. } => false,
+        }
     }
 }
 
