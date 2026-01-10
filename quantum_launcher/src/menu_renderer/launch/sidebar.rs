@@ -6,7 +6,7 @@ use ql_core::InstanceSelection;
 
 use crate::{
     config::sidebar::{SDragLocation, SidebarNode, SidebarNodeKind, SidebarSelection},
-    menu_renderer::{underline, underline_maybe, Element},
+    menu_renderer::{underline_maybe, Element, FONT_MONO},
     state::{LaunchModal, Launcher, MainMenuMessage, MenuLaunch, Message},
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
@@ -32,15 +32,13 @@ impl Launcher {
                 false
             };
 
-        let text = widget::text(&node.name)
-            .size(15)
-            .style(move |t: &LauncherTheme| {
-                t.style_text(if is_being_dragged {
-                    Color::Dark
-                } else {
-                    Color::SecondLight
+        let text = |color| {
+            widget::text(&node.name)
+                .size(15)
+                .style(move |t: &LauncherTheme| {
+                    t.style_text(if is_being_dragged { Color::Dark } else { color })
                 })
-            });
+        };
 
         let nesting_inner = widget::Space::with_width(if nesting > 0 {
             LEVEL_WIDTH * nesting as u16
@@ -64,7 +62,7 @@ impl Launcher {
                 let node_view = row![
                     nesting_inner,
                     widget::stack!(underline_maybe(
-                        widget::row![widget::Space::with_width(2), text]
+                        widget::row![widget::Space::with_width(2), text(Color::SecondLight)]
                             .push_maybe(self.get_running_icon(menu, &node.name))
                             .padding([5, 10])
                             .width(Length::Fill),
@@ -97,7 +95,8 @@ impl Launcher {
                     widget::stack!(underline_maybe(
                         widget::row![
                             widget::Space::with_width(2),
-                            widget::text(if *is_expanded { "v  " } else { ">  " })
+                            widget::text(if *is_expanded { "- " } else { "+ " })
+                                .font(FONT_MONO)
                                 .size(14)
                                 .style(move |t: &LauncherTheme| t.style_text(
                                     if is_being_dragged {
@@ -106,7 +105,7 @@ impl Launcher {
                                         Color::Light
                                     }
                                 )),
-                            underline(text, Color::SecondDark),
+                            text(Color::Mid),
                         ]
                         .width(Length::Fill)
                         .align_y(Alignment::Center)
