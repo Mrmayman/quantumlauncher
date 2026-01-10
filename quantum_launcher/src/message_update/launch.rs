@@ -21,6 +21,22 @@ impl Launcher {
                     }
                 }
             }
+            MainMenuMessage::DragHover { location, entered } => {
+                if let State::Launch(MenuLaunch {
+                    modal: Some(LaunchModal::Dragging { dragged_to, .. }),
+                    ..
+                }) = &mut self.state
+                {
+                    if entered {
+                        *dragged_to = Some(location);
+                    } else if dragged_to.as_ref().is_some_and(|n| *n == location) {
+                        *dragged_to = None;
+                    }
+                }
+            }
+            MainMenuMessage::DragDrop(location) => {
+                println!("{location:?}"); // TODO
+            }
             MainMenuMessage::SidebarResize(ratio) => {
                 if let State::Launch(menu) = &mut self.state {
                     // self.autosave.remove(&AutoSaveKind::LauncherConfig);

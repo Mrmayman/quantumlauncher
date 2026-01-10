@@ -243,3 +243,9 @@ impl SidebarSelection {
         }
     }
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SDragLocation {
+    pub sel: SidebarSelection,
+    pub offset: bool,
+}

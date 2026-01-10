@@ -20,6 +20,7 @@ pub enum StyleButton {
     Flat,
     FlatDark,
     FlatExtraDark,
+    FlatExtraDarkDead,
     /// top right, top left,
     /// bottom right, bottom left
     SemiDark([bool; 4]),
@@ -41,6 +42,7 @@ impl IsFlat for StyleButton {
             StyleButton::Flat
             | StyleButton::FlatDark
             | StyleButton::FlatExtraDark
+            | StyleButton::FlatExtraDarkDead
             | StyleButton::SemiDark(_)
             | StyleButton::SemiDarkBorder(_)
             | Self::SemiExtraDark(_) => true,
@@ -53,7 +55,8 @@ impl IsFlat for StyleButton {
             | StyleButton::RoundDark
             | StyleButton::Flat
             | StyleButton::FlatDark
-            | StyleButton::FlatExtraDark => [false; 4],
+            | StyleButton::FlatExtraDark
+            | StyleButton::FlatExtraDarkDead => [false; 4],
             StyleButton::SemiDark(n) | StyleButton::SemiDarkBorder(n) | Self::SemiExtraDark(n) => {
                 *n
             }

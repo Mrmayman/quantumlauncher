@@ -1,7 +1,7 @@
 use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
 
 use crate::{
-    config::sidebar::{FolderId, SidebarSelection},
+    config::sidebar::{FolderId, SDragLocation, SidebarSelection},
     message_handler::ForgeKind,
     state::{LaunchModal, MenuEditModsModal},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
@@ -363,6 +363,11 @@ pub enum MainMenuMessage {
 
     NewFolder(Option<SidebarSelection>),
     ToggleFolderVisibility(FolderId),
+    DragDrop(Option<SDragLocation>),
+    DragHover {
+        location: SDragLocation,
+        entered: bool,
+    },
 
     InstanceSelected(InstanceSelection),
     UsernameSet(String),

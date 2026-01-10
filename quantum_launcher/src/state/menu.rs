@@ -4,7 +4,10 @@ use std::{
 };
 
 use crate::{
-    config::{sidebar::SidebarSelection, SIDEBAR_WIDTH},
+    config::{
+        sidebar::{SDragLocation, SidebarSelection},
+        SIDEBAR_WIDTH,
+    },
     message_handler::get_locally_installed_mods,
     state::NotesMessage,
 };
@@ -52,11 +55,14 @@ impl std::fmt::Display for LaunchTab {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum LaunchModal {
     InstanceOptions,
     SidebarCtxMenu(Option<SidebarSelection>, (f32, f32)),
-    Dragging(SidebarSelection),
+    Dragging {
+        being_dragged: SidebarSelection,
+        dragged_to: Option<SDragLocation>,
+    },
 }
 
 pub enum InstanceNotes {

@@ -5,7 +5,7 @@ use iced::{
 use ql_core::InstanceSelection;
 
 use crate::{
-    config::sidebar::{SidebarNode, SidebarNodeKind, SidebarSelection},
+    config::sidebar::{SDragLocation, SidebarNode, SidebarNodeKind, SidebarSelection},
     menu_renderer::{underline_maybe, Element},
     state::{LaunchModal, Launcher, MainMenuMessage, MenuLaunch, Message},
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
@@ -24,11 +24,13 @@ impl Launcher {
         // Tbh should be careful about careless heap allocations
         let selection = SidebarSelection::from_node(node);
         let is_selected = self.node_is_instance_selected(node);
-        let is_being_dragged = if let Some(LaunchModal::Dragging(sel)) = &menu.modal {
-            *sel == selection && nesting != DRAGGED_TOOLTIP
-        } else {
-            false
-        };
+        let is_drag = matches!(&menu.modal, Some(LaunchModal::Dragging { .. }));
+        let is_being_dragged =
+            if let Some(LaunchModal::Dragging { being_dragged, .. }) = &menu.modal {
+                *being_dragged == selection && nesting != DRAGGED_TOOLTIP
+            } else {
+                false
+            };
 
         let text = widget::text(&node.name)
             .size(15)
@@ -55,37 +57,32 @@ impl Launcher {
             }))
         };
 
-        let drag_handle = widget::mouse_area(
-            widget::row![widget::text("=")
-                .size(20)
-                .style(|t: &LauncherTheme| t.style_text(Color::ExtraDark))]
-            .padding([0, 4])
-            .align_y(Alignment::Center),
-        )
-        .on_press(MainMenuMessage::Modal(Some(LaunchModal::Dragging(selection.clone()))).into());
+        let drop_receiver = drag_drop_receiver(menu, &selection, node);
 
         let button: Element = match &node.kind {
             SidebarNodeKind::Instance(_) => {
-                let node_view = row![widget::Space::with_width(2), nesting_inner, text]
-                    .push_maybe(self.get_running_icon(menu, &node.name));
-                if nesting == DRAGGED_TOOLTIP {
-                    widget::container(node_view)
-                        .style(|t: &LauncherTheme| {
-                            t.style_container_sharp_box(0.0, Color::ExtraDark)
-                        })
+                let node_view = row![
+                    widget::Space::with_width(2),
+                    nesting_inner,
+                    widget::stack!(widget::row![text]
+                        .push_maybe(self.get_running_icon(menu, &node.name))
                         .padding([5, 10])
-                        .width(200)
-                        .into()
+                        .width(Length::Fill))
+                    .push_maybe(drop_receiver.filter(|_| nesting != DRAGGED_TOOLTIP))
+                ];
+                if nesting == DRAGGED_TOOLTIP {
+                    drag_tooltip(node_view).into()
                 } else {
-                    node_button(node_view)
-                        .on_press_maybe((!is_selected).then(|| {
+                    widget::stack!(node_button(node_view, is_drag).on_press_maybe(
+                        (!is_selected).then(|| {
                             MainMenuMessage::InstanceSelected(InstanceSelection::new(
                                 &node.name,
                                 menu.is_viewing_server,
                             ))
                             .into()
-                        }))
-                        .into()
+                        })
+                    ))
+                    .into()
                 }
             }
             SidebarNodeKind::Folder {
@@ -105,16 +102,12 @@ impl Launcher {
                     text
                 ];
                 if nesting == DRAGGED_TOOLTIP {
-                    column![widget::container(inner)
-                        .style(|t: &LauncherTheme| {
-                            t.style_container_sharp_box(0.0, Color::ExtraDark)
-                        })
-                        .padding([4, 10])
-                        .width(200)]
+                    column![drag_tooltip(inner).padding([4, 10])]
                 } else {
-                    column![node_button(inner)
+                    column![widget::stack!(node_button(inner, is_drag)
                         .padding([4, 10])
-                        .on_press(MainMenuMessage::ToggleFolderVisibility(*id).into())]
+                        .on_press(MainMenuMessage::ToggleFolderVisibility(*id).into()))
+                    .push_maybe(drop_receiver)]
                     .push_maybe(is_expanded.then(|| {
                         widget::column(
                             children
@@ -129,13 +122,15 @@ impl Launcher {
         };
 
         widget::stack!(
-            self.node_get_button(is_selected, &selection, button,),
-            widget::row![widget::horizontal_space(), drag_handle],
+            self.node_get_button(is_selected, &selection, button),
             nesting_outer(if is_selected {
                 Color::Mid
             } else {
                 Color::SecondDark
             }),
+        )
+        .push_maybe(
+            (!is_drag).then(|| widget::row![widget::horizontal_space(), drag_handle(&selection)]),
         )
         .into()
     }
@@ -162,8 +157,124 @@ impl Launcher {
     }
 }
 
-fn node_button<'a>(inner: impl Into<Element<'a>>) -> widget::Button<'a, Message, LauncherTheme> {
+fn drag_tooltip<'a>(
+    node_view: impl Into<Element<'a>>,
+) -> widget::Container<'a, Message, LauncherTheme> {
+    widget::container(node_view)
+        .style(|t: &LauncherTheme| {
+            t.style_container_bg_semiround([true; 4], Some((Color::ExtraDark, 0.9)))
+        })
+        .width(200)
+}
+
+fn drag_handle(selection: &SidebarSelection) -> widget::MouseArea<'static, Message, LauncherTheme> {
+    widget::mouse_area(
+        widget::row![widget::text("=")
+            .size(20)
+            .style(|t: &LauncherTheme| t.style_text(Color::ExtraDark))]
+        .padding([0, 4])
+        .align_y(Alignment::Center),
+    )
+    .on_press(
+        MainMenuMessage::Modal(Some(LaunchModal::Dragging {
+            being_dragged: selection.clone(),
+            dragged_to: None,
+        }))
+        .into(),
+    )
+}
+
+fn drag_drop_receiver(
+    menu: &MenuLaunch,
+    selection: &SidebarSelection,
+    node: &SidebarNode,
+) -> Option<widget::Column<'static, Message, LauncherTheme>> {
+    let Some(LaunchModal::Dragging { dragged_to, .. }) = &menu.modal else {
+        return None;
+    };
+
+    let clickbox = |offset, elem| {
+        let hover = |entered| {
+            MainMenuMessage::DragHover {
+                entered,
+                location: SDragLocation {
+                    offset,
+                    sel: selection.clone(),
+                },
+            }
+            .into()
+        };
+
+        widget::mouse_area(elem)
+            .on_press(
+                MainMenuMessage::DragDrop(Some(SDragLocation {
+                    offset,
+                    sel: selection.clone(),
+                }))
+                .into(),
+            )
+            .on_enter(hover(true))
+            .on_exit(hover(false))
+    };
+
+    let empty = || widget::Space::new(Length::Fill, Length::Fill);
+    let bar = || {
+        widget::horizontal_rule(2).style(|t: &LauncherTheme| t.style_rule(Color::SecondLight, 4))
+    };
+
+    let (is_hovered, offset) = dragged_to
+        .as_ref()
+        .map(|n| (n.sel == *selection, n.offset))
+        .unwrap_or((false, false));
+
+    Some(
+        widget::column![clickbox(
+            false,
+            widget::Column::new()
+                .push_maybe((is_hovered && !offset).then_some(bar()))
+                .push(empty())
+        ),]
+        .push_maybe(
+            node.kind.show_bottom_target().then_some(clickbox(
+                true,
+                widget::Column::new()
+                    .push(empty())
+                    .push_maybe((is_hovered && offset).then_some(bar())),
+            )),
+        ),
+    )
+}
+
+impl SidebarNodeKind {
+    fn show_bottom_target(&self) -> bool {
+        if let SidebarNodeKind::Folder {
+            children,
+            is_expanded,
+            ..
+        } = self
+        {
+            !*is_expanded || children.is_empty()
+        } else {
+            true
+        }
+    }
+}
+
+fn node_button<'a>(
+    inner: impl Into<Element<'a>>,
+    is_drag: bool,
+) -> widget::Button<'a, Message, LauncherTheme> {
     widget::button(inner)
-        .style(|n: &LauncherTheme, status| n.style_button(status, StyleButton::FlatExtraDark))
+        .style(move |n: &LauncherTheme, status| {
+            n.style_button(
+                status,
+                if is_drag {
+                    StyleButton::FlatExtraDarkDead
+                } else {
+                    StyleButton::FlatExtraDark
+                },
+            )
+        })
+        .padding(0)
         .width(Length::Fill)
 }

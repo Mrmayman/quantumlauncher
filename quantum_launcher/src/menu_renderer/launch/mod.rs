@@ -78,17 +78,21 @@ impl Launcher {
             },
         )
         .push_maybe(
-            if let Some(LaunchModal::Dragging(selection)) = &menu.modal {
+            if let Some(LaunchModal::Dragging { being_dragged, .. }) = &menu.modal {
                 if let Some(node) = self
                     .config
                     .sidebar
                     .as_ref()
-                    .and_then(|n| n.get_node_from_selection(selection))
+                    .and_then(|n| n.get_node_from_selection(being_dragged))
                 {
                     let node = self.get_node_rendered(menu, node, -1);
                     let (x, y) = self.window_state.mouse_pos;
-                    let win_width = self.window_state.size.0;
-                    Some(offset(node, (x - 200.0).clamp(0.0, win_width), y))
+                    let (winw, winh) = self.window_state.size;
+                    Some(offset(
+                        node,
+                        (x - 200.0).clamp(0.0, winw),
+                        (y - 16.0).clamp(0.0, winh),
+                    ))
                 } else {
                     None
                 }
