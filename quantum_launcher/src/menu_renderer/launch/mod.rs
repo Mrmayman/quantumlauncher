@@ -371,6 +371,7 @@ impl Launcher {
                     .iter()
                     .map(|node| self.get_node_rendered(menu, node, 0)),
             )
+            .push(widget::Space::with_height(10))
         } else {
             let dots = ".".repeat((self.tick_timer % 3) + 1);
             column![widget::text!("Loading{dots}")].padding(10)

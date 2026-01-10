@@ -6,7 +6,7 @@ use ql_core::InstanceSelection;
 
 use crate::{
     config::sidebar::{SDragLocation, SidebarNode, SidebarNodeKind, SidebarSelection},
-    menu_renderer::{underline_maybe, Element},
+    menu_renderer::{underline, underline_maybe, Element},
     state::{LaunchModal, Launcher, MainMenuMessage, MenuLaunch, Message},
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
@@ -57,32 +57,34 @@ impl Launcher {
             }))
         };
 
-        let drop_receiver = drag_drop_receiver(menu, &selection, node);
+        let drop_receiver = drag_drop_receiver(menu, &selection, node, nesting);
 
         let button: Element = match &node.kind {
             SidebarNodeKind::Instance(_) => {
                 let node_view = row![
-                    widget::Space::with_width(2),
                     nesting_inner,
-                    widget::stack!(widget::row![text]
-                        .push_maybe(self.get_running_icon(menu, &node.name))
-                        .padding([5, 10])
-                        .width(Length::Fill))
-                    .push_maybe(drop_receiver.filter(|_| nesting != DRAGGED_TOOLTIP))
+                    widget::stack!(underline_maybe(
+                        widget::row![widget::Space::with_width(2), text]
+                            .push_maybe(self.get_running_icon(menu, &node.name))
+                            .padding([5, 10])
+                            .width(Length::Fill),
+                        Color::Dark,
+                        !is_selected
+                    ))
+                    .push_maybe(drop_receiver)
                 ];
                 if nesting == DRAGGED_TOOLTIP {
                     drag_tooltip(node_view).into()
                 } else {
-                    widget::stack!(node_button(node_view, is_drag).on_press_maybe(
-                        (!is_selected).then(|| {
+                    node_button(node_view, is_drag)
+                        .on_press_maybe((!is_selected).then(|| {
                             MainMenuMessage::InstanceSelected(InstanceSelection::new(
                                 &node.name,
                                 menu.is_viewing_server,
                             ))
                             .into()
-                        })
-                    ))
-                    .into()
+                        }))
+                        .into()
                 }
             }
             SidebarNodeKind::Folder {
@@ -92,22 +94,33 @@ impl Launcher {
             } => {
                 let inner = row![
                     nesting_inner,
-                    widget::text(if *is_expanded { "v  " } else { ">  " }).style(
-                        move |t: &LauncherTheme| t.style_text(if is_being_dragged {
-                            Color::Mid
-                        } else {
-                            Color::Light
-                        })
-                    ),
-                    text
+                    widget::stack!(underline_maybe(
+                        widget::row![
+                            widget::Space::with_width(2),
+                            widget::text(if *is_expanded { "v  " } else { ">  " })
+                                .size(14)
+                                .style(move |t: &LauncherTheme| t.style_text(
+                                    if is_being_dragged {
+                                        Color::Mid
+                                    } else {
+                                        Color::Light
+                                    }
+                                )),
+                            underline(text, Color::SecondDark),
+                        ]
+                        .width(Length::Fill)
+                        .align_y(Alignment::Center)
+                        .padding([4, 10]),
+                        Color::Dark,
+                        !is_selected
+                    ))
+                    .push_maybe(drop_receiver)
                 ];
                 if nesting == DRAGGED_TOOLTIP {
-                    column![drag_tooltip(inner).padding([4, 10])]
+                    drag_tooltip(inner).into()
                 } else {
-                    column![widget::stack!(node_button(inner, is_drag)
-                        .padding([4, 10])
-                        .on_press(MainMenuMessage::ToggleFolderVisibility(*id).into()))
-                    .push_maybe(drop_receiver)]
+                    column![node_button(inner, is_drag)
+                        .on_press(MainMenuMessage::ToggleFolderVisibility(*id).into())]
                     .push_maybe(is_expanded.then(|| {
                         widget::column(
                             children
@@ -115,14 +128,13 @@ impl Launcher {
                                 .map(|node| self.get_node_rendered(menu, node, nesting + 1)),
                         )
                     }))
-                    .width(Length::Fill)
+                    .into()
                 }
-                .into()
             }
         };
 
         widget::stack!(
-            self.node_get_button(is_selected, &selection, button),
+            self.node_wrap_in_context_menu(&selection, button),
             nesting_outer(if is_selected {
                 Color::Mid
             } else {
@@ -141,13 +153,12 @@ impl Launcher {
             .is_some_and(|sel| node == sel)
     }
 
-    fn node_get_button<'a>(
+    fn node_wrap_in_context_menu<'a>(
         &self,
-        is_selected: bool,
         selection: &SidebarSelection,
         elem: impl Into<Element<'a>>,
     ) -> widget::MouseArea<'a, Message, LauncherTheme> {
-        widget::mouse_area(underline_maybe(elem, Color::Dark, !is_selected)).on_right_press(
+        widget::mouse_area(elem).on_right_press(
             MainMenuMessage::Modal(Some(LaunchModal::SidebarCtxMenu(
                 Some(selection.clone()),
                 self.window_state.mouse_pos,
@@ -188,7 +199,11 @@ fn drag_drop_receiver(
     menu: &MenuLaunch,
     selection: &SidebarSelection,
     node: &SidebarNode,
+    nesting: i16,
 ) -> Option<widget::Column<'static, Message, LauncherTheme>> {
+    if nesting == -1 {
+        return None;
+    }
     let Some(LaunchModal::Dragging { dragged_to, .. }) = &menu.modal else {
         return None;
     };
