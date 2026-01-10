@@ -1,6 +1,14 @@
 # unreleased changelog
 
 - Added quick uninstall button to Mod Store
+
+# Sidebar
+
+- Added instance folders
+- You can now drag and reorder instances/folders around
+
+# Technical
+
 - Usernames in paths are now censored in logs
   - eg: `C:\Users\YOUR_NAME` or `/home/YOUR_NAME` ->
     `C:\Users\[REDACTED]` or `/home/[REDACTED]`
