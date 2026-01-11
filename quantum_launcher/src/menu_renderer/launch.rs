@@ -350,7 +350,7 @@ impl Launcher {
                         })
                         .on_press_maybe((!is_selected).then(|| {
                             Message::LaunchInstanceSelected(InstanceSelection::new(
-                                &name,
+                                name,
                                 menu.is_viewing_server,
                             ))
                         }))

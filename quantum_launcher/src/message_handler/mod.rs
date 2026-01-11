@@ -36,6 +36,7 @@ use tokio::io::AsyncWriteExt;
 pub const SIDEBAR_LIMIT_RIGHT: f32 = 140.0;
 pub const SIDEBAR_LIMIT_LEFT: f32 = 135.0;
 
+pub mod account_load;
 mod iced_event;
 
 impl Launcher {

@@ -1,5 +1,6 @@
 use ql_core::{err, IntoStringError};
 use std::fmt::Display;
+use tokio::task::spawn_blocking;
 
 mod alt;
 pub mod authlib;
@@ -11,7 +12,7 @@ pub use authlib::get_authlib_injector;
 pub struct AccountData {
     pub access_token: Option<String>,
     pub uuid: String,
-    pub refresh_token: String,
+    pub refresh_token: Result<String, String>,
     pub needs_refresh: bool,
 
     pub username: String,
@@ -91,18 +92,22 @@ impl AccountType {
         }
     }
 
-    fn get_keyring_entry(self, username: &str) -> Result<keyring::Entry, KeyringError> {
-        Ok(keyring::Entry::new(
-            "QuantumLauncher",
-            &format!(
-                "{username}{}",
-                match self {
-                    AccountType::Microsoft => "",
-                    AccountType::ElyBy => "#elyby",
-                    AccountType::LittleSkin => "#littleskin",
-                }
-            ),
-        )?)
+    async fn get_keyring_entry(self, username: &str) -> Result<keyring::Entry, alt::Error> {
+        let username = username.to_owned();
+        Ok(tokio::task::spawn_blocking(move || {
+            keyring::Entry::new(
+                "QuantumLauncher",
+                &format!(
+                    "{username}{}",
+                    match self {
+                        AccountType::Microsoft => "",
+                        AccountType::ElyBy => "#elyby",
+                        AccountType::LittleSkin => "#littleskin",
+                    }
+                ),
+            )
+        })
+        .await??)
     }
 
     #[must_use]
@@ -176,18 +181,24 @@ Now after this, in the sidebar, right click it and click "Set as Default""#
     }
 }
 
-pub fn read_refresh_token(
-    username: &str,
+pub async fn read_refresh_token(
+    username: String,
     account_type: AccountType,
-) -> Result<String, KeyringError> {
-    let entry = account_type.get_keyring_entry(username)?;
-    let refresh_token = entry.get_password()?;
+) -> Result<String, String> {
+    let entry = account_type.get_keyring_entry(&username).await.strerr()?;
+    let refresh_token = spawn_blocking(move || entry.get_password())
+        .await
+        .strerr()?
+        .strerr()?;
     Ok(refresh_token)
 }
 
-pub fn logout(username: &str, account_type: AccountType) -> Result<(), String> {
-    let entry = account_type.get_keyring_entry(username).strerr()?;
-    if let Err(err) = entry.delete_credential() {
+pub async fn logout(username: String, account_type: AccountType) -> Result<(), String> {
+    let entry = account_type.get_keyring_entry(&username).await.strerr()?;
+    if let Err(err) = spawn_blocking(move || entry.delete_credential())
+        .await
+        .strerr()?
+    {
         err!("Couldn't remove {account_type} account credential (Username: {username}):\n{err}");
     }
     Ok(())

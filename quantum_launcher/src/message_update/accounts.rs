@@ -5,7 +5,7 @@ use std::{
 
 use auth::AccountData;
 use iced::Task;
-use ql_core::IntoStringError;
+use ql_core::{err, IntoStringError};
 use ql_instances::auth::{self, AccountType};
 
 use crate::{
@@ -48,6 +48,20 @@ impl Launcher {
             AccountMessage::Response3(Ok(data)) => {
                 return self.account_response_3(data);
             }
+
+            AccountMessage::Initialized(data) => {
+                self.accounts = data.accounts;
+                self.accounts_dropdown = data.accounts_dropdown;
+                self.accounts_selected = Some(
+                    self.config.account_selected.clone().unwrap_or(
+                        self.accounts_dropdown
+                            .first()
+                            .cloned()
+                            .unwrap_or_else(|| OFFLINE_ACCOUNT_NAME.to_owned()),
+                    ),
+                );
+            }
+
             AccountMessage::LogoutCheck => {
                 let username = self.accounts_selected.as_ref().unwrap();
                 self.state = State::ConfirmAction {
@@ -110,9 +124,6 @@ impl Launcher {
                     .get(&username)
                     .map_or(AccountType::Microsoft, |n| n.account_type);
 
-                if let Err(err) = auth::logout(account_type.strip_name(&username), account_type) {
-                    self.set_error(err);
-                }
                 if let Some(accounts) = &mut self.config.accounts {
                     accounts.remove(&username);
                 }
@@ -132,7 +143,19 @@ impl Launcher {
                     .unwrap_or_else(|| OFFLINE_ACCOUNT_NAME.to_owned());
                 self.accounts_selected = Some(selected_account);
 
-                return self.go_to_launch_screen(Option::<String>::None);
+                let logout_task = Task::perform(
+                    auth::logout(account_type.strip_name(&username).to_owned(), account_type),
+                    |res| {
+                        if let Err(err) = res {
+                            err!("While logging out: {err}");
+                        }
+                        Message::Nothing
+                    },
+                );
+                return Task::batch([
+                    logout_task,
+                    self.go_to_launch_screen(Option::<String>::None),
+                ]);
             }
             AccountMessage::RefreshComplete(Ok(data)) => {
                 self.accounts.insert(data.get_username_modified(), data);
@@ -270,24 +293,28 @@ impl Launcher {
     }
 
     pub fn account_refresh(&mut self, account: &AccountData) -> Task<Message> {
+        let refresh_token = match &account.refresh_token {
+            Ok(n) => n.clone(),
+            Err(err) => {
+                self.set_error(format!("Account failed to load! Try reopening the launcher or logging out and logging back in!\n\nError: {err}"));
+                return Task::none();
+            }
+        };
+
         match account.account_type {
             AccountType::Microsoft => {
                 let (sender, receiver) = std::sync::mpsc::channel();
                 self.state = State::AccountLoginProgress(ProgressBar::with_recv(receiver));
 
                 Task::perform(
-                    auth::ms::login_refresh(
-                        account.username.clone(),
-                        account.refresh_token.clone(),
-                        Some(sender),
-                    ),
+                    auth::ms::login_refresh(account.username.clone(), refresh_token, Some(sender)),
                     |n| Message::Account(AccountMessage::RefreshComplete(n.strerr())),
                 )
             }
             AccountType::ElyBy | AccountType::LittleSkin => Task::perform(
                 auth::yggdrasil::login_refresh(
                     account.username.clone(),
-                    account.refresh_token.clone(),
+                    refresh_token,
                     account.account_type,
                 ),
                 |n| Message::Account(AccountMessage::RefreshComplete(n.strerr())),

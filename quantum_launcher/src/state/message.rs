@@ -1,7 +1,7 @@
 use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
 
 use crate::{
-    message_handler::ForgeKind,
+    message_handler::{account_load::AccountLoad, ForgeKind},
     state::{LaunchModal, MenuEditModsModal},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
@@ -228,6 +228,7 @@ pub enum WindowMessage {
 #[allow(unused)]
 #[derive(Debug, Clone)]
 pub enum AccountMessage {
+    Initialized(AccountLoad),
     Selected(String),
     Response1 {
         r: Res<AuthCodeResponse>,

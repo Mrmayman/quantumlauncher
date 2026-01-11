@@ -26,6 +26,8 @@ pub enum Error {
     Request(#[from] RequestError),
     #[error("{AUTH_ERR_PREFIX}{0}")]
     Json(#[from] JsonError),
+    #[error("{AUTH_ERR_PREFIX}tokio::task join:\n{0}")]
+    Join(#[from] tokio::task::JoinError),
     #[error("{AUTH_ERR_PREFIX}\n{0}")]
     Response(#[from] AccountResponseError),
     #[error("{AUTH_ERR_PREFIX}{0}")]
