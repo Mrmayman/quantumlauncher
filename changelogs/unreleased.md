@@ -9,3 +9,4 @@
 # Fixes
 
 - Fixed many concurrent downloading bugs with CurseForge
+- Fixed littleskin OTP login being broken for new users
