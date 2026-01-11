@@ -8,11 +8,11 @@ use std::{
 use iced::Task;
 use notify::Watcher;
 use ql_core::{
-    err, file_utils, read_log::LogLine, GenericProgress, InstanceSelection,
-    IntoIoError, IntoStringError, IoError, JsonFileError, LaunchedProcess, ModId, Progress,
-    LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
+    err, file_utils, read_log::LogLine, GenericProgress, InstanceSelection, IntoIoError,
+    IntoStringError, IoError, JsonFileError, LaunchedProcess, ModId, Progress, LAUNCHER_DIR,
+    LAUNCHER_VERSION_NAME,
 };
-use ql_instances::auth::{ms::CLIENT_ID, AccountData, AccountType};
+use ql_instances::auth::{ms::CLIENT_ID, AccountData};
 use tokio::process::ChildStdin;
 
 use crate::{
@@ -159,7 +159,7 @@ impl Launcher {
             State::ChangeLog
         };
 
-        let (accounts, accounts_dropdown, selected_account) = load_accounts(&mut config);
+        let (accounts, accounts_dropdown, selected_account) = init_accounts(&mut config);
 
         let persistent = config.c_persistent();
 
@@ -301,30 +301,11 @@ impl Launcher {
     }
 }
 
-fn load_accounts(
+fn init_accounts(
     config: &mut LauncherConfig,
 ) -> (HashMap<String, AccountData>, Vec<String>, String) {
-    let mut accounts = HashMap::new();
-
-    let mut accounts_dropdown = vec![OFFLINE_ACCOUNT_NAME.to_owned(), NEW_ACCOUNT_NAME.to_owned()];
-
-    let mut accounts_to_remove = Vec::new();
-
-    for (username, account) in config.accounts.iter_mut().flatten() {
-        load_account(
-            &mut accounts,
-            &mut accounts_dropdown,
-            &mut accounts_to_remove,
-            username,
-            account,
-        );
-    }
-
-    if let Some(accounts) = &mut config.accounts {
-        for rem in accounts_to_remove {
-            accounts.remove(&rem);
-        }
-    }
+    let accounts = HashMap::new();
+    let accounts_dropdown = vec![OFFLINE_ACCOUNT_NAME.to_owned(), NEW_ACCOUNT_NAME.to_owned()];
 
     let selected_account = config.account_selected.clone().unwrap_or(
         accounts_dropdown
@@ -333,112 +314,6 @@ fn load_accounts(
             .unwrap_or_else(|| OFFLINE_ACCOUNT_NAME.to_owned()),
     );
     (accounts, accounts_dropdown, selected_account)
-}
-
-fn load_account(
-    accounts: &mut HashMap<String, AccountData>,
-    accounts_dropdown: &mut Vec<String>,
-    accounts_to_remove: &mut Vec<String>,
-    username: &str,
-    account: &mut crate::config::ConfigAccount,
-) {
-    fn get_refresh_token_for_account_type(
-        account_type: AccountType,
-        username: &str,
-        keyring_identifier: Option<&str>,
-    ) -> Result<String, String> {
-        let keyring_username = if let Some(keyring_id) = keyring_identifier {
-            keyring_id
-        } else {
-            // Fallback to old behavior for backwards compatibility
-            match account_type {
-                AccountType::ElyBy => username.strip_suffix(" (elyby)").unwrap_or(username),
-                AccountType::LittleSkin => {
-                    username.strip_suffix(" (littleskin)").unwrap_or(username)
-                }
-                AccountType::Microsoft => username,
-            }
-        };
-        ql_instances::auth::read_refresh_token(keyring_username, account_type).strerr()
-    }
-
-    let (account_type, refresh_token) =
-        if account.account_type.as_deref() == Some("ElyBy") || username.ends_with(" (elyby)") {
-            (
-                AccountType::ElyBy,
-                get_refresh_token_for_account_type(
-                    AccountType::ElyBy,
-                    username,
-                    account.keyring_identifier.as_deref(),
-                ),
-            )
-        } else if account.account_type.as_deref() == Some("LittleSkin")
-            || username.ends_with(" (littleskin)")
-        {
-            (
-                AccountType::LittleSkin,
-                get_refresh_token_for_account_type(
-                    AccountType::LittleSkin,
-                    username,
-                    account.keyring_identifier.as_deref(),
-                ),
-            )
-        } else {
-            (
-                AccountType::Microsoft,
-                get_refresh_token_for_account_type(
-                    AccountType::Microsoft,
-                    username,
-                    account.keyring_identifier.as_deref(),
-                ),
-            )
-        };
-
-    let keyring_username = if let Some(keyring_id) = &account.keyring_identifier {
-        keyring_id.clone()
-    } else {
-        // Fallback to old behavior for backwards compatibility
-        match account_type {
-            AccountType::ElyBy => username
-                .strip_suffix(" (elyby)")
-                .unwrap_or(username)
-                .to_owned(),
-            AccountType::LittleSkin => username
-                .strip_suffix(" (littleskin)")
-                .unwrap_or(username)
-                .to_owned(),
-            AccountType::Microsoft => username.to_owned(),
-        }
-    };
-
-    match refresh_token {
-        Ok(refresh_token) => {
-            accounts_dropdown.insert(0, username.to_owned());
-            accounts.insert(
-                username.to_owned(),
-                AccountData {
-                    access_token: None,
-                    uuid: account.uuid.clone(),
-                    refresh_token,
-                    needs_refresh: true,
-                    account_type,
-
-                    username: keyring_username.clone(),
-                    nice_username: account
-                        .username_nice
-                        .clone()
-                        .unwrap_or(keyring_username.clone()),
-                },
-            );
-        }
-        Err(err) => {
-            err!(
-                "Could not load account: {err}\nUsername: {keyring_username}, Account Type: {}",
-                account_type.to_string()
-            );
-            accounts_to_remove.push(username.to_owned());
-        }
-    }
 }
 
 pub async fn get_entries(is_server: bool) -> Res<(Vec<String>, bool)> {

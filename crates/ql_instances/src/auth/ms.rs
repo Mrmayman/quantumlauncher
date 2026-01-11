@@ -70,6 +70,7 @@ use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
+use tokio::task::spawn_blocking;
 
 use crate::auth::AccountType;
 
@@ -170,6 +171,8 @@ pub enum Error {
     Request(#[from] RequestError),
     #[error("{AUTH_ERR_PREFIX}{0}")]
     Json(#[from] JsonError),
+    #[error("{AUTH_ERR_PREFIX}tokio::task join:\n{0}")]
+    Join(#[from] tokio::task::JoinError),
     #[error("{AUTH_ERR_PREFIX}Invalid account access token!")]
     InvalidAccessToken,
     #[error("{AUTH_ERR_PREFIX}An unknown error has occurred (code: {0})\n\nThis is a major bug! Please report in discord.")]
@@ -235,8 +238,7 @@ pub async fn login_refresh(
 
     let data: RefreshResponse = serde_json::from_str(&response).json(response)?;
 
-    let entry = keyring::Entry::new("QuantumLauncher", &username)?;
-    entry.set_password(&data.refresh_token)?;
+    write_refresh_token(username, data.refresh_token.clone()).await?;
 
     let data = login_3_xbox(
         AuthTokenResponse {
@@ -249,6 +251,16 @@ pub async fn login_refresh(
     .await?;
 
     Ok(data)
+}
+
+async fn write_refresh_token(username: String, refresh_token: String) -> Result<(), Error> {
+    spawn_blocking(move || {
+        let entry = keyring::Entry::new("QuantumLauncher", &username)?;
+        entry.set_password(&refresh_token)?;
+        Ok::<_, Error>(())
+    })
+    .await??;
+    Ok(())
 }
 
 pub async fn login_1_link() -> Result<AuthCodeResponse, Error> {
@@ -300,13 +312,12 @@ pub async fn login_3_xbox(
         }
     }
 
-    let entry = keyring::Entry::new("QuantumLauncher", &final_details.name)?;
-    entry.set_password(&data.refresh_token)?;
+    write_refresh_token(final_details.name.clone(), data.refresh_token.clone()).await?;
 
     let data = AccountData {
         access_token: Some(minecraft.access_token),
         uuid: final_details.id.ok_or(Error::NoUuid)?,
-        refresh_token: data.refresh_token,
+        refresh_token: Ok(data.refresh_token),
         needs_refresh: false,
         account_type: AccountType::Microsoft,
 
