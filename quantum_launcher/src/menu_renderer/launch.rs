@@ -6,7 +6,7 @@ use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
 
 use crate::cli::EXPERIMENTAL_SERVERS;
 use crate::menu_renderer::onboarding::x86_warning;
-use crate::menu_renderer::{ctx_button, ctxbox, offset, tsubtitle, underline, FONT_MONO};
+use crate::menu_renderer::{ctx_button, ctxbox, sidebar, tsubtitle, underline, FONT_MONO};
 use crate::state::{
     GameLogMessage, InstanceNotes, LaunchModal, MainMenuMessage, NotesMessage, WindowMessage,
 };
@@ -58,46 +58,8 @@ impl Launcher {
             })
             .on_resize(10, |t| MainMenuMessage::SidebarResize(t.ratio).into())
         )
-        .push_maybe(
-            if let Some(LaunchModal::SidebarCtxMenu(instance, (x, y))) = &menu.modal {
-                Some(offset(
-                    // Could do something with instance-specific actions in the future
-                    ctxbox({
-                        column![ctx_button("New Folder")
-                            .on_press(MainMenuMessage::NewFolder(instance.clone()).into())]
-                        .spacing(4)
-                    })
-                    .width(150),
-                    *x,
-                    *y,
-                ))
-            } else {
-                None
-            },
-        )
-        .push_maybe(
-            if let Some(LaunchModal::Dragging { being_dragged, .. }) = &menu.modal {
-                if let Some(node) = self
-                    .config
-                    .sidebar
-                    .as_ref()
-                    .and_then(|n| n.get_node(being_dragged))
-                {
-                    let node = self.get_node_rendered(menu, node, -1);
-                    let (x, y) = self.window_state.mouse_pos;
-                    let (winw, winh) = self.window_state.size;
-                    Some(offset(
-                        node,
-                        (x - 200.0).clamp(0.0, winw),
-                        (y - 16.0).clamp(0.0, winh),
-                    ))
-                } else {
-                    None
-                }
-            } else {
-                None
-            },
-        )
+        .push_maybe(sidebar::context_menu(menu))
+        .push_maybe(self.sidebar_drag_tooltip(menu))
         .into()
     }
 

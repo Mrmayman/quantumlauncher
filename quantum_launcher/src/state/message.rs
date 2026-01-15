@@ -362,6 +362,7 @@ pub enum MainMenuMessage {
     SidebarScroll(f32),
 
     NewFolder(Option<SidebarSelection>),
+    DeleteFolder(FolderId),
     ToggleFolderVisibility(FolderId),
     DragDrop(Option<SDragLocation>),
     DragHover {

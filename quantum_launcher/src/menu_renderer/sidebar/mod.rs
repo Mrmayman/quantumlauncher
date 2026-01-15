@@ -6,7 +6,10 @@ use ql_core::InstanceSelection;
 
 use crate::{
     config::sidebar::{SidebarNode, SidebarNodeKind, SidebarSelection},
-    menu_renderer::{sidebar::drop_recv::drag_drop_receiver, underline_maybe, Element, FONT_MONO},
+    menu_renderer::{
+        ctx_button, ctxbox, offset, sidebar::drop_recv::drag_drop_receiver, underline_maybe,
+        Element, FONT_MONO,
+    },
     state::{LaunchModal, Launcher, MainMenuMessage, MenuLaunch, Message},
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
@@ -167,6 +170,60 @@ impl Launcher {
             )))
             .into(),
         )
+    }
+
+    pub(super) fn sidebar_drag_tooltip<'a>(&'a self, menu: &'a MenuLaunch) -> Option<Element<'a>> {
+        if let Some(LaunchModal::Dragging { being_dragged, .. }) = &menu.modal {
+            if let Some(node) = self
+                .config
+                .sidebar
+                .as_ref()
+                .and_then(|n| n.get_node(being_dragged))
+            {
+                let node = self.get_node_rendered(menu, node, -1);
+                let (x, y) = self.window_state.mouse_pos;
+                let (winw, winh) = self.window_state.size;
+                Some(offset(
+                    node,
+                    (x - 200.0).clamp(0.0, winw),
+                    (y - 16.0).clamp(0.0, winh),
+                ))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+}
+
+pub fn context_menu(menu: &MenuLaunch) -> Option<Element<'_>> {
+    if let Some(LaunchModal::SidebarCtxMenu(instance, (x, y))) = &menu.modal {
+        let instance = instance.as_ref();
+        Some(offset(
+            // Could do something with instance-specific actions in the future
+            ctxbox(
+                column![ctx_button("New Folder")
+                    .on_press(MainMenuMessage::NewFolder(instance.cloned()).into())]
+                .push_maybe(instance.map(|_| widget::horizontal_rule(2)))
+                .push_maybe(instance.and_then(|inst| {
+                    if let SidebarSelection::Folder(id) = inst {
+                        Some(
+                            ctx_button("Delete Folder")
+                                .on_press_with(|| MainMenuMessage::DeleteFolder(*id).into()),
+                        )
+                    } else {
+                        None
+                    }
+                }))
+                .spacing(4),
+            )
+            .width(150),
+            *x,
+            *y,
+        ))
+    } else {
+        None
     }
 }
 

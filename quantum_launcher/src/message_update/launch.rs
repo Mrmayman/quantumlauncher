@@ -35,17 +35,23 @@ impl Launcher {
                 }
             }
             MainMenuMessage::DragDrop(location) => {
-                if let State::Launch(MenuLaunch { modal, .. }) = &mut self.state {
-                    if let Some(LaunchModal::Dragging { being_dragged, .. }) = &modal {
-                        self.config.c_sidebar().drag_drop(being_dragged, location);
-                        if let Some(sel) = &self.selected_instance {
-                            if being_dragged != sel {
-                                self.selected_instance = None;
-                            }
+                if let State::Launch(MenuLaunch {
+                    modal: Some(LaunchModal::Dragging { being_dragged, .. }),
+                    ..
+                }) = &mut self.state
+                {
+                    self.config.c_sidebar().drag_drop(being_dragged, location);
+                    if let Some(sel) = &self.selected_instance {
+                        if being_dragged != sel {
+                            self.selected_instance = None;
                         }
                     }
-                    *modal = None;
                 }
+                self.sidebar_update_state();
+            }
+            MainMenuMessage::DeleteFolder(folder) => {
+                self.config.c_sidebar().delete_folder(folder);
+                self.sidebar_update_state();
             }
             MainMenuMessage::SidebarResize(ratio) => {
                 if let State::Launch(menu) = &mut self.state {
@@ -76,19 +82,23 @@ impl Launcher {
                 self.autosave.remove(&AutoSaveKind::LauncherConfig);
             }
             MainMenuMessage::NewFolder(at_position) => {
-                if let State::Launch(menu) = &mut self.state {
-                    menu.modal = None;
-                }
-                let sidebar = self.config.c_sidebar();
-                sidebar.new_folder_at(at_position, "New Folder");
-                self.autosave.remove(&AutoSaveKind::LauncherConfig);
+                self.config
+                    .c_sidebar()
+                    .new_folder_at(at_position, "New Folder");
+                self.sidebar_update_state();
             }
             MainMenuMessage::ToggleFolderVisibility(id) => {
                 let sidebar = self.config.c_sidebar();
                 sidebar.toggle_visibility(id);
-                self.autosave.remove(&AutoSaveKind::LauncherConfig);
+                self.sidebar_update_state();
             }
         }
         Task::none()
+    }
+
+    fn sidebar_update_state(&mut self) {
+        self.hide_submenu();
+        self.config.c_sidebar().fix();
+        self.autosave.remove(&AutoSaveKind::LauncherConfig);
     }
 }

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
 
 mod drag_drop;
@@ -26,6 +28,26 @@ impl SidebarConfig {
     }
 
     pub fn new_folder_at(&mut self, selection: Option<SidebarSelection>, name: &str) {
+        fn walk(node: &mut SidebarNode, selection: &SidebarSelection, name: &str) -> bool {
+            let SidebarNodeKind::Folder { children, .. } = &mut node.kind else {
+                return false;
+            };
+            let mut index = None;
+            for (i, child) in children.iter_mut().enumerate() {
+                if child == selection {
+                    index = Some(i + 1);
+                    break;
+                }
+                if walk(child, selection, name) {
+                    return true;
+                }
+            }
+            let Some(index) = index else { return false };
+
+            children.insert(index, SidebarNode::new_folder(name.to_owned()));
+            true
+        }
+
         if let Some(selection) = selection {
             for (i, child) in self.list.iter_mut().enumerate() {
                 if *child == selection {
@@ -33,7 +55,7 @@ impl SidebarConfig {
                         .insert(i + 1, SidebarNode::new_folder(name.to_owned()));
                     return;
                 }
-                if child.new_folder_at(&selection, name) {
+                if walk(child, &selection, name) {
                     return;
                 }
             }
@@ -41,23 +63,95 @@ impl SidebarConfig {
         self.list.push(SidebarNode::new_folder(name.to_owned()));
     }
 
+    pub fn delete_folder(&mut self, folder_id: FolderId) {
+        fn walk(node: &mut SidebarNode, folder_id: FolderId, temp: &mut Vec<SidebarNode>) -> bool {
+            if let SidebarNodeKind::Folder { id, children, .. } = &mut node.kind {
+                if *id == folder_id {
+                    temp.extend(children.drain(..));
+                    return false;
+                }
+                let mut temp = Vec::new();
+                children.retain_mut(|n| walk(n, folder_id, &mut temp));
+                children.extend(temp);
+            }
+            true
+        }
+
+        let mut temp = Vec::new();
+        self.list.retain_mut(|n| walk(n, folder_id, &mut temp));
+        self.list.extend(temp);
+    }
+
     pub fn toggle_visibility(&mut self, id: FolderId) {
+        fn walk(node: &mut SidebarNode, folder_id: FolderId) {
+            if let SidebarNodeKind::Folder {
+                id,
+                children,
+                is_expanded,
+            } = &mut node.kind
+            {
+                if folder_id == *id {
+                    *is_expanded = !*is_expanded;
+                } else {
+                    for child in children {
+                        walk(child, folder_id);
+                    }
+                }
+            }
+        }
+
         for child in &mut self.list {
-            child.toggle_visibility(id);
+            walk(child, id);
         }
     }
 
     pub fn get_node(&self, selection: &SidebarSelection) -> Option<&SidebarNode> {
+        fn walk<'a>(
+            child: &'a SidebarNode,
+            selection: &SidebarSelection,
+        ) -> Option<&'a SidebarNode> {
+            if child == selection {
+                return Some(child);
+            }
+            if let SidebarNodeKind::Folder { children, .. } = &child.kind {
+                for child in children {
+                    if let Some(sel) = walk(child, selection) {
+                        return Some(sel);
+                    }
+                }
+            }
+            None
+        }
+
         for child in &self.list {
-            if let Some(node) = child.get_from_selection(selection) {
+            if let Some(node) = walk(child, selection) {
                 return Some(node);
             }
         }
         None
     }
+
+    // Look, it's 11 PM as I type this. Instances are duplicating themselves.
+    // I don't know what causes it but this should sidestep the issue.
+    pub fn fix(&mut self) {
+        fn visit(n: &mut SidebarNode, visited: &mut HashSet<SidebarSelection>) {
+            if let SidebarNodeKind::Folder { children, .. } = &mut n.kind {
+                children.retain_mut(|n| {
+                    visit(n, visited);
+                    visited.insert(SidebarSelection::from_node(n))
+                });
+            }
+        }
+
+        let mut visited = HashSet::new();
+        self.list.retain_mut(|n| {
+            visit(n, &mut visited);
+            visited.insert(SidebarSelection::from_node(n))
+        });
+    }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SidebarNode {
     pub name: String,
     // icon: Option<String>
@@ -90,57 +184,6 @@ impl SidebarNode {
             return false;
         }
         true
-    }
-
-    fn new_folder_at(&mut self, selection: &SidebarSelection, name: &str) -> bool {
-        let SidebarNodeKind::Folder { children, .. } = &mut self.kind else {
-            return false;
-        };
-        let mut index = None;
-        for (i, child) in children.iter_mut().enumerate() {
-            if child == selection {
-                index = Some(i + 1);
-                break;
-            }
-            if child.new_folder_at(selection, name) {
-                return true;
-            }
-        }
-        let Some(index) = index else { return false };
-
-        children.insert(index, Self::new_folder(name.to_owned()));
-        true
-    }
-
-    fn toggle_visibility(&mut self, folder_id: FolderId) {
-        if let SidebarNodeKind::Folder {
-            id,
-            children,
-            is_expanded,
-        } = &mut self.kind
-        {
-            if folder_id == *id {
-                *is_expanded = !*is_expanded;
-            } else {
-                for child in children {
-                    child.toggle_visibility(folder_id);
-                }
-            }
-        }
-    }
-
-    fn get_from_selection(&self, selection: &SidebarSelection) -> Option<&Self> {
-        if self == selection {
-            return Some(self);
-        }
-        if let SidebarNodeKind::Folder { children, .. } = &self.kind {
-            for child in children {
-                if let Some(sel) = child.get_from_selection(selection) {
-                    return Some(sel);
-                }
-            }
-        }
-        None
     }
 
     pub fn is_folder(&self) -> bool {

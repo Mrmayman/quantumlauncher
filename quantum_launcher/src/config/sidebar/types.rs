@@ -45,7 +45,7 @@ impl PartialEq<InstanceSelection> for SidebarSelection {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, Hash)]
 pub enum SidebarNodeKind {
     Instance(InstanceKind),
     Folder {
@@ -65,7 +65,7 @@ impl PartialEq for SidebarNodeKind {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct FolderId(usize);
 
 impl FolderId {
@@ -81,7 +81,7 @@ impl FolderId {
 
 // TODO: Refactor the entire launcher to use this
 // instead of `is_server: bool`
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum InstanceKind {
     Client,
@@ -94,7 +94,7 @@ impl InstanceKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SidebarSelection {
     Instance(String, InstanceKind),
     Folder(FolderId),
