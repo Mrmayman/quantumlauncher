@@ -5,11 +5,15 @@ use iced::{
 use ql_core::InstanceSelection;
 
 use crate::{
-    config::sidebar::{SDragLocation, SidebarNode, SidebarNodeKind, SidebarSelection},
-    menu_renderer::{underline_maybe, Element, FONT_MONO},
+    config::sidebar::{SidebarNode, SidebarNodeKind, SidebarSelection},
+    menu_renderer::{sidebar::drop_recv::drag_drop_receiver, underline_maybe, Element, FONT_MONO},
     state::{LaunchModal, Launcher, MainMenuMessage, MenuLaunch, Message},
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
+
+mod drop_recv;
+
+const LEVEL_WIDTH: u16 = 15;
 
 impl Launcher {
     pub(super) fn get_node_rendered<'a>(
@@ -19,7 +23,6 @@ impl Launcher {
         nesting: i16,
     ) -> Element<'a> {
         const DRAGGED_TOOLTIP: i16 = -1;
-        const LEVEL_WIDTH: u16 = 15;
 
         // Tbh should be careful about careless heap allocations
         let selection = SidebarSelection::from_node(node);
@@ -192,86 +195,6 @@ fn drag_handle(selection: &SidebarSelection) -> widget::MouseArea<'static, Messa
         }))
         .into(),
     )
-}
-
-fn drag_drop_receiver(
-    menu: &MenuLaunch,
-    selection: &SidebarSelection,
-    node: &SidebarNode,
-    nesting: i16,
-) -> Option<widget::Column<'static, Message, LauncherTheme>> {
-    if nesting == -1 {
-        return None;
-    }
-    let Some(LaunchModal::Dragging { dragged_to, .. }) = &menu.modal else {
-        return None;
-    };
-
-    let clickbox = |offset, elem| {
-        let hover = |entered| {
-            MainMenuMessage::DragHover {
-                entered,
-                location: SDragLocation {
-                    offset,
-                    sel: selection.clone(),
-                },
-            }
-            .into()
-        };
-
-        widget::mouse_area(elem)
-            .on_press(
-                MainMenuMessage::DragDrop(Some(SDragLocation {
-                    offset,
-                    sel: selection.clone(),
-                }))
-                .into(),
-            )
-            .on_enter(hover(true))
-            .on_exit(hover(false))
-    };
-
-    let empty = || widget::Space::new(Length::Fill, Length::Fill);
-    let bar = || {
-        widget::horizontal_rule(2).style(|t: &LauncherTheme| t.style_rule(Color::SecondLight, 4))
-    };
-
-    let (is_hovered, offset) = dragged_to
-        .as_ref()
-        .map(|n| (n.sel == *selection, n.offset))
-        .unwrap_or((false, false));
-
-    Some(
-        widget::column![clickbox(
-            false,
-            widget::Column::new()
-                .push_maybe((is_hovered && !offset).then_some(bar()))
-                .push(empty())
-        ),]
-        .push_maybe(
-            node.kind.show_bottom_target().then_some(clickbox(
-                true,
-                widget::Column::new()
-                    .push(empty())
-                    .push_maybe((is_hovered && offset).then_some(bar())),
-            )),
-        ),
-    )
-}
-
-impl SidebarNodeKind {
-    fn show_bottom_target(&self) -> bool {
-        if let SidebarNodeKind::Folder {
-            children,
-            is_expanded,
-            ..
-        } = self
-        {
-            !*is_expanded || children.is_empty()
-        } else {
-            true
-        }
-    }
 }
 
 fn node_button<'a>(

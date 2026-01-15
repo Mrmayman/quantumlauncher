@@ -1,5 +1,9 @@
-use ql_core::InstanceSelection;
 use serde::{Deserialize, Serialize};
+
+mod drag_drop;
+mod types;
+
+pub use types::*;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct SidebarConfig {
@@ -43,7 +47,7 @@ impl SidebarConfig {
         }
     }
 
-    pub fn get_node_from_selection(&self, selection: &SidebarSelection) -> Option<&SidebarNode> {
+    pub fn get_node(&self, selection: &SidebarSelection) -> Option<&SidebarNode> {
         for child in &self.list {
             if let Some(node) = child.get_from_selection(selection) {
                 return Some(node);
@@ -53,7 +57,7 @@ impl SidebarConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct SidebarNode {
     pub name: String,
     // icon: Option<String>
@@ -138,9 +142,7 @@ impl SidebarNode {
         }
         None
     }
-}
 
-impl SidebarNode {
     pub fn is_folder(&self) -> bool {
         matches!(self.kind, SidebarNodeKind::Folder { .. })
     }
@@ -155,97 +157,4 @@ impl SidebarNode {
             },
         }
     }
-}
-
-impl PartialEq<SidebarSelection> for SidebarNode {
-    fn eq(&self, other: &SidebarSelection) -> bool {
-        match other {
-            SidebarSelection::Instance(name, instance_kind) => {
-                if let SidebarNodeKind::Instance(kind) = &self.kind {
-                    if kind == instance_kind {
-                        return self.name == *name;
-                    }
-                }
-            }
-            SidebarSelection::Folder(folder_id) => {
-                if let SidebarNodeKind::Folder { id, .. } = &self.kind {
-                    return id == folder_id;
-                }
-            }
-        }
-        false
-    }
-}
-
-impl PartialEq<InstanceSelection> for SidebarNode {
-    fn eq(&self, other: &InstanceSelection) -> bool {
-        match &self.kind {
-            SidebarNodeKind::Instance(kind) => {
-                kind.is_server() == other.is_server() && self.name == other.get_name()
-            }
-            SidebarNodeKind::Folder { .. } => false,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum SidebarNodeKind {
-    Instance(InstanceKind),
-    Folder {
-        id: FolderId,
-        children: Vec<SidebarNode>,
-        is_expanded: bool,
-    },
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
-pub struct FolderId(usize);
-
-impl FolderId {
-    pub fn new() -> Self {
-        Self(
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("Time went backwards")
-                .as_secs() as usize,
-        )
-    }
-}
-
-// TODO: Refactor the entire launcher to use this
-// instead of `is_server: bool`
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum InstanceKind {
-    Client,
-    Server,
-}
-
-impl InstanceKind {
-    pub fn is_server(self) -> bool {
-        matches!(self, Self::Server)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum SidebarSelection {
-    Instance(String, InstanceKind),
-    Folder(FolderId),
-}
-
-impl SidebarSelection {
-    pub fn from_node(node: &SidebarNode) -> Self {
-        match node.kind {
-            SidebarNodeKind::Instance(instance_kind) => {
-                Self::Instance(node.name.clone(), instance_kind)
-            }
-            SidebarNodeKind::Folder { id, .. } => Self::Folder(id),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct SDragLocation {
-    pub sel: SidebarSelection,
-    pub offset: bool,
 }

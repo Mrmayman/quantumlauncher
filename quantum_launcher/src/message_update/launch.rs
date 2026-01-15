@@ -35,7 +35,17 @@ impl Launcher {
                 }
             }
             MainMenuMessage::DragDrop(location) => {
-                println!("{location:?}"); // TODO
+                if let State::Launch(MenuLaunch { modal, .. }) = &mut self.state {
+                    if let Some(LaunchModal::Dragging { being_dragged, .. }) = &modal {
+                        self.config.c_sidebar().drag_drop(being_dragged, location);
+                        if let Some(sel) = &self.selected_instance {
+                            if being_dragged != sel {
+                                self.selected_instance = None;
+                            }
+                        }
+                    }
+                    *modal = None;
+                }
             }
             MainMenuMessage::SidebarResize(ratio) => {
                 if let State::Launch(menu) = &mut self.state {

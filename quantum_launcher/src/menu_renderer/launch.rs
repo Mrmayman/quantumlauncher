@@ -23,8 +23,6 @@ use crate::{
 
 use super::{button_with_icon, shortcut_ctrl, tooltip, Element};
 
-mod sidebar;
-
 pub const TAB_BUTTON_WIDTH: f32 = 64.0;
 
 const fn tab_height(decor: bool) -> f32 {
@@ -83,7 +81,7 @@ impl Launcher {
                     .config
                     .sidebar
                     .as_ref()
-                    .and_then(|n| n.get_node_from_selection(being_dragged))
+                    .and_then(|n| n.get_node(being_dragged))
                 {
                     let node = self.get_node_rendered(menu, node, -1);
                     let (x, y) = self.window_state.mouse_pos;
@@ -394,7 +392,8 @@ impl Launcher {
                     self.window_state.mouse_pos
                 )))
                 .into()
-            ),
+            )
+            .on_press(MainMenuMessage::DragDrop(None).into()),
             widget::horizontal_rule(1).style(|t: &LauncherTheme| t.style_rule(Color::Dark, 1)),
             self.get_accounts_bar(menu),
         ]
@@ -420,7 +419,7 @@ impl Launcher {
         .into()
     }
 
-    fn get_running_icon(
+    pub(super) fn get_running_icon(
         &self,
         menu: &MenuLaunch,
         name: &str,
