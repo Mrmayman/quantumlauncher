@@ -132,17 +132,20 @@ impl MenuEditInstance {
 
         let sp = || widget::space().height(5);
 
+        let java_checkbox = widget::row![
+            widget::checkbox(current_mode)
+                .on_toggle(|t| Message::EditInstance(EditInstanceMessage::JavaArgsModeChanged(t)))
+                .style(|t: &LauncherTheme, s| t.style_checkbox(s, Some(Color::SecondLight)))
+                .size(12),
+            widget::text("Use global arguments").size(12)
+        ]
+        .spacing(5);
+
         column!(
             widget::row![
                 "Java arguments:",
                 widget::space().width(Length::Fill),
-                widget::checkbox("Use global arguments", current_mode)
-                    .on_toggle(|t| {
-                        Message::EditInstance(EditInstanceMessage::JavaArgsModeChanged(t))
-                    })
-                    .style(|t: &LauncherTheme, s| t.style_checkbox(s, Some(Color::SecondLight)))
-                    .size(12)
-                    .text_size(12)
+                java_checkbox
             ]
             .align_y(Alignment::Center),
             get_args_list(self.config.java_args.as_deref(), |n| Message::EditInstance(
@@ -166,17 +169,20 @@ impl MenuEditInstance {
         &self,
         prefix_mode: PreLaunchPrefixMode,
     ) -> widget::Column<'_, Message, LauncherTheme> {
-        let checkbox = widget::checkbox("Use global prefix", !prefix_mode.is_disabled())
-            .on_toggle(|t| {
-                Message::EditInstance(EditInstanceMessage::PreLaunchPrefixModeChanged(if t {
-                    PreLaunchPrefixMode::default()
-                } else {
-                    PreLaunchPrefixMode::Disable
-                }))
-            })
-            .style(|t: &LauncherTheme, s| t.style_checkbox(s, Some(Color::SecondLight)))
-            .size(12)
-            .text_size(12);
+        let checkbox = widget::row![
+            widget::checkbox(!prefix_mode.is_disabled())
+                .style(|t: &LauncherTheme, s| t.style_checkbox(s, Some(Color::SecondLight)))
+                .size(12)
+                .on_toggle(|t| {
+                    Message::EditInstance(EditInstanceMessage::PreLaunchPrefixModeChanged(if t {
+                        PreLaunchPrefixMode::default()
+                    } else {
+                        PreLaunchPrefixMode::Disable
+                    }))
+                }),
+            widget::text("Use global prefix").size(12)
+        ]
+        .spacing(5);
 
         column![
             widget::row![

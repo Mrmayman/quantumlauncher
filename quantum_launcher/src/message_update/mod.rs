@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use frostmark::MarkState;
 use iced::futures::executor::block_on;
 use iced::widget::text_editor;
 use iced::{widget::scrollable::AbsoluteOffset, Task};
@@ -26,8 +25,7 @@ use crate::{
     state::{
         self, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage,
         InstallPaperMessage, Launcher, LauncherSettingsMessage, MenuCurseforgeManualDownload,
-        MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuModsDownload, Message,
-        ProgressBar, State,
+        MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, Message, ProgressBar, State,
     },
 };
 
@@ -190,15 +188,15 @@ impl Launcher {
                 Ok(command) => return command,
                 Err(err) => self.set_error(err),
             },
-            InstallModsMessage::TickDesc(update_msg) => {
-                if let State::ModsDownload(MenuModsDownload {
-                    description: Some(description),
-                    ..
-                }) = &mut self.state
-                {
-                    description.update(update_msg);
-                }
-            }
+            // InstallModsMessage::TickDesc(update_msg) => {
+            //     if let State::ModsDownload(MenuModsDownload {
+            //         description: Some(description),
+            //         ..
+            //     }) = &mut self.state
+            //     {
+            //         description.update(update_msg);
+            //     }
+            // }
             InstallModsMessage::SearchInput(input) => {
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.query = input;
@@ -228,7 +226,7 @@ impl Launcher {
             InstallModsMessage::BackToMainScreen => {
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.opened_mod = None;
-                    menu.description = None;
+                    // menu.description = None;
                     return iced::widget::operation::scroll_to(
                         iced::widget::Id::new("MenuModsDownload:main:mods_list"),
                         menu.scroll_offset,
@@ -714,10 +712,10 @@ impl Launcher {
             NotesMessage::Loaded(res) => match res {
                 Ok(notes) => {
                     if let State::Launch(menu) = &mut self.state {
-                        let mark_state = MarkState::with_html_and_markdown(&notes);
+                        // let mark_state = MarkState::with_html_and_markdown(&notes);
                         menu.notes = Some(InstanceNotes::Viewing {
                             content: notes,
-                            mark_state,
+                            // mark_state,
                         });
                     }
                 }
@@ -753,7 +751,7 @@ impl Launcher {
                         let content = text_editor.text();
 
                         *notes = InstanceNotes::Viewing {
-                            mark_state: MarkState::with_html_and_markdown(&content),
+                            // mark_state: MarkState::with_html_and_markdown(&content),
                             content: content.clone(),
                         };
 
@@ -776,7 +774,7 @@ impl Launcher {
                 {
                     let content = notes.get_text();
                     *notes = InstanceNotes::Viewing {
-                        mark_state: MarkState::with_html_and_markdown(content),
+                        // mark_state: MarkState::with_html_and_markdown(content),
                         content: content.to_owned(),
                     }
                 }

@@ -5,6 +5,7 @@ use iced::{
 };
 use ql_core::{InstanceSelection, Loader, SelectedMod};
 
+use crate::menu_renderer::ui::checkbox;
 use crate::menu_renderer::{ctxbox, dots, select_box, subbutton_with_icon, tsubtitle, FONT_MONO};
 use crate::message_handler::ForgeKind;
 use crate::state::{ImageState, InstallPaperMessage, MenuEditModsModal};
@@ -195,12 +196,10 @@ impl MenuEditMods {
                                 format!("{title} - {update_name}")
                             };
 
-                            widget::checkbox(text, *is_enabled)
-                                .on_toggle(move |b| {
-                                    Message::ManageMods(ManageModsMessage::UpdateCheckToggle(i, b))
-                                })
-                                .text_size(12)
-                                .into()
+                            checkbox(widget::text(text).size(12), *is_enabled, move |b| {
+                                Message::ManageMods(ManageModsMessage::UpdateCheckToggle(i, b))
+                            })
+                            .into()
                         }
                     ))
                     .spacing(10),
@@ -377,7 +376,7 @@ impl MenuEditMods {
                     })
                     .on_press(Message::ManageMods(ManageModsMessage::SelectAll)),
                 ]
-                .spacing(5)
+                .spacing(10)
                 .wrap(),
                 if self.selected_mods.is_empty() {
                     widget::text("Select some mods to perform actions on them")
@@ -389,10 +388,9 @@ impl MenuEditMods {
                         Message::ManageMods(ManageModsMessage::SetSearch(Some(msg)))
                     )
                 ),
-            ],
+            ].padding(10),
             widget::responsive(|s| self.get_mod_list_contents(s, images)),
-        ].spacing(0)
-        )
+        ])
         .style(|n| n.style_container_sharp_box(0.0, Color::ExtraDark))
         .into()
     }

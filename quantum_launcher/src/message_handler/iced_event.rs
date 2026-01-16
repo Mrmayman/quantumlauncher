@@ -391,7 +391,7 @@ impl Launcher {
             if ret_to_mod_store {
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.opened_mod = None;
-                    menu.description = None;
+                    // menu.description = None;
                     return (
                         true,
                         iced::widget::operation::scroll_to(

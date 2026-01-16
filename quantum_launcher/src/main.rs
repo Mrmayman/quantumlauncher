@@ -23,7 +23,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #![allow(clippy::cast_sign_loss)]
 #![allow(clippy::cast_precision_loss)]
 
-use std::{borrow::Cow, time::Duration};
+use std::{
+    borrow::Cow,
+    sync::{LazyLock, RwLock},
+    time::Duration,
+};
 
 use config::LauncherConfig;
 use iced::{Settings, Task};
@@ -169,8 +173,17 @@ fn main() {
     let (width, height) = c.c_window_size();
     let antialiasing = c.ui_antialiasing.unwrap_or(true);
 
+    // FIXME: Look at this garbage. Only way I could find to work
+    // around the Fn() trait bounds
+    static CONFIG: LazyLock<RwLock<Option<(Result<LauncherConfig, String>, bool)>>> =
+        LazyLock::new(|| RwLock::new(None));
+    *CONFIG.write().unwrap() = Some((config, is_new_user));
+
     iced::application(
-        || Launcher::new(is_new_user, config.clone()),
+        || {
+            let (config, is_new_user) = CONFIG.read().unwrap().clone().unwrap();
+            Launcher::new(is_new_user, config)
+        },
         Launcher::update,
         Launcher::view,
     )
@@ -195,7 +208,7 @@ fn main() {
         transparent: true,
         ..Default::default()
     })
-    .title(|_| "QuantumLauncher".to_owned())
+    // .title(|_| "QuantumLauncher".to_owned())
     .run()
     .unwrap();
 }

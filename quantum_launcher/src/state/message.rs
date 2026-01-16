@@ -166,7 +166,8 @@ pub enum ManageJarModsMessage {
 #[derive(Debug, Clone)]
 pub enum InstallModsMessage {
     Open,
-    TickDesc(frostmark::UpdateMsg),
+    // FIXME: Update frostmark
+    // TickDesc(frostmark::UpdateMsg),
     SearchInput(String),
     SearchResult(Res<SearchResult>),
 

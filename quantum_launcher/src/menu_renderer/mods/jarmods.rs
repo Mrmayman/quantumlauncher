@@ -6,7 +6,7 @@ use ql_core::InstanceSelection;
 
 use crate::{
     icons,
-    menu_renderer::{back_button, button_with_icon, link, Element},
+    menu_renderer::{back_button, button_with_icon, link, ui::checkbox, Element},
     state::{ManageJarModsMessage, ManageModsMessage, MenuEditJarMods, Message, SelectedState},
     stylesheet::{color::Color, styles::LauncherTheme},
 };
@@ -120,20 +120,20 @@ impl MenuEditJarMods {
         widget::scrollable(
             widget::column({
                 self.jarmods.mods.iter().map(|jarmod| {
-                    widget::checkbox(
-                        format!(
+                    checkbox(
+                        widget::text(format!(
                             "{}{}",
                             if jarmod.enabled { "" } else { "(DISABLED) " },
                             jarmod.filename
-                        ),
+                        )),
                         self.selected_mods.contains(&jarmod.filename),
+                        move |t| {
+                            Message::ManageJarMods(ManageJarModsMessage::ToggleCheckbox(
+                                jarmod.filename.clone(),
+                                t,
+                            ))
+                        },
                     )
-                    .on_toggle(move |t| {
-                        Message::ManageJarMods(ManageJarModsMessage::ToggleCheckbox(
-                            jarmod.filename.clone(),
-                            t,
-                        ))
-                    })
                     .into()
                 })
             })

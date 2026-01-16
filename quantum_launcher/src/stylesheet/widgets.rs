@@ -514,11 +514,11 @@ impl widget::toggler::Catalog for LauncherTheme {
                 widget::toggler::Status::Disabled { .. } => Color::Dark,
             }),
             foreground: self.get_bg(Color::Light),
-            foreground_border_width: 0.0,
+            foreground_border_width: 1.0,
             foreground_border_color: self.get(Color::Light),
             text_color: None,
             border_radius: Some(iced::border::Radius::new(BORDER_RADIUS)),
-            padding_ratio: 2.0,
+            padding_ratio: 0.1,
         }
     }
 }

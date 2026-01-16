@@ -5,7 +5,6 @@ use iced::{
 use ql_core::InstanceSelection;
 use ql_mod_manager::loaders::fabric::{self, FabricVersionList, FabricVersionListItem};
 
-use crate::state::{InstallPaperMessage, MenuInstallPaper};
 use crate::{
     icons,
     menu_renderer::{back_button, button_with_icon, Element},
@@ -14,6 +13,10 @@ use crate::{
         MenuInstallForge, MenuInstallOptifine, Message,
     },
     stylesheet::styles::LauncherTheme,
+};
+use crate::{
+    menu_renderer::ui::checkbox,
+    state::{InstallPaperMessage, MenuInstallPaper},
 };
 
 impl MenuInstallOptifine {
@@ -81,17 +84,15 @@ impl MenuInstallOptifine {
                 .spacing(10)
             ),
             widget::container(
-                column!(
+                column![
                     "Step 2: Select the installer file",
-                    widget::checkbox("Delete installer after use", delete_installer).on_toggle(
-                        |t| Message::InstallOptifine(
-                            InstallOptifineMessage::DeleteInstallerToggle(t)
-                        )
-                    ),
+                    checkbox("Delete installer after use", delete_installer, |t| {
+                        Message::InstallOptifine(InstallOptifineMessage::DeleteInstallerToggle(t))
+                    }),
                     widget::button("Select File").on_press(Message::InstallOptifine(
                         InstallOptifineMessage::SelectInstallerStart
                     ))
-                )
+                ]
                 .padding(10)
                 .spacing(10)
             )

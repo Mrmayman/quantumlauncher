@@ -94,7 +94,7 @@ pub enum AutoSaveKind {
 pub struct WindowState {
     pub size: (f32, f32),
     pub mouse_pos: (f32, f32),
-    pub is_maximized: bool,
+    // pub is_maximized: bool,
 }
 
 pub struct CustomJarState {
@@ -178,7 +178,6 @@ impl Launcher {
             window_state: WindowState {
                 size: (window_width, window_height),
                 mouse_pos: (0.0, 0.0),
-                is_maximized: false,
             },
             accounts_selected: Some(selected_account),
 
@@ -259,7 +258,6 @@ impl Launcher {
             window_state: WindowState {
                 size: (window_width, window_height),
                 mouse_pos: (0.0, 0.0),
-                is_maximized: false,
             },
             autosave: HashSet::new(),
             accounts_dropdown: vec![OFFLINE_ACCOUNT_NAME.to_owned(), NEW_ACCOUNT_NAME.to_owned()],

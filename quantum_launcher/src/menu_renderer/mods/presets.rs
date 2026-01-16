@@ -8,7 +8,7 @@ use ql_core::SelectedMod;
 
 use crate::{
     icons,
-    menu_renderer::{back_button, button_with_icon, tsubtitle, Element},
+    menu_renderer::{back_button, button_with_icon, tsubtitle, ui::checkbox, Element},
     state::{
         EditPresetsMessage, ManageModsMessage, MenuEditPresets, MenuRecommendedMods, Message,
         ModListEntry, SelectedState,
@@ -56,11 +56,11 @@ Modrinth/Curseforge modpack"
                 )
                 .style(tsubtitle)
                 .size(12),
-                widget::checkbox(
-                    "Include mod settings/configuration (config folder)",
-                    self.include_config
-                )
-                .on_toggle(|t| Message::EditPresets(EditPresetsMessage::ToggleIncludeConfig(t))),
+                checkbox(
+                    widget::text("Include mod settings/configuration\n(config folder)").size(12),
+                    self.include_config,
+                    |t| Message::EditPresets(EditPresetsMessage::ToggleIncludeConfig(t))
+                ),
                 button_with_icon(icons::floppydisk(), "Build Preset", 16)
                     .on_press(Message::EditPresets(EditPresetsMessage::BuildYourOwn)),
             ]
@@ -108,8 +108,10 @@ Modrinth/Curseforge modpack"
     ) -> widget::Column<'a, Message, LauncherTheme, iced::Renderer> {
         widget::column(self.sorted_mods_list.iter().map(|entry| {
             if entry.is_manually_installed() {
-                widget::checkbox(entry.name(), selected_mods.contains(&entry.clone().into()))
-                    .on_toggle(move |t| match entry {
+                checkbox(
+                    entry.name(),
+                    selected_mods.contains(&entry.clone().into()),
+                    move |t| match entry {
                         ModListEntry::Downloaded { id, config } => {
                             Message::EditPresets(EditPresetsMessage::ToggleCheckbox(
                                 (config.name.clone(), id.clone()),
@@ -119,8 +121,9 @@ Modrinth/Curseforge modpack"
                         ModListEntry::Local { file_name } => Message::EditPresets(
                             EditPresetsMessage::ToggleCheckboxLocal(file_name.clone(), t),
                         ),
-                    })
-                    .into()
+                    },
+                )
+                .into()
             } else {
                 widget::text!(" - (DEPENDENCY) {}", entry.name())
                     .shaping(widget::text::Shaping::Advanced)
@@ -161,8 +164,7 @@ impl MenuRecommendedMods {
                                 crate::state::RecommendedModMessage::Download
                             )),
                         widget::column(mods.iter().enumerate().map(|(i, (e, n))| {
-                            let elem: Element = widget::checkbox(n.name, *e)
-                                .on_toggle(move |n| {
+                            let elem: Element = checkbox(n.name, *e, move |n| {
                                     Message::RecommendedMods(crate::state::RecommendedModMessage::Toggle(
                                         i, n,
                                     ))

@@ -152,7 +152,7 @@ impl MenuCreateInstanceChoosing {
         .spacing(7)
     }
 
-    fn ghidden_versions(&self, hidden: bool) -> Option<widget::Text<LauncherTheme>> {
+    fn ghidden_versions(&self, hidden: bool) -> Option<widget::Text<'static, LauncherTheme>> {
         (!hidden).then_some(
             widget::text!(
                 "Some versions are hidden {}\n(Click \"Filters\" to show)",

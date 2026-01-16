@@ -1,5 +1,4 @@
 use cfg_if::cfg_if;
-use frostmark::MarkWidget;
 use iced::{
     keyboard::Modifiers,
     widget::{self, column, tooltip::Position},
@@ -145,8 +144,12 @@ impl Launcher {
             Some(InstanceNotes::Viewing { content, .. }) if content.trim().is_empty() => {
                 widget::space().height(Length::Fill).into()
             }
-            Some(InstanceNotes::Viewing { mark_state, .. }) => widget::scrollable(
-                column![MarkWidget::new(mark_state).heading_scale(0.7).text_size(14)].padding(5),
+            Some(InstanceNotes::Viewing { .. }) => widget::scrollable(
+                column![
+                    // FIXME: Update frostmark
+                    // MarkWidget::new(mark_state).heading_scale(0.7).text_size(14)
+                ]
+                .padding(5),
             )
             .width(Length::Fill)
             .height(Length::Fill)
