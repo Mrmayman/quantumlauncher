@@ -329,7 +329,7 @@ impl Launcher {
                 sidebar
                     .list
                     .iter()
-                    .map(|node| self.get_node_rendered(menu, node, 0)),
+                    .map(|node| self.get_node_rendered(menu, node, sidebar::NodeMode::InTree(0))),
             )
             .push(widget::Space::with_height(10))
         } else {

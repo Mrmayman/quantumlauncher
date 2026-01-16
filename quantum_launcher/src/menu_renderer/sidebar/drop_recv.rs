@@ -4,9 +4,9 @@ use iced::{
 };
 
 use crate::{
-    config::sidebar::{SDragLocation, SidebarNode, SidebarNodeKind, SidebarSelection},
-    menu_renderer::{sidebar::LEVEL_WIDTH, Element},
-    state::{LaunchModal, MainMenuMessage, MenuLaunch, Message},
+    config::sidebar::{SDragLocation, SDragTo, SidebarNode, SidebarNodeKind, SidebarSelection},
+    menu_renderer::sidebar::LEVEL_WIDTH,
+    state::{MainMenuMessage, MenuLaunch, Message},
     stylesheet::{color::Color, styles::LauncherTheme},
 };
 
@@ -14,66 +14,45 @@ pub fn drag_drop_receiver(
     menu: &MenuLaunch,
     selection: &SidebarSelection,
     node: &SidebarNode,
-    nesting: i16,
 ) -> Option<widget::Column<'static, Message, LauncherTheme>> {
-    if nesting == -1 {
-        return None;
-    }
-    let Some(LaunchModal::Dragging { dragged_to, .. }) = &menu.modal else {
-        return None;
-    };
-
-    let bar = || {
-        widget::horizontal_rule(4).style(|t: &LauncherTheme| t.style_rule(Color::SecondLight, 4))
-    };
+    let (_, dragged_to) = menu.get_modal_drag()?;
 
     let (is_hovered, offset) = dragged_to
         .as_ref()
         .map(|n| (n.sel == *selection, n.offset))
-        .unwrap_or((false, false));
+        .unwrap_or((false, SDragTo::Before));
 
     Some(
         column![drop_box(
-            false,
-            (is_hovered && !offset).then_some(bar()),
+            SDragTo::Before,
+            is_hovered && matches!(offset, SDragTo::Before),
             selection
         ),]
-        .push_maybe({
-            let cb = || drop_box(true, (is_hovered && offset).then_some(bar()), selection);
-            if let SidebarNodeKind::Folder {
-                is_expanded,
-                children,
-                ..
-            } = &node.kind
-            {
-                if *is_expanded {
-                    if children.is_empty() {
-                        Some(drop_box(
-                            true,
-                            (is_hovered && offset).then_some(widget::row![
-                                widget::Space::with_width(LEVEL_WIDTH),
-                                widget::horizontal_rule(12).style(|t: &LauncherTheme| {
-                                    t.style_rule(Color::SecondLight, 12)
-                                })
-                            ]),
-                            selection,
-                        ))
-                    } else {
-                        None
-                    }
-                } else {
-                    Some(cb())
-                }
-            } else {
-                Some(cb())
-            }
-        }),
+        .push_maybe(bottom_drop_box(
+            selection,
+            node,
+            is_hovered && matches!(offset, SDragTo::After | SDragTo::Inside),
+        )),
     )
 }
 
+fn bottom_drop_box(
+    selection: &SidebarSelection,
+    node: &SidebarNode,
+    show: bool,
+) -> Option<widget::MouseArea<'static, Message, LauncherTheme>> {
+    if let SidebarNodeKind::Folder(f) = &node.kind {
+        return f
+            .children
+            .is_empty()
+            .then(|| drop_box(SDragTo::Inside, show, selection));
+    }
+    Some(drop_box(SDragTo::After, show, selection))
+}
+
 fn drop_box<'a>(
-    offset: bool,
-    elem: Option<impl Into<Element<'a>>>,
+    offset: SDragTo,
+    show: bool,
     selection: &SidebarSelection,
 ) -> widget::MouseArea<'a, Message, LauncherTheme> {
     let hover = |entered| {
@@ -87,10 +66,13 @@ fn drop_box<'a>(
         .into()
     };
 
-    widget::mouse_area(if offset {
-        widget::column![empty()].push_maybe(elem)
-    } else {
-        widget::Column::new().push_maybe(elem).push(empty())
+    let elem = show.then_some(bar(4));
+    widget::mouse_area(match offset {
+        SDragTo::Before => widget::Column::new().push_maybe(elem).push(empty()),
+        SDragTo::After => widget::column![empty()].push_maybe(elem),
+        SDragTo::Inside => widget::column![empty()].push_maybe(
+            show.then(|| widget::row![widget::Space::new(LEVEL_WIDTH, Length::Fill), bar(12)]),
+        ),
     })
     .on_press(
         MainMenuMessage::DragDrop(Some(SDragLocation {
@@ -105,4 +87,9 @@ fn drop_box<'a>(
 
 fn empty() -> widget::Space {
     widget::Space::new(Length::Fill, Length::Fill)
+}
+
+fn bar(thickness: u16) -> widget::Rule<'static, LauncherTheme> {
+    widget::horizontal_rule(thickness)
+        .style(move |t: &LauncherTheme| t.style_rule(Color::SecondLight, thickness))
 }

@@ -14,8 +14,8 @@ impl PartialEq<SidebarSelection> for SidebarNode {
                 }
             }
             SidebarSelection::Folder(folder_id) => {
-                if let SidebarNodeKind::Folder { id, .. } = &self.kind {
-                    return id == folder_id;
+                if let SidebarNodeKind::Folder(f) = &self.kind {
+                    return f.id == *folder_id;
                 }
             }
         }
@@ -46,20 +46,29 @@ impl PartialEq<InstanceSelection> for SidebarSelection {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, Hash)]
+pub struct SidebarFolder {
+    pub id: FolderId,
+    pub children: Vec<SidebarNode>,
+    pub is_expanded: bool,
+}
+
+impl PartialEq for SidebarFolder {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, Hash)]
 pub enum SidebarNodeKind {
     Instance(InstanceKind),
-    Folder {
-        id: FolderId,
-        children: Vec<SidebarNode>,
-        is_expanded: bool,
-    },
+    Folder(SidebarFolder),
 }
 
 impl PartialEq for SidebarNodeKind {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Instance(l0), Self::Instance(r0)) => l0 == r0,
-            (Self::Folder { id: l_id, .. }, Self::Folder { id: r_id, .. }) => l_id == r_id,
+            (Self::Folder(l), Self::Folder(r)) => l.id == r.id,
             _ => false,
         }
     }
@@ -102,11 +111,11 @@ pub enum SidebarSelection {
 
 impl SidebarSelection {
     pub fn from_node(node: &SidebarNode) -> Self {
-        match node.kind {
+        match &node.kind {
             SidebarNodeKind::Instance(instance_kind) => {
-                Self::Instance(node.name.clone(), instance_kind)
+                Self::Instance(node.name.clone(), *instance_kind)
             }
-            SidebarNodeKind::Folder { id, .. } => Self::Folder(id),
+            SidebarNodeKind::Folder(f) => Self::Folder(f.id),
         }
     }
 }
@@ -114,5 +123,12 @@ impl SidebarSelection {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SDragLocation {
     pub sel: SidebarSelection,
-    pub offset: bool,
+    pub offset: SDragTo,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SDragTo {
+    Before,
+    After,
+    Inside,
 }

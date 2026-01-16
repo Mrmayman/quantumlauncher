@@ -148,6 +148,17 @@ impl MenuLaunch {
             Message::Notes(NotesMessage::Loaded(n.strerr()))
         })
     }
+
+    pub fn get_modal_drag(&self) -> Option<(&SidebarSelection, Option<&SDragLocation>)> {
+        if let Some(LaunchModal::Dragging {
+            being_dragged,
+            dragged_to,
+        }) = &self.modal
+        {
+            return Some((being_dragged, dragged_to.as_ref()));
+        }
+        None
+    }
 }
 
 /// The screen where you can edit an instance/server.
