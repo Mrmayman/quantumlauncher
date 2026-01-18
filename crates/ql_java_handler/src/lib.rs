@@ -40,7 +40,6 @@
 //! ## Linux platforms
 //! - Risc-V
 //! - PowerPC
-//! - aarch64
 //! - Alpha
 //! - S390 (IBM Z)
 //! - SPARC

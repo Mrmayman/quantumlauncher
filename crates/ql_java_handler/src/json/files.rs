@@ -26,7 +26,7 @@ impl JavaFile {
         match self {
             JavaFile::file { .. } => "file",
             JavaFile::directory {} => "directory",
-            JavaFile::link { .. } => "symlink (TODO)",
+            JavaFile::link { .. } => "symlink",
         }
     }
 }

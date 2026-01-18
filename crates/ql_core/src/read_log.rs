@@ -434,7 +434,7 @@ impl Display for LogEvent {
 
 // "Better" implementation of this whole damn thing
 // using `std::io::pipe`, which was added in Rust 1.87.0
-// It is cleaner and more elegant, but... my MSRV :(
+// TODO: Needs more testing to be sure
 /*
 pub async fn read_logs(
     stream: PipeReader,
