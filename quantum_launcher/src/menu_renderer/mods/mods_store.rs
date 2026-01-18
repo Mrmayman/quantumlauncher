@@ -1,3 +1,4 @@
+use frostmark::MarkWidget;
 use iced::{
     widget::{self, column},
     Length,
@@ -7,7 +8,7 @@ use ql_mod_manager::store::{QueryType, SearchMod};
 
 use crate::{
     icons,
-    menu_renderer::{back_button, button_with_icon, Element, FONT_MONO},
+    menu_renderer::{back_button, button_with_icon, Element, FONT_DEFAULT, FONT_MONO},
     state::{ImageState, InstallModsMessage, ManageModsMessage, MenuModsDownload, Message},
     stylesheet::{color::Color, styles::LauncherTheme},
 };
@@ -238,15 +239,14 @@ impl MenuModsDownload {
         tick_timer: usize,
     ) -> Element<'a> {
         // Parses the markdown description of the mod.
-        // FIXME: Update frostmark
-        let markdown_description = /*if let Some(_) = &self.description {
+        let markdown_description = if let Some(desc) = &self.description {
             column![MarkWidget::new(desc)
                 .on_clicking_link(Message::CoreOpenLink)
                 .on_drawing_image(|img| { images.view(img.url, img.width, img.height, "".into()) })
                 .on_updating_state(|n| Message::InstallMods(InstallModsMessage::TickDesc(n)))
                 .font(FONT_DEFAULT)
                 .font_mono(FONT_MONO)]
-        } else*/ {
+        } else {
             let dots = ".".repeat((tick_timer % 3) + 1);
             column!(widget::text!("Loading{dots}"))
         };

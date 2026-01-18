@@ -38,9 +38,7 @@ rfd = { version = "0.15", default-features = false, features = [
     "tokio",
 ] }
 clap = { version = "4", features = ["help", "derive"] }
-
-# Note: 5.1 not used because of MSRV
-zip = { version = "5.0.1", default-features = false, features = ["deflate"] }
+zip = { version = "7", default-features = false, features = ["deflate"] }
 
 walkdir = "2.3"
 image = { version = "0.24", default-features = false, features = [

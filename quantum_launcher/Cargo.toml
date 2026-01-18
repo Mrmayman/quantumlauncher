@@ -50,7 +50,7 @@ iced = { version = "0.14", default-features = false, features = [
     "wayland"
 ] }
 # The HTML/Markdown renderer
-# frostmark = { version = "0.2", features = ["markdown"] }
+frostmark = { version = "0.3", default-features = false, features = ["markdown"] }
 # For table widget, I don't need this
 # tabular = { git = "https://github.com/Mrmayman/tabular.git" }
 

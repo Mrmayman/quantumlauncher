@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use frostmark::MarkState;
 use iced::futures::executor::block_on;
 use iced::widget::text_editor;
 use iced::{widget::scrollable::AbsoluteOffset, Task};
@@ -19,7 +20,7 @@ mod presets;
 mod recommended;
 
 use crate::config::UiWindowDecorations;
-use crate::state::{InstanceNotes, MenuLaunch, NotesMessage};
+use crate::state::{InstanceNotes, MenuLaunch, MenuModsDownload, NotesMessage};
 use crate::{
     config::UiSettings,
     state::{
@@ -188,15 +189,15 @@ impl Launcher {
                 Ok(command) => return command,
                 Err(err) => self.set_error(err),
             },
-            // InstallModsMessage::TickDesc(update_msg) => {
-            //     if let State::ModsDownload(MenuModsDownload {
-            //         description: Some(description),
-            //         ..
-            //     }) = &mut self.state
-            //     {
-            //         description.update(update_msg);
-            //     }
-            // }
+            InstallModsMessage::TickDesc(update_msg) => {
+                if let State::ModsDownload(MenuModsDownload {
+                    description: Some(description),
+                    ..
+                }) = &mut self.state
+                {
+                    description.update(update_msg);
+                }
+            }
             InstallModsMessage::SearchInput(input) => {
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.query = input;
@@ -712,10 +713,10 @@ impl Launcher {
             NotesMessage::Loaded(res) => match res {
                 Ok(notes) => {
                     if let State::Launch(menu) = &mut self.state {
-                        // let mark_state = MarkState::with_html_and_markdown(&notes);
+                        let mark_state = MarkState::with_html_and_markdown(&notes);
                         menu.notes = Some(InstanceNotes::Viewing {
                             content: notes,
-                            // mark_state,
+                            mark_state,
                         });
                     }
                 }
@@ -751,7 +752,7 @@ impl Launcher {
                         let content = text_editor.text();
 
                         *notes = InstanceNotes::Viewing {
-                            // mark_state: MarkState::with_html_and_markdown(&content),
+                            mark_state: MarkState::with_html_and_markdown(&content),
                             content: content.clone(),
                         };
 
@@ -774,7 +775,7 @@ impl Launcher {
                 {
                     let content = notes.get_text();
                     *notes = InstanceNotes::Viewing {
-                        // mark_state: MarkState::with_html_and_markdown(content),
+                        mark_state: MarkState::with_html_and_markdown(content),
                         content: content.to_owned(),
                     }
                 }

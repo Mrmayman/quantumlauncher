@@ -6,6 +6,7 @@ use std::{
 use crate::{
     config::SIDEBAR_WIDTH, message_handler::get_locally_installed_mods, state::NotesMessage,
 };
+use frostmark::MarkState;
 use iced::{
     widget::{self, scrollable::AbsoluteOffset},
     Task,
@@ -52,7 +53,7 @@ impl std::fmt::Display for LaunchTabId {
 pub enum InstanceNotes {
     Viewing {
         content: String,
-        // mark_state: MarkState,
+        mark_state: MarkState,
     },
     Editing {
         original: String,
@@ -394,7 +395,7 @@ pub struct MenuLauncherUpdate {
 pub struct MenuModsDownload {
     pub query: String,
     pub results: Option<SearchResult>,
-    // pub description: Option<MarkState>,
+    pub description: Option<MarkState>,
     pub mod_descriptions: HashMap<ModId, String>,
     pub mods_download_in_progress: HashMap<ModId, String>,
     pub opened_mod: Option<usize>,
@@ -428,17 +429,17 @@ impl MenuModsDownload {
         else {
             return;
         };
-        // FIXME: Update frostmark
-        // let description = match results.backend {
-        //     StoreBackendType::Modrinth => MarkState::with_html_and_markdown(info),
-        //     StoreBackendType::Curseforge => MarkState::with_html(info), // Optimization, curseforge only has HTML
-        // };
-        // let imgs = description.find_image_links();
-        // self.description = Some(description);
 
-        // for img in imgs {
-        //     images.queue(&img);
-        // }
+        let description = match results.backend {
+            StoreBackendType::Modrinth => MarkState::with_html_and_markdown(info),
+            StoreBackendType::Curseforge => MarkState::with_html(info), // Optimization, curseforge only has HTML
+        };
+        let imgs = description.find_image_links();
+        self.description = Some(description);
+
+        for img in imgs {
+            images.queue(&img);
+        }
     }
 }
 
