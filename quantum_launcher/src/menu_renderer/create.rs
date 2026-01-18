@@ -171,7 +171,7 @@ impl MenuCreateInstanceChoosing {
         button_with_icon(icons::back_s(12), "Back", 13)
             .padding([4, 10])
             .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::RoundDark))
-            .on_press(Message::LaunchScreenOpen {
+            .on_press(Message::MScreenOpen {
                 message: None,
                 clear_selection: false,
                 is_server: Some(self.is_server),

@@ -24,7 +24,6 @@ impl MenuExportInstance {
                     checkbox(widget::text(name), *enabled, move |t| {
                         Message::ExportInstanceToggleItem(i, t)
                     })
-                    .into()
                 }))
                 .padding(5)
             } else {

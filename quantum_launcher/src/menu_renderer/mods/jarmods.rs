@@ -134,7 +134,6 @@ impl MenuEditJarMods {
                             ))
                         },
                     )
-                    .into()
                 })
             })
             .padding(10)

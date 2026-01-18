@@ -1,5 +1,14 @@
 use std::path::Path;
 
+use crate::{
+    config::{UiSettings, UiWindowDecorations},
+    state::{
+        self, GameLogMessage, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage,
+        InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsMessage,
+        MenuCurseforgeManualDownload, MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper,
+        MenuLaunch, MenuModsDownload, Message, ModOperation, NotesMessage, ProgressBar, State,
+    },
+};
 use frostmark::MarkState;
 use iced::futures::executor::block_on;
 use iced::widget::text_editor;
@@ -16,16 +25,6 @@ mod edit_instance;
 mod manage_mods;
 mod presets;
 mod recommended;
-
-use crate::{
-    config::{UiSettings, UiWindowDecorations},
-    state::{
-        self, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage,
-        InstallPaperMessage, Launcher, LauncherSettingsMessage, MenuCurseforgeManualDownload,
-        MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, Message, ProgressBar, State,
-        GameLogMessage, InstanceNotes, MenuLaunch, MenuModsDownload, ModOperation, NotesMessage,
-    },
-};
 
 pub const MSG_RESIZE: &str = "Resize your window to apply the changes.";
 
@@ -717,24 +716,24 @@ impl Launcher {
 
     /*pub fn update_window_msg(&mut self, msg: WindowMessage) -> Task<Message> {
         match msg {
-            WindowMessage::Dragged => iced::window::get_latest().and_then(iced::window::drag),
-            // WindowMessage::Resized(dir) => {
-            //     return iced::window::get_latest()
-            //         .and_then(move |id| iced::window::drag_resize(id, dir));
-            // }
-            WindowMessage::ClickMinimize => {
-                iced::window::get_latest().and_then(|id| iced::window::minimize(id, true))
+            WindowMessage::Dragged => iced::window::latest().and_then(iced::window::drag),
+            WindowMessage::Resized(dir) => {
+                return iced::window::latest()
+                    .and_then(move |id| iced::window::drag_resize(id, dir));
             }
-            WindowMessage::ClickMaximize => iced::window::get_latest().and_then(|id| {
-                iced::window::get_maximized(id)
+            WindowMessage::ClickMinimize => {
+                iced::window::latest().and_then(|id| iced::window::minimize(id, true))
+            }
+            WindowMessage::ClickMaximize => iced::window::latest().and_then(|id| {
+                iced::window::is_maximized(id)
                     .map(Some)
                     .and_then(move |max| iced::window::maximize(id, !max))
             }),
             WindowMessage::ClickClose => std::process::exit(0),
-            // WindowMessage::IsMaximized(n) => {
-            //     self.window_state.is_maximized = n;
-            //     Task::none()
-            // }
+            WindowMessage::IsMaximized(n) => {
+                self.window_state.is_maximized = n;
+                Task::none()
+            }
         }
     }*/
 

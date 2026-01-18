@@ -8,8 +8,8 @@ use std::{
 use iced::Task;
 use notify::Watcher;
 use ql_core::{
-    err, err_no_log, file_utils, read_log::LogLine, GenericProgress, InstanceSelection,
-    IntoIoError, IntoStringError, IoError, JsonFileError, LaunchedProcess, ModId, Progress, LAUNCHER_DIR,
+    err, file_utils, read_log::LogLine, GenericProgress, InstanceSelection, IntoIoError,
+    IntoStringError, IoError, LaunchedProcess, ModId, Progress, LAUNCHER_DIR,
     LAUNCHER_VERSION_NAME,
 };
 use ql_instances::auth::{ms::CLIENT_ID, AccountData, AccountType};
@@ -94,7 +94,18 @@ pub enum AutoSaveKind {
 pub struct WindowState {
     pub size: (f32, f32),
     pub mouse_pos: (f32, f32),
-    // pub is_maximized: bool,
+    #[allow(unused)]
+    pub is_maximized: bool,
+}
+
+impl WindowState {
+    pub fn new(width: f32, height: f32) -> Self {
+        Self {
+            size: (width, height),
+            mouse_pos: (0.0, 0.0),
+            is_maximized: false,
+        }
+    }
 }
 
 pub struct CustomJarState {
@@ -175,10 +186,7 @@ impl Launcher {
             accounts,
             accounts_dropdown,
 
-            window_state: WindowState {
-                size: (window_width, window_height),
-                mouse_pos: (0.0, 0.0),
-            },
+            window_state: WindowState::new(window_width, window_height),
             accounts_selected: Some(selected_account),
 
             client_list: None,
@@ -255,10 +263,7 @@ impl Launcher {
             mod_updates_checked: HashMap::new(),
 
             images: ImageState::default(),
-            window_state: WindowState {
-                size: (window_width, window_height),
-                mouse_pos: (0.0, 0.0),
-            },
+            window_state: WindowState::new(window_width, window_height),
             autosave: HashSet::new(),
             accounts_dropdown: vec![OFFLINE_ACCOUNT_NAME.to_owned(), NEW_ACCOUNT_NAME.to_owned()],
             accounts_selected: Some(OFFLINE_ACCOUNT_NAME.to_owned()),

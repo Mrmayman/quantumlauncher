@@ -128,7 +128,7 @@ impl MenuModsDownload {
                     self.mods_download_in_progress
                         .values()
                         .map(|(title, operation)| {
-                            const SIZE: u16 = 12;
+                            const SIZE: u32 = 12;
                             widget::container(
                                 widget::row![
                                     match operation {

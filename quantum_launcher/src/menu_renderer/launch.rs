@@ -10,7 +10,7 @@ use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
 use crate::cli::EXPERIMENTAL_SERVERS;
 use crate::menu_renderer::onboarding::x86_warning;
 use crate::menu_renderer::{ctx_button, ctxbox, tsubtitle, underline, underline_maybe, FONT_MONO};
-use crate::state::{GameLogMessage, InstanceNotes, LaunchModal, NotesMessage, WindowMessage};
+use crate::state::{GameLogMessage, InstanceNotes, LaunchModal, NotesMessage};
 use crate::{
     icons,
     menu_renderer::DISCORD,
@@ -100,31 +100,33 @@ impl Launcher {
             .into()
         };
 
-        widget::stack!(widget::column![
-            menu.get_tab_selector(decor),
-            view_info_message(menu),
-            widget::container(tab_body)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .style(|t: &LauncherTheme| t.style_container_bg(0.0, None)),
-        ],
-        menu.modal.as_ref().map(|n| {
-            match n {
-                LaunchModal::InstanceOptions => widget::column![
-                    widget::vertical_space(),
-                    ctxbox(
-                        widget::column![
-                            ctx_button("Export Instance").on_press(Message::ExportInstanceOpen),
-                            ctx_button("Create Shortcut").on_press(Message::Nothing),
-                        ]
-                        .spacing(5)
-                    )
-                    .width(150),
-                    widget::Space::with_height(30)
-                ]
-                .padding(12),
-            }
-        }))
+        widget::stack!(
+            widget::column![
+                menu.get_tab_selector(decor),
+                view_info_message(menu),
+                widget::container(tab_body)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .style(|t: &LauncherTheme| t.style_container_bg(0.0, None)),
+            ],
+            menu.modal.as_ref().map(|n| {
+                match n {
+                    LaunchModal::InstanceOptions => widget::column![
+                        widget::space().height(Length::Fill),
+                        ctxbox(
+                            widget::column![
+                                ctx_button("Export Instance").on_press(Message::ExportInstanceOpen),
+                                ctx_button("Create Shortcut").on_press(Message::Nothing),
+                            ]
+                            .spacing(5)
+                        )
+                        .width(150),
+                        widget::space().height(30)
+                    ]
+                    .padding(12),
+                }
+            })
+        )
         .into()
     }
 
@@ -343,7 +345,7 @@ impl Launcher {
                         })
                         .on_press_maybe((!is_selected).then(|| {
                             Message::LaunchInstanceSelected(InstanceSelection::new(
-                                &name,
+                                name,
                                 menu.is_viewing_server,
                             ))
                         }))

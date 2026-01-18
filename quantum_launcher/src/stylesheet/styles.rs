@@ -107,9 +107,9 @@ impl From<iced::theme::Mode> for LauncherThemeLightness {
     }
 }
 
-impl Into<iced::theme::Mode> for LauncherThemeLightness {
-    fn into(self) -> iced::theme::Mode {
-        match self {
+impl From<LauncherThemeLightness> for iced::theme::Mode {
+    fn from(val: LauncherThemeLightness) -> Self {
+        match val {
             LauncherThemeLightness::Light => iced::theme::Mode::Light,
             LauncherThemeLightness::Dark => iced::theme::Mode::Dark,
             LauncherThemeLightness::Auto => iced::theme::Mode::None,

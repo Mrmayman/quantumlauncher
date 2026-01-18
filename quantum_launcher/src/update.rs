@@ -458,7 +458,7 @@ impl Launcher {
             .config
             .ui_mode
             .is_none_or(|n| n == LauncherThemeLightness::Auto);
-        let interval = self.tick_timer % INTERVAL == 0;
+        let interval = self.tick_timer.is_multiple_of(INTERVAL);
 
         if is_auto_theme && interval {
             Task::perform(tokio::task::spawn_blocking(dark_light::detect), |n| {

@@ -161,7 +161,7 @@ impl Launcher {
     }
 
     pub fn autosave_config(&mut self) -> Task<Message> {
-        if self.tick_timer % 5 == 0 && self.autosave.insert(AutoSaveKind::LauncherConfig) {
+        if self.tick_timer.is_multiple_of(5) && self.autosave.insert(AutoSaveKind::LauncherConfig) {
             let launcher_config = self.config.clone();
             Task::perform(
                 async move { launcher_config.save().await.strerr() },

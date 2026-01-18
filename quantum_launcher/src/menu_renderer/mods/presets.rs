@@ -123,7 +123,6 @@ Modrinth/Curseforge modpack"
                         ),
                     },
                 )
-                .into()
             } else {
                 widget::text!(" - (DEPENDENCY) {}", entry.name())
                     .shaping(widget::text::Shaping::Advanced)
@@ -164,20 +163,19 @@ impl MenuRecommendedMods {
                                 crate::state::RecommendedModMessage::Download
                             )),
                         widget::column(mods.iter().enumerate().map(|(i, (e, n))| {
-                            let elem: Element = checkbox(n.name, *e, move |n| {
-                                    Message::RecommendedMods(crate::state::RecommendedModMessage::Toggle(
-                                        i, n,
-                                    ))
-                                })
-                                .into();
-                            column!(
+                            let elem = checkbox(n.name, *e, move |n| {
+                                Message::RecommendedMods(crate::state::RecommendedModMessage::Toggle(
+                                    i, n,
+                                ))
+                            });
+                            column![
                                 elem,
                                 widget::text(n.description)
                                     .shaping(widget::text::Shaping::Advanced)
                                     .size(12)
-                            )
-                                .spacing(5)
-                                .into()
+                            ]
+                            .spacing(5)
+                            .into()
                         }))
                         .spacing(10)
                     )

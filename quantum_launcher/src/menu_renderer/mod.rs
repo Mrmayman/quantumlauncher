@@ -247,7 +247,7 @@ impl MenuLauncherUpdate {
                     button_with_icon(icons::download(), "Download", 16)
                         .on_press(Message::UpdateDownloadStart)),
                 back_button().on_press(
-                    Message::LaunchScreenOpen {
+                    Message::MScreenOpen {
                         message: None,
                         clear_selection: false,
                         is_server: None

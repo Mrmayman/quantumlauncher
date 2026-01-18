@@ -193,7 +193,7 @@ impl LauncherConfig {
 
     pub fn c_window_size(&self) -> (f32, f32) {
         let window = self.window.clone().unwrap_or_default();
-        let scale = self.ui_scale.unwrap_or(1.0) as f32;
+        let scale = self.ui_scale.unwrap_or(1.0);
         let window_width = window
             .width
             .filter(|_| window.save_window_size)

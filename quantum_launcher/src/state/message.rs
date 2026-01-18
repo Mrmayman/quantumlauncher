@@ -214,16 +214,16 @@ pub enum RecommendedModMessage {
     DownloadEnd(Res<HashSet<CurseforgeNotAllowed>>),
 }
 
-#[derive(Debug, Clone)]
+/*#[derive(Debug, Clone)]
 pub enum WindowMessage {
     Dragged,
     // HOOK: Decorations
-    // Resized(iced::window::Direction),
+    Resized(iced::window::Direction),
     ClickClose,
     ClickMinimize,
     ClickMaximize,
-    // IsMaximized(bool),
-}
+    IsMaximized(bool),
+}*/
 
 #[allow(unused)]
 #[derive(Debug, Clone)]
@@ -368,8 +368,7 @@ pub enum Message {
     LauncherSettings(LauncherSettingsMessage),
     Notes(NotesMessage),
     GameLog(GameLogMessage),
-    Window(WindowMessage),
-
+    // Window(WindowMessage),
     ManageMods(ManageModsMessage),
     ManageJarMods(ManageJarModsMessage),
     InstallMods(InstallModsMessage),

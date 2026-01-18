@@ -5,17 +5,18 @@ use iced::{
 };
 use ql_core::{InstanceSelection, Loader, SelectedMod};
 
+use crate::menu_renderer::ctx_button;
 use crate::{
     icons,
     menu_renderer::{
-        back_button, back_to_launch_screen, button_with_icon, tooltip, Element,
-        ui::checkbox, ctxbox, dots, select_box, subbutton_with_icon, tsubtitle, FONT_MONO
+        back_button, back_to_launch_screen, button_with_icon, ctxbox, dots, select_box,
+        subbutton_with_icon, tooltip, tsubtitle, ui::checkbox, Element, FONT_MONO,
     },
     message_handler::ForgeKind,
     state::{
-        EditPresetsMessage, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage,
-        ManageJarModsMessage, ManageModsMessage, MenuEditMods, Message, ModListEntry,
-        SelectedState, ImageState, InstallPaperMessage, MenuEditModsModal,
+        EditPresetsMessage, ImageState, InstallFabricMessage, InstallModsMessage,
+        InstallOptifineMessage, InstallPaperMessage, ManageJarModsMessage, ManageModsMessage,
+        MenuEditMods, MenuEditModsModal, Message, ModListEntry, SelectedState,
     },
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
@@ -198,7 +199,6 @@ impl MenuEditMods {
                             checkbox(widget::text(text).size(12), *is_enabled, move |b| {
                                 Message::ManageMods(ManageModsMessage::UpdateCheckToggle(i, b))
                             })
-                            .into()
                         }
                     ))
                     .spacing(10),
