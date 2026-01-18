@@ -43,6 +43,13 @@ const PADDING_NOT_BOTTOM: iced::Padding = iced::Padding {
     right: 10.0,
 };
 
+fn ctx_button(e: &'_ str) -> widget::Button<'_, Message, LauncherTheme> {
+    widget::button(widget::text(e).size(13))
+        .width(Length::Fill)
+        .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::FlatDark))
+        .padding(2)
+}
+
 pub fn checkered_list<'a, Item: Into<Element<'a>>>(
     children: impl IntoIterator<Item = Item>,
 ) -> widget::Column<'a, Message, LauncherTheme> {
@@ -233,7 +240,7 @@ impl MenuLauncherUpdate {
                 .padding(10)
                 .into();
         }
-        column!(
+        column![
             "A new launcher update has been found! Do you want to download it?",
             widget::row![
                 (!cfg!(target_os = "macos")).then_some(
@@ -251,12 +258,12 @@ impl MenuLauncherUpdate {
             ].spacing(5).wrap(),
             // WARN: Auto update configurations
             cfg!(target_os = "linux").then_some(
-                column!(
+                column![
                     "If you installed this launcher from a package manager/store (flatpak/apt/dnf/pacman/..) then update from there",
                     "If you downloaded it from website then it's fine."
-                )
+                ]
             )
-        )
+        ]
         .padding(10)
         .spacing(10)
         .into()
@@ -300,7 +307,7 @@ pub fn get_mode_selector(config: &LauncherConfig) -> Element<'static> {
 }
 
 fn back_to_launch_screen(is_server: Option<bool>, message: Option<String>) -> Message {
-    Message::LaunchScreenOpen {
+    Message::MScreenOpen {
         message,
         clear_selection: false,
         is_server,

@@ -129,7 +129,7 @@ fn print_censored_args(auth: Option<&AccountData>, game_arguments: &mut Vec<Stri
                                 .and_then(|n| n.access_token.clone())
                                 .unwrap_or_default(),
                             |args| {
-                                info!("Game args: {args:?}\n");
+                                info!("Game args: {:?}\n", args);
                             },
                         );
                     });
@@ -137,7 +137,7 @@ fn print_censored_args(auth: Option<&AccountData>, game_arguments: &mut Vec<Stri
             });
         });
     } else {
-        info!("Game args: {game_arguments:?}\n");
+        info!("Game args: {:?}\n", game_arguments);
     }
 }
 

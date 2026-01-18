@@ -133,7 +133,7 @@ impl Launcher {
             State::LauncherSettings(menu) => menu.view(&self.config),
             State::InstallPaper(menu) => menu.view(self.tick_timer),
             State::ChangeLog => {
-                let back_msg = Message::LaunchScreenOpen {
+                let back_msg = Message::MScreenOpen {
                     message: None,
                     clear_selection: true,
                     is_server: None,

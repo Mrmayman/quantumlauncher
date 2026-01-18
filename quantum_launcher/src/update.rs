@@ -1,8 +1,5 @@
 use iced::{futures::executor::block_on, Task};
-use ql_core::{
-    err, err_no_log, file_utils::DirItem, info_no_log, InstanceSelection, IntoIoError,
-    IntoStringError,
-};
+use ql_core::{err, file_utils::DirItem, info, InstanceSelection, IntoIoError, IntoStringError};
 use std::fmt::Write;
 use tokio::io::AsyncWriteExt;
 
@@ -12,7 +9,7 @@ use owo_colors::OwoColorize;
 use crate::{
     message_handler::{SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
     state::{
-        AutoSaveKind, CustomJarState, GameProcess, LaunchTabId, Launcher, LauncherSettingsMessage,
+        AutoSaveKind, CustomJarState, GameProcess, LaunchTab, Launcher, LauncherSettingsMessage,
         ManageModsMessage, MenuExportInstance, MenuLaunch, MenuLicense, MenuWelcome, Message,
         ProgressBar, State,
     },
@@ -37,7 +34,7 @@ impl Launcher {
                     && (self.key_escape_back(false).0 || matches!(self.state, State::Launch(_)));
 
                 if safe_to_exit {
-                    info_no_log!("CTRL-Q pressed, closing launcher...");
+                    info!(no_log, "CTRL-Q pressed, closing launcher...");
                     std::process::exit(1);
                 }
             }
@@ -49,7 +46,7 @@ impl Launcher {
             }
 
             Message::CoreCleanComplete(Err(err)) => {
-                err_no_log!("{err}");
+                err!(no_log, "{err}");
             }
 
             Message::UninstallLoaderEnd(Err(err))
@@ -71,10 +68,10 @@ impl Launcher {
             Message::RecommendedMods(msg) => return self.update_recommended_mods(msg),
             // Message::Window(msg) => return self.update_window_msg(msg),
             Message::Notes(msg) => return self.update_notes(msg),
+            Message::GameLog(msg) => return self.update_game_log(msg),
 
-            Message::LaunchInstanceSelected { name, is_server } => {
-                let inst = InstanceSelection::new(&name, is_server);
-                self.selected_instance = Some(inst.clone());
+            Message::LaunchInstanceSelected(inst) => {
+                self.selected_instance = Some(inst);
                 return self.on_instance_selected();
             }
             Message::LauncherSettings(msg) => return self.update_launcher_settings(msg),
@@ -91,7 +88,7 @@ impl Launcher {
             Message::DeleteInstanceMenu => self.go_to_delete_instance_menu(),
             Message::DeleteInstance => return self.delete_instance_confirm(),
 
-            Message::LaunchScreenOpen {
+            Message::MScreenOpen {
                 message,
                 clear_selection,
                 is_server,
@@ -187,43 +184,11 @@ impl Launcher {
                 self.set_game_exited(status, &instance, diagnostic);
             }
             Message::LaunchKill => return self.kill_selected_instance(),
-            Message::LaunchCopyLog => {
-                let instance = self.instance();
-                if let Some(log) = self.logs.get(instance) {
-                    return iced::clipboard::write(log.log.join(""));
-                }
-            }
-            Message::LaunchUploadLog => {
-                if let State::Launch(menu) = &mut self.state {
-                    menu.is_uploading_mclogs = true;
-                }
 
-                let instance = self.instance();
-
-                if let Some(log) = self.logs.get(instance) {
-                    let log_content = log.log.join("");
-                    if !log_content.trim().is_empty() {
-                        return Task::perform(
-                            crate::mclog_upload::upload_log(log_content),
-                            |res| Message::LaunchUploadLogResult(res.strerr()),
-                        );
-                    }
-                }
-            }
-            Message::LaunchUploadLogResult(result) => match result {
-                Ok(url) => {
-                    self.state = State::LogUploadResult { url };
-                }
-                Err(error) => {
-                    self.state = State::Error {
-                        error: format!("Failed to upload log: {error}"),
-                    };
-                }
-            },
             #[cfg(feature = "auto_update")]
             Message::UpdateCheckResult(res) => match res {
                 Ok(ql_instances::UpdateCheckInfo::UpToDate) => {
-                    ql_core::pt_no_log!("{}", "Latest version".bright_black());
+                    ql_core::pt!(no_log, "{}", "Latest version".bright_black());
                 }
                 Ok(ql_instances::UpdateCheckInfo::NewVersion { url }) => {
                     self.state = State::UpdateFound(crate::state::MenuLauncherUpdate {
@@ -232,7 +197,7 @@ impl Launcher {
                     });
                 }
                 Err(err) => {
-                    ql_core::pt_no_log!("{}", err.bright_black());
+                    ql_core::pt!(no_log, "{}", err.bright_black());
                 }
             },
             #[cfg(feature = "auto_update")]
@@ -296,7 +261,7 @@ impl Launcher {
                 self.state = State::GenericMessage(msg);
             }
             Message::CoreEvent(event, status) => return self.iced_event(event, status),
-            Message::LaunchChangeTab(launch_tab_id) => {
+            Message::MChangeTab(launch_tab_id) => {
                 self.load_edit_instance(Some(launch_tab_id));
             }
             Message::CoreLogToggle => {
@@ -311,20 +276,7 @@ impl Launcher {
             Message::CoreLogScrollAbsolute(lines) => {
                 self.log_scroll = lines;
             }
-            Message::LaunchLogScroll(lines) => {
-                if let State::Launch(MenuLaunch { log_scroll, .. }) = &mut self.state {
-                    let new_scroll = *log_scroll - lines;
-                    if new_scroll >= 0 {
-                        *log_scroll = new_scroll;
-                    }
-                }
-            }
-            Message::LaunchLogScrollAbsolute(lines) => {
-                if let State::Launch(MenuLaunch { log_scroll, .. }) = &mut self.state {
-                    *log_scroll = lines;
-                }
-            }
-            Message::LaunchSidebarResize(ratio) => {
+            Message::MSidebarResize(ratio) => {
                 if let State::Launch(menu) = &mut self.state {
                     // self.autosave.remove(&AutoSaveKind::LauncherConfig);
                     let window_width = self.window_state.size.0;
@@ -335,7 +287,7 @@ impl Launcher {
                     );
                 }
             }
-            Message::LaunchSidebarScroll(total) => {
+            Message::MSidebarScroll(total) => {
                 if let State::Launch(MenuLaunch {
                     sidebar_scrolled: sidebar_height,
                     ..
@@ -467,6 +419,15 @@ impl Launcher {
             Message::CoreFocusNext => {
                 return iced::widget::operation::focus_next();
             }
+            Message::MModal(m) => {
+                if let State::Launch(menu) = &mut self.state {
+                    menu.modal = match (m, menu.modal) {
+                        // Unset if you click on it again
+                        (Some(m), Some(n)) if m == n => None,
+                        (m, _) => m,
+                    }
+                }
+            }
         }
         Task::none()
     }
@@ -510,7 +471,7 @@ impl Launcher {
         }
     }
 
-    pub fn load_edit_instance(&mut self, new_tab: Option<LaunchTabId>) {
+    pub fn load_edit_instance(&mut self, new_tab: Option<LaunchTab>) {
         if let State::Launch(_) = &self.state {
         } else {
             _ = self.go_to_main_menu_with_message(None::<String>);
@@ -520,7 +481,7 @@ impl Launcher {
             tab, edit_instance, ..
         }) = &mut self.state
         {
-            if let (LaunchTabId::Edit, Some(selected_instance)) =
+            if let (LaunchTab::Edit, Some(selected_instance)) =
                 (new_tab.unwrap_or(*tab), self.selected_instance.as_ref())
             {
                 if let Err(err) = Self::load_edit_instance_inner(edit_instance, selected_instance) {

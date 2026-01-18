@@ -29,25 +29,31 @@ use crate::state::ImageState;
 use super::{ManageModsMessage, Message, ProgressBar};
 
 #[derive(Clone, PartialEq, Eq, Debug, Default, Copy)]
-pub enum LaunchTabId {
+pub enum LaunchTab {
     #[default]
     Buttons,
     Log,
     Edit,
 }
 
-impl std::fmt::Display for LaunchTabId {
+impl std::fmt::Display for LaunchTab {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}",
             match self {
-                LaunchTabId::Buttons => "Play",
-                LaunchTabId::Log => "Logs",
-                LaunchTabId::Edit => "Edit",
+                LaunchTab::Buttons => "Play",
+                LaunchTab::Log => "Logs",
+                LaunchTab::Edit => "Edit",
             }
         )
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LaunchModal {
+    InstanceOptions,
+    // More in the future
 }
 
 pub enum InstanceNotes {
@@ -74,9 +80,10 @@ impl InstanceNotes {
 pub struct MenuLaunch {
     pub message: String,
     pub login_progress: Option<ProgressBar<GenericProgress>>,
-    pub tab: LaunchTabId,
+    pub tab: LaunchTab,
     pub edit_instance: Option<MenuEditInstance>,
     pub notes: Option<InstanceNotes>,
+    pub modal: Option<LaunchModal>,
 
     pub sidebar_scrolled: f32,
     pub sidebar_grid_state: widget::pane_grid::State<bool>,
@@ -106,7 +113,7 @@ impl MenuLaunch {
         };
         Self {
             message,
-            tab: LaunchTabId::default(),
+            tab: LaunchTab::default(),
             edit_instance: None,
             login_progress: None,
             sidebar_scrolled: 100.0,
@@ -116,6 +123,7 @@ impl MenuLaunch {
             is_uploading_mclogs: false,
             sidebar_split,
             notes: None,
+            modal: None,
         }
     }
 
@@ -392,12 +400,18 @@ pub struct MenuLauncherUpdate {
     pub progress: Option<ProgressBar<GenericProgress>>,
 }
 
+#[derive(Clone, Copy)]
+pub enum ModOperation {
+    Downloading,
+    Deleting,
+}
+
 pub struct MenuModsDownload {
     pub query: String,
     pub results: Option<SearchResult>,
     pub description: Option<MarkState>,
     pub mod_descriptions: HashMap<ModId, String>,
-    pub mods_download_in_progress: HashMap<ModId, String>,
+    pub mods_download_in_progress: HashMap<ModId, (String, ModOperation)>,
     pub opened_mod: Option<usize>,
     pub latest_load: Instant,
     pub scroll_offset: AbsoluteOffset,

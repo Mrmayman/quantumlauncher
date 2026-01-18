@@ -55,6 +55,7 @@ impl Launcher {
             }
         }
         if let State::Launch(menu) = &mut self.state {
+            menu.modal = None;
             menu.reload_notes(instance)
         } else {
             Task::none()
@@ -586,7 +587,7 @@ impl Launcher {
             ),
             msg2: "All your data, including worlds, will be lost".to_owned(),
             yes: Message::DeleteInstance,
-            no: Message::LaunchScreenOpen {
+            no: Message::MScreenOpen {
                 message: None,
                 clear_selection: false,
                 is_server: None,

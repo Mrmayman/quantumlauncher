@@ -87,10 +87,11 @@ jobs:
           else
             ARCH=arm_aarch64 appimagetool AppDir ${{ env.BIN_NAME }}.AppImage
           fi
-          cp ${{ env.BIN_NAME }}.AppImage dist
+          mkdir -p dist
+          cp ${{ env.BIN_NAME }}.AppImage dist/
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: quantum-launcher-${{ matrix.final_name }}
           path: dist

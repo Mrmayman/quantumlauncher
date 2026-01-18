@@ -1,9 +1,7 @@
 use std::sync::mpsc::Sender;
 
 use chrono::DateTime;
-use ql_core::{
-    do_jobs, info_no_log, json::VersionDetails, GenericProgress, InstanceSelection, Loader,
-};
+use ql_core::{do_jobs, info, json::VersionDetails, GenericProgress, InstanceSelection, Loader};
 
 use crate::store::get_latest_version_date;
 
@@ -30,7 +28,7 @@ pub async fn check_for_updates(
     if let Loader::OptiFine = loader {
         return Ok(Vec::new());
     }
-    info_no_log!("Checking for mod updates (loader: {loader})");
+    info!(no_log, "Checking for mod updates (loader: {loader})");
 
     let version = version_json.get_id();
 
@@ -55,9 +53,9 @@ pub async fn check_for_updates(
     let updated_mods: Vec<(ModId, String)> = updated_mods?.into_iter().flatten().collect();
 
     if updated_mods.is_empty() {
-        info_no_log!("No mod updates found");
+        info!(no_log, "No mod updates found");
     } else {
-        info_no_log!("Found mod updates");
+        info!(no_log, "Found mod updates");
     }
 
     Ok(updated_mods)

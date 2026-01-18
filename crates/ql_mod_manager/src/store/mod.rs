@@ -156,8 +156,8 @@ pub enum QueryType {
     ResourcePacks,
     Shaders,
     ModPacks,
+    DataPacks,
     // TODO:
-    // DataPacks,
     // Plugins,
 }
 
@@ -171,17 +171,30 @@ impl Display for QueryType {
                 QueryType::ResourcePacks => "Resource Packs",
                 QueryType::Shaders => "Shaders",
                 QueryType::ModPacks => "Modpacks",
+                QueryType::DataPacks => "Data Packs",
             }
         )
     }
 }
 
 impl QueryType {
-    pub const ALL: &'static [Self] = &[
+    // use this for the store since datapacks cant be installed globally,
+    // only pre worlds, since you need to copy the datapack file into each world
+    // once the launcher have support for installing datapacks properly delete this
+    // and use ALL in the store too.
+    pub const STORE_QUERIES: &'static [Self] = &[
         Self::Mods,
         Self::ResourcePacks,
         Self::Shaders,
         Self::ModPacks,
+    ];
+
+    pub const ALL: &'static [Self] = &[
+        Self::DataPacks,
+        Self::ResourcePacks,
+        Self::ModPacks,
+        Self::Mods,
+        Self::Shaders,
     ];
 
     #[must_use]
@@ -191,6 +204,7 @@ impl QueryType {
             QueryType::ResourcePacks => "resourcepack",
             QueryType::Shaders => "shader",
             QueryType::ModPacks => "modpack",
+            QueryType::DataPacks => "datapack",
         }
     }
 
@@ -201,6 +215,7 @@ impl QueryType {
             "resourcepack" => Some(QueryType::ResourcePacks),
             "shader" => Some(QueryType::Shaders),
             "modpack" => Some(QueryType::ModPacks),
+            "datapack" => Some(QueryType::DataPacks),
             _ => None,
         }
     }
@@ -212,6 +227,7 @@ impl QueryType {
             QueryType::ResourcePacks => "texture-packs",
             QueryType::Shaders => "shaders",
             QueryType::ModPacks => "modpacks",
+            QueryType::DataPacks => "data-packs",
         }
     }
 
@@ -222,6 +238,7 @@ impl QueryType {
             "texture-packs" => Some(QueryType::ResourcePacks),
             "shaders" => Some(QueryType::Shaders),
             "modpacks" => Some(QueryType::ModPacks),
+            "data-packs" => Some(QueryType::DataPacks),
             _ => None,
         }
     }
@@ -255,10 +272,17 @@ pub struct SearchMod {
     pub icon_url: String,
 }
 
+impl SearchMod {
+    pub fn get_id(&self, backend: StoreBackendType) -> ModId {
+        ModId::from_pair(&self.id, backend)
+    }
+}
+
 struct DirStructure {
     mods: PathBuf,
     resource_packs: PathBuf,
     shaders: PathBuf,
+    data_packs: PathBuf,
 }
 
 impl DirStructure {
@@ -271,6 +295,14 @@ impl DirStructure {
         const V1_6_1: &str = "2013-06-08T00:32:01+00:00";
 
         let dot_minecraft_dir = instance_name.get_dot_minecraft_path();
+
+        // this doesn't get loaded by default but there are datapack loader mods
+        // that are used my modpacks that want to include datapacks.
+        // for example https://modrinth.com/mod/dataloader
+        let data_packs = dot_minecraft_dir.join("datapacks");
+        tokio::fs::create_dir_all(&data_packs)
+            .await
+            .path(&data_packs)?;
 
         let resource_packs = if version_json.is_before_or_eq(V1_6_1) {
             "texturepacks"
@@ -286,17 +318,22 @@ impl DirStructure {
         let shaders = dot_minecraft_dir.join("shaderpacks");
         tokio::fs::create_dir_all(&shaders).await.path(&shaders)?;
 
+        let mods = dot_minecraft_dir.join("mods");
+        tokio::fs::create_dir_all(&mods).await.path(&mods)?;
+
         Ok(Self {
-            mods: dot_minecraft_dir.join("mods"),
+            mods,
             resource_packs,
             shaders,
+            data_packs,
         })
     }
 
     pub fn get(&self, query_type: QueryType) -> Result<PathBuf, PackError> {
         Ok(match query_type {
-            QueryType::Mods => self.mods.clone(),
+            QueryType::DataPacks => self.data_packs.clone(),
             QueryType::ResourcePacks => self.resource_packs.clone(),
+            QueryType::Mods => self.mods.clone(),
             QueryType::Shaders => self.shaders.clone(),
             QueryType::ModPacks => return Err(PackError::ModpackInModpack),
         })

@@ -3,10 +3,21 @@ use std::{
     time::{Duration, Instant},
 };
 
+use ql_core::info;
 use tokio::sync::Mutex;
 
 pub static RATE_LIMITER: LazyLock<RateLimiter> = LazyLock::new(RateLimiter::default);
-pub static MOD_DOWNLOAD_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+pub async fn lock() -> tokio::sync::MutexGuard<'static, ()> {
+    static MOD_DOWNLOAD_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+    // Download one mod at a time
+    if let Ok(g) = MOD_DOWNLOAD_LOCK.try_lock() {
+        g
+    } else {
+        info!("Another mod is already being installed... Waiting...");
+        MOD_DOWNLOAD_LOCK.lock().await
+    }
+}
 
 pub struct RateLimiter {
     last_executed: Mutex<Instant>,

@@ -1,7 +1,7 @@
 use iced::{futures::executor::block_on, keyboard::Modifiers};
 use iced::{widget, Task};
 use ql_core::{
-    err, err_no_log, jarmod::JarMods, InstanceSelection, IntoIoError, IntoStringError, ModId,
+    err, jarmod::JarMods, InstanceSelection, IntoIoError, IntoStringError, ModId,
     SelectedMod,
 };
 use ql_mod_manager::store::ModIndex;
@@ -163,7 +163,7 @@ impl Launcher {
                             menu.available_updates = available_updates;
                         }
                         Err(err) => {
-                            err_no_log!("Could not check for updates: {err}");
+                            err!(no_log, "Could not check for updates: {err}");
                         }
                     }
                 }

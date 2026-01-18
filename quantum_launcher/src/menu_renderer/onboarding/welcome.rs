@@ -95,7 +95,7 @@ impl MenuWelcome {
                     widget::button(center_x("Continue"))
                         .width(200)
                         .on_press_maybe((!config.username.is_empty()).then_some(
-                            Message::LaunchScreenOpen {
+                            Message::MScreenOpen {
                                 message: None,
                                 clear_selection: true,
                                 is_server: Some(false)

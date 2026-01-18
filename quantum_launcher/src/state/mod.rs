@@ -9,7 +9,7 @@ use iced::Task;
 use notify::Watcher;
 use ql_core::{
     err, err_no_log, file_utils, read_log::LogLine, GenericProgress, InstanceSelection,
-    IntoIoError, IntoStringError, IoError, LaunchedProcess, ModId, Progress, LAUNCHER_DIR,
+    IntoIoError, IntoStringError, IoError, JsonFileError, LaunchedProcess, ModId, Progress, LAUNCHER_DIR,
     LAUNCHER_VERSION_NAME,
 };
 use ql_instances::auth::{ms::CLIENT_ID, AccountData, AccountType};
@@ -153,7 +153,7 @@ impl Launcher {
             launch
         } else {
             if let Err(err) = migration(version) {
-                err_no_log!("{err}")
+                err!(no_log, "{err}")
             }
             config.version = Some(LAUNCHER_VERSION_NAME.to_owned());
             State::ChangeLog

@@ -8,9 +8,42 @@ use std::{
 use chrono::{Datelike, Timelike};
 use regex::Regex;
 
-use crate::{eeprintln, file_utils};
+use crate::{eeprintln, file_utils, REDACT_SENSITIVE_INFO};
 
 pub mod macros;
+
+/// Censor username for privacy
+pub static REDACTION_USERNAME: LazyLock<(Vec<String>, String)> = LazyLock::new(|| {
+    if let Some(home_dir) = dirs::home_dir() {
+        if let (Some(home_str), Some(username)) = (
+            home_dir.to_str(),
+            home_dir.file_name().and_then(|n| n.to_str()),
+        ) {
+            return (
+                vec![
+                    home_str.to_owned(),
+                    home_str.replace("\\", "/"),
+                    home_str.replace("\\", "\\\\"),
+                ],
+                username.to_owned(),
+            );
+        }
+    }
+    (Vec::new(), String::new())
+});
+
+/// Automatically redact sensitive information from log messages.
+/// This is called by all logging macros to ensure no username/path exposure.
+pub fn auto_redact(message: &str) -> String {
+    let mut redacted = message.to_string();
+    if *REDACT_SENSITIVE_INFO.lock().unwrap() {
+        let (home_dir, username) = &*REDACTION_USERNAME;
+        if home_dir.iter().any(|n| message.contains(n)) {
+            redacted = redacted.replace(username, "[REDACTED]");
+        }
+    }
+    redacted
+}
 
 #[derive(Clone, Copy)]
 pub enum LogType {

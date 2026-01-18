@@ -3,8 +3,8 @@ use std::sync::{mpsc::Sender, Arc, Mutex};
 use futures::StreamExt;
 use owo_colors::colored::OwoColorize;
 use ql_core::{
-    err_no_log, info, info_no_log, json::VersionDetails, pt, GenericProgress, InstanceSelection,
-    Loader, ModId, StoreBackendType,
+    err, info, json::VersionDetails, pt, GenericProgress, InstanceSelection, Loader, ModId,
+    StoreBackendType,
 };
 
 use crate::store::{get_latest_version_date, ModIndex};
@@ -86,11 +86,11 @@ impl RecommendedMod {
                 false
             }
             Err(ModError::RequestError(err)) => {
-                err_no_log!("{}", err.summary());
+                err!(no_log, "{}", err.summary());
                 false
             }
             Err(err) => {
-                err_no_log!("{err}");
+                err!(no_log, "{err}");
                 false
             }
         };
@@ -107,7 +107,7 @@ impl RecommendedMod {
                 })
                 .is_err()
             {
-                info_no_log!("Cancelled recommended mod check");
+                info!(no_log, "Cancelled recommended mod check");
                 return None;
             }
         }

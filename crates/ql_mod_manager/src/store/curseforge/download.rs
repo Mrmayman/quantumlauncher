@@ -7,10 +7,13 @@ use ql_core::{
     err, file_utils, info, json::VersionDetails, pt, GenericProgress, InstanceSelection, ModId,
 };
 
-use crate::store::{
-    curseforge::{get_query_type, ModQuery},
-    install_modpack, CurseforgeNotAllowed, DirStructure, ModConfig, ModError, ModFile, ModIndex,
-    QueryType, SOURCE_ID_CURSEFORGE,
+use crate::{
+    rate_limiter::lock,
+    store::{
+        curseforge::{get_query_type, ModQuery},
+        install_modpack, CurseforgeNotAllowed, DirStructure, ModConfig, ModError, ModFile,
+        ModIndex, QueryType, SOURCE_ID_CURSEFORGE,
+    },
 };
 
 use super::Mod;
@@ -27,6 +30,8 @@ pub struct ModDownloader<'a> {
     pub not_allowed: HashSet<CurseforgeNotAllowed>,
     pub already_installed: HashSet<String>,
     pub sender: Option<&'a Sender<GenericProgress>>,
+
+    _guard: tokio::sync::MutexGuard<'a, ()>,
 }
 
 impl<'a> ModDownloader<'a> {
@@ -43,6 +48,7 @@ impl<'a> ModDownloader<'a> {
                 .await?
                 .not_vanilla()
                 .map(|n| n.to_curseforge_num()),
+            _guard: lock().await, // Before ModIndex::load
             index: ModIndex::load(&instance).await?,
             dirs: DirStructure::new(&instance, &version_json).await?,
             already_installed: HashSet::new(),
@@ -115,6 +121,7 @@ impl<'a> ModDownloader<'a> {
         };
 
         let dir = match query_type {
+            QueryType::DataPacks => &self.dirs.data_packs,
             QueryType::Mods => &self.dirs.mods,
             QueryType::ResourcePacks => &self.dirs.resource_packs,
             QueryType::Shaders => &self.dirs.shaders,

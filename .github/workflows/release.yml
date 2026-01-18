@@ -147,7 +147,7 @@ jobs:
           rustup toolchain install ${{ matrix.rust }} --no-self-update
           rustup default ${{ matrix.rust }}
           rustup target add ${{ matrix.target }}
-          if [ "${{ matrix.cross }}" == "true" ]; then
+          if [ "${{ matrix.cross }}" = "true" ]; then
             cargo install cross --locked
           fi
 
@@ -155,7 +155,7 @@ jobs:
         shell: bash
         run: |
           PROFILE=${{ steps.determine_profile.outputs.profile }}
-          if [ "${{ matrix.cross }}" == "true" ]; then
+          if [ "${{ matrix.cross }}" = "true" ]; then
             cross build --profile $PROFILE --target ${{ matrix.target }}
           else
             cargo build --profile $PROFILE --target ${{ matrix.target }}
@@ -167,9 +167,9 @@ jobs:
           mkdir dist
           PROFILE=${{ steps.determine_profile.outputs.profile }}
 
-          if [ "${{ matrix.build }}" = "x86_64-windows" ] || [ "${{ matrix.build }}" = "i686-windows" ]; then
+          if [[ "${{ matrix.build }}" =~ "windows" ]]; then
             cp "target/${{ matrix.target }}/$PROFILE/${{ env.BIN_NAME }}.exe" "dist/"
-          elif [ "${{ matrix.build }}" = "aarch64-macos" ] || [ "${{ matrix.build }}" = "x86_64-macos" ]; then
+          elif [[ "${{ matrix.build }}" =~ "macos" ]]; then
             APP_DIR="build/quantum-launcher.app"
             MACOS_DIR="$APP_DIR/Contents/MacOS"
             RESOURCES_DIR="$APP_DIR/Contents/Resources"
@@ -178,11 +178,11 @@ jobs:
             cp assets/freedesktop/Info.plist "$APP_DIR/Contents/Info.plist"
             sips -s format icns "assets/icon/ql_logo.png" --out "$RESOURCES_DIR/ql_logo.icns"
             hdiutil create -volname "${{ env.BIN_NAME}}" -srcfolder "$APP_DIR" -ov -format UDZO "dist/${{ env.BIN_NAME }}.dmg"
-          else
+          elif [[ "${{ matrix.build }}" =~ "linux" ]]; then
             cp "target/${{ matrix.target }}/$PROFILE/${{ env.BIN_NAME }}" "dist/"
           fi
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: quantum-launcher-${{ matrix.final_name }}
           path: dist
@@ -195,7 +195,7 @@ jobs:
     needs: [dist, build-appimages]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v7
 
       - name: Determine Release Metadata
         id: meta
@@ -225,7 +225,12 @@ jobs:
               binary_path=$(find "$dir" -type f | head -n 1)
               platform_name=$(basename "$dir" | sed 's/quantum-launcher-//')
               pkgname="${{ env.PROJECT_NAME }}_${platform_name}"
-              zip -j "dist/$pkgname.zip" "$binary_path"
+              if [[ "$platform_name" =~ "linux" ]] || [[ "$platform_name" =~ "appimage" ]]; then
+                  chmod +x "$binary_path"
+                  tar -czvf "dist/$pkgname.tar.gz" -C "$(dirname "$binary_path")" .
+              else
+                  zip -j "dist/$pkgname.zip" "$binary_path"
+              fi
           done
 
       - name: Create Release and Upload Archives
@@ -240,7 +245,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload as artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: artifacts
           path: dist/*

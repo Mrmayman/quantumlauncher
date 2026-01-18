@@ -1,4 +1,7 @@
-use crate::store::{ModError, ModIndex};
+use crate::{
+    rate_limiter::lock,
+    store::{ModError, ModIndex},
+};
 use ql_core::{err, info, pt, InstanceSelection, IoError, ModId};
 use std::{
     collections::{HashMap, HashSet},
@@ -9,6 +12,8 @@ pub async fn delete_mods(
     ids: Vec<ModId>,
     instance: InstanceSelection,
 ) -> Result<Vec<ModId>, ModError> {
+    let _guard = lock().await;
+
     if ids.is_empty() {
         return Ok(ids);
     }

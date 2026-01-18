@@ -11,7 +11,7 @@ use ql_core::{
 use crate::{
     message_handler::format_memory,
     state::{
-        dir_watch, get_entries, CustomJarState, EditInstanceMessage, LaunchTabId, Launcher,
+        dir_watch, get_entries, CustomJarState, EditInstanceMessage, LaunchTab, Launcher,
         MenuCreateInstance, MenuEditInstance, MenuLaunch, Message, ProgressBar, State,
         ADD_JAR_NAME, NONE_JAR_NAME, OPEN_FOLDER_JAR_NAME, REMOVE_JAR_NAME,
     },
@@ -284,7 +284,7 @@ impl Launcher {
                 if let Err(err) = t {
                     Message::Error(err)
                 } else {
-                    Message::LaunchChangeTab(LaunchTabId::Edit)
+                    Message::MChangeTab(LaunchTab::Edit)
                 }
             },
         )

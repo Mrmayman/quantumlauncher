@@ -4,9 +4,7 @@ use frostmark::MarkState;
 use iced::futures::executor::block_on;
 use iced::widget::text_editor;
 use iced::{widget::scrollable::AbsoluteOffset, Task};
-use ql_core::{
-    err, err_no_log, InstanceSelection, IntoStringError, Loader, ModId, OptifineUniqueVersion,
-};
+use ql_core::{err, InstanceSelection, IntoStringError, Loader, ModId, OptifineUniqueVersion};
 use ql_mod_manager::{
     loaders,
     store::{get_description, QueryType},
@@ -19,14 +17,13 @@ mod manage_mods;
 mod presets;
 mod recommended;
 
-use crate::config::UiWindowDecorations;
-use crate::state::{InstanceNotes, MenuLaunch, MenuModsDownload, NotesMessage};
 use crate::{
-    config::UiSettings,
+    config::{UiSettings, UiWindowDecorations},
     state::{
         self, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage,
         InstallPaperMessage, Launcher, LauncherSettingsMessage, MenuCurseforgeManualDownload,
         MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, Message, ProgressBar, State,
+        GameLogMessage, InstanceNotes, MenuLaunch, MenuModsDownload, ModOperation, NotesMessage,
     },
 };
 
@@ -138,7 +135,8 @@ impl Launcher {
             InstallModsMessage::LoadData(Err(err))
             | InstallModsMessage::DownloadComplete(Err(err))
             | InstallModsMessage::SearchResult(Err(err))
-            | InstallModsMessage::IndexUpdated(Err(err)) => {
+            | InstallModsMessage::IndexUpdated(Err(err))
+            | InstallModsMessage::UninstallComplete(Err(err)) => {
                 self.set_error(err);
             }
 
@@ -304,14 +302,44 @@ impl Launcher {
                     |n| Message::InstallMods(InstallModsMessage::DownloadComplete(n.strerr())),
                 );
             }
+            InstallModsMessage::Uninstall(index) => {
+                let State::ModsDownload(MenuModsDownload {
+                    results: Some(results),
+                    mods_download_in_progress,
+                    ..
+                }) = &mut self.state
+                else {
+                    return Task::none();
+                };
+                let Some(hit) = results.mods.get(index) else {
+                    err!("Couldn't uninstall mod: Index out of range");
+                    return Task::none();
+                };
+
+                let mod_id = ModId::from_pair(&hit.id, results.backend);
+                mods_download_in_progress
+                    .insert(mod_id.clone(), (hit.title.clone(), ModOperation::Deleting));
+                let selected_instance = self.instance().clone();
+
+                return Task::perform(
+                    ql_mod_manager::store::delete_mods(vec![mod_id], selected_instance),
+                    |n| Message::InstallMods(InstallModsMessage::UninstallComplete(n.strerr())),
+                );
+            }
+            InstallModsMessage::UninstallComplete(Ok(ids)) => {
+                if let State::ModsDownload(menu) = &mut self.state {
+                    for id in ids {
+                        menu.mods_download_in_progress.remove(&id);
+                        menu.mod_index.mods.remove(&id.get_index_str());
+                    }
+                }
+            }
         }
         Task::none()
     }
 
     fn mod_download(&mut self, index: usize) -> Task<Message> {
-        let Some(selected_instance) = self.selected_instance.clone() else {
-            return Task::none();
-        };
+        let selected_instance = self.instance().clone();
         let State::ModsDownload(menu) = &mut self.state else {
             return Task::none();
         };
@@ -324,8 +352,10 @@ impl Launcher {
             return Task::none();
         };
 
-        menu.mods_download_in_progress
-            .insert(ModId::Modrinth(hit.id.clone()), hit.title.clone());
+        menu.mods_download_in_progress.insert(
+            ModId::from_pair(&hit.id, results.backend),
+            (hit.title.clone(), ModOperation::Downloading),
+        );
 
         let project_id = hit.id.clone();
         let backend = menu.backend;
@@ -582,7 +612,7 @@ impl Launcher {
                     // The system is just lagging, nothing we can do
                 }
                 Err(err) => {
-                    err_no_log!("while loading system theme: {err}");
+                    err!(no_log, "while loading system theme: {err}");
                 }
             },
         }
@@ -720,7 +750,7 @@ impl Launcher {
                         });
                     }
                 }
-                Err(err) => err_no_log!("While loading instance notes: {err}"),
+                Err(err) => err!(no_log, "While loading instance notes: {err}"),
             },
             NotesMessage::OpenEdit => {
                 if let State::Launch(MenuLaunch {
@@ -760,7 +790,7 @@ impl Launcher {
                             ql_instances::notes::write(self.instance().clone(), content),
                             |r| {
                                 if let Err(err) = r {
-                                    err_no_log!("While saving instance notes: {err}");
+                                    err!(no_log, "While saving instance notes: {err}");
                                 }
                                 Message::Nothing
                             },
@@ -780,6 +810,58 @@ impl Launcher {
                     }
                 }
             }
+        }
+        Task::none()
+    }
+
+    pub fn update_game_log(&mut self, msg: GameLogMessage) -> Task<Message> {
+        match msg {
+            GameLogMessage::Scroll(lines) => {
+                if let State::Launch(MenuLaunch { log_scroll, .. }) = &mut self.state {
+                    let new_scroll = *log_scroll - lines;
+                    if new_scroll >= 0 {
+                        *log_scroll = new_scroll;
+                    }
+                }
+            }
+            GameLogMessage::ScrollAbsolute(lines) => {
+                if let State::Launch(MenuLaunch { log_scroll, .. }) = &mut self.state {
+                    *log_scroll = lines;
+                }
+            }
+            GameLogMessage::Copy => {
+                let instance = self.instance();
+                if let Some(log) = self.logs.get(instance) {
+                    return iced::clipboard::write(log.log.join(""));
+                }
+            }
+            GameLogMessage::Upload => {
+                if let State::Launch(menu) = &mut self.state {
+                    menu.is_uploading_mclogs = true;
+                }
+
+                let instance = self.instance();
+
+                if let Some(log) = self.logs.get(instance) {
+                    let log_content = log.log.join("");
+                    if !log_content.trim().is_empty() {
+                        return Task::perform(
+                            crate::mclog_upload::upload_log(log_content),
+                            |res| Message::GameLog(GameLogMessage::Uploaded(res.strerr())),
+                        );
+                    }
+                }
+            }
+            GameLogMessage::Uploaded(res) => match res {
+                Ok(url) => {
+                    self.state = State::LogUploadResult { url };
+                }
+                Err(error) => {
+                    self.state = State::Error {
+                        error: format!("Failed to upload log: {error}"),
+                    };
+                }
+            },
         }
         Task::none()
     }

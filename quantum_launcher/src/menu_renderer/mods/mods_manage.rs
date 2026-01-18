@@ -5,20 +5,19 @@ use iced::{
 };
 use ql_core::{InstanceSelection, Loader, SelectedMod};
 
-use crate::menu_renderer::ui::checkbox;
-use crate::menu_renderer::{ctxbox, dots, select_box, subbutton_with_icon, tsubtitle, FONT_MONO};
-use crate::message_handler::ForgeKind;
-use crate::state::{ImageState, InstallPaperMessage, MenuEditModsModal};
-use crate::stylesheet::widgets::StyleButton;
 use crate::{
     icons,
-    menu_renderer::{back_button, back_to_launch_screen, button_with_icon, tooltip, Element},
+    menu_renderer::{
+        back_button, back_to_launch_screen, button_with_icon, tooltip, Element,
+        ui::checkbox, ctxbox, dots, select_box, subbutton_with_icon, tsubtitle, FONT_MONO
+    },
+    message_handler::ForgeKind,
     state::{
         EditPresetsMessage, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage,
         ManageJarModsMessage, ManageModsMessage, MenuEditMods, Message, ModListEntry,
-        SelectedState,
+        SelectedState, ImageState, InstallPaperMessage, MenuEditModsModal,
     },
-    stylesheet::{color::Color, styles::LauncherTheme},
+    stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
 use ql_core::json::InstanceConfigJson;
 
@@ -633,13 +632,4 @@ impl MenuEditMods {
 
 fn install_ldr(loader: &str) -> widget::Button<'_, Message, LauncherTheme> {
     widget::button(widget::text(loader).size(14)).width(90)
-}
-
-fn ctx_button(e: &'_ str) -> widget::Button<'_, Message, LauncherTheme> {
-    widget::button(widget::text(e).size(13))
-        .width(Length::Fill)
-        .style(|t: &LauncherTheme, s| {
-            t.style_button(s, crate::stylesheet::widgets::StyleButton::FlatDark)
-        })
-        .padding(2)
 }

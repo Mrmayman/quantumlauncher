@@ -670,13 +670,16 @@ impl LauncherTheme {
                 widget::button::Style {
                     background: Some(self.get_bg(color)),
                     text_color: self.get(Color::ExtraDark),
-                    border: self.get_border_style(
-                        &style,
-                        match style {
-                            StyleButton::Round => Color::SecondDark,
-                            _ => color,
-                        },
-                    ),
+                    border: if let StyleButton::Round = style {
+                        let (palette, color) = self.get_base(Color::SecondDark);
+                        iced::Border {
+                            color: palette.get(color),
+                            width: 0.5,
+                            radius: BORDER_RADIUS.into(),
+                        }
+                    } else {
+                        self.get_border_style(&style, color)
+                    },
                     ..Default::default()
                 }
             }

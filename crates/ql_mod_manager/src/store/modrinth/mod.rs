@@ -3,11 +3,11 @@ use std::{collections::HashSet, sync::mpsc::Sender, time::Instant};
 use chrono::DateTime;
 use download::version_sort;
 use info::ProjectInfo;
-use ql_core::{info, pt, GenericProgress, InstanceSelection, Loader, ModId};
+use ql_core::{pt, GenericProgress, InstanceSelection, Loader, ModId};
 use versions::ModVersion;
 
 use crate::{
-    rate_limiter::{MOD_DOWNLOAD_LOCK, RATE_LIMITER},
+    rate_limiter::{lock, RATE_LIMITER},
     store::{SearchMod, StoreBackendType},
 };
 
@@ -103,13 +103,7 @@ impl Backend for ModrinthBackend {
         instance: &InstanceSelection,
         sender: Option<Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
-        // Download one mod at a time
-        let _guard = if let Ok(g) = MOD_DOWNLOAD_LOCK.try_lock() {
-            g
-        } else {
-            info!("Another mod is already being installed... Waiting...");
-            MOD_DOWNLOAD_LOCK.lock().await
-        };
+        let _guard = lock().await;
 
         let mut downloader = download::ModDownloader::new(instance, sender).await?;
         downloader.download(id, None, true).await?;
@@ -128,13 +122,7 @@ impl Backend for ModrinthBackend {
         set_manually_installed: bool,
         sender: Option<&Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
-        // Download one mod at a time
-        let _guard = if let Ok(g) = MOD_DOWNLOAD_LOCK.try_lock() {
-            g
-        } else {
-            info!("Another mod is already being installed... Waiting...");
-            MOD_DOWNLOAD_LOCK.lock().await
-        };
+        let _guard = lock().await;
 
         let mut downloader = download::ModDownloader::new(instance, None).await?;
         let bulk_info = ProjectInfo::download_bulk(ids).await?;

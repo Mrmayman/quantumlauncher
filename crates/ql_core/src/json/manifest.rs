@@ -50,7 +50,7 @@ impl Manifest {
         const ARM32: &str =
             "https://raw.githubusercontent.com/theofficialgman/piston-meta-arm32/refs/heads/main/mc/game/version_manifest_v2.json";
 
-        const LAST_BETTERJSONS: &str = "1.21.11";
+        const LAST_BETTERJSONS: &str = "26.1-snapshot-1";
 
         // An out-of-date but curated manifest
         const OLDER_VERSIONS_JSON: &str =

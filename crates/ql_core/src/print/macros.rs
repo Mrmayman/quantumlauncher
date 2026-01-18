@@ -9,74 +9,68 @@ macro_rules! eeprintln {
     }};
 }
 
-/// Print an informational message.
-/// Saved to a log file.
+/// Print an informational message
 #[macro_export]
 macro_rules! info {
-    ($($arg:tt)*) => {{
+    (no_log, $($arg:tt)*) => {{
+        let msg = format!("{}", format_args!($($arg)*));
+        let redacted = $crate::print::auto_redact(&msg);
         if $crate::print::is_print() {
-            println!("{} {}", owo_colors::OwoColorize::yellow(&"[info]"), format_args!($($arg)*));
+            println!("{} {}", owo_colors::OwoColorize::yellow(&"[info]"), redacted);
         }
-        $crate::print::print_to_file(&format!("{}", format_args!($($arg)*)), $crate::print::LogType::Info);
+        $crate::print::print_to_memory(&redacted, $crate::print::LogType::Info);
+    }};
+
+    ($($arg:tt)*) => {{
+        let msg = format!("{}", format_args!($($arg)*));
+        let redacted = $crate::print::auto_redact(&msg);
+        if $crate::print::is_print() {
+            println!("{} {}", owo_colors::OwoColorize::yellow(&"[info]"), redacted);
+        }
+        $crate::print::print_to_file(&redacted, $crate::print::LogType::Info);
     }};
 }
 
-/// Print an informational message.
-/// Not saved to a log file.
-#[macro_export]
-macro_rules! info_no_log {
-    ($($arg:tt)*) => {{
-        if $crate::print::is_print() {
-            println!("{} {}", owo_colors::OwoColorize::yellow(&"[info]"), format_args!($($arg)*));
-        }
-        $crate::print::print_to_memory(&format!("{}", format_args!($($arg)*)), $crate::print::LogType::Info);
-    }};
-}
-
-/// Print an error message.
-/// Not saved to a log file.
-#[macro_export]
-macro_rules! err_no_log {
-    ($($arg:tt)*) => {{
-        if $crate::print::is_print() {
-            $crate::eeprintln!("{} {}", owo_colors::OwoColorize::red(&"[error]"), format_args!($($arg)*));
-        }
-        $crate::print::print_to_memory(&format!("{}", format_args!($($arg)*)), $crate::print::LogType::Error);
-    }};
-}
-
-/// Print an error message.
-/// Saved to a log file.
+/// Print an error message
 #[macro_export]
 macro_rules! err {
-    ($($arg:tt)*) => {{
+    (no_log, $($arg:tt)*) => {{
+        let msg = format!("{}", format_args!($($arg)*));
+        let redacted = $crate::print::auto_redact(&msg);
         if $crate::print::is_print() {
-            $crate::eeprintln!("{} {}", owo_colors::OwoColorize::red(&"[error]"), format_args!($($arg)*));
+            $crate::eeprintln!("{} {}", owo_colors::OwoColorize::red(&"[error]"), redacted);
         }
-        $crate::print::print_to_file(&format!("{}", format_args!($($arg)*)), $crate::print::LogType::Error);
+        $crate::print::print_to_memory(&redacted, $crate::print::LogType::Error);
+    }};
+
+    ($($arg:tt)*) => {{
+        let msg = format!("{}", format_args!($($arg)*));
+        let redacted = $crate::print::auto_redact(&msg);
+        if $crate::print::is_print() {
+            $crate::eeprintln!("{} {}", owo_colors::OwoColorize::red(&"[error]"), redacted);
+        }
+        $crate::print::print_to_file(&redacted, $crate::print::LogType::Error);
     }};
 }
 
-/// Print a point message, i.e. a small step in some process.
-/// Saved to a log file.
+/// Print a point message, i.e. a small step in some process
 #[macro_export]
 macro_rules! pt {
-    ($($arg:tt)*) => {{
+    (no_log, $($arg:tt)*) => {{
+        let msg = format!("{}", format_args!($($arg)*));
+        let redacted = $crate::print::auto_redact(&msg);
         if $crate::print::is_print() {
-            println!("{} {}", owo_colors::OwoColorize::bold(&"-"), format_args!($($arg)*));
+            println!("{} {}", owo_colors::OwoColorize::bold(&"-"), redacted);
         }
-        $crate::print::print_to_file(&format!("{}", format_args!($($arg)*)), $crate::print::LogType::Point);
+        $crate::print::print_to_memory(&redacted, $crate::print::LogType::Point);
     }};
-}
 
-/// Print a point message, i.e. a small step in some process.
-/// Not saved to a log file.
-#[macro_export]
-macro_rules! pt_no_log {
     ($($arg:tt)*) => {{
+        let msg = format!("{}", format_args!($($arg)*));
+        let redacted = $crate::print::auto_redact(&msg);
         if $crate::print::is_print() {
-            println!("{} {}", owo_colors::OwoColorize::bold(&"-"), format_args!($($arg)*));
+            println!("{} {}", owo_colors::OwoColorize::bold(&"-"), redacted);
         }
-        $crate::print::print_to_memory(&format!("{}", format_args!($($arg)*)), $crate::print::LogType::Point);
+        $crate::print::print_to_file(&redacted, $crate::print::LogType::Point);
     }};
 }
