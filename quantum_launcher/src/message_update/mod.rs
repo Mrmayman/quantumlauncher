@@ -223,7 +223,7 @@ impl Launcher {
             InstallModsMessage::BackToMainScreen => {
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.opened_mod = None;
-                    // menu.description = None;
+                    menu.description = None;
                     return iced::widget::operation::scroll_to(
                         iced::widget::Id::new("MenuModsDownload:main:mods_list"),
                         menu.scroll_offset,

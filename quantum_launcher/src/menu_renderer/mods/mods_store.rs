@@ -1,14 +1,16 @@
 use frostmark::MarkWidget;
 use iced::{
     widget::{self, column, row},
-    Length,
+    Alignment, Length,
 };
 use ql_core::{Loader, ModId, StoreBackendType};
 use ql_mod_manager::store::{QueryType, SearchMod};
 
 use crate::{
     icons,
-    menu_renderer::{back_button, button_with_icon, tooltip, Element, FONT_DEFAULT, FONT_MONO},
+    menu_renderer::{
+        back_button, button_with_icon, tooltip, tsubtitle, Element, FONT_DEFAULT, FONT_MONO,
+    },
     state::{
         ImageState, InstallModsMessage, ManageModsMessage, MenuModsDownload, Message, ModOperation,
     },
@@ -184,6 +186,47 @@ impl MenuModsDownload {
         images: &'a ImageState,
         backend: StoreBackendType,
     ) -> Element<'a> {
+        let icon = images.view(
+            &hit.icon_url,
+            Some(32.0),
+            Some(32.0),
+            column!(widget::text("...")).into(),
+        );
+
+        row!(
+            self.mod_download_button(i, hit, backend),
+            widget::button(
+                row!(
+                    icon,
+                    column!(
+                        widget::text(&hit.title)
+                            .wrapping(widget::text::Wrapping::None)
+                            .shaping(widget::text::Shaping::Advanced)
+                            .height(20)
+                            .width(Length::Fill),
+                        widget::text(&hit.description)
+                            .shaping(widget::text::Shaping::Advanced)
+                            .size(12)
+                            .style(tsubtitle)
+                    )
+                    .spacing(2),
+                )
+                .padding(5)
+                .spacing(16),
+            )
+            .height(70)
+            .on_press(Message::InstallMods(InstallModsMessage::Click(i)))
+        )
+        .spacing(5)
+        .into()
+    }
+
+    fn mod_download_button(
+        &self,
+        i: usize,
+        hit: &SearchMod,
+        backend: StoreBackendType,
+    ) -> Element<'_> {
         let is_installed = self
             .mod_index
             .mods
@@ -193,12 +236,25 @@ impl MenuModsDownload {
             .mods_download_in_progress
             .contains_key(&ModId::from_pair(&hit.id, backend));
 
-        let side_button = |icon| widget::button(row![icon].padding(5)).height(70);
+        let side_button = |icon, show_downloads: bool| {
+            widget::button(
+                column![
+                    icon,
+                    widget::space().height(Length::Fill),
+                    show_downloads.then(|| widget::text(Self::format_downloads(hit.downloads))
+                        .size(10)
+                        .style(tsubtitle))
+                ]
+                .align_x(Alignment::Center)
+                .padding(5),
+            )
+            .height(70)
+        };
 
-        let action_button: Element = if is_installed && !is_downloading {
-            // Uninstall button - darker to respect theme
+        if is_installed && !is_downloading {
+            // Uninstall button
             tooltip(
-                side_button(icons::bin())
+                side_button(icons::bin_s(20), false)
                     .style(|t: &LauncherTheme, s| {
                         t.style_button(s, StyleButton::SemiDarkBorder([true; 4]))
                     })
@@ -209,57 +265,13 @@ impl MenuModsDownload {
             .into()
         } else {
             // Download button
-            side_button(icons::download())
+            side_button(icons::download_s(20), true)
                 .on_press_maybe(
                     (!is_downloading)
                         .then_some(Message::InstallMods(InstallModsMessage::Download(i))),
                 )
                 .into()
-        };
-
-        row!(
-            action_button,
-            widget::button(
-                row!(
-                    images.view(
-                        &hit.icon_url,
-                        Some(32.0),
-                        Some(32.0),
-                        column!(widget::text("...")).into()
-                    ),
-                    column!(
-                        icons::download_s(20),
-                        widget::text(Self::format_downloads(hit.downloads)).size(12),
-                    )
-                    .align_x(iced::Alignment::Center)
-                    .width(40)
-                    .height(60)
-                    .spacing(5),
-                    column!(
-                        widget::text(&hit.title)
-                            .wrapping(widget::text::Wrapping::None)
-                            .shaping(widget::text::Shaping::Advanced)
-                            .height(20)
-                            .width(Length::Fill),
-                        widget::responsive(|size| {
-                            widget::text(safe_slice(&hit.description, (size.width / 7.5) as usize))
-                                .font(FONT_MONO)
-                                .shaping(widget::text::Shaping::Advanced)
-                                .size(12)
-                                .style(|t: &LauncherTheme| t.style_text(Color::Mid))
-                                .into()
-                        }),
-                    )
-                    .spacing(5),
-                )
-                .padding(5)
-                .spacing(10),
-            )
-            .height(70)
-            .on_press(Message::InstallMods(InstallModsMessage::Click(i)))
-        )
-        .spacing(5)
-        .into()
+        }
     }
 
     pub fn view<'a>(&'a self, images: &'a ImageState, tick_timer: usize) -> Element<'a> {
@@ -311,13 +323,13 @@ impl MenuModsDownload {
                     back_button()
                         .on_press(Message::InstallMods(InstallModsMessage::BackToMainScreen)),
                     widget::tooltip(
-                        button_with_icon(icons::globe(), "Open Mod Page", 14)
+                        button_with_icon(icons::globe_s(14), "Open Mod Page", 14)
                             .on_press(Message::CoreOpenLink(url.clone())),
                         widget::text(url),
                         widget::tooltip::Position::Bottom
                     )
                     .style(|n| n.style_container_sharp_box(0.0, Color::ExtraDark)),
-                    button_with_icon(icons::floppydisk(), "Copy ID", 14)
+                    button_with_icon(icons::floppydisk_s(14), "Copy ID", 14)
                         .on_press(Message::CoreCopyText(hit.id.clone())),
                 ]
                 .spacing(5),
@@ -354,17 +366,5 @@ impl MenuModsDownload {
         } else {
             format!("{}M", downloads / 1_000_000)
         }
-    }
-}
-
-fn safe_slice(s: &str, max_len: usize) -> &str {
-    let mut end = 0;
-    for (i, _) in s.char_indices().take(max_len) {
-        end = i;
-    }
-    if end == 0 {
-        s
-    } else {
-        &s[..end]
     }
 }
