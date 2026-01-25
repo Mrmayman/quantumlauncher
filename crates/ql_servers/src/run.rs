@@ -1,9 +1,3 @@
-use std::{
-    path::{Path, PathBuf},
-    process::Stdio,
-    sync::{mpsc::Sender, Arc, Mutex},
-};
-
 use ql_core::{
     find_forge_shim_file, info,
     json::{InstanceConfigJson, VersionDetails},
@@ -11,6 +5,12 @@ use ql_core::{
     LAUNCHER_DIR,
 };
 use ql_java_handler::{get_java_binary, JavaVersion};
+use sipper::Sender;
+use std::{
+    path::{Path, PathBuf},
+    process::Stdio,
+    sync::{Arc, Mutex},
+};
 use tokio::process::Command;
 
 use crate::ServerError;
@@ -42,7 +42,7 @@ pub async fn run(
 
     let server_jar_path = launcher.get_server_jar().await?;
 
-    let java_path = launcher.get_java(java_install_progress.as_ref()).await?;
+    let java_path = launcher.get_java(java_install_progress).await?;
 
     let java_args = launcher.get_java_args(&server_jar_path).await?;
     let mut game_args = launcher.config.game_args.clone().unwrap_or_default();
@@ -105,7 +105,7 @@ impl ServerLauncher {
 
     pub async fn get_java(
         &self,
-        java_install_progress: Option<&Sender<GenericProgress>>,
+        java_install_progress: Option<Sender<GenericProgress>>,
     ) -> Result<PathBuf, ServerError> {
         let version = if let Some(version) = self.version_json.javaVersion.clone() {
             version.into()

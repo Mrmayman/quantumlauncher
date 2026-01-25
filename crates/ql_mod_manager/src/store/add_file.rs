@@ -1,4 +1,5 @@
-use std::{collections::HashSet, ffi::OsStr, path::PathBuf, sync::mpsc::Sender};
+use sipper::Sender;
+use std::{collections::HashSet, ffi::OsStr, path::PathBuf};
 
 use ql_core::{err, pt, GenericProgress, InstanceSelection, IntoIoError};
 
@@ -12,13 +13,13 @@ use super::{
 pub async fn add_files(
     instance: InstanceSelection,
     paths: Vec<PathBuf>,
-    progress: Option<Sender<GenericProgress>>,
+    mut progress: Option<Sender<GenericProgress>>,
 ) -> Result<HashSet<CurseforgeNotAllowed>, PackError> {
     let mods_dir = instance.get_dot_minecraft_path().join("mods");
 
     let mut not_allowed = HashSet::new();
 
-    send_progress(progress.as_ref(), &GenericProgress::default());
+    send_progress(progress.as_mut(), &GenericProgress::default()).await;
 
     let len = paths.len();
     for (i, path) in paths.into_iter().enumerate() {
@@ -38,14 +39,15 @@ pub async fn add_files(
             _ => "Unknown file (ERROR)",
         };
         send_progress(
-            progress.as_ref(),
+            progress.as_mut(),
             &GenericProgress {
                 done: i,
                 total: len,
                 message: Some(format!("Installing {file_type}: ({}/{len})", i + 1)),
                 has_finished: false,
             },
-        );
+        )
+        .await;
 
         match extension.as_str() {
             "jar" => {
@@ -56,7 +58,7 @@ pub async fn add_files(
             "zip" | "mrpack" => {
                 let file = tokio::fs::read(&path).await.path(&path)?;
                 if let Some(not_allowed_new) =
-                    modpack::install_modpack(file, instance.clone(), progress.as_ref()).await?
+                    modpack::install_modpack(file, instance.clone(), progress.as_mut()).await?
                 {
                     not_allowed.extend(not_allowed_new);
                 }
@@ -71,16 +73,15 @@ pub async fn add_files(
         }
     }
 
-    send_progress(progress.as_ref(), &GenericProgress::finished());
+    send_progress(progress.as_mut(), &GenericProgress::finished()).await;
 
     Ok(not_allowed)
 }
 
-fn send_progress(sender: Option<&Sender<GenericProgress>>, progress: &GenericProgress) {
+async fn send_progress(sender: Option<&mut Sender<GenericProgress>>, progress: &GenericProgress) {
     if let Some(sender) = sender {
-        if sender.send(progress.clone()).is_ok() {
-            return;
-        }
+        sender.send(progress.clone()).await;
+        return;
     }
     if let Some(msg) = &progress.message {
         pt!("{msg}");

@@ -2,7 +2,7 @@ use iced::{
     widget::{self, column, tooltip::Position},
     Alignment, Length,
 };
-use ql_core::{Progress, WEBSITE};
+use ql_core::WEBSITE;
 use ql_instances::auth::AccountType;
 
 use crate::stylesheet::styles::{LauncherThemeLightness, BORDER_RADIUS, BORDER_WIDTH};
@@ -314,17 +314,12 @@ fn back_to_launch_screen(is_server: Option<bool>, message: Option<String>) -> Me
     }
 }
 
-impl<T: Progress> ProgressBar<T> {
+impl ProgressBar {
     pub fn view(&'_ self) -> widget::Column<'_, Message, LauncherTheme> {
-        let total = T::total();
-        if let Some(message) = &self.message {
-            column!(
-                widget::progress_bar(0.0..=total, self.num),
-                widget::text(message)
-            )
-        } else {
-            column!(widget::progress_bar(0.0..=total, self.num))
-        }
+        column![
+            widget::progress_bar(0.0..=self.total, self.num),
+            self.message.as_deref().map(widget::text)
+        ]
         .spacing(10)
     }
 }

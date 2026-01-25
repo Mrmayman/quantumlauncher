@@ -8,9 +8,8 @@ use std::{
 use iced::Task;
 use notify::Watcher;
 use ql_core::{
-    err, file_utils, read_log::LogLine, GenericProgress, InstanceSelection, IntoIoError,
-    IntoStringError, IoError, LaunchedProcess, ModId, Progress, LAUNCHER_DIR,
-    LAUNCHER_VERSION_NAME,
+    err, file_utils, read_log::LogLine, InstanceSelection, IntoIoError, IntoStringError, IoError,
+    LaunchedProcess, ModId, Progress, LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
 };
 use ql_instances::auth::{ms::CLIENT_ID, AccountData, AccountType};
 use tokio::process::ChildStdin;
@@ -55,7 +54,6 @@ pub struct Launcher {
     pub tick_timer: usize,
     pub is_launching_game: bool,
 
-    pub java_recv: Option<ProgressBar<GenericProgress>>,
     pub custom_jar: Option<CustomJarState>,
     pub mod_updates_checked: HashMap<InstanceSelection, Vec<(ModId, String, bool)>>,
     /// See [`AutoSaveKind`]
@@ -191,7 +189,6 @@ impl Launcher {
 
             client_list: None,
             server_list: None,
-            java_recv: None,
             custom_jar: None,
 
             logs: HashMap::new(),
@@ -244,7 +241,6 @@ impl Launcher {
 
             state: State::Error { error },
 
-            java_recv: None,
             client_list: None,
             server_list: None,
             selected_instance: None,
@@ -470,43 +466,27 @@ pub async fn get_entries(is_server: bool) -> Res<(Vec<String>, bool)> {
     ))
 }
 
-pub struct ProgressBar<T: Progress> {
+pub struct ProgressBar {
     pub num: f32,
+    pub total: f32,
     pub message: Option<String>,
-    pub receiver: Receiver<T>,
-    pub progress: T,
 }
 
-impl<T: Default + Progress> ProgressBar<T> {
-    pub fn with_recv(receiver: Receiver<T>) -> Self {
+impl ProgressBar {
+    pub fn new() -> Self {
         Self {
             num: 0.0,
+            total: 1.0,
             message: None,
-            receiver,
-            progress: T::default(),
-        }
-    }
-
-    pub fn with_recv_and_msg(receiver: Receiver<T>, msg: String) -> Self {
-        Self {
-            num: 0.0,
-            message: Some(msg),
-            receiver,
-            progress: T::default(),
         }
     }
 }
 
-impl<T: Progress> ProgressBar<T> {
-    pub fn tick(&mut self) -> bool {
-        let mut has_ticked = false;
-        while let Ok(progress) = self.receiver.try_recv() {
-            self.num = progress.get_num();
-            self.message = progress.get_message();
-            self.progress = progress;
-            has_ticked = true;
-        }
-        has_ticked
+impl ProgressBar {
+    pub fn update<T: Progress>(&mut self, progress: T) {
+        self.num = progress.get_num();
+        self.message = progress.get_message();
+        self.total = progress.total();
     }
 }
 

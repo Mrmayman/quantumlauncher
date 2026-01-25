@@ -13,11 +13,11 @@ use ql_core::{
     Loader, CLASSPATH_SEPARATOR, LAUNCHER_DIR,
 };
 use ql_java_handler::{get_java_binary, JavaVersion};
+use sipper::Sender;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
     process::Stdio,
-    sync::mpsc::Sender,
 };
 use tokio::process::Command;
 
@@ -30,7 +30,7 @@ pub struct GameLauncher {
     /// If Java isn't installed, it will be auto-installed by the launcher.
     /// This field allows you to send progress updates
     /// to the GUI during installation.
-    java_install_progress_sender: Option<Sender<GenericProgress>>,
+    java_install_progress: Option<Sender<GenericProgress>>,
 
     /// Client: `QuantumLauncher/instances/NAME/`
     /// Server: `QuantumLauncher/servers/NAME/`
@@ -71,7 +71,7 @@ impl GameLauncher {
         Ok(Self {
             username,
             instance_name,
-            java_install_progress_sender,
+            java_install_progress: java_install_progress_sender,
             instance_dir,
             minecraft_dir,
             config_json,
@@ -760,7 +760,7 @@ impl GameLauncher {
             } else {
                 "java"
             },
-            self.java_install_progress_sender.take().as_ref(),
+            self.java_install_progress.take(),
         )
         .await?;
         info!("Java: {program:?}\n");

@@ -19,6 +19,7 @@ semver.workspace = true
 zip.workspace = true
 cfg-if.workspace = true
 
+sipper.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
 

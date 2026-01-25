@@ -1,4 +1,6 @@
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
+
+use sipper::Sipper;
 
 /// An enum representing the progress in downloading
 /// a Minecraft instance.
@@ -24,6 +26,10 @@ pub enum DownloadProgress {
         out_of: usize,
     },
     DownloadingJar,
+}
+
+impl DownloadProgress {
+    pub const TOTAL: f32 = 10.0;
 }
 
 impl Display for DownloadProgress {
@@ -89,17 +95,14 @@ impl GenericProgress {
     }
 }
 
-pub trait Progress {
+pub trait Progress: std::fmt::Debug + Send + Sync {
     fn get_num(&self) -> f32;
     fn get_message(&self) -> Option<String>;
-    fn total() -> f32;
+    fn total(&self) -> f32;
 
-    fn into_generic(self) -> GenericProgress
-    where
-        Self: Sized,
-    {
+    fn generic(&self) -> GenericProgress {
         let done = (self.get_num() * 100.0) as usize;
-        let total = (Self::total() * 100.0) as usize;
+        let total = (self.total() * 100.0) as usize;
         let message = self.get_message();
 
         GenericProgress {
@@ -120,8 +123,8 @@ impl Progress for DownloadProgress {
         Some(self.to_string())
     }
 
-    fn total() -> f32 {
-        10.0
+    fn total(&self) -> f32 {
+        Self::TOTAL
     }
 }
 
@@ -134,7 +137,102 @@ impl Progress for GenericProgress {
         self.message.clone()
     }
 
-    fn total() -> f32 {
+    fn total(&self) -> f32 {
         1.0
+    }
+
+    fn generic(&self) -> GenericProgress {
+        self.clone()
+    }
+}
+
+impl<T: Send + Sync + std::fmt::Debug + Progress> Progress for Box<T> {
+    fn get_num(&self) -> f32 {
+        self.as_ref().get_num()
+    }
+
+    fn get_message(&self) -> Option<String> {
+        self.as_ref().get_message()
+    }
+
+    fn total(&self) -> f32 {
+        self.as_ref().total()
+    }
+
+    fn generic(&self) -> GenericProgress {
+        self.as_ref().generic()
+    }
+}
+
+impl Progress for Box<dyn Progress> {
+    fn get_num(&self) -> f32 {
+        self.as_ref().get_num()
+    }
+
+    fn get_message(&self) -> Option<String> {
+        self.as_ref().get_message()
+    }
+
+    fn total(&self) -> f32 {
+        self.as_ref().total()
+    }
+
+    fn generic(&self) -> GenericProgress {
+        self.as_ref().generic()
+    }
+}
+
+impl Progress for Arc<dyn Progress> {
+    fn get_num(&self) -> f32 {
+        self.as_ref().get_num()
+    }
+
+    fn get_message(&self) -> Option<String> {
+        self.as_ref().get_message()
+    }
+
+    fn total(&self) -> f32 {
+        self.as_ref().total()
+    }
+
+    fn generic(&self) -> GenericProgress {
+        self.as_ref().generic()
+    }
+}
+
+pub async fn pipe_progress<P: Progress, Fut, F, Out>(
+    sender: Option<impl Into<sipper::Sender<GenericProgress>>>,
+    f: F,
+) -> Out
+where
+    F: FnOnce(Option<sipper::Sender<P>>) -> Fut,
+    Fut: std::future::Future<Output = Out>,
+{
+    if let Some(sender) = sender {
+        sipper::sipper(|s| f(Some(s)))
+            .with(|n: P| n.generic())
+            .run(sender)
+            .await
+    } else {
+        f(None).await
+    }
+}
+
+pub async fn pipe_progress_ext<P: Progress, P2, Fut, F, Out>(
+    sender: Option<impl Into<sipper::Sender<P2>>>,
+    f: F,
+    convert: impl FnMut(P) -> P2,
+) -> Out
+where
+    F: FnOnce(Option<sipper::Sender<P>>) -> Fut,
+    Fut: std::future::Future<Output = Out>,
+{
+    if let Some(sender) = sender {
+        sipper::sipper(|s| f(Some(s)))
+            .with(convert)
+            .run(sender)
+            .await
+    } else {
+        f(None).await
     }
 }

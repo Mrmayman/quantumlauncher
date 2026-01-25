@@ -10,7 +10,7 @@ use crate::{
     menu_renderer::{back_button, button_with_icon, Element},
     state::{
         InstallFabricMessage, InstallOptifineMessage, ManageModsMessage, MenuInstallFabric,
-        MenuInstallForge, MenuInstallOptifine, Message,
+        MenuInstallOptifine, Message,
     },
     stylesheet::styles::LauncherTheme,
 };
@@ -23,23 +23,16 @@ impl MenuInstallOptifine {
     pub fn view(&'_ self) -> Element<'_> {
         match self {
             MenuInstallOptifine::InstallingB173 => {
-                column![widget::text("Installing OptiFine for Beta 1.7.3...").size(20)].padding(10)
+                column![widget::text("Installing OptiFine for Beta 1.7.3...").size(20)]
+                    .padding(16)
+                    .into()
             }
-            MenuInstallOptifine::Installing {
-                optifine_install_progress,
-                java_install_progress,
-                is_java_being_installed,
-                ..
-            } => column!(
-                widget::text("Installing OptiFine").size(20),
-                optifine_install_progress.view(),
-                java_install_progress
-                    .as_ref()
-                    .filter(|_| *is_java_being_installed)
-                    .map(|java| java.view()),
-            )
-            .padding(10)
-            .spacing(10),
+            MenuInstallOptifine::Installing(bar) => {
+                column![widget::text("Installing OptiFine").size(20), bar.view()]
+                    .padding(16)
+                    .spacing(10)
+                    .into()
+            }
             MenuInstallOptifine::Choosing {
                 delete_installer,
                 drag_and_drop_hovered,
@@ -49,19 +42,19 @@ impl MenuInstallOptifine {
                     .install_optifine_screen(*delete_installer)
                     .padding(10)
                     .spacing(10);
-                if *drag_and_drop_hovered {
-                    column![widget::stack!(
-                        menu,
-                        widget::center(widget::button(
-                            widget::text("Drag and drop the OptiFine installer").size(20)
-                        ))
-                    )]
-                } else {
-                    menu
-                }
+                widget::stack!(
+                    menu,
+                    if *drag_and_drop_hovered {
+                        Some(widget::center(widget::button(
+                            widget::text("Drag and drop the OptiFine installer").size(20),
+                        )))
+                    } else {
+                        None
+                    }
+                )
+                .into()
             }
         }
-        .into()
     }
 
     pub fn install_optifine_screen<'a>(
@@ -258,25 +251,6 @@ fn version_list<'a>(
         .align_y(Alignment::Center),
     ]
     .spacing(5)
-}
-
-impl MenuInstallForge {
-    pub fn view(&'_ self) -> Element<'_> {
-        let main_block = column!(
-            widget::text("Installing Forge/NeoForge...").size(20),
-            self.forge_progress.view()
-        )
-        .spacing(10);
-
-        if self.is_java_getting_installed {
-            column!(main_block, self.java_progress.view())
-        } else {
-            main_block
-        }
-        .padding(20)
-        .spacing(10)
-        .into()
-    }
 }
 
 impl MenuInstallPaper {

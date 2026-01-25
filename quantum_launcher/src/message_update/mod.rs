@@ -2,6 +2,7 @@ use std::path::Path;
 
 use crate::{
     config::{UiSettings, UiWindowDecorations},
+    sip,
     state::{
         self, GameLogMessage, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage,
         InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsMessage,
@@ -88,21 +89,19 @@ impl Launcher {
                     ..
                 }) = &mut self.state
                 {
-                    let (sender, receiver) = std::sync::mpsc::channel();
-                    *progress = Some(ProgressBar::with_recv(receiver));
+                    *progress = Some(ProgressBar::new());
                     let loader_version = fabric_version.clone();
 
                     let instance_name = self.selected_instance.clone().unwrap();
                     let backend = *backend;
-                    return Task::perform(
-                        async move {
+                    return sip(
+                        move |sender| {
                             loaders::fabric::install(
                                 Some(loader_version),
                                 instance_name,
-                                Some(&sender),
+                                Some(sender),
                                 backend,
                             )
-                            .await
                         },
                         |m| Message::InstallFabric(InstallFabricMessage::End(m.strerr())),
                     );
@@ -286,14 +285,13 @@ impl Launcher {
                 }
             }
             InstallModsMessage::InstallModpack(id) => {
-                let (sender, receiver) = std::sync::mpsc::channel();
-                self.state = State::ImportModpack(ProgressBar::with_recv(receiver));
+                self.state = State::ImportModpack(ProgressBar::new());
 
                 let selected_instance = self.selected_instance.clone().unwrap();
                 self.mod_updates_checked.remove(&selected_instance);
 
-                return Task::perform(
-                    async move {
+                return sip(
+                    |sender| async move {
                         ql_mod_manager::store::download_mod(&id, &selected_instance, Some(sender))
                             .await
                             .map(|not_allowed| (id, not_allowed))
@@ -442,11 +440,11 @@ impl Launcher {
     }
 
     pub fn install_optifine_confirm(&mut self, installer_path: &Path) -> Task<Message> {
-        let (p_sender, p_recv) = std::sync::mpsc::channel();
-        let (j_sender, j_recv) = std::sync::mpsc::channel();
-
         let instance = self.instance();
         let instance_name = instance.get_name().to_owned();
+
+        // OptiFine does not support servers
+        // so it's safe to assume we've selected an instance.
         debug_assert!(!instance.is_server());
 
         let optifine_unique_version =
@@ -470,35 +468,30 @@ impl Launcher {
             false
         };
 
-        self.state = State::InstallOptifine(MenuInstallOptifine::Installing {
-            optifine_install_progress: ProgressBar::with_recv(p_recv),
-            java_install_progress: Some(ProgressBar::with_recv(j_recv)),
-            is_java_being_installed: false,
-        });
+        self.state = State::InstallOptifine(MenuInstallOptifine::Installing(ProgressBar::new()));
 
-        let installer_path = installer_path.to_owned();
-
-        Task::perform(
-            // OptiFine does not support servers
-            // so it's safe to assume we've selected an instance.
-            loaders::optifine::install(
-                instance_name,
-                installer_path.clone(),
-                Some(p_sender),
-                Some(j_sender),
-                optifine_unique_version,
-            ),
+        let installer_path2 = installer_path.to_owned();
+        let installer_path3 = installer_path.to_owned();
+        sip(
+            move |sender| {
+                loaders::optifine::install(
+                    instance_name,
+                    installer_path2,
+                    Some(sender),
+                    optifine_unique_version,
+                )
+            },
             |n| Message::InstallOptifine(InstallOptifineMessage::End(n.strerr())),
         )
         .chain(Task::perform(
             async move {
                 if delete_installer
-                    && installer_path.extension().is_some_and(|n| {
+                    && installer_path3.extension().is_some_and(|n| {
                         let n = n.to_ascii_lowercase();
                         n == "jar" || n == "zip"
                     })
                 {
-                    _ = tokio::fs::remove_file(installer_path).await;
+                    _ = tokio::fs::remove_file(installer_path3).await;
                 }
             },
             |()| Message::Nothing,

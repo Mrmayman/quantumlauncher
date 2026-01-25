@@ -1,4 +1,4 @@
-use std::sync::mpsc::Sender;
+use sipper::Sender;
 
 use ql_core::{
     file_utils, info,
@@ -22,31 +22,31 @@ use crate::ServerError;
 /// TLDR; there's a lot of errors. I only wrote this because
 /// clippy was bothering me (WTF: )
 ///
-/// If:
 /// - server already exists
 /// - EULA and `config.json` file couldn't be saved
-/// ## Server Jar...
-/// - ...couldn't be downloaded from
-///   Mojang/Omniarchive (internet/server issue)
-/// - ...couldn't be saved to a file
-/// - classic server zip file couldn't be extracted
-/// - classic server zip file doesn't have a `minecraft-server.jar`
-/// ## Manifest...
-/// - ...couldn't be downloaded
-/// - ...couldn't be parsed into JSON
-/// - ...doesn't have server version
-/// ## Version JSON...
-/// - ...couldn't be downloaded
-/// - ...couldn't be parsed into JSON
-/// - ...couldn't be saved to `details.json`
-/// - ...doesn't have `downloads` field
+/// - server Jar...
+///   - couldn't be downloaded from
+///     Mojang/Omniarchive (internet/server issue)
+///   - couldn't be saved to a file
+/// - classic server zip file...
+///   - couldn't be extracted
+///   - doesn't have a `minecraft-server.jar`
+/// - manifest...
+///   - couldn't be downloaded
+///   - couldn't be parsed into JSON
+///   - doesn't have server version
+/// - version JSON...
+///   - couldn't be downloaded
+///   - couldn't be parsed into JSON
+///   - couldn't be saved to `details.json`
+///   - doesn't have `downloads` field
 pub async fn create_server(
     name: String,
     version: ListEntry,
-    sender: Option<&Sender<DownloadProgress>>,
+    mut sender: Option<Sender<DownloadProgress>>,
 ) -> Result<String, ServerError> {
     info!("Creating server");
-    progress_manifest(sender);
+    progress_manifest(sender.as_mut()).await;
     let manifest = Manifest::download().await?;
 
     let server_dir = get_server_dir(&name).await?;
@@ -57,7 +57,7 @@ pub async fn create_server(
     let version_manifest = manifest
         .find_name(&version.name)
         .ok_or(ServerError::VersionNotFoundInManifest(version.name.clone()))?;
-    progress_json(sender);
+    progress_json(sender.as_mut()).await;
 
     let version_json: VersionDetails =
         file_utils::download_file_to_json(&version_manifest.url, false).await?;
@@ -65,7 +65,7 @@ pub async fn create_server(
         return Err(ServerError::NoServerDownload);
     };
 
-    progress_server_jar(sender);
+    progress_server_jar(sender.as_mut()).await;
     if version.name.starts_with("c0.") {
         is_classic_server = true;
 
@@ -143,12 +143,10 @@ async fn get_server_dir(name: &str) -> Result<std::path::PathBuf, ServerError> {
     Ok(server_dir)
 }
 
-fn progress_manifest(sender: Option<&Sender<DownloadProgress>>) {
+async fn progress_manifest(sender: Option<&mut Sender<DownloadProgress>>) {
     pt!("Downloading Manifest");
     if let Some(sender) = sender {
-        sender
-            .send(DownloadProgress::DownloadingJsonManifest)
-            .unwrap();
+        sender.send(DownloadProgress::DownloadingJsonManifest).await;
     }
 }
 
@@ -160,19 +158,17 @@ async fn write_eula(server_dir: &std::path::Path) -> Result<(), ServerError> {
     Ok(())
 }
 
-fn progress_server_jar(sender: Option<&Sender<DownloadProgress>>) {
+async fn progress_server_jar(sender: Option<&mut Sender<DownloadProgress>>) {
     pt!("Downloading server jar");
     if let Some(sender) = sender {
-        sender.send(DownloadProgress::DownloadingJar).unwrap();
+        sender.send(DownloadProgress::DownloadingJar).await;
     }
 }
 
-fn progress_json(sender: Option<&Sender<DownloadProgress>>) {
+async fn progress_json(sender: Option<&mut Sender<DownloadProgress>>) {
     pt!("Downloading version JSON");
     if let Some(sender) = sender {
-        sender
-            .send(DownloadProgress::DownloadingVersionJson)
-            .unwrap();
+        sender.send(DownloadProgress::DownloadingVersionJson).await;
     }
 }
 

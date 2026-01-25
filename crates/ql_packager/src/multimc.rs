@@ -1,11 +1,9 @@
 use chrono::DateTime;
 use ini::Ini;
-use std::{
-    path::Path,
-    sync::{mpsc::Sender, Arc, Mutex},
-};
+use sipper::Sender;
+use std::path::Path;
 
-use crate::{import::pipe_progress, import::OUT_OF, InstancePackageError};
+use crate::{import::OUT_OF, InstancePackageError};
 use ql_core::{
     do_jobs, err, file_utils, info,
     jarmod::{JarMod, JarMods},
@@ -13,12 +11,12 @@ use ql_core::{
         FabricJSON, InstanceConfigJson, Manifest, VersionDetails, V_1_12_2,
         V_OFFICIAL_FABRIC_SUPPORT,
     },
-    pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, ListEntry, Loader,
-    LAUNCHER_DIR,
+    pipe_progress, pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, ListEntry,
+    Loader, LAUNCHER_DIR,
 };
 use ql_mod_manager::loaders::fabric::{self, get_list_of_versions_from_backend};
 use serde::{Deserialize, Serialize};
-use tokio::fs;
+use tokio::{fs, sync::Mutex};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MmcPack {
@@ -71,7 +69,7 @@ pub async fn import(
     download_assets: bool,
     temp_dir: &Path,
     mmc_pack: &str,
-    sender: Option<Arc<Sender<GenericProgress>>>,
+    mut sender: Option<Sender<GenericProgress>>,
 ) -> Result<InstanceSelection, InstancePackageError> {
     info!("Importing MultiMC instance...");
     let mmc_pack: MmcPack = serde_json::from_str(mmc_pack).json(mmc_pack.to_owned())?;
@@ -88,9 +86,9 @@ pub async fn import(
     )
     .await?;
 
-    install_loader(&sender, &instance, &instance_recipe).await?;
+    install_loader(sender.clone(), &instance, &instance_recipe).await?;
 
-    copy_files(temp_dir, sender, &instance).await?;
+    copy_files(temp_dir, sender.as_mut(), &instance).await?;
 
     tokio::try_join!(
         setup_details(&instance),
@@ -270,7 +268,7 @@ async fn get_instance_recipe(mmc_pack: &MmcPack) -> Result<InstanceRecipe, Insta
 }
 
 async fn install_loader(
-    sender: &Option<Arc<Sender<GenericProgress>>>,
+    sender: Option<Sender<GenericProgress>>,
     instance: &InstanceSelection,
     instance_recipe: &InstanceRecipe,
 ) -> Result<(), InstancePackageError> {
@@ -278,7 +276,7 @@ async fn install_loader(
         match loader {
             n @ (Loader::Fabric | Loader::Quilt) => {
                 install_fabric(
-                    sender.as_deref(),
+                    sender,
                     instance,
                     instance_recipe.loader_version.clone(),
                     matches!(n, Loader::Quilt),
@@ -287,7 +285,7 @@ async fn install_loader(
             }
             n @ (Loader::Forge | Loader::Neoforge) => {
                 mmc_forge(
-                    sender.clone(),
+                    sender,
                     instance,
                     instance_recipe.loader_version.clone(),
                     matches!(n, Loader::Neoforge),
@@ -303,7 +301,7 @@ async fn install_loader(
 }
 
 async fn install_fabric(
-    sender: Option<&Sender<GenericProgress>>,
+    sender: Option<Sender<GenericProgress>>,
     instance_selection: &InstanceSelection,
     version: Option<String>,
     is_quilt: bool,
@@ -319,7 +317,7 @@ async fn install_fabric(
         ql_mod_manager::loaders::fabric::install(
             version,
             instance_selection.clone(),
-            sender,
+            sender.clone(),
             backend,
         )
         .await?;
@@ -355,42 +353,9 @@ async fn install_fabric(
     info!("Custom fabric implementation, installing libraries:");
     let i = Mutex::new(0);
     let len = fabric_json.libraries.len();
+
     do_jobs(fabric_json.libraries.iter().map(|library| async {
-        if library.name.starts_with("net.fabricmc:intermediary") {
-            return Ok::<_, InstancePackageError>(());
-        }
-        let path_str = library.get_path();
-        let Some(url) = library.get_url() else {
-            return Ok::<_, InstancePackageError>(());
-        };
-        let path = libraries_dir.join(&path_str);
-
-        let parent_dir = path
-            .parent()
-            .ok_or(InstancePackageError::PathBufParent(path.clone()))?;
-        tokio::fs::create_dir_all(parent_dir)
-            .await
-            .path(parent_dir)?;
-        file_utils::download_file_to_path(&url, false, &path).await?;
-
-        {
-            let mut i = i.lock().unwrap();
-            *i += 1;
-            pt!(
-                "({i}/{len}) {}\n    Path: {path_str}\n    Url: {url}",
-                library.name
-            );
-            if let Some(sender) = sender {
-                _ = sender.send(GenericProgress {
-                    done: *i,
-                    total: len,
-                    message: Some(format!("Installing fabric: library {}", library.name)),
-                    has_finished: false,
-                });
-            }
-        }
-
-        Ok(())
+        download_library_fabric(sender.clone(), &libraries_dir, library, &i, len).await
     }))
     .await?;
 
@@ -406,21 +371,66 @@ async fn install_fabric(
     Ok(())
 }
 
+async fn download_library_fabric(
+    sender: Option<Sender<GenericProgress>>,
+    libraries_dir: &Path,
+    library: &ql_core::json::fabric::Library,
+    i: &Mutex<usize>,
+    len: usize,
+) -> Result<(), InstancePackageError> {
+    if library.name.starts_with("net.fabricmc:intermediary") {
+        return Ok::<_, InstancePackageError>(());
+    }
+    let path_str = library.get_path();
+    let Some(url) = library.get_url() else {
+        return Ok::<_, InstancePackageError>(());
+    };
+    let path = libraries_dir.join(&path_str);
+    let parent_dir = path
+        .parent()
+        .ok_or(InstancePackageError::PathBufParent(path.clone()))?;
+    tokio::fs::create_dir_all(parent_dir)
+        .await
+        .path(parent_dir)?;
+    file_utils::download_file_to_path(&url, false, &path).await?;
+    {
+        let mut i = i.lock().await;
+        *i += 1;
+        pt!(
+            "({i}/{len}) {}\n    Path: {path_str}\n    Url: {url}",
+            library.name
+        );
+        if let Some(mut sender) = sender {
+            sender
+                .send(GenericProgress {
+                    done: *i,
+                    total: len,
+                    message: Some(format!("Installing fabric: library {}", library.name)),
+                    has_finished: false,
+                })
+                .await;
+        }
+    }
+    Ok(())
+}
+
 async fn copy_files(
     temp_dir: &Path,
-    sender: Option<Arc<Sender<GenericProgress>>>,
+    sender: Option<&mut Sender<GenericProgress>>,
     instance_selection: &InstanceSelection,
 ) -> Result<(), InstancePackageError> {
     let src = temp_dir.join("minecraft");
     if src.is_dir() {
         let dst = instance_selection.get_dot_minecraft_path();
-        if let Some(sender) = sender.as_deref() {
-            _ = sender.send(GenericProgress {
-                done: 2,
-                total: OUT_OF,
-                message: Some("Copying files...".to_owned()),
-                has_finished: false,
-            });
+        if let Some(sender) = sender {
+            sender
+                .send(GenericProgress {
+                    done: 2,
+                    total: OUT_OF,
+                    message: Some("Copying files...".to_owned()),
+                    has_finished: false,
+                })
+                .await;
         }
         file_utils::copy_dir_recursive(&src, &dst).await?;
     }
@@ -446,54 +456,37 @@ async fn copy_folder_over(
 
 async fn create_minecraft_instance(
     download_assets: bool,
-    sender: Option<Arc<Sender<GenericProgress>>>,
+    sender: Option<Sender<GenericProgress>>,
     instance_name: &str,
     version: String,
 ) -> Result<(), InstancePackageError> {
-    let version = ListEntry::new(version);
-    let (d_send, d_recv) = std::sync::mpsc::channel();
-    if let Some(sender) = sender.clone() {
-        std::thread::spawn(move || {
-            pipe_progress(d_recv, &sender);
-        });
-    }
-    ql_instances::create_instance(
-        instance_name.to_owned(),
-        version,
-        Some(d_send),
-        download_assets,
-    )
+    pipe_progress(sender, |send| {
+        ql_instances::create_instance(
+            instance_name.to_owned(),
+            ListEntry::new(version),
+            send,
+            download_assets,
+        )
+    })
     .await?;
     Ok(())
 }
 
 async fn mmc_forge(
-    sender: Option<Arc<Sender<GenericProgress>>>,
+    sender: Option<Sender<GenericProgress>>,
     instance_selection: &InstanceSelection,
     version: Option<String>,
     is_neoforge: bool,
 ) -> Result<(), InstancePackageError> {
-    let (f_send, f_recv) = std::sync::mpsc::channel();
-    if let Some(sender) = sender.clone() {
-        std::thread::spawn(move || {
-            pipe_progress(f_recv, &sender);
-        });
-    }
     if is_neoforge {
-        ql_mod_manager::loaders::neoforge::install(
-            version,
-            instance_selection.clone(),
-            Some(f_send),
-            None, // TODO: Java install progress
-        )
+        pipe_progress(sender, |send| {
+            ql_mod_manager::loaders::neoforge::install(version, instance_selection.clone(), send)
+        })
         .await?;
     } else {
-        ql_mod_manager::loaders::forge::install(
-            version,
-            instance_selection.clone(),
-            Some(f_send),
-            None, // TODO: Java install progress
-        )
+        pipe_progress(sender, |send| {
+            ql_mod_manager::loaders::forge::install(version, instance_selection.clone(), send)
+        })
         .await?;
     }
     Ok(())

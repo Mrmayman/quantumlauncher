@@ -1,7 +1,6 @@
-use std::sync::mpsc::Sender;
-
 use chrono::DateTime;
 use ql_core::{do_jobs, info, json::VersionDetails, GenericProgress, InstanceSelection, Loader};
+use sipper::Sender;
 
 use crate::store::get_latest_version_date;
 

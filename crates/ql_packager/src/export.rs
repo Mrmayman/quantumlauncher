@@ -1,8 +1,8 @@
 use ql_core::{file_utils, GenericProgress};
 use ql_core::{info, pt, InstanceSelection, IntoIoError, IntoJsonError};
+use sipper::Sender;
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::mpsc::Sender;
 use tokio::fs;
 
 use crate::{InstanceInfo, InstancePackageError};
@@ -61,7 +61,7 @@ fn create_instance_info(
 pub async fn export_instance(
     instance: InstanceSelection,
     exceptions: HashSet<String>,
-    progress: Option<Sender<GenericProgress>>,
+    mut progress: Option<Sender<GenericProgress>>,
 ) -> Result<Vec<u8>, InstancePackageError> {
     info!("Exporting instance...");
     let export_config = create_instance_info(&instance, exceptions);
@@ -71,13 +71,14 @@ pub async fn export_instance(
         "Exceptions (not included in export): {:?}",
         export_config.exceptions
     );
-    if let Some(prog) = &progress {
-        _ = prog.send(GenericProgress {
+    if let Some(prog) = &mut progress {
+        prog.send(GenericProgress {
             done: 0,
             total: 2,
             message: Some("Copying data...".to_owned()),
             has_finished: false,
-        });
+        })
+        .await;
     }
     let dir = tempfile::TempDir::new().map_err(InstancePackageError::TempDir)?;
     let instance_path = instance.get_instance_path();
@@ -96,13 +97,14 @@ pub async fn export_instance(
     fs::write(&config_path, config).await.path(&config_path)?;
 
     pt!("Packaging the instance into zip");
-    if let Some(prog) = &progress {
-        _ = prog.send(GenericProgress {
+    if let Some(prog) = &mut progress {
+        prog.send(GenericProgress {
             done: 1,
             total: 2,
             message: Some("Zipping files...".to_owned()),
             has_finished: false,
-        });
+        })
+        .await;
     }
     let bytes = file_utils::zip_directory_to_bytes(folder_path)
         .await

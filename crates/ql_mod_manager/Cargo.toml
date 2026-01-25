@@ -9,6 +9,7 @@ ql_core.path = "../ql_core"
 ql_java_handler.path = "../ql_java_handler"
 
 reqwest.workspace = true
+sipper.workspace = true
 
 serde.workspace = true
 serde_json.workspace = true

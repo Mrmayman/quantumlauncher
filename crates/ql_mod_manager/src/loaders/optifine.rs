@@ -3,7 +3,6 @@ use std::{
     fmt::Display,
     path::{Path, PathBuf},
     process::Command,
-    sync::mpsc::Sender,
 };
 
 use ql_core::{
@@ -11,10 +10,12 @@ use ql_core::{
     json::{
         instance_config::ModTypeInfo, optifine::JsonOptifine, InstanceConfigJson, VersionDetails,
     },
-    no_window, pt, GenericProgress, InstanceSelection, IntoIoError, IoError, JsonError, Loader,
-    OptifineUniqueVersion, Progress, RequestError, CLASSPATH_SEPARATOR, LAUNCHER_DIR,
+    no_window, pipe_progress_ext, pt, GenericProgress, InstanceSelection, IntoIoError, IoError,
+    JsonError, Loader, OptifineUniqueVersion, Progress, RequestError, CLASSPATH_SEPARATOR,
+    LAUNCHER_DIR,
 };
 use ql_java_handler::{get_java_binary, JavaInstallError, JavaVersion, JAVA};
+use sipper::Sender;
 use thiserror::Error;
 
 use super::change_instance_type;
@@ -34,43 +35,50 @@ pub async fn install_b173(
 // javac -cp OptiFine_1.21.1_HD_U_J1.jar OptifineInstaller.java -d .
 // java -cp OptiFine_1.21.1_HD_U_J1.jar:. OptifineInstaller
 
-#[derive(Default)]
-pub enum OptifineInstallProgress {
+#[derive(Default, Debug, Clone)]
+pub enum OptifineProgress {
     #[default]
     P1Start,
-    P2CompilingHook,
-    P3RunningHook,
-    P4DownloadingLibraries {
+    P2InstallJava(GenericProgress),
+    P3CompilingHook,
+    P4RunningHook,
+    P5DownloadingLibraries {
         done: usize,
         total: usize,
     },
-    P5Done,
+    P6Done,
 }
 
-impl Display for OptifineInstallProgress {
+impl Display for OptifineProgress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OptifineInstallProgress::P1Start => write!(f, "Starting installation."),
-            OptifineInstallProgress::P2CompilingHook => write!(f, "Compiling hook."),
-            OptifineInstallProgress::P3RunningHook => write!(f, "Running hook."),
-            OptifineInstallProgress::P4DownloadingLibraries { done, total } => {
+            OptifineProgress::P1Start => write!(f, "Starting installation."),
+            OptifineProgress::P2InstallJava(j) => write!(
+                f,
+                "Installing Java: {}",
+                j.get_message().unwrap_or_default()
+            ),
+            OptifineProgress::P3CompilingHook => write!(f, "Compiling hook."),
+            OptifineProgress::P4RunningHook => write!(f, "Running hook."),
+            OptifineProgress::P5DownloadingLibraries { done, total } => {
                 write!(f, "Downloading libraries ({done}/{total}).")
             }
-            OptifineInstallProgress::P5Done => write!(f, "Done."),
+            OptifineProgress::P6Done => write!(f, "Done."),
         }
     }
 }
 
-impl Progress for OptifineInstallProgress {
+impl Progress for OptifineProgress {
     fn get_num(&self) -> f32 {
         match self {
-            OptifineInstallProgress::P1Start => 0.0,
-            OptifineInstallProgress::P2CompilingHook => 1.0,
-            OptifineInstallProgress::P3RunningHook => 2.0,
-            OptifineInstallProgress::P4DownloadingLibraries { done, total } => {
+            OptifineProgress::P1Start => 0.0,
+            OptifineProgress::P2InstallJava(g) => g.get_num(),
+            OptifineProgress::P3CompilingHook => 1.0,
+            OptifineProgress::P4RunningHook => 2.0,
+            OptifineProgress::P5DownloadingLibraries { done, total } => {
                 2.0 + (*done as f32 / *total as f32)
             }
-            OptifineInstallProgress::P5Done => 3.0,
+            OptifineProgress::P6Done => 3.0,
         }
     }
 
@@ -78,7 +86,7 @@ impl Progress for OptifineInstallProgress {
         Some(self.to_string())
     }
 
-    fn total() -> f32 {
+    fn total(&self) -> f32 {
         3.0
     }
 }
@@ -86,19 +94,17 @@ impl Progress for OptifineInstallProgress {
 pub async fn install(
     instance_name: String,
     path_to_installer: PathBuf,
-    progress_sender: Option<Sender<OptifineInstallProgress>>,
-    java_progress_sender: Option<Sender<GenericProgress>>,
+    mut progress: Option<Sender<OptifineProgress>>,
     optifine_unique_version: Option<OptifineUniqueVersion>,
 ) -> Result<(), OptifineError> {
     if !path_to_installer.exists() || !path_to_installer.is_file() {
         return Err(OptifineError::InstallerDoesNotExist);
     }
 
-    let progress_sender = progress_sender.as_ref();
     let instance_path = LAUNCHER_DIR.join("instances").join(&instance_name);
 
     info!("Started installing OptiFine");
-    send_progress(progress_sender, OptifineInstallProgress::P1Start);
+    send_progress(progress.as_mut(), OptifineProgress::P1Start).await;
 
     let mut config = InstanceConfigJson::read_from_dir(&instance_path).await?;
 
@@ -153,32 +159,27 @@ pub async fn install(
         .path(path_to_installer)?;
 
     pt!("Compiling OptifineInstaller.java");
-    send_progress(progress_sender, OptifineInstallProgress::P2CompilingHook);
-    compile_hook(
-        &new_installer_path,
-        &optifine_path,
-        java_progress_sender.as_ref(),
-    )
-    .await?;
+    send_progress(progress.as_mut(), OptifineProgress::P3CompilingHook).await;
+    compile_hook(&new_installer_path, &optifine_path, progress.clone()).await?;
 
     pt!("Running OptifineInstaller.java");
-    send_progress(progress_sender, OptifineInstallProgress::P3RunningHook);
+    send_progress(progress.as_mut(), OptifineProgress::P4RunningHook).await;
     run_hook(&new_installer_path, &optifine_path).await?;
 
-    download_libraries(&instance_name, &dot_minecraft_path, progress_sender).await?;
+    download_libraries(&instance_name, &dot_minecraft_path, progress.clone()).await?;
     change_instance_type(&instance_path, Loader::OptiFine, None).await?;
-    send_progress(progress_sender, OptifineInstallProgress::P5Done);
+    send_progress(progress.as_mut(), OptifineProgress::P6Done).await;
     pt!("Finished installing OptiFine");
 
     Ok(())
 }
 
-fn send_progress(
-    progress_sender: Option<&Sender<OptifineInstallProgress>>,
-    prog: OptifineInstallProgress,
+async fn send_progress(
+    progress_sender: Option<&mut Sender<OptifineProgress>>,
+    prog: OptifineProgress,
 ) {
     if let Some(progress) = progress_sender {
-        _ = progress.send(prog);
+        progress.send(prog).await;
     }
 }
 
@@ -237,7 +238,7 @@ async fn create_hook_java_file(
 async fn download_libraries(
     instance_name: &str,
     dot_minecraft_path: &Path,
-    progress_sender: Option<&Sender<OptifineInstallProgress>>,
+    mut progress_sender: Option<Sender<OptifineProgress>>,
 ) -> Result<(), OptifineError> {
     let (optifine_json, _) = JsonOptifine::read(instance_name).await?;
     let libraries_path = dot_minecraft_path.join("libraries");
@@ -270,11 +271,13 @@ async fn download_libraries(
 
         let jar_path = libraries_path.join(&url_final_part);
 
-        if let Some(progress) = progress_sender {
-            _ = progress.send(OptifineInstallProgress::P4DownloadingLibraries {
-                done: i,
-                total: len,
-            });
+        if let Some(progress) = &mut progress_sender {
+            progress
+                .send(OptifineProgress::P5DownloadingLibraries {
+                    done: i,
+                    total: len,
+                })
+                .await;
         }
 
         if jar_path.exists() {
@@ -312,9 +315,14 @@ async fn run_hook(new_installer_path: &Path, optifine_path: &Path) -> Result<(),
 async fn compile_hook(
     new_installer_path: &Path,
     optifine_path: &Path,
-    java_progress_sender: Option<&Sender<GenericProgress>>,
+    progress: Option<Sender<OptifineProgress>>,
 ) -> Result<(), OptifineError> {
-    let javac_path = get_java_binary(JavaVersion::Java21, "javac", java_progress_sender).await?;
+    let javac_path = pipe_progress_ext::<GenericProgress, OptifineProgress, _, _, _>(
+        progress,
+        |j_progress| get_java_binary(JavaVersion::Java21, "javac", j_progress),
+        OptifineProgress::P2InstallJava,
+    )
+    .await?;
     let mut command = Command::new(&javac_path);
     command
         .arg("-cp")

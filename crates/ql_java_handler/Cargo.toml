@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 ql_core.path = "../ql_core"
 
+sipper.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 serde.workspace = true

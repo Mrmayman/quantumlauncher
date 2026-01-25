@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path, sync::mpsc::Sender};
+use std::{collections::HashMap, path::Path};
 
 use ql_core::{
     do_jobs, file_utils,
@@ -6,6 +6,7 @@ use ql_core::{
     pt, GenericProgress, InstanceSelection, Loader,
 };
 use serde::Deserialize;
+use sipper::Sender;
 use tokio::sync::Mutex;
 
 use super::PackError;
@@ -45,7 +46,7 @@ pub async fn install(
     config: &InstanceConfigJson,
     json: &VersionDetails,
     index: &PackIndex,
-    sender: Option<&Sender<GenericProgress>>,
+    sender: Option<Sender<GenericProgress>>,
 ) -> Result<(), PackError> {
     if let Some(version) = index.dependencies.get("minecraft") {
         if json.get_id() != *version {
@@ -74,12 +75,13 @@ pub async fn install(
     let i = &i;
 
     let len = index.files.len();
+    #[rustfmt::skip]
     let jobs: Result<Vec<()>, PackError> = do_jobs(
         index
             .files
             .iter()
             .filter_map(|file| file.downloads.first().map(|n| (file, n)))
-            .map(|(file, download)| async move {
+            .map(|(file, download)| { let sender = sender.clone(); async {
                 let required_field = match instance {
                     InstanceSelection::Instance(_) => &file.env.client,
                     InstanceSelection::Server(_) => &file.env.server,
@@ -104,9 +106,9 @@ pub async fn install(
                 let bytes_path = mc_dir.join(&file.path);
                 file_utils::download_file_to_path(&download, true, &bytes_path).await?;
 
-                if let Some(sender) = sender {
+                if let Some(mut sender) = sender {
                     let mut i = i.lock().await;
-                    _ = sender.send(GenericProgress {
+                     sender.send(GenericProgress {
                         done: *i,
                         total: len,
                         message: Some(format!(
@@ -115,7 +117,7 @@ pub async fn install(
                             i = *i + 1
                         )),
                         has_finished: false,
-                    });
+                    }).await;
                     pt!(
                         "Installed mod (modrinth) ({i}/{len}): {}",
                         file.path,
@@ -125,7 +127,7 @@ pub async fn install(
                 }
 
                 Ok(())
-            }),
+            }}),
     )
     .await;
     jobs?;

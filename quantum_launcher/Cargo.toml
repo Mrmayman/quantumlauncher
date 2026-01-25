@@ -45,10 +45,12 @@ iced = { version = "0.14", default-features = false, features = [
     "svg",
     "lazy",
     "advanced",
+    "sipper",
     # Display backend
     "x11",
     "wayland"
 ] }
+sipper.workspace = true
 # The HTML/Markdown renderer
 frostmark = { version = "0.3", default-features = false, features = ["markdown"] }
 # For table widget, I don't need this

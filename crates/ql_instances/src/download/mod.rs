@@ -1,4 +1,4 @@
-use std::sync::mpsc::Sender;
+use sipper::Sender;
 
 use ql_core::{
     info, json::VersionDetails, DownloadProgress, InstanceSelection, IntoIoError, IntoStringError,

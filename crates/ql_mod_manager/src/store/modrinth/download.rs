@@ -1,13 +1,13 @@
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
-    sync::mpsc::Sender,
 };
 
 use chrono::DateTime;
 use ql_core::{
     err, file_utils, info, json::VersionDetails, pt, GenericProgress, InstanceSelection,
 };
+use sipper::Sender;
 
 use crate::store::{
     install_modpack,
@@ -227,13 +227,13 @@ impl ModDownloader {
     }
 
     async fn download_file(
-        &self,
+        &mut self,
         project_type: QueryType,
         file: &crate::store::ModFile,
     ) -> Result<(), ModError> {
         if let QueryType::ModPacks = project_type {
             let bytes = file_utils::download_file_to_bytes(&file.url, true).await?;
-            let incompatible = install_modpack(bytes, self.instance.clone(), self.sender.as_ref())
+            let incompatible = install_modpack(bytes, self.instance.clone(), self.sender.as_mut())
                 .await
                 .map_err(Box::new)?;
             debug_assert!(

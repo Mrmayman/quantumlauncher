@@ -25,13 +25,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::{
     borrow::Cow,
-    sync::{LazyLock, RwLock},
+    sync::{Arc, LazyLock, RwLock},
     time::Duration,
 };
 
 use config::LauncherConfig;
 use iced::{Settings, Task};
 use owo_colors::OwoColorize;
+use sipper::Sipper;
 use state::{get_entries, Launcher, Message};
 
 use ql_core::{constants::OS_NAME, err, file_utils, info, pt, IntoStringError, JsonFileError};
@@ -131,13 +132,27 @@ impl Launcher {
 
     #[allow(clippy::unused_self)]
     fn subscription(&self) -> iced::Subscription<Message> {
-        let tick = iced::time::every(Duration::from_millis(
-            1000 / self.config.ui.unwrap_or_default().get_idle_fps(),
-        ))
-        .map(|_| Message::CoreTick);
         let events = iced::event::listen_with(|a, b, _| Some(Message::CoreEvent(a, b)));
+        let ui = self.config.ui.unwrap_or_default();
+        let idle_fps = ui.get_idle_fps();
 
-        iced::Subscription::batch(vec![tick, events])
+        let should_tick = ui.idle_enable.unwrap_or_default()
+            || matches!(
+                self.state,
+                State::Launch(_)
+                    | State::Create(_)
+                    | State::EditMods(_)
+                    | State::ModsDownload(_)
+                    | State::LauncherSettings(_)
+                    | State::EditJarMods(_)
+            );
+        if should_tick {
+            let tick = iced::time::every(Duration::from_millis(1000 / idle_fps))
+                .map(|_| Message::CoreTick);
+            iced::Subscription::batch([tick, events])
+        } else {
+            events
+        }
     }
 
     fn theme(&self) -> stylesheet::styles::LauncherTheme {
@@ -201,6 +216,7 @@ fn main() {
     )
     .subscription(Launcher::subscription)
     .scale_factor(Launcher::scale_factor)
+    .title(|_: &Launcher| "Quantum Launcher".to_owned())
     .theme(Launcher::theme)
     .settings(Settings {
         fonts: load_fonts(),
@@ -342,4 +358,18 @@ fn do_migration() {
             ql_core::info!("Migration successful!\nYour launcher files are now in ~./local/share/QuantumLauncher");
         }
     }
+}
+
+fn sip<P: ql_core::Progress + 'static, Out: Send, F>(
+    builder: impl FnOnce(sipper::Sender<P>) -> F + 'static,
+    on_output: impl Fn(Out) -> Message + iced::advanced::graphics::futures::MaybeSend + 'static,
+) -> Task<Message>
+where
+    F: std::future::Future<Output = Out> + Send + 'static,
+{
+    Task::sip(
+        sipper::sipper(builder).with(Arc::new),
+        |m| Message::CoreProgress(m),
+        on_output,
+    )
 }

@@ -1,4 +1,4 @@
-use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
+use std::{collections::HashSet, path::PathBuf, process::ExitStatus, sync::Arc};
 
 use crate::{
     message_handler::ForgeKind,
@@ -11,7 +11,8 @@ use ql_core::{
     jarmod::JarMods,
     json::instance_config::{MainClassMode, PreLaunchPrefixMode},
     read_log::Diagnostic,
-    InstanceSelection, LaunchedProcess, ListEntry, Loader, ModId, StoreBackendType,
+    GenericProgress, InstanceSelection, LaunchedProcess, ListEntry, Loader, ModId,
+    StoreBackendType,
 };
 use ql_instances::{
     auth::{
@@ -416,6 +417,8 @@ pub enum Message {
 
     CoreCopyError,
     CoreCopyLog,
+    CoreProgress(Arc<dyn ql_core::Progress>),
+    CJavaInstallProgress(GenericProgress),
     CoreOpenLink(String),
     CoreOpenPath(PathBuf),
     CoreCopyText(String),

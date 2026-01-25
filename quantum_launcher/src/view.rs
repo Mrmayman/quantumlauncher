@@ -96,6 +96,13 @@ impl Launcher {
     }
 
     fn view_menu(&'_ self) -> Element<'_> {
+        println!(
+            "viewing {}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+        );
         let menu = match &self.state {
             State::Launch(menu) => self.view_main_menu(menu),
             State::AccountLoginProgress(progress) => column![
@@ -122,13 +129,12 @@ impl Launcher {
             } => view_confirm(msg1, msg2, yes, no),
             State::Error { error } => view_error(error),
             State::InstallFabric(menu) => menu.view(self.instance(), self.tick_timer),
-            State::InstallJava => column![
-                widget::text("Downloading Java").size(20),
-                self.java_recv.as_ref().map(|n| n.view())
-            ]
-            .padding(10)
-            .spacing(10)
-            .into(),
+            State::InstallJava(bar) => {
+                column![widget::text("Downloading Java").size(20), bar.view()]
+                    .padding(16)
+                    .spacing(10)
+                    .into()
+            }
             State::ModsDownload(menu) => menu.view(&self.images, self.tick_timer),
             State::LauncherSettings(menu) => menu.view(&self.config),
             State::InstallPaper(menu) => menu.view(self.tick_timer),
@@ -155,7 +161,7 @@ impl Launcher {
             State::EditJarMods(menu) => menu.view(self.instance()),
             State::ImportModpack(progress) => {
                 column![widget::text("Installing mods..."), progress.view()]
-                    .padding(10)
+                    .padding(16)
                     .spacing(10)
                     .into()
             }
@@ -170,7 +176,18 @@ impl Launcher {
             State::CurseforgeManualDownload(menu) => menu.view(),
             State::License(menu) => menu.view(),
             State::ExportMods(menu) => menu.view(),
-            State::InstallForge(menu) => menu.view(),
+            State::InstallForge(menu, is_neoforge) => widget::column![
+                widget::text(if *is_neoforge {
+                    "Installing NeoForge"
+                } else {
+                    "Installing Forge"
+                })
+                .size(20),
+                menu.view()
+            ]
+            .padding(16)
+            .spacing(10)
+            .into(),
             State::UpdateFound(menu) => menu.view(),
             State::InstallOptifine(menu) => menu.view(),
             State::ManagePresets(menu) => menu.view(),

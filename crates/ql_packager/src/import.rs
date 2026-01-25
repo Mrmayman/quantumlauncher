@@ -1,15 +1,10 @@
 use ql_core::{
     file_utils, info,
     json::{InstanceConfigJson, VersionDetails},
-    pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, ListEntry, Progress,
+    pipe_progress, pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, ListEntry,
 };
-use std::{
-    path::{Path, PathBuf},
-    sync::{
-        mpsc::{Receiver, Sender},
-        Arc,
-    },
-};
+use sipper::Sender;
+use std::path::{Path, PathBuf};
 use tokio::fs;
 
 use crate::InstanceInfo;
@@ -45,20 +40,22 @@ pub const OUT_OF: usize = 4;
 pub async fn import_instance(
     zip_path: PathBuf,
     download_assets: bool,
-    sender: Option<Sender<GenericProgress>>,
+    mut sender: Option<Sender<GenericProgress>>,
 ) -> Result<Option<InstanceSelection>, InstancePackageError> {
     let temp_dir_obj = tempfile::TempDir::new().map_err(InstancePackageError::TempDir)?;
     let temp_dir = temp_dir_obj.path();
 
     pt!("Extracting zip to {temp_dir:?}");
     let zip_file = std::fs::File::open(&zip_path).path(&zip_path)?;
-    if let Some(sender) = &sender {
-        _ = sender.send(GenericProgress {
-            done: 0,
-            total: OUT_OF,
-            message: Some("Extracting Archive...".to_owned()),
-            has_finished: false,
-        });
+    if let Some(sender) = &mut sender {
+        sender
+            .send(GenericProgress {
+                done: 0,
+                total: OUT_OF,
+                message: Some("Extracting Archive...".to_owned()),
+                has_finished: false,
+            })
+            .await;
     }
     file_utils::extract_zip_archive(std::io::BufReader::new(zip_file), temp_dir, true).await?;
 
@@ -66,20 +63,9 @@ pub async fn import_instance(
     let try_mmc = temp_dir.join("mmc-pack.json");
 
     let instance = if let Ok(instance_info) = fs::read_to_string(&try_ql).await {
-        Some(
-            import_quantumlauncher(
-                download_assets,
-                temp_dir,
-                instance_info,
-                sender.map(Arc::new),
-            )
-            .await?,
-        )
+        Some(import_quantumlauncher(download_assets, temp_dir, instance_info, sender).await?)
     } else if let Ok(mmc_pack) = fs::read_to_string(&try_mmc).await {
-        Some(
-            crate::multimc::import(download_assets, temp_dir, &mmc_pack, sender.map(Arc::new))
-                .await?,
-        )
+        Some(crate::multimc::import(download_assets, temp_dir, &mmc_pack, sender).await?)
     } else {
         None
     };
@@ -93,7 +79,7 @@ async fn import_quantumlauncher(
     download_assets: bool,
     temp_dir: &Path,
     instance_info: String,
-    sender: Option<Arc<Sender<GenericProgress>>>,
+    mut sender: Option<Sender<GenericProgress>>,
 ) -> Result<InstanceSelection, InstancePackageError> {
     info!("Importing QuantumLauncher instance...");
 
@@ -112,22 +98,20 @@ async fn import_quantumlauncher(
     pt!("Exceptions : {:?} ", instance_info.exceptions);
     let version = ListEntry::with_kind(version_json.id.clone(), &version_json.r#type);
 
-    let (d_send, d_recv) = std::sync::mpsc::channel();
-    if let Some(sender) = sender.clone() {
-        std::thread::spawn(move || {
-            pipe_progress(d_recv, &sender);
-        });
-    }
-
     if instance_info.is_server {
-        ql_servers::create_server(instance_info.instance_name, version, Some(&d_send)).await?;
+        pipe_progress(sender.as_ref(), |send| {
+            ql_servers::create_server(instance_info.instance_name, version, send)
+        })
+        .await?;
     } else {
-        ql_instances::create_instance(
-            instance_info.instance_name,
-            version,
-            Some(d_send),
-            download_assets,
-        )
+        pipe_progress(sender.as_ref(), |send| {
+            ql_instances::create_instance(
+                instance_info.instance_name,
+                version,
+                send,
+                download_assets,
+            )
+        })
         .await?;
     }
 
@@ -143,21 +127,17 @@ async fn import_quantumlauncher(
     .map_err(InstancePackageError::Loader)?;
 
     pt!("Copying packaged files");
-    if let Some(sender) = &sender {
-        _ = sender.send(GenericProgress {
-            done: 2,
-            total: OUT_OF,
-            message: Some("Copying files...".to_owned()),
-            has_finished: false,
-        });
+    if let Some(sender) = &mut sender {
+        sender
+            .send(GenericProgress {
+                done: 2,
+                total: OUT_OF,
+                message: Some("Copying files...".to_owned()),
+                has_finished: false,
+            })
+            .await;
     }
     file_utils::copy_dir_recursive(temp_dir, &instance_path).await?;
     info!("Finished importing QuantumLauncher instance");
     Ok(instance)
-}
-
-pub fn pipe_progress<T: Progress>(rec: Receiver<T>, snd: &Sender<GenericProgress>) {
-    for item in rec {
-        _ = snd.send(item.into_generic());
-    }
 }

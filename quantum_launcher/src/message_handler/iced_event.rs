@@ -365,8 +365,8 @@ impl Launcher {
             }
             State::InstallPaper(_)
             | State::ExportInstance(_)
-            | State::InstallForge(_)
-            | State::InstallJava
+            | State::InstallForge(_, _)
+            | State::InstallJava(_)
             | State::InstallOptifine(_)
             | State::UpdateFound(_)
             | State::InstallFabric(_)

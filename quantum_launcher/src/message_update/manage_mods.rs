@@ -1,12 +1,12 @@
 use iced::{futures::executor::block_on, keyboard::Modifiers};
 use iced::{widget, Task};
 use ql_core::{
-    err, jarmod::JarMods, InstanceSelection, IntoIoError, IntoStringError, ModId,
-    SelectedMod,
+    err, jarmod::JarMods, InstanceSelection, IntoIoError, IntoStringError, ModId, SelectedMod,
 };
 use ql_mod_manager::store::ModIndex;
 use std::{collections::HashSet, path::PathBuf};
 
+use crate::sip;
 use crate::state::{
     AutoSaveKind, ExportModsMessage, Launcher, ManageJarModsMessage, ManageModsMessage,
     MenuCurseforgeManualDownload, MenuEditJarMods, MenuEditMods, MenuEditModsModal, Message,
@@ -325,11 +325,10 @@ impl Launcher {
             return Task::none();
         };
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let selected_instance = self.selected_instance.as_ref().unwrap();
+        let selected_instance = self.selected_instance.clone().unwrap();
 
-        self.state = State::ImportModpack(ProgressBar::with_recv(receiver));
-        self.mod_updates_checked.remove(selected_instance);
+        self.state = State::ImportModpack(ProgressBar::new());
+        self.mod_updates_checked.remove(&selected_instance);
 
         // Modpacks being imported
         if paths
@@ -337,15 +336,12 @@ impl Launcher {
             .filter_map(|n| n.extension())
             .any(|n| !n.eq_ignore_ascii_case("jar"))
         {
-            self.mod_updates_checked.remove(selected_instance);
+            self.mod_updates_checked.remove(&selected_instance);
         }
 
-        let files_task = Task::perform(
-            ql_mod_manager::add_files(
-                self.selected_instance.clone().unwrap(),
-                paths.clone(),
-                Some(sender),
-            ),
+        let paths2 = paths.clone();
+        let files_task = sip(
+            |sender| ql_mod_manager::add_files(selected_instance, paths2, Some(sender)),
             move |n| Message::ManageMods(ManageModsMessage::AddFileDone(n.strerr())),
         );
         if delete_file {

@@ -322,6 +322,10 @@ pub struct UiSettings {
     pub window_opacity: f32,
     // Since: v0.5.0
     pub idle_fps: Option<u64>,
+    /// Should tick the launcher UI even when idle.
+    /// Default: `false`
+    // Since: v0.5.1
+    pub idle_enable: Option<bool>,
 }
 
 impl Default for UiSettings {
@@ -330,6 +334,7 @@ impl Default for UiSettings {
             window_decorations: UiWindowDecorations::default(),
             window_opacity: OPACITY,
             idle_fps: None,
+            idle_enable: None,
         }
     }
 }
