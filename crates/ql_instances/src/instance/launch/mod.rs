@@ -1,14 +1,15 @@
 use crate::auth::AccountData;
 use error::GameLaunchError;
 use ql_core::{
-    err, info, GenericProgress, InstanceSelection, LaunchedProcess, REDACT_SENSITIVE_INFO,
+    err, info, json::GlobalSettings, GenericProgress, InstanceSelection, LaunchedProcess,
+    REDACT_SENSITIVE_INFO,
 };
-use std::sync::{mpsc::Sender, Arc, Mutex};
+use sipper::Sender;
+use std::sync::{Arc, Mutex};
 
 pub(super) mod error;
 mod launcher;
 pub use launcher::GameLauncher;
-use ql_core::json::GlobalSettings;
 
 /// Launches a Minecraft instance.
 ///

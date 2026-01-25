@@ -15,12 +15,12 @@ use ql_core::{
     file_utils::DirItem,
     jarmod::JarMods,
     json::{instance_config::MainClassMode, InstanceConfigJson, VersionDetails},
-    DownloadProgress, GenericProgress, InstanceSelection, IntoStringError, ListEntry, ModId,
-    OptifineUniqueVersion, SelectedMod, StoreBackendType,
+    InstanceSelection, IntoStringError, ListEntry, ModId, OptifineUniqueVersion, SelectedMod,
+    StoreBackendType,
 };
 use ql_mod_manager::loaders::paper::PaperVersion;
 use ql_mod_manager::{
-    loaders::{self, forge::ForgeInstallProgress, optifine::OptifineInstallProgress},
+    loaders,
     store::{CurseforgeNotAllowed, ModConfig, ModIndex, QueryType, RecommendedMod, SearchResult},
 };
 
@@ -52,8 +52,7 @@ impl std::fmt::Display for LaunchTab {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LaunchModal {
-    InstanceOptions,
-    // More in the future
+    // The code is in another dev branch, nothing to do here
 }
 
 pub enum InstanceNotes {
@@ -79,7 +78,7 @@ impl InstanceNotes {
 /// The home screen of the launcher.
 pub struct MenuLaunch {
     pub message: String,
-    pub login_progress: Option<ProgressBar<GenericProgress>>,
+    pub login_progress: Option<ProgressBar>,
     pub tab: LaunchTab,
     pub edit_instance: Option<MenuEditInstance>,
     pub notes: Option<InstanceNotes>,
@@ -215,7 +214,7 @@ impl PartialEq<ModListEntry> for SelectedMod {
 }
 
 pub struct MenuEditMods {
-    pub mod_update_progress: Option<ProgressBar<GenericProgress>>,
+    pub mod_update_progress: Option<ProgressBar>,
 
     pub config: InstanceConfigJson,
     pub mods: ModIndex,
@@ -236,16 +235,10 @@ pub struct MenuEditMods {
     /// Index of the item selected before pressing shift
     pub list_shift_index: Option<usize>,
     pub drag_and_drop_hovered: bool,
-    pub modal: Option<MenuEditModsModal>,
+    pub right_click: Option<(ModId, (f32, f32))>,
     pub search: Option<String>,
 
     pub width_name: f32,
-}
-
-#[derive(Debug, Clone)]
-pub enum MenuEditModsModal {
-    Submenu,
-    RightClick(ModId, (f32, f32)),
 }
 
 impl MenuEditMods {
@@ -330,10 +323,11 @@ pub struct MenuEditJarMods {
     pub drag_and_drop_hovered: bool,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum MenuCreateInstance {
     Choosing(MenuCreateInstanceChoosing),
-    DownloadingInstance(ProgressBar<DownloadProgress>),
-    ImportingInstance(ProgressBar<GenericProgress>),
+    DownloadingInstance(ProgressBar),
+    ImportingInstance(ProgressBar),
 }
 
 pub struct MenuCreateInstanceChoosing {
@@ -342,7 +336,6 @@ pub struct MenuCreateInstanceChoosing {
     // UI:
     pub is_server: bool,
     pub search_box: String,
-    pub show_category_dropdown: bool,
     pub selected_categories: HashSet<ql_core::ListEntryKind>,
     // Sidebar resizing:
     pub sidebar_grid_state: widget::pane_grid::State<bool>,
@@ -362,7 +355,7 @@ pub enum MenuInstallFabric {
         backend: loaders::fabric::BackendType,
         fabric_version: String,
         fabric_versions: loaders::fabric::FabricVersionList,
-        progress: Option<ProgressBar<GenericProgress>>,
+        progress: Option<ProgressBar>,
     },
     Unsupported(bool),
 }
@@ -388,16 +381,10 @@ pub enum MenuInstallPaper {
     Installing,
 }
 
-pub struct MenuInstallForge {
-    pub forge_progress: ProgressBar<ForgeInstallProgress>,
-    pub java_progress: ProgressBar<GenericProgress>,
-    pub is_java_getting_installed: bool,
-}
-
 #[allow(unused)]
 pub struct MenuLauncherUpdate {
     pub url: String,
-    pub progress: Option<ProgressBar<GenericProgress>>,
+    pub progress: Option<ProgressBar>,
 }
 
 #[derive(Clone, Copy)]
@@ -410,7 +397,6 @@ pub struct MenuModsDownload {
     pub query: String,
     pub results: Option<SearchResult>,
     pub description: Option<MarkState>,
-
     pub mod_descriptions: HashMap<ModId, String>,
     pub mods_download_in_progress: HashMap<ModId, (String, ModOperation)>,
     pub opened_mod: Option<usize>,
@@ -444,6 +430,7 @@ impl MenuModsDownload {
         else {
             return;
         };
+
         let description = match results.backend {
             StoreBackendType::Modrinth => MarkState::with_html_and_markdown(info),
             StoreBackendType::Curseforge => MarkState::with_html(info), // Optimization, curseforge only has HTML
@@ -458,7 +445,7 @@ impl MenuModsDownload {
 }
 
 pub struct MenuLauncherSettings {
-    pub temp_scale: f64,
+    pub temp_scale: f32,
     pub selected_tab: LauncherSettingsTab,
     pub arg_split_by_space: bool,
 }
@@ -508,14 +495,14 @@ pub struct MenuEditPresets {
     pub is_building: bool,
     pub include_config: bool,
 
-    pub progress: Option<ProgressBar<GenericProgress>>,
+    pub progress: Option<ProgressBar>,
     pub sorted_mods_list: Vec<ModListEntry>,
     pub drag_and_drop_hovered: bool,
 }
 
 pub enum MenuRecommendedMods {
     Loading {
-        progress: ProgressBar<GenericProgress>,
+        progress: ProgressBar,
         config: InstanceConfigJson,
     },
     Loaded {
@@ -540,7 +527,7 @@ pub struct MenuCurseforgeManualDownload {
 
 pub struct MenuExportInstance {
     pub entries: Option<Vec<(DirItem, bool)>>,
-    pub progress: Option<ProgressBar<GenericProgress>>,
+    pub progress: Option<ProgressBar>,
 }
 
 pub struct MenuLoginAlternate {
@@ -587,7 +574,7 @@ pub enum State {
     EditMods(MenuEditMods),
     ExportMods(MenuExportMods),
     EditJarMods(MenuEditJarMods),
-    ImportModpack(ProgressBar<GenericProgress>),
+    ImportModpack(ProgressBar),
     CurseforgeManualDownload(MenuCurseforgeManualDownload),
     ExportInstance(MenuExportInstance),
 
@@ -606,7 +593,7 @@ pub enum State {
     GenericMessage(String),
 
     /// Progress bar when logging into accounts
-    AccountLoginProgress(ProgressBar<GenericProgress>),
+    AccountLoginProgress(ProgressBar),
     /// A parent menu to choose whether you want to log in
     /// with Microsoft, `ely.by`, `littleskin`, etc.
     AccountLogin,
@@ -615,10 +602,10 @@ pub enum State {
 
     InstallPaper(MenuInstallPaper),
     InstallFabric(MenuInstallFabric),
-    InstallForge(MenuInstallForge),
+    InstallForge(ProgressBar, bool),
     InstallOptifine(MenuInstallOptifine),
 
-    InstallJava,
+    InstallJava(ProgressBar),
 
     ModsDownload(MenuModsDownload),
     LauncherSettings(MenuLauncherSettings),
@@ -719,11 +706,7 @@ pub enum MenuInstallOptifine {
         delete_installer: bool,
         drag_and_drop_hovered: bool,
     },
-    Installing {
-        optifine_install_progress: ProgressBar<OptifineInstallProgress>,
-        java_install_progress: Option<ProgressBar<GenericProgress>>,
-        is_java_being_installed: bool,
-    },
+    Installing(ProgressBar),
     InstallingB173,
 }
 

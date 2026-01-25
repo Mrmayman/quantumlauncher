@@ -70,7 +70,7 @@ pub struct LauncherConfig {
     /// - 1.0: default
     /// - 0.0-1.0: Zoomed out, smaller UI elements
     // Since: v0.4
-    pub ui_scale: Option<f64>,
+    pub ui_scale: Option<f32>,
 
     /// Whether to enable antialiasing or not.
     /// Minor improvement in visual quality,
@@ -193,7 +193,7 @@ impl LauncherConfig {
 
     pub fn c_window_size(&self) -> (f32, f32) {
         let window = self.window.clone().unwrap_or_default();
-        let scale = self.ui_scale.unwrap_or(1.0) as f32;
+        let scale = self.ui_scale.unwrap_or(1.0);
         let window_width = window
             .width
             .filter(|_| window.save_window_size)
@@ -223,7 +223,7 @@ impl LauncherConfig {
 
     pub fn c_theme(&self) -> LauncherTheme {
         LauncherTheme {
-            lightness: self.ui_mode.unwrap_or_default(),
+            mode: self.ui_mode.unwrap_or_default(),
             color: self.ui_theme.unwrap_or_default(),
             alpha: self.c_ui_opacity(),
             system_dark_mode: dark_light::detect()
@@ -322,6 +322,10 @@ pub struct UiSettings {
     pub window_opacity: f32,
     // Since: v0.5.0
     pub idle_fps: Option<u64>,
+    /// Should tick the launcher UI even when idle.
+    /// Default: `false`
+    // Since: v0.5.1
+    pub idle_enable: Option<bool>,
 }
 
 impl Default for UiSettings {
@@ -330,6 +334,7 @@ impl Default for UiSettings {
             window_decorations: UiWindowDecorations::default(),
             window_opacity: OPACITY,
             idle_fps: None,
+            idle_enable: None,
         }
     }
 }

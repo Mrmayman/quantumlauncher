@@ -1,14 +1,17 @@
-use iced::{widget, Length};
+use iced::{
+    widget::{self, column},
+    Length,
+};
 
 use crate::{
     icons,
-    menu_renderer::{back_button, back_to_launch_screen, button_with_icon, Element},
+    menu_renderer::{back_button, back_to_launch_screen, button_with_icon, ui::checkbox, Element},
     state::{MenuExportInstance, Message},
 };
 
 impl MenuExportInstance {
     pub fn view(&'_ self, tick_timer: usize) -> Element<'_> {
-        widget::column![
+        column![
             back_button().on_press(back_to_launch_screen(None, None)),
             "Select the contents of the \".minecraft\" folder you want to keep",
             widget::scrollable(if let Some(entries) = &self.entries {
@@ -18,18 +21,18 @@ impl MenuExportInstance {
                     } else {
                         format!("{}/", entry.name)
                     };
-                    widget::checkbox(name, *enabled)
-                        .on_toggle(move |t| Message::ExportInstanceToggleItem(i, t))
-                        .into()
+                    checkbox(widget::text(name), *enabled, move |t| {
+                        Message::ExportInstanceToggleItem(i, t)
+                    })
                 }))
                 .padding(5)
             } else {
                 let dots = ".".repeat((tick_timer % 3) + 1);
-                widget::column!(widget::text!("Loading{dots}"))
+                column!(widget::text!("Loading{dots}"))
             })
             .width(Length::Fill)
             .height(Length::Fill),
-            widget::column![
+            column![
                 widget::text("Format:").size(12),
                 widget::row![
                     widget::pick_list(["QuantumLauncher"], Some("QuantumLauncher"), |_| {

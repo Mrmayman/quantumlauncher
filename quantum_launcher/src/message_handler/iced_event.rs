@@ -19,6 +19,8 @@ use std::ffi::OsStr;
 use std::path::Path;
 
 impl Launcher {
+    // Note: If you're adding more events,
+    // make sure to register it at `Launcher::subscription` in `main.rs`
     pub fn iced_event(&mut self, event: iced::Event, status: iced::event::Status) -> Task<Message> {
         match event {
             iced::Event::Window(event) => match event {
@@ -65,12 +67,7 @@ impl Launcher {
                         return self.drag_and_drop(&path, &extension, filename);
                     }
                 }
-                iced::window::Event::Closed
-                | iced::window::Event::RedrawRequested(_)
-                | iced::window::Event::Moved { .. }
-                | iced::window::Event::Opened { .. }
-                | iced::window::Event::Focused
-                | iced::window::Event::Unfocused => {}
+                _ => {}
             },
             iced::Event::Keyboard(event) => match event {
                 keyboard::Event::KeyPressed {
@@ -102,7 +99,7 @@ impl Launcher {
                 }
                 _ => {}
             },
-            iced::Event::Touch(_) => {}
+            iced::Event::InputMethod(_) | iced::Event::Touch(_) => {}
         }
         Task::none()
     }
@@ -364,8 +361,8 @@ impl Launcher {
             }
             State::InstallPaper(_)
             | State::ExportInstance(_)
-            | State::InstallForge(_)
-            | State::InstallJava
+            | State::InstallForge(_, _)
+            | State::InstallJava(_)
             | State::InstallOptifine(_)
             | State::UpdateFound(_)
             | State::InstallFabric(_)
@@ -396,8 +393,8 @@ impl Launcher {
                     menu.description = None;
                     return (
                         true,
-                        iced::widget::scrollable::scroll_to(
-                            iced::widget::scrollable::Id::new("MenuModsDownload:main:mods_list"),
+                        iced::widget::operation::scroll_to(
+                            iced::widget::Id::new("MenuModsDownload:main:mods_list"),
                             menu.scroll_offset,
                         ),
                     );
@@ -413,21 +410,12 @@ impl Launcher {
 
     fn hide_submenu(&mut self) -> bool {
         if let State::EditMods(menu) = &mut self.state {
-            if menu.modal.is_some() {
-                menu.modal = None;
+            if menu.right_click.is_some() {
+                menu.right_click = None;
                 return true;
             }
             if menu.search.is_some() {
                 menu.search = None;
-                return true;
-            }
-        } else if let State::Create(MenuCreateInstance::Choosing(MenuCreateInstanceChoosing {
-            show_category_dropdown,
-            ..
-        })) = &mut self.state
-        {
-            if *show_category_dropdown {
-                *show_category_dropdown = false;
                 return true;
             }
         } else if let State::Launch(menu) = &mut self.state {
@@ -500,8 +488,8 @@ impl Launcher {
 
         let scroll_pos = idx as f32 / (list.len() as f32 - 1.0);
         let scroll_pos = scroll_pos * sidebar_height;
-        let scroll_task = iced::widget::scrollable::scroll_to(
-            iced::widget::scrollable::Id::new("MenuLaunch:sidebar"),
+        let scroll_task = iced::widget::operation::scroll_to(
+            iced::widget::Id::new("MenuLaunch:sidebar"),
             iced::widget::scrollable::AbsoluteOffset {
                 x: 0.0,
                 y: scroll_pos,

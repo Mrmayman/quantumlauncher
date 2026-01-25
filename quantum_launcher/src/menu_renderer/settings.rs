@@ -1,6 +1,9 @@
 use std::sync::LazyLock;
 
-use iced::{widget, Alignment, Length};
+use iced::{
+    widget::{self, column},
+    Alignment, Length,
+};
 use ql_core::{LAUNCHER_DIR, WEBSITE};
 
 use super::{
@@ -8,6 +11,7 @@ use super::{
     GITHUB,
 };
 use crate::menu_renderer::edit_instance::{args_split_by_space, get_args_list, resolution_dialog};
+use crate::menu_renderer::ui::toggler;
 use crate::menu_renderer::{back_to_launch_screen, checkered_list, sidebar, tsubtitle};
 use crate::{
     config::LauncherConfig,
@@ -25,7 +29,7 @@ pub static IMG_ICED: LazyLock<widget::image::Handle> = LazyLock::new(|| {
 });
 
 const SETTINGS_SPACING: f32 = 10.0;
-const SETTING_WIDTH: u16 = 180;
+const SETTING_WIDTH: u32 = 180;
 
 pub const PREFIX_EXPLANATION: &str = "Commands to add before the game launch command\nEg: 'prime-run' to force NVIDIA GPU on Linux with Optimus";
 
@@ -35,7 +39,7 @@ impl MenuLauncherSettings {
             sidebar(
                 "MenuLauncherSettings:sidebar",
                 Some(
-                    widget::column![
+                    column![
                         back_button().on_press(back_to_launch_screen(None, None)),
                         Self::get_heading()
                     ]
@@ -56,7 +60,8 @@ impl MenuLauncherSettings {
                 text_color: None,
                 background: None,
                 border: iced::Border::default(),
-                shadow: iced::Shadow::default()
+                shadow: iced::Shadow::default(),
+                snap: true
             }),
             widget::scrollable(self.selected_tab.view(config, self))
                 .width(Length::Fill)
@@ -79,7 +84,7 @@ impl MenuLauncherSettings {
 
     fn view_ui_tab<'a>(&'a self, config: &'a LauncherConfig) -> Element<'a> {
         let ui_scale_apply = widget::row![
-            widget::horizontal_space(),
+            widget::space().width(Length::Fill),
             widget::button(widget::text("Apply").size(12))
                 .padding([1.8, 5.0])
                 .on_press(Message::LauncherSettings(
@@ -90,25 +95,24 @@ impl MenuLauncherSettings {
         let idle_fps = config.ui.unwrap_or_default().get_idle_fps();
 
         checkered_list::<Element>([
-            widget::column![widget::text("User Interface").size(20)].into(),
+            column![widget::text("User Interface").size(20)].into(),
 
-            widget::column![
+            column![
                 widget::row!["Mode: ", get_mode_selector(config)]
                     .spacing(5)
                     .align_y(Alignment::Center),
-                widget::Space::with_height(5),
+                widget::space().height(5),
                 "Theme:",
                 get_theme_selector().wrap()
             ]
             .spacing(5)
             .into(),
             widget::row![
-                widget::row![widget::text!("UI Scale ({:.2}x)  ", self.temp_scale).size(15)]
-                    .push_maybe(
-                        ((self.temp_scale - config.ui_scale.unwrap_or(1.0)).abs() > 0.01)
-                            .then_some(ui_scale_apply)
-                    )
-                    .align_y(Alignment::Center).width(SETTING_WIDTH),
+                widget::row![
+                    widget::text!("UI Scale ({:.2}x)  ", self.temp_scale).size(15),
+                    ((self.temp_scale - config.ui_scale.unwrap_or(1.0)).abs() > 0.01)
+                        .then_some(ui_scale_apply)
+                ].align_y(Alignment::Center).width(SETTING_WIDTH),
                 widget::slider(0.5..=2.0, self.temp_scale, |n| Message::LauncherSettings(
                     LauncherSettingsMessage::UiScale(n)
                 ))
@@ -120,31 +124,40 @@ impl MenuLauncherSettings {
 
             get_ui_opacity(config).into(),
 
-            widget::column![
+            column![
                 // TODO: This requires launcher restart
                 // widget::checkbox("Custom Window Decorations", !config.c_window_decorations()).on_toggle(|n| {
                 //     Message::LauncherSettings(LauncherSettingsMessage::ToggleWindowDecorations(n))
                 // }),
                 // widget::text("Use custom window borders and close/minimize/maximize buttons").size(12),
-                // widget::Space::with_height(5),
+                // widget::space().height(5),
 
-                widget::checkbox("Antialiasing (UI) - Requires Restart", config.ui_antialiasing.unwrap_or(true))
-                    .on_toggle(|n| Message::LauncherSettings(
+                toggler(
+                    "Antialiasing (UI) - Requires Restart",
+                    config.ui_antialiasing.unwrap_or(true),
+                    |n| Message::LauncherSettings(
                         LauncherSettingsMessage::ToggleAntialiasing(n)
-                    )),
+                    )
+                ),
                 widget::text("Makes text/menus crisper. Also nudges the launcher into using your dedicated GPU for the User Interface").size(12).style(tsubtitle),
-                widget::Space::with_height(5),
+                widget::space().height(5),
 
-                widget::checkbox("Remember window size", config.window.as_ref().is_none_or(|n| n.save_window_size))
-                    .on_toggle(|n| Message::LauncherSettings(LauncherSettingsMessage::ToggleWindowSize(n))),
-                widget::Space::with_height(5),
-                widget::checkbox("Remember last selected instance", config.persistent.clone().unwrap_or_default().selected_remembered)
-                    .on_toggle(|n| Message::LauncherSettings(LauncherSettingsMessage::ToggleInstanceRemembering(n))),
+                toggler(
+                    "Remember window size",
+                    config.window.as_ref().is_none_or(|n| n.save_window_size),
+                    |n| Message::LauncherSettings(LauncherSettingsMessage::ToggleWindowSize(n))
+                ),
+                widget::space().height(5),
+                toggler(
+                    "Remember last selected instance",
+                    config.persistent.clone().unwrap_or_default().selected_remembered,
+                    |n| Message::LauncherSettings(LauncherSettingsMessage::ToggleInstanceRemembering(n))
+                ),
             ]
             .spacing(5)
             .into(),
 
-            widget::column![
+            column![
                 widget::row![
                     widget::text!("UI Idle FPS ({idle_fps})")
                         .size(15)
@@ -168,7 +181,7 @@ fn get_ui_opacity(config: &LauncherConfig) -> widget::Column<'static, Message, L
     let ui_opacity = config.c_ui_opacity();
     let t = |t| widget::text(t).size(12).style(tsubtitle);
 
-    widget::column![
+    column![
         widget::row![
             widget::text!("Window Opacity ({ui_opacity:.2}x)")
                 .width(SETTING_WIDTH)
@@ -213,11 +226,11 @@ impl LauncherSettingsTab {
     ) -> Element<'a> {
         match self {
             LauncherSettingsTab::UserInterface => menu.view_ui_tab(config),
-            LauncherSettingsTab::Internal => widget::column![
+            LauncherSettingsTab::Internal => column![
                 widget::text("Game").size(20),
                 button_with_icon(icons::folder(), "Open Launcher Folder", 16)
                     .on_press(Message::CoreOpenPath(LAUNCHER_DIR.clone())),
-                widget::horizontal_rule(1),
+                widget::rule::horizontal(1),
                 resolution_dialog(
                     config.global_settings.as_ref(),
                     |n| Message::LauncherSettings(
@@ -227,12 +240,12 @@ impl LauncherSettingsTab {
                         LauncherSettingsMessage::DefaultMinecraftHeightChanged(n)
                     ),
                 ),
-                widget::horizontal_rule(1),
+                widget::rule::horizontal(1),
                 "Global Java Arguments:",
                 get_args_list(config.extra_java_args.as_deref(), |msg| {
                     Message::LauncherSettings(LauncherSettingsMessage::GlobalJavaArgs(msg))
                 }),
-                widget::Space::with_height(5),
+                widget::space().height(5),
                 "Global Pre-Launch Prefix:",
                 widget::text(PREFIX_EXPLANATION).size(12).style(tsubtitle),
                 get_args_list(
@@ -245,7 +258,7 @@ impl LauncherSettingsTab {
                     )),
                 ),
                 args_split_by_space(menu.arg_split_by_space),
-                widget::horizontal_rule(1),
+                widget::rule::horizontal(1),
                 widget::row![
                     button_with_icon(icons::bin(), "Clear Java installs", 16).on_press(
                         Message::LauncherSettings(LauncherSettingsMessage::ClearJavaInstalls)
@@ -295,8 +308,8 @@ fn view_about_tab() -> Element<'static> {
     .spacing(5)
     .wrap();
 
-    widget::column![
-        widget::column![
+    column![
+        column![
             widget::text("About QuantumLauncher").size(20),
             "Copyright 2025 Mrmayman & Contributors"
         ]
@@ -307,8 +320,8 @@ fn view_about_tab() -> Element<'static> {
             .on_press(Message::CoreOpenLink("https://iced.rs".to_owned()))
             .padding(5)
             .style(|n: &LauncherTheme, status| n.style_button(status, StyleButton::Flat)),
-        widget::horizontal_rule(1),
-        widget::column![
+        widget::rule::horizontal(1),
+        column![
             widget::row![
                 widget::text("QuantumLauncher is free and open source software under the ")
                     .size(12),

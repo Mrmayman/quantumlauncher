@@ -1,6 +1,5 @@
 use std::{fmt::Display, str::FromStr};
 
-use iced::widget::container::Style;
 use iced::widget::scrollable::Rail;
 use iced::{widget, Border};
 use ql_core::err;
@@ -15,6 +14,11 @@ use super::{
 
 pub const BORDER_WIDTH: f32 = 1.0;
 pub const BORDER_RADIUS: f32 = 8.0;
+pub const SHADOW: iced::Shadow = iced::Shadow {
+    color: iced::Color::from_rgba(0.0, 0.0, 0.0, 0.2),
+    offset: iced::Vector::new(0.0, 0.0),
+    blur_radius: 16.0,
+};
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum LauncherThemeColor {
@@ -40,23 +44,23 @@ impl LauncherThemeColor {
         Self::Halloween,
         Self::Adwaita,
     ];
+
+    pub const fn name(&self) -> &str {
+        match self {
+            LauncherThemeColor::Brown => "Brown",
+            LauncherThemeColor::Purple => "Purple",
+            LauncherThemeColor::SkyBlue => "Sky Blue",
+            LauncherThemeColor::Catppuccin => "Catppuccin",
+            LauncherThemeColor::Teal => "Teal",
+            LauncherThemeColor::Halloween => "Halloween",
+            LauncherThemeColor::Adwaita => "Adwaita",
+        }
+    }
 }
 
 impl Display for LauncherThemeColor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                LauncherThemeColor::Brown => "Brown",
-                LauncherThemeColor::Purple => "Purple",
-                LauncherThemeColor::SkyBlue => "Sky Blue",
-                LauncherThemeColor::Catppuccin => "Catppuccin",
-                LauncherThemeColor::Teal => "Teal",
-                LauncherThemeColor::Halloween => "Halloween",
-                LauncherThemeColor::Adwaita => "Adwaita",
-            },
-        )
+        write!(f, "{}", self.name())
     }
 }
 
@@ -92,6 +96,27 @@ pub enum LauncherThemeLightness {
 impl LauncherThemeLightness {
     pub const ALL: &[Self] = &[Self::Light, Self::Dark, Self::Auto];
 }
+
+impl From<iced::theme::Mode> for LauncherThemeLightness {
+    fn from(mode: iced::theme::Mode) -> Self {
+        match mode {
+            iced::theme::Mode::None => LauncherThemeLightness::Auto,
+            iced::theme::Mode::Light => LauncherThemeLightness::Light,
+            iced::theme::Mode::Dark => LauncherThemeLightness::Dark,
+        }
+    }
+}
+
+impl From<LauncherThemeLightness> for iced::theme::Mode {
+    fn from(val: LauncherThemeLightness) -> Self {
+        match val {
+            LauncherThemeLightness::Light => iced::theme::Mode::Light,
+            LauncherThemeLightness::Dark => iced::theme::Mode::Dark,
+            LauncherThemeLightness::Auto => iced::theme::Mode::None,
+        }
+    }
+}
+
 impl Display for LauncherThemeLightness {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -108,7 +133,7 @@ impl Display for LauncherThemeLightness {
 
 #[derive(Clone, Default, Debug)]
 pub struct LauncherTheme {
-    pub lightness: LauncherThemeLightness,
+    pub mode: LauncherThemeLightness,
     pub color: LauncherThemeColor,
     pub alpha: f32,
     pub system_dark_mode: bool,
@@ -116,7 +141,7 @@ pub struct LauncherTheme {
 
 impl LauncherTheme {
     pub fn is_light(&self) -> bool {
-        match self.lightness {
+        match self.mode {
             LauncherThemeLightness::Light => true,
             LauncherThemeLightness::Dark => false,
             LauncherThemeLightness::Auto => !self.system_dark_mode,
@@ -219,12 +244,12 @@ impl LauncherTheme {
             background: Some(self.get_bg(Color::ExtraDark)),
             border,
             scroller: widget::scrollable::Scroller {
-                color: self.get(Color::SecondDark),
+                background: self.get_bg(Color::SecondDark),
                 border: self.get_border_style(&style, Color::Mid),
             },
         };
         widget::scrollable::Style {
-            container: Style {
+            container: widget::container::Style {
                 text_color: None,
                 background: match style {
                     StyleScrollable::Round | StyleScrollable::FlatDark => None,
@@ -232,10 +257,21 @@ impl LauncherTheme {
                 },
                 border,
                 shadow: iced::Shadow::default(),
+                snap: true,
             },
             gap: None,
             vertical_rail: rail,
             horizontal_rail: rail,
+            auto_scroll: self.style_auto_scroll(border),
+        }
+    }
+
+    fn style_auto_scroll(&self, border: Border) -> widget::scrollable::AutoScroll {
+        widget::scrollable::AutoScroll {
+            background: self.get_bg(Color::SecondDark),
+            border,
+            shadow: SHADOW,
+            icon: self.get(Color::Light),
         }
     }
 
@@ -260,6 +296,7 @@ impl LauncherTheme {
             vertical_rail,
             horizontal_rail,
             gap: None,
+            auto_scroll: self.style_auto_scroll(border),
         }
     }
 
@@ -268,10 +305,10 @@ impl LauncherTheme {
             background: Some(self.get_bg(Color::ExtraDark)),
             border,
             scroller: widget::scrollable::Scroller {
-                color: if hovered {
-                    self.get(Color::Mid)
+                background: if hovered {
+                    self.get_bg(Color::Mid)
                 } else {
-                    blend_colors(self.get(Color::SecondDark), self.get(Color::Mid))
+                    iced::Background::Color(mix(self.get(Color::SecondDark), self.get(Color::Mid)))
                 },
                 border: self.get_border_style(&style, Color::Light),
             },
@@ -296,10 +333,10 @@ impl LauncherTheme {
             background: Some(self.get_bg(Color::ExtraDark)),
             border,
             scroller: widget::scrollable::Scroller {
-                color: if is_vertical_scrollbar_dragged {
-                    self.get(Color::White)
+                background: if is_vertical_scrollbar_dragged {
+                    self.get_bg(Color::White)
                 } else {
-                    blend_colors(self.get(Color::Mid), self.get(Color::SecondDark))
+                    iced::Background::Color(mix(self.get(Color::Mid), self.get(Color::SecondDark)))
                 },
                 border: self.get_border_style(&style, Color::Light),
             },
@@ -308,7 +345,7 @@ impl LauncherTheme {
             background: Some(self.get_bg(Color::Dark)),
             border,
             scroller: widget::scrollable::Scroller {
-                color: self.get(if is_horizontal_scrollbar_dragged {
+                background: self.get_bg(if is_horizontal_scrollbar_dragged {
                     Color::White
                 } else {
                     Color::Mid
@@ -321,39 +358,45 @@ impl LauncherTheme {
             vertical_rail: rail_v,
             horizontal_rail: rail_h,
             gap: None,
+            auto_scroll: self.style_auto_scroll(border),
         }
     }
 
-    fn s_scrollable_get_container(&self, style: StyleScrollable, border: Border) -> Style {
-        Style {
+    fn s_scrollable_get_container(
+        &self,
+        style: StyleScrollable,
+        border: Border,
+    ) -> widget::container::Style {
+        widget::container::Style {
             text_color: None,
             background: match style {
                 StyleScrollable::Round | StyleScrollable::FlatDark => None,
                 StyleScrollable::FlatExtraDark => Some(self.get_bg(Color::ExtraDark)),
             },
             border,
+            snap: true,
             shadow: iced::Shadow::default(),
         }
     }
 
-    pub fn style_rule(&self, color: Color, thickness: u16) -> widget::rule::Style {
+    pub fn style_rule(&self, color: Color) -> widget::rule::Style {
         widget::rule::Style {
             color: self.get(color),
-            width: thickness,
+            snap: true,
             radius: 0.into(),
             fill_mode: widget::rule::FillMode::Full,
         }
     }
 
-    pub fn style_container_normal(&self) -> Style {
-        Style {
+    pub fn style_container_normal(&self) -> widget::container::Style {
+        widget::container::Style {
             border: self.get_border(Color::SecondDark),
             ..Default::default()
         }
     }
 
-    pub fn style_container_selected_flat_button(&self) -> Style {
-        Style {
+    pub fn style_container_selected_flat_button(&self) -> widget::container::Style {
+        widget::container::Style {
             border: self.get_border_sharp(Color::Mid),
             background: Some(self.get_bg(Color::SecondDark)),
             text_color: None,
@@ -361,8 +404,11 @@ impl LauncherTheme {
         }
     }
 
-    pub fn style_container_selected_flat_button_semi(&self, radii: [bool; 4]) -> Style {
-        Style {
+    pub fn style_container_selected_flat_button_semi(
+        &self,
+        radii: [bool; 4],
+    ) -> widget::container::Style {
+        widget::container::Style {
             border: Border {
                 radius: get_radius_semi(radii),
                 width: 1.0,
@@ -374,12 +420,17 @@ impl LauncherTheme {
         }
     }
 
-    pub fn style_container_sharp_box(&self, width: f32, color: Color) -> Style {
+    pub fn style_container_sharp_box(&self, width: f32, color: Color) -> widget::container::Style {
         self.style_container_round_box(width, color, 0.0)
     }
 
-    pub fn style_container_round_box(&self, width: f32, color: Color, radius: f32) -> Style {
-        Style {
+    pub fn style_container_round_box(
+        &self,
+        width: f32,
+        color: Color,
+        radius: f32,
+    ) -> widget::container::Style {
+        widget::container::Style {
             border: {
                 Border {
                     color: self.get(Color::Mid),
@@ -396,8 +447,8 @@ impl LauncherTheme {
         &self,
         radii: [bool; 4],
         color: Option<(Color, f32)>,
-    ) -> Style {
-        Style {
+    ) -> widget::container::Style {
+        widget::container::Style {
             border: {
                 Border {
                     color: self.get(Color::Mid),
@@ -412,8 +463,12 @@ impl LauncherTheme {
         }
     }
 
-    pub fn style_container_bg(&self, radius: f32, color: Option<Color>) -> Style {
-        Style {
+    pub fn style_container_bg(
+        &self,
+        radius: f32,
+        color: Option<Color>,
+    ) -> widget::container::Style {
+        widget::container::Style {
             border: {
                 Border {
                     color: self.get(Color::Mid),
@@ -430,7 +485,7 @@ impl LauncherTheme {
         let c = if let LauncherThemeColor::Adwaita = self.color {
             self.get(Color::Dark)
         } else {
-            blend_colors(self.get(Color::Dark), self.get(Color::ExtraDark))
+            mix(self.get(Color::Dark), self.get(Color::ExtraDark))
         };
         iced::Background::Color(c.scale_alpha(self.alpha))
     }
@@ -462,10 +517,11 @@ impl LauncherTheme {
         style: StyleScrollable,
     ) -> widget::scrollable::Style {
         match status {
-            widget::scrollable::Status::Active => self.style_scrollable_active(style),
+            widget::scrollable::Status::Active { .. } => self.style_scrollable_active(style),
             widget::scrollable::Status::Hovered {
                 is_horizontal_scrollbar_hovered,
                 is_vertical_scrollbar_hovered,
+                ..
             } => self.style_scrollable_hovered(
                 style,
                 is_vertical_scrollbar_hovered,
@@ -474,16 +530,13 @@ impl LauncherTheme {
             widget::scrollable::Status::Dragged {
                 is_horizontal_scrollbar_dragged,
                 is_vertical_scrollbar_dragged,
+                ..
             } => self.style_scrollable_dragged(
                 style,
                 is_vertical_scrollbar_dragged,
                 is_horizontal_scrollbar_dragged,
             ),
         }
-    }
-
-    pub fn style_rule_default(&self) -> widget::rule::Style {
-        self.style_rule(Color::SecondDark, 2)
     }
 
     pub fn style_checkbox(
@@ -554,7 +607,14 @@ impl LauncherTheme {
                     StyleButton::FlatExtraDark | StyleButton::SemiExtraDark(_) => Color::ExtraDark,
                 };
                 widget::button::Style {
-                    background: Some(self.get_bg(color)),
+                    background: Some(if let StyleButton::Round = style {
+                        iced::Background::Color(mix(
+                            self.get(Color::Dark),
+                            self.get(Color::SecondDark),
+                        ))
+                    } else {
+                        self.get_bg(color)
+                    }),
                     text_color: self.get(Color::White),
                     border: if let StyleButton::Round = style {
                         Border {
@@ -668,7 +728,6 @@ impl LauncherTheme {
             widget::text_editor::Status::Active => widget::text_editor::Style {
                 background: self.get_bg(Color::ExtraDark),
                 border: self.get_border(Color::Dark),
-                icon: self.get(Color::Light),
                 placeholder: self.get(Color::Light),
                 value: self.get(Color::White),
                 selection: self.get(Color::Dark),
@@ -676,15 +735,13 @@ impl LauncherTheme {
             widget::text_editor::Status::Hovered => widget::text_editor::Style {
                 background: self.get_bg(Color::ExtraDark),
                 border: self.get_border(Color::SecondDark),
-                icon: self.get(Color::Light),
                 placeholder: self.get(Color::Light),
                 value: self.get(Color::White),
                 selection: self.get(Color::Dark),
             },
-            widget::text_editor::Status::Focused => widget::text_editor::Style {
+            widget::text_editor::Status::Focused { .. } => widget::text_editor::Style {
                 background: self.get_bg(Color::Dark),
                 border: self.get_border(Color::SecondDark),
-                icon: self.get(Color::Light),
                 placeholder: self.get(Color::Light),
                 value: self.get(Color::White),
                 selection: self.get(Color::SecondDark),
@@ -692,7 +749,6 @@ impl LauncherTheme {
             widget::text_editor::Status::Disabled => widget::text_editor::Style {
                 background: self.get_bg(Color::SecondDark),
                 border: self.get_border(Color::Mid),
-                icon: self.get(Color::Light),
                 placeholder: self.get(Color::Light),
                 value: self.get(Color::White),
                 selection: self.get(Color::Dark),
@@ -714,16 +770,14 @@ impl LauncherTheme {
                 widget::text_editor::Style {
                     background: self.get_bg(Color::ExtraDark),
                     border,
-                    icon: self.get(Color::Light),
                     placeholder: self.get(Color::Light),
                     value: self.get(Color::White),
                     selection: self.get(Color::Dark),
                 }
             }
-            widget::text_editor::Status::Focused => widget::text_editor::Style {
+            widget::text_editor::Status::Focused { .. } => widget::text_editor::Style {
                 background: self.get_bg(Color::ExtraDark),
                 border,
-                icon: self.get(Color::Light),
                 placeholder: self.get(Color::Light),
                 value: self.get(Color::White),
                 selection: self.get(Color::SecondDark),
@@ -731,7 +785,6 @@ impl LauncherTheme {
             widget::text_editor::Status::Disabled => widget::text_editor::Style {
                 background: self.get_bg(Color::ExtraDark),
                 border,
-                icon: self.get(Color::Light),
                 placeholder: self.get(Color::Light),
                 value: self.get(Color::SecondLight),
                 selection: self.get(Color::Dark),
@@ -757,7 +810,7 @@ fn radius(t: bool) -> f32 {
     }
 }
 
-fn blend_colors(color1: iced::Color, color2: iced::Color) -> iced::Color {
+fn mix(color1: iced::Color, color2: iced::Color) -> iced::Color {
     // Calculate the average of each RGBA component
     let r = color1.r.midpoint(color2.r);
     let g = color1.g.midpoint(color2.g);

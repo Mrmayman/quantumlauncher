@@ -2,17 +2,18 @@ use chrono::DateTime;
 use ql_core::{
     file_utils, info,
     json::{instance_config::ModTypeInfo, VersionDetails},
-    no_window, pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError, Loader,
-    CLASSPATH_SEPARATOR, REGEX_SNAPSHOT,
+    no_window, pipe_progress_ext, pt, GenericProgress, InstanceSelection, IntoIoError,
+    IntoJsonError, IoError, Loader, CLASSPATH_SEPARATOR, REGEX_SNAPSHOT,
 };
-use ql_java_handler::{get_java_binary, JavaVersion};
+use ql_java_handler::{get_java_binary, JavaVersion, JAVA};
 use serde::Deserialize;
-use std::{fmt::Write, io::Cursor, path::Path, sync::mpsc::Sender};
+use sipper::Sender;
+use std::{fmt::Write, io::Cursor, path::Path};
 use tokio::{fs, process::Command};
 
 use crate::loaders::change_instance_type;
 
-use super::forge::{ForgeInstallError, ForgeInstallProgress};
+use super::forge::{ForgeInstallError, ForgeProgress};
 
 const NEOFORGE_VERSIONS_URL: &str =
     "https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge";
@@ -27,15 +28,12 @@ struct NeoforgeVersions {
 pub async fn install(
     neoforge_version: Option<String>,
     instance: InstanceSelection,
-    f_progress: Option<Sender<ForgeInstallProgress>>,
-    j_progress: Option<Sender<GenericProgress>>,
+    mut f_progress: Option<Sender<ForgeProgress>>,
 ) -> Result<(), ForgeInstallError> {
-    let f_progress = f_progress.as_ref();
-
     info!("Installing NeoForge");
     let (neoforge_version, json) =
-        get_version_and_json(neoforge_version, &instance, f_progress).await?;
-    let installer_bytes = get_installer(f_progress, &neoforge_version).await?;
+        get_version_and_json(neoforge_version, &instance, f_progress.as_mut()).await?;
+    let installer_bytes = get_installer(f_progress.as_mut(), &neoforge_version).await?;
 
     let instance_dir = instance.get_instance_path();
     let neoforge_dir = instance_dir.join("forge");
@@ -51,13 +49,7 @@ pub async fn install(
         .await
         .path(&installer_path)?;
 
-    run_installer(
-        &neoforge_dir,
-        j_progress.as_ref(),
-        f_progress,
-        instance.is_server(),
-    )
-    .await?;
+    run_installer(&neoforge_dir, f_progress.clone(), instance.is_server()).await?;
 
     if instance.is_server() {
         fs::remove_dir_all(&neoforge_dir).await.path(neoforge_dir)?;
@@ -66,7 +58,7 @@ pub async fn install(
         delete(&instance_dir, "run.sh").await?;
         delete(&instance_dir, "user_jvm_args.txt").await?;
     } else {
-        download_libraries(f_progress, &json, &installer_bytes, &neoforge_dir).await?;
+        download_libraries(f_progress.clone(), &json, &installer_bytes, &neoforge_dir).await?;
         delete(&neoforge_dir, "launcher_profiles.json").await?;
         delete(&neoforge_dir, "launcher_profiles_microsoft_store.json").await?;
     }
@@ -87,7 +79,7 @@ pub async fn install(
 }
 
 async fn download_libraries(
-    f_progress: Option<&Sender<ForgeInstallProgress>>,
+    mut f_progress: Option<Sender<ForgeProgress>>,
     json: &VersionDetails,
     installer_bytes: &[u8],
     neoforge_dir: &Path,
@@ -110,13 +102,15 @@ async fn download_libraries(
         .enumerate()
     {
         info!("Downloading library {i}/{len}: {}", library.name);
-        send_progress(
-            f_progress,
-            ForgeInstallProgress::P5DownloadingLibrary {
-                num: i,
-                out_of: len,
-            },
-        );
+
+        if let Some(progress) = &mut f_progress {
+            progress
+                .send(ForgeProgress::P6DownloadingLibrary {
+                    num: i,
+                    out_of: len,
+                })
+                .await;
+        }
         let parts: Vec<&str> = library.name.split(':').collect();
 
         let class = parts[0];
@@ -171,11 +165,11 @@ async fn download_libraries(
 }
 
 async fn get_installer(
-    f_progress: Option<&Sender<ForgeInstallProgress>>,
+    f_progress: Option<&mut Sender<ForgeProgress>>,
     neoforge_version: &str,
 ) -> Result<Vec<u8>, ForgeInstallError> {
     pt!("Downloading installer");
-    send_progress(f_progress, ForgeInstallProgress::P3DownloadingInstaller);
+    send_progress(f_progress, ForgeProgress::P3DownloadingInstaller).await;
     let installer_url = format!("https://maven.neoforged.net/releases/net/neoforged/neoforge/{neoforge_version}/neoforge-{neoforge_version}-installer.jar");
     Ok(file_utils::download_file_to_bytes(&installer_url, false).await?)
 }
@@ -183,13 +177,13 @@ async fn get_installer(
 async fn get_version_and_json(
     neoforge_version: Option<String>,
     instance: &InstanceSelection,
-    f_progress: Option<&Sender<ForgeInstallProgress>>,
+    f_progress: Option<&mut Sender<ForgeProgress>>,
 ) -> Result<(String, VersionDetails), ForgeInstallError> {
     Ok(if let Some(n) = neoforge_version {
         (n, VersionDetails::load(instance).await?)
     } else {
         pt!("Checking NeoForge versions");
-        send_progress(f_progress, ForgeInstallProgress::P2DownloadingJson);
+        send_progress(f_progress, ForgeProgress::P2DownloadingJson).await;
         let (versions, version_json) = get_versions(instance.clone()).await?;
 
         let neoforge_version = versions
@@ -225,9 +219,9 @@ async fn get_version_json(
     Ok(jar_version_json)
 }
 
-fn send_progress(f_progress: Option<&Sender<ForgeInstallProgress>>, message: ForgeInstallProgress) {
+async fn send_progress(f_progress: Option<&mut Sender<ForgeProgress>>, message: ForgeProgress) {
     if let Some(progress) = f_progress {
-        _ = progress.send(message);
+        progress.send(message).await;
     }
 }
 
@@ -301,12 +295,11 @@ const FORGE_INSTALLER_SERVER: &[u8] =
 
 pub async fn run_installer(
     neoforge_dir: &Path,
-    j_progress: Option<&Sender<GenericProgress>>,
-    f_progress: Option<&Sender<ForgeInstallProgress>>,
+    mut progress: Option<Sender<ForgeProgress>>,
     is_server: bool,
 ) -> Result<(), ForgeInstallError> {
     pt!("Running Installer");
-    send_progress(f_progress, ForgeInstallProgress::P4RunningInstaller);
+    send_progress(progress.as_mut(), ForgeProgress::P5RunningInstaller).await;
 
     let installer = if is_server {
         FORGE_INSTALLER_SERVER
@@ -318,7 +311,12 @@ pub async fn run_installer(
         .await
         .path(installer_class)?;
 
-    let java_path = get_java_binary(JavaVersion::Java21, "java", j_progress).await?;
+    let java_path = pipe_progress_ext::<GenericProgress, ForgeProgress, _, _, _>(
+        progress,
+        |j_progress| get_java_binary(JavaVersion::Java21, JAVA, j_progress),
+        ForgeProgress::P4InstallingJava,
+    )
+    .await?;
     let mut command = Command::new(&java_path);
     no_window!(command);
     command

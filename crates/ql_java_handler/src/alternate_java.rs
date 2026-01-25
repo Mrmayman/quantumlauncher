@@ -1,16 +1,17 @@
 //! A module to install Java from various third party sources
 //! (like Amazon Corretto) if Mojang doesn't provide Java for your specific platform.
 
-use std::{io::Cursor, path::Path, sync::mpsc::Sender};
+use std::{io::Cursor, path::Path};
 
 use cfg_if::cfg_if;
 use ql_core::{file_utils, GenericProgress};
+use sipper::Sender;
 
-use crate::{extract_tar_gz, send_progress, JavaInstallError, JavaVersion};
+use crate::{extract_tar_gz, JavaInstallError, JavaVersion};
 
 pub(crate) async fn install(
     version: JavaVersion,
-    java_install_progress_sender: Option<&Sender<GenericProgress>>,
+    mut progress: Option<Sender<GenericProgress>>,
     install_dir: &Path,
 ) -> Result<(), JavaInstallError> {
     let url = version.get_alternate_url();
@@ -19,25 +20,27 @@ pub(crate) async fn install(
         return Err(error_unsupported(version));
     };
 
-    send_progress(
-        java_install_progress_sender,
-        GenericProgress {
-            done: 0,
-            total: 2,
-            message: Some("Getting compressed archive".to_owned()),
-            has_finished: false,
-        },
-    );
+    if let Some(progress) = &mut progress {
+        progress
+            .send(GenericProgress {
+                done: 0,
+                total: 2,
+                message: Some("Getting compressed archive".to_owned()),
+                has_finished: false,
+            })
+            .await;
+    }
     let file_bytes = file_utils::download_file_to_bytes(url, false).await?;
-    send_progress(
-        java_install_progress_sender,
-        GenericProgress {
-            done: 1,
-            total: 2,
-            message: Some("Extracting archive".to_owned()),
-            has_finished: false,
-        },
-    );
+    if let Some(progress) = &mut progress {
+        progress
+            .send(GenericProgress {
+                done: 1,
+                total: 2,
+                message: Some("Extracting archive".to_owned()),
+                has_finished: false,
+            })
+            .await;
+    }
     if url.ends_with("tar.gz") {
         extract_tar_gz(&file_bytes, install_dir).map_err(JavaInstallError::TarGzExtract)?;
     } else if url.ends_with("zip") {

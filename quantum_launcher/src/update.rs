@@ -8,6 +8,7 @@ use owo_colors::OwoColorize;
 
 use crate::{
     message_handler::{SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
+    sip,
     state::{
         AutoSaveKind, CustomJarState, GameProcess, LaunchTab, Launcher, LauncherSettingsMessage,
         ManageModsMessage, MenuExportInstance, MenuLaunch, MenuLicense, MenuWelcome, Message,
@@ -48,6 +49,20 @@ impl Launcher {
             Message::CoreCleanComplete(Err(err)) => {
                 err!(no_log, "{err}");
             }
+            Message::CoreProgress(prog) => self.update_progress(prog),
+            Message::CJavaInstallProgress(prog) => {
+                let has_finished = prog.has_finished;
+                if let State::InstallJava(bar) = &mut self.state {
+                    bar.update(prog);
+                } else {
+                    let mut bar = ProgressBar::new();
+                    bar.update(prog);
+                    self.state = State::InstallJava(bar);
+                }
+                if has_finished {
+                    return self.go_to_main_menu_with_message(Some("Installed Java"));
+                }
+            }
 
             Message::UninstallLoaderEnd(Err(err))
             | Message::InstallForgeEnd(Err(err))
@@ -66,7 +81,7 @@ impl Launcher {
             Message::ExportMods(msg) => return self.update_export_mods(msg),
             Message::ManageJarMods(msg) => return self.update_manage_jar_mods(msg),
             Message::RecommendedMods(msg) => return self.update_recommended_mods(msg),
-            Message::Window(msg) => return self.update_window_msg(msg),
+            // Message::Window(msg) => return self.update_window_msg(msg),
             Message::Notes(msg) => return self.update_notes(msg),
             Message::GameLog(msg) => return self.update_game_log(msg),
 
@@ -364,20 +379,16 @@ impl Launcher {
                     progress,
                 }) = &mut self.state
                 {
-                    let (send, recv) = std::sync::mpsc::channel();
-                    *progress = Some(ProgressBar::with_recv(recv));
+                    *progress = Some(ProgressBar::new());
 
                     let exceptions = entries
                         .iter()
                         .filter_map(|(n, b)| (!b).then_some(format!(".minecraft/{}", n.name)))
                         .collect();
+                    let instance = self.selected_instance.clone().unwrap();
 
-                    return Task::perform(
-                        ql_packager::export_instance(
-                            self.selected_instance.clone().unwrap(),
-                            exceptions,
-                            Some(send),
-                        ),
+                    return sip(
+                        |send| ql_packager::export_instance(instance, exceptions, Some(send)),
                         |n| Message::ExportInstanceFinished(n.strerr()),
                     );
                 }
@@ -417,7 +428,7 @@ impl Launcher {
                 }
             }
             Message::CoreFocusNext => {
-                return iced::widget::focus_next();
+                return iced::widget::operation::focus_next();
             }
             Message::MModal(m) => {
                 if let State::Launch(menu) = &mut self.state {
@@ -458,7 +469,7 @@ impl Launcher {
             .config
             .ui_mode
             .is_none_or(|n| n == LauncherThemeLightness::Auto);
-        let interval = self.tick_timer % INTERVAL == 0;
+        let interval = self.tick_timer.is_multiple_of(INTERVAL);
 
         if is_auto_theme && interval {
             Task::perform(tokio::task::spawn_blocking(dark_light::detect), |n| {

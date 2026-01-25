@@ -1,14 +1,11 @@
-use std::{
-    ffi::OsStr,
-    process::Command,
-    sync::{mpsc::Sender, Arc},
-};
+use std::{ffi::OsStr, process::Command, sync::Arc};
 
 use ql_core::{
     err, file_utils, impl_3_errs_jri, info, GenericProgress, IntoIoError, IoError, JsonError,
     RequestError,
 };
 use serde::Deserialize;
+use sipper::Sender;
 use thiserror::Error;
 
 use crate::LAUNCHER_VERSION;
@@ -143,9 +140,9 @@ pub async fn check_for_launcher_updates() -> Result<UpdateCheckInfo, UpdateError
 /// - Has a name with invalid UNICODE
 pub async fn install_launcher_update(
     url: String,
-    progress: Sender<GenericProgress>,
+    mut progress: Sender<GenericProgress>,
 ) -> Result<(), UpdateError> {
-    _ = progress.send(GenericProgress::default());
+    progress.send(GenericProgress::default()).await;
 
     let exe_path = std::env::current_exe().map_err(UpdateError::CurrentExeError)?;
     let exe_location = exe_path.parent().ok_or(UpdateError::ExeParentPathError)?;
@@ -164,33 +161,39 @@ pub async fn install_launcher_update(
     }
 
     info!("Backing up existing launcher");
-    _ = progress.send(GenericProgress {
-        done: 1,
-        total: 4,
-        message: Some("Backing up existing launcher".to_owned()),
-        has_finished: false,
-    });
+    progress
+        .send(GenericProgress {
+            done: 1,
+            total: 4,
+            message: Some("Backing up existing launcher".to_owned()),
+            has_finished: false,
+        })
+        .await;
     let backup_path = exe_location.join(format!("backup_{backup_idx}_{exe_name}"));
     tokio::fs::rename(&exe_path, &backup_path)
         .await
         .path(backup_path)?;
 
     info!("Downloading new version of launcher");
-    _ = progress.send(GenericProgress {
-        done: 2,
-        total: 4,
-        message: Some("Downloading new launcher".to_owned()),
-        has_finished: false,
-    });
+    progress
+        .send(GenericProgress {
+            done: 2,
+            total: 4,
+            message: Some("Downloading new launcher".to_owned()),
+            has_finished: false,
+        })
+        .await;
     let download_zip = file_utils::download_file_to_bytes(&url, false).await?;
 
     info!("Extracting launcher");
-    _ = progress.send(GenericProgress {
-        done: 3,
-        total: 4,
-        message: Some("Extracting new launcher".to_owned()),
-        has_finished: false,
-    });
+    progress
+        .send(GenericProgress {
+            done: 3,
+            total: 4,
+            message: Some("Extracting new launcher".to_owned()),
+            has_finished: false,
+        })
+        .await;
     file_utils::extract_zip_archive(std::io::Cursor::new(download_zip), exe_location, true).await?;
 
     // Should I, though?

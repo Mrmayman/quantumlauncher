@@ -1,4 +1,5 @@
 use crate::config::SIDEBAR_WIDTH;
+use crate::sip;
 use crate::state::{
     AutoSaveKind, GameProcess, MenuCreateInstance, MenuCreateInstanceChoosing, MenuInstallOptifine,
 };
@@ -6,8 +7,8 @@ use crate::tick::sort_dependencies;
 use crate::{
     get_entries,
     state::{
-        EditPresetsMessage, ManageModsMessage, MenuEditInstance, MenuEditMods, MenuInstallForge,
-        MenuLaunch, ProgressBar, SelectedState, State, OFFLINE_ACCOUNT_NAME,
+        EditPresetsMessage, ManageModsMessage, MenuEditInstance, MenuEditMods, MenuLaunch,
+        ProgressBar, SelectedState, State, OFFLINE_ACCOUNT_NAME,
     },
     Launcher, Message,
 };
@@ -16,12 +17,12 @@ use iced::widget::scrollable::AbsoluteOffset;
 use iced::Task;
 use ql_core::json::instance_config::ModTypeInfo;
 use ql_core::json::VersionDetails;
-use ql_core::read_log::{Diagnostic, ReadError};
+use ql_core::read_log::Diagnostic;
 use ql_core::{
-    err, json::instance_config::InstanceConfigJson, GenericProgress, InstanceSelection,
-    IntoIoError, IntoJsonError, IntoStringError, JsonFileError,
+    err, json::instance_config::InstanceConfigJson, InstanceSelection, IntoIoError, IntoJsonError,
+    IntoStringError, JsonFileError,
 };
-use ql_core::{info, pt, LaunchedProcess};
+use ql_core::{info, LaunchedProcess};
 use ql_instances::auth::AccountData;
 use ql_mod_manager::{loaders, store::ModIndex};
 use std::{
@@ -29,7 +30,6 @@ use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
     process::ExitStatus,
-    sync::mpsc::{Receiver, Sender},
 };
 use tokio::io::AsyncWriteExt;
 
@@ -71,32 +71,31 @@ impl Launcher {
             self.config.username.clone()
         };
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        self.java_recv = Some(ProgressBar::with_recv(receiver));
-
         let global_settings = self.config.global_settings.clone();
         let extra_java_args = self.config.extra_java_args.clone().unwrap_or_default();
 
         let instance_name = self.instance().get_name().to_owned();
-        Task::perform(
-            async move {
-                ql_instances::launch(
-                    instance_name,
-                    username,
-                    Some(sender),
-                    account_data,
-                    global_settings,
-                    extra_java_args,
-                )
-                .await
-                .strerr()
-            },
+
+        let builder = |send| async move {
+            ql_instances::launch(
+                instance_name,
+                username,
+                Some(send),
+                account_data,
+                global_settings,
+                extra_java_args,
+            )
+            .await
+            .strerr()
+        };
+        Task::sip(
+            sipper::sipper(builder),
+            Message::CJavaInstallProgress,
             Message::LaunchEnd,
         )
     }
 
     pub fn finish_launching(&mut self, result: Result<LaunchedProcess, String>) -> Task<Message> {
-        self.java_recv = None;
         self.is_launching_game = false;
         match result {
             Ok(child) => {
@@ -122,23 +121,7 @@ impl Launcher {
                 }
 
                 if let Some(f) = child.read_logs(censors, Some(sender)) {
-                    return Task::perform(
-                        async move {
-                            let result = f.await;
-
-                            match result {
-                                Err(ReadError::Io(io))
-                                    if io.kind() == std::io::ErrorKind::InvalidData =>
-                                {
-                                    err!("Minecraft log contains invalid unicode! Stopping logs");
-                                    pt!("The game will continue to run");
-                                    Ok((ExitStatus::default(), selected_instance, None))
-                                }
-                                _ => result.strerr(),
-                            }
-                        },
-                        Message::LaunchGameExited,
-                    );
+                    return Task::perform(f, Message::LaunchGameExited);
                 }
             }
             Err(err) => self.set_error(err),
@@ -255,7 +238,7 @@ impl Launcher {
                 drag_and_drop_hovered: false,
                 update_check_handle,
                 version_json,
-                modal: None,
+                right_click: None,
                 search: None,
                 width_name: 220.0,
                 list_shift_index: None,
@@ -309,14 +292,12 @@ impl Launcher {
                 .into_iter()
                 .map(|(n, _, _)| n)
                 .collect();
-            let (sender, receiver) = std::sync::mpsc::channel();
-            menu.mod_update_progress = Some(ProgressBar::with_recv_and_msg(
-                receiver,
-                "Deleting Mods".to_owned(),
-            ));
+            menu.mod_update_progress = Some(ProgressBar::new());
             let selected_instance = self.selected_instance.clone().unwrap();
-            Task::perform(
-                ql_mod_manager::store::apply_updates(selected_instance, updates, Some(sender)),
+            sip(
+                |sender| {
+                    ql_mod_manager::store::apply_updates(selected_instance, updates, Some(sender))
+                },
                 |n| Message::ManageMods(ManageModsMessage::UpdateModsFinished(n.strerr())),
             )
         } else {
@@ -354,32 +335,18 @@ impl Launcher {
     }
 
     pub fn install_forge(&mut self, kind: ForgeKind) -> Task<Message> {
-        let (f_sender, f_receiver) = std::sync::mpsc::channel();
-        let (j_sender, j_receiver): (Sender<GenericProgress>, Receiver<GenericProgress>) =
-            std::sync::mpsc::channel();
-
         let instance_selection = self.selected_instance.clone().unwrap();
         let instance_selection2 = instance_selection.clone();
 
-        let command = Task::perform(
-            async move {
+        self.state = State::InstallForge(ProgressBar::new(), matches!(kind, ForgeKind::NeoForge));
+
+        sip(
+            move |sender| async move {
                 if matches!(kind, ForgeKind::NeoForge) {
                     // TODO: Add UI to specify NeoForge version
-                    loaders::neoforge::install(
-                        None,
-                        instance_selection2,
-                        Some(f_sender),
-                        Some(j_sender),
-                    )
-                    .await
+                    loaders::neoforge::install(None, instance_selection2, Some(sender)).await
                 } else {
-                    loaders::forge::install(
-                        None,
-                        instance_selection2,
-                        Some(f_sender),
-                        Some(j_sender),
-                    )
-                    .await
+                    loaders::forge::install(None, instance_selection2, Some(sender)).await
                 }
                 .strerr()?;
                 if matches!(kind, ForgeKind::OptiFine) {
@@ -393,14 +360,7 @@ impl Launcher {
                 Ok(())
             },
             Message::InstallForgeEnd,
-        );
-
-        self.state = State::InstallForge(MenuInstallForge {
-            forge_progress: ProgressBar::with_recv(f_receiver),
-            java_progress: ProgressBar::with_recv(j_receiver),
-            is_java_getting_installed: false,
-        });
-        command
+        )
     }
 
     pub fn go_to_main_menu_with_message(
@@ -436,16 +396,11 @@ impl Launcher {
     }
 
     fn load_modpack_from_path(&mut self, path: PathBuf) -> Task<Message> {
-        let (sender, receiver) = std::sync::mpsc::channel();
+        self.state = State::ImportModpack(ProgressBar::new());
+        let instance = self.selected_instance.clone().unwrap();
 
-        self.state = State::ImportModpack(ProgressBar::with_recv(receiver));
-
-        Task::perform(
-            ql_mod_manager::add_files(
-                self.selected_instance.clone().unwrap(),
-                vec![path],
-                Some(sender),
-            ),
+        sip(
+            move |sender| ql_mod_manager::add_files(instance, vec![path], Some(sender)),
             |n| Message::ManageMods(ManageModsMessage::AddFileDone(n.strerr())),
         )
     }
@@ -477,20 +432,21 @@ impl Launcher {
             true,
         )) {
             Ok(mods) => {
-                let (sender, receiver) = std::sync::mpsc::channel();
                 if let State::EditMods(_) = &self.state {
                     self.go_to_edit_presets_menu();
                 }
                 if let State::ManagePresets(menu) = &mut self.state {
-                    menu.progress = Some(ProgressBar::with_recv(receiver));
+                    menu.progress = Some(ProgressBar::new());
                 }
                 let instance_name = self.selected_instance.clone().unwrap();
-                Task::perform(
-                    ql_mod_manager::store::download_mods_bulk(
-                        mods.to_install,
-                        instance_name,
-                        Some(sender),
-                    ),
+                sip(
+                    |sender| {
+                        ql_mod_manager::store::download_mods_bulk(
+                            mods.to_install,
+                            instance_name,
+                            Some(sender),
+                        )
+                    },
                     |n| Message::EditPresets(EditPresetsMessage::LoadComplete(n.strerr())),
                 )
             }
@@ -521,16 +477,11 @@ impl Launcher {
         if let State::UpdateFound(crate::state::MenuLauncherUpdate { url, progress, .. }) =
             &mut self.state
         {
-            let (sender, update_receiver) = std::sync::mpsc::channel();
-            *progress = Some(ProgressBar::with_recv_and_msg(
-                update_receiver,
-                "Starting Update".to_owned(),
-            ));
-
+            *progress = Some(ProgressBar::new());
             let url = url.clone();
 
-            Task::perform(
-                async move {
+            sip(
+                |sender| async move {
                     ql_instances::install_launcher_update(url, sender)
                         .await
                         .strerr()
@@ -628,12 +579,13 @@ impl Launcher {
                 self.launch_game(account_data)
             }
             InstanceSelection::Server(server) => {
-                let (sender, receiver) = std::sync::mpsc::channel();
-                self.java_recv = Some(ProgressBar::with_recv(receiver));
-
                 let server = server.clone();
-                Task::perform(
-                    async move { ql_servers::run(server, Some(sender)).await.strerr() },
+
+                Task::sip(
+                    sipper::sipper(|sender| async move {
+                        ql_servers::run(server, Some(sender)).await.strerr()
+                    }),
+                    Message::CJavaInstallProgress,
                     Message::LaunchEnd,
                 )
             }

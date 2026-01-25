@@ -11,21 +11,23 @@ simulate_linux_arm32 = []
 
 [dependencies]
 chrono.workspace = true
-dirs = "6"
 futures.workspace = true
 owo-colors.workspace = true
 cfg-if.workspace = true
-
 zip.workspace = true
 walkdir.workspace = true
 regex.workspace = true
-
+sipper.workspace = true
 reqwest.workspace = true
+
 tokio.workspace = true
 tokio-util = "0.7"
+
 serde.workspace = true
 serde_json.workspace = true
+
 thiserror.workspace = true
+dirs = "6"
 sha2 = "0.10"
 
 quick-xml = { version = "0.37", features = ["encoding", "serialize"] }

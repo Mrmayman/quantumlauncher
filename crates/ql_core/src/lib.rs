@@ -22,6 +22,7 @@ use futures::StreamExt;
 use json::VersionDetails;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use sipper::FutureExt;
 use std::{
     ffi::OsStr,
     fmt::{Debug, Display},
@@ -57,7 +58,7 @@ pub use error::{
 pub use file_utils::{RequestError, LAUNCHER_DIR};
 pub use loader::Loader;
 pub use print::{logger_finish, LogType, LoggingState, LOGGER};
-pub use progress::{DownloadProgress, GenericProgress, Progress};
+pub use progress::{pipe_progress, pipe_progress_ext, DownloadProgress, GenericProgress, Progress};
 pub use urlcache::url_cache_get;
 
 pub static REGEX_SNAPSHOT: LazyLock<Regex> =
@@ -686,27 +687,44 @@ pub struct LaunchedProcess {
     pub is_classic_server: bool,
 }
 
-type ReadLogOut = Result<(ExitStatus, InstanceSelection, Option<Diagnostic>), ReadError>;
+type ReadLogOut = Result<(ExitStatus, InstanceSelection, Option<Diagnostic>), String>;
 
 impl LaunchedProcess {
+    /// Reads log output from a launched game/server
+    /// process until it closes
+    ///
+    /// Returns an exit code, the instance identifier,
+    /// and optionally a diagnostic if any fix was
+    /// detected for a crash
     #[must_use]
     pub fn read_logs(
         &self,
         censors: Vec<String>,
         sender: Option<Sender<LogLine>>,
     ) -> Option<Pin<Box<dyn Future<Output = ReadLogOut> + Send>>> {
-        let mut c = self.child.lock().unwrap();
+        let mut c = self.child.lock().ok()?;
         let (Some(stdout), Some(stderr)) = (c.stdout.take(), c.stderr.take()) else {
             return None;
         };
 
-        Some(Box::pin(read_logs(
-            stdout,
-            stderr,
-            self.child.clone(),
-            sender,
-            self.instance.clone(),
-            censors,
-        )))
+        let instance = self.instance.clone();
+        Some(Box::pin(
+            read_logs(
+                stdout,
+                stderr,
+                self.child.clone(),
+                sender,
+                instance.clone(),
+                censors,
+            )
+            .map(|n| match n {
+                Err(ReadError::Io(io)) if io.kind() == std::io::ErrorKind::InvalidData => {
+                    err!("Minecraft log contains invalid unicode! Stopping logs");
+                    pt!("The game will continue to run");
+                    Ok((ExitStatus::default(), instance, None))
+                }
+                _ => n.strerr(),
+            }),
+        ))
     }
 }

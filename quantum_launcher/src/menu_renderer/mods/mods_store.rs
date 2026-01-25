@@ -1,14 +1,16 @@
 use frostmark::MarkWidget;
 use iced::{
     widget::{self, column, row},
-    Length,
+    Alignment, Length,
 };
 use ql_core::{Loader, ModId, StoreBackendType};
 use ql_mod_manager::store::{QueryType, SearchMod};
 
 use crate::{
     icons,
-    menu_renderer::{back_button, button_with_icon, tooltip, Element, FONT_DEFAULT, FONT_MONO},
+    menu_renderer::{
+        back_button, button_with_icon, tooltip, tsubtitle, Element, FONT_DEFAULT, FONT_MONO,
+    },
     state::{
         ImageState, InstallModsMessage, ManageModsMessage, MenuModsDownload, Message, ModOperation,
     },
@@ -21,7 +23,7 @@ impl MenuModsDownload {
     fn view_main<'a>(&'a self, images: &'a ImageState, tick_timer: usize) -> Element<'a> {
         let mods_list = self.get_mods_list(images, tick_timer);
 
-        row!(
+        row![
             widget::scrollable(
                 column!(
                     widget::text_input("Search...", &self.query)
@@ -33,56 +35,51 @@ impl MenuModsDownload {
                 .width(200)
             )
             .style(LauncherTheme::style_scrollable_flat_dark),
-            widget::Column::new()
-                .push_maybe(
-                    (self.query_type == QueryType::Shaders
-                        && self.config.mod_type != Loader::OptiFine
+            column![
+                (self.query_type == QueryType::Shaders
+                    && self.config.mod_type != Loader::OptiFine
 
-                        // Iris Shaders Mod
-                        && !self.mod_index.mods.contains_key("YL57xq9U") // Modrinth ID
-                        && !self.mod_index.mods.contains_key("CF:455508")) // CurseForge ID
-                    .then_some(
-                        column![
-                            widget::text(
-                                "You haven't installed any shader mod! Either install:\n- Fabric + Sodium + Iris (recommended), or\n- OptiFine"
-                            ).size(12)
-                        ].padding(10)
+                    // Iris Shaders Mod
+                    && !self.mod_index.mods.contains_key("YL57xq9U") // Modrinth ID
+                    && !self.mod_index.mods.contains_key("CF:455508")) // CurseForge ID
+                .then_some(
+                    column![
+                        widget::text(
+                            "You haven't installed any shader mod! Either install:\n- Fabric + Sodium + Iris (recommended), or\n- OptiFine"
+                        ).size(12)
+                    ].padding(10)
+                ),
+                (self.query_type == QueryType::Mods
+                    && self.config.mod_type.is_vanilla())
+                .then_some(
+                    widget::container(
+                        widget::text(
+                            // WARN: No loader installed
+                            "You haven't installed any mod loader! Install Fabric (recommended), Forge, Quilt or NeoForge"
+                        ).size(12)
+                    ).padding(10).width(Length::Fill).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
+                ),
+                (self.query_type == QueryType::Mods && self.version_json.is_legacy_version())
+                .then_some(
+                    widget::container(
+                        widget::text(
+                            // WARN: Store for old versions
+                            "Installing Mods for old versions is experimental and may be broken"
+                        ).size(12)
+                    ).padding(10).width(Length::Fill).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
+                ),
+                widget::scrollable(mods_list)
+                    .style(|theme: &LauncherTheme, status|
+                        theme
+                            .style_scrollable_flat_extra_dark(status)
                     )
-                )
-                .push_maybe(
-                    (self.query_type == QueryType::Mods
-                        && self.config.mod_type.is_vanilla())
-                    .then_some(
-                        widget::container(
-                            widget::text(
-                                // WARN: No loader installed
-                                "You haven't installed any mod loader! Install Fabric (recommended), Forge, Quilt or NeoForge"
-                            ).size(12)
-                        ).padding(10).width(Length::Fill).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
-                    )
-                ).push_maybe((self.query_type == QueryType::Mods && self.version_json.is_legacy_version())
-                    .then_some(
-                        widget::container(
-                            widget::text(
-                                // WARN: Store for old versions
-                                "Installing Mods for old versions is experimental and may be broken"
-                            ).size(12)
-                        ).padding(10).width(Length::Fill).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
-                    )
-                ).push(
-                    widget::scrollable(mods_list.spacing(10).padding(10))
-                        .style(|theme: &LauncherTheme, status|
-                            theme
-                                .style_scrollable_flat_extra_dark(status)
-                        )
-                        .id(widget::scrollable::Id::new("MenuModsDownload:main:mods_list"))
-                        .height(Length::Fill)
-                        .width(Length::Fill)
-                        .on_scroll(|viewport| {
-                            Message::InstallMods(InstallModsMessage::Scrolled(viewport))
-                        }),
-                )
-        )
+                    .id(widget::Id::new("MenuModsDownload:main:mods_list"))
+                    .height(Length::Fill)
+                    .width(Length::Fill)
+                    .on_scroll(|viewport| {
+                        Message::InstallMods(InstallModsMessage::Scrolled(viewport))
+                    }),
+        ]]
         .into()
     }
 
@@ -91,7 +88,7 @@ impl MenuModsDownload {
             back_button().on_press(Message::ManageMods(
                 ManageModsMessage::ScreenOpenWithoutUpdate
             )),
-            widget::Space::with_height(5.0),
+            widget::space().height(5.0),
             widget::text("Select store:").size(18),
             widget::radio(
                 "Modrinth",
@@ -109,7 +106,7 @@ impl MenuModsDownload {
             )
             .text_size(14)
             .size(14),
-            widget::Space::with_height(5),
+            widget::space().height(5),
             widget::text("Select Type:").size(18),
             widget::column(QueryType::STORE_QUERIES.iter().map(|n| {
                 widget::radio(n.to_string(), *n, Some(self.query_type), |v| {
@@ -133,7 +130,7 @@ impl MenuModsDownload {
                     self.mods_download_in_progress
                         .values()
                         .map(|(title, operation)| {
-                            const SIZE: u16 = 12;
+                            const SIZE: u32 = 12;
                             widget::container(
                                 widget::row![
                                     match operation {
@@ -171,12 +168,14 @@ impl MenuModsDownload {
                         .enumerate()
                         .map(|(i, hit)| self.view_mod_entry(i, hit, images, results.backend)),
                 )
+                .spacing(5)
             }
-            .push(widget::horizontal_space())
+            .push(widget::space().width(Length::Fill))
         } else {
             let dots = ".".repeat((tick_timer % 3) + 1);
             column!(widget::text!("Loading{dots}"))
         }
+        .padding(10)
     }
 
     /// Renders a single mod entry (and button) in the search results.
@@ -187,6 +186,47 @@ impl MenuModsDownload {
         images: &'a ImageState,
         backend: StoreBackendType,
     ) -> Element<'a> {
+        let icon = images.view(
+            &hit.icon_url,
+            Some(32.0),
+            Some(32.0),
+            column!(widget::text("...")).into(),
+        );
+
+        row!(
+            self.mod_download_button(i, hit, backend),
+            widget::button(
+                row!(
+                    icon,
+                    column!(
+                        widget::text(&hit.title)
+                            .wrapping(widget::text::Wrapping::None)
+                            .shaping(widget::text::Shaping::Advanced)
+                            .height(20)
+                            .width(Length::Fill),
+                        widget::text(&hit.description)
+                            .shaping(widget::text::Shaping::Advanced)
+                            .size(12)
+                            .style(tsubtitle)
+                    )
+                    .spacing(2),
+                )
+                .padding(5)
+                .spacing(16),
+            )
+            .height(70)
+            .on_press(Message::InstallMods(InstallModsMessage::Click(i)))
+        )
+        .spacing(5)
+        .into()
+    }
+
+    fn mod_download_button(
+        &self,
+        i: usize,
+        hit: &SearchMod,
+        backend: StoreBackendType,
+    ) -> Element<'_> {
         let is_installed = self
             .mod_index
             .mods
@@ -196,12 +236,25 @@ impl MenuModsDownload {
             .mods_download_in_progress
             .contains_key(&ModId::from_pair(&hit.id, backend));
 
-        let side_button = |icon| widget::button(row![icon].padding(5)).height(70);
+        let side_button = |icon, show_downloads: bool| {
+            widget::button(
+                column![
+                    icon,
+                    widget::space().height(Length::Fill),
+                    show_downloads.then(|| widget::text(Self::format_downloads(hit.downloads))
+                        .size(10)
+                        .style(tsubtitle))
+                ]
+                .align_x(Alignment::Center)
+                .padding(5),
+            )
+            .height(70)
+        };
 
-        let action_button: Element = if is_installed && !is_downloading {
-            // Uninstall button - darker to respect theme
+        if is_installed && !is_downloading {
+            // Uninstall button
             tooltip(
-                side_button(icons::bin())
+                side_button(icons::bin_s(20), false)
                     .style(|t: &LauncherTheme, s| {
                         t.style_button(s, StyleButton::SemiDarkBorder([true; 4]))
                     })
@@ -212,57 +265,13 @@ impl MenuModsDownload {
             .into()
         } else {
             // Download button
-            side_button(icons::download())
+            side_button(icons::download_s(20), true)
                 .on_press_maybe(
                     (!is_downloading)
                         .then_some(Message::InstallMods(InstallModsMessage::Download(i))),
                 )
                 .into()
-        };
-
-        row!(
-            action_button,
-            widget::button(
-                row!(
-                    images.view(
-                        &hit.icon_url,
-                        Some(32.0),
-                        Some(32.0),
-                        column!(widget::text("...")).into()
-                    ),
-                    column!(
-                        icons::download_s(20),
-                        widget::text(Self::format_downloads(hit.downloads)).size(12),
-                    )
-                    .align_x(iced::Alignment::Center)
-                    .width(40)
-                    .height(60)
-                    .spacing(5),
-                    column!(
-                        widget::text(&hit.title)
-                            .wrapping(widget::text::Wrapping::None)
-                            .shaping(widget::text::Shaping::Advanced)
-                            .height(20)
-                            .width(Length::Fill),
-                        widget::responsive(|size| {
-                            widget::text(safe_slice(&hit.description, (size.width / 7.5) as usize))
-                                .font(FONT_MONO)
-                                .shaping(widget::text::Shaping::Advanced)
-                                .size(12)
-                                .style(|t: &LauncherTheme| t.style_text(Color::Mid))
-                                .into()
-                        }),
-                    )
-                    .spacing(5),
-                )
-                .padding(5)
-                .spacing(10),
-            )
-            .height(70)
-            .on_press(Message::InstallMods(InstallModsMessage::Click(i)))
-        )
-        .spacing(5)
-        .into()
+        }
     }
 
     pub fn view<'a>(&'a self, images: &'a ImageState, tick_timer: usize) -> Element<'a> {
@@ -287,15 +296,15 @@ impl MenuModsDownload {
     ) -> Element<'a> {
         // Parses the markdown description of the mod.
         let markdown_description = if let Some(desc) = &self.description {
-            column!(MarkWidget::new(desc)
+            column![MarkWidget::new(desc)
                 .on_clicking_link(Message::CoreOpenLink)
                 .on_drawing_image(|img| { images.view(img.url, img.width, img.height, "".into()) })
                 .on_updating_state(|n| Message::InstallMods(InstallModsMessage::TickDesc(n)))
                 .font(FONT_DEFAULT)
-                .font_mono(FONT_MONO))
+                .font_mono(FONT_MONO)]
         } else {
             let dots = ".".repeat((tick_timer % 3) + 1);
-            column!(widget::text!("Loading...{dots}"))
+            column!(widget::text!("Loading{dots}"))
         };
 
         let url = format!(
@@ -309,33 +318,33 @@ impl MenuModsDownload {
         );
 
         widget::scrollable(
-            column!(
-                row!(
+            column![
+                row![
                     back_button()
                         .on_press(Message::InstallMods(InstallModsMessage::BackToMainScreen)),
                     widget::tooltip(
-                        button_with_icon(icons::globe(), "Open Mod Page", 14)
+                        button_with_icon(icons::globe_s(14), "Open Mod Page", 14)
                             .on_press(Message::CoreOpenLink(url.clone())),
                         widget::text(url),
                         widget::tooltip::Position::Bottom
                     )
                     .style(|n| n.style_container_sharp_box(0.0, Color::ExtraDark)),
-                    button_with_icon(icons::floppydisk(), "Copy ID", 14)
+                    button_with_icon(icons::floppydisk_s(14), "Copy ID", 14)
                         .on_press(Message::CoreCopyText(hit.id.clone())),
-                )
+                ]
                 .spacing(5),
-                row!(
+                row![
                     images.view(&hit.icon_url, Some(32.0), Some(32.0), "".into()),
                     widget::text(&hit.title)
                         .shaping(widget::text::Shaping::Advanced)
                         .size(24)
-                )
+                ]
                 .spacing(10),
                 widget::text(&hit.description)
                     .shaping(widget::text::Shaping::Advanced)
                     .size(20),
                 markdown_description
-            )
+            ]
             .padding(20)
             .spacing(20),
         )
@@ -357,17 +366,5 @@ impl MenuModsDownload {
         } else {
             format!("{}M", downloads / 1_000_000)
         }
-    }
-}
-
-fn safe_slice(s: &str, max_len: usize) -> &str {
-    let mut end = 0;
-    for (i, _) in s.char_indices().take(max_len) {
-        end = i;
-    }
-    if end == 0 {
-        s
-    } else {
-        &s[..end]
     }
 }

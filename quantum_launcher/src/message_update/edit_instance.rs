@@ -10,6 +10,7 @@ use ql_core::{
 
 use crate::{
     message_handler::format_memory,
+    sip,
     state::{
         dir_watch, get_entries, CustomJarState, EditInstanceMessage, LaunchTab, Launcher,
         MenuCreateInstance, MenuEditInstance, MenuLaunch, Message, ProgressBar, State,
@@ -274,12 +275,12 @@ impl Launcher {
     }
 
     fn instance_redownload_stage(&mut self, stage: ql_core::DownloadProgress) -> Task<Message> {
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let bar = ProgressBar::with_recv(receiver);
+        let bar = ProgressBar::new();
         self.state = State::Create(MenuCreateInstance::DownloadingInstance(bar));
+        let instance = self.instance().clone();
 
-        Task::perform(
-            ql_instances::repeat_stage(self.instance().clone(), stage, Some(sender)),
+        sip(
+            move |sender| ql_instances::repeat_stage(instance, stage, Some(sender)),
             |t| {
                 if let Err(err) = t {
                     Message::Error(err)

@@ -1,5 +1,7 @@
 use iced::widget;
 
+use crate::stylesheet::styles::{LauncherThemeColor, BORDER_RADIUS, BORDER_WIDTH, SHADOW};
+
 use super::{color::Color, styles::LauncherTheme};
 
 #[derive(Default, Clone, Copy)]
@@ -230,7 +232,7 @@ impl widget::pick_list::Catalog for LauncherTheme {
                 background: self.get_bg(Color::SecondDark),
                 border: self.get_border(Color::SecondDark),
             },
-            widget::pick_list::Status::Opened => widget::pick_list::Style {
+            widget::pick_list::Status::Opened { .. } => widget::pick_list::Style {
                 text_color: self.get(Color::Light),
                 placeholder_color: self.get(Color::SecondLight),
                 handle_color: self.get(Color::Light),
@@ -253,6 +255,7 @@ impl widget::overlay::menu::Catalog for LauncherTheme {
             border: self.get_border(Color::Mid),
             selected_text_color: self.get(Color::Dark),
             selected_background: self.get_bg(Color::SecondLight),
+            shadow: SHADOW,
         }
     }
 }
@@ -296,7 +299,7 @@ impl widget::text_input::Catalog for LauncherTheme {
                 value: self.get(Color::White),
                 selection: self.get(Color::Light),
             },
-            widget::text_input::Status::Focused => widget::text_input::Style {
+            widget::text_input::Status::Focused { .. } => widget::text_input::Style {
                 background: self.get_bg(Color::Dark),
                 border: self.get_border(Color::SecondLight),
                 icon: self.get(Color::Light),
@@ -380,12 +383,40 @@ impl widget::slider::Catalog for LauncherTheme {
     }
 }
 
-impl iced::application::DefaultStyle for LauncherTheme {
-    fn default_style(&self) -> iced::application::Appearance {
-        iced::application::Appearance {
+impl iced::theme::Base for LauncherTheme {
+    fn default(preference: iced::theme::Mode) -> Self {
+        Self {
+            mode: preference.into(),
+            color: LauncherThemeColor::Purple,
+            alpha: 0.9,
+            system_dark_mode: false,
+        }
+    }
+
+    fn mode(&self) -> iced::theme::Mode {
+        self.mode.into()
+    }
+
+    fn base(&self) -> iced::theme::Style {
+        iced::theme::Style {
             background_color: iced::Color::TRANSPARENT,
             text_color: self.get(Color::Light),
         }
+    }
+
+    fn palette(&self) -> Option<iced::theme::Palette> {
+        Some(iced::theme::Palette {
+            background: self.get(Color::Dark),
+            text: self.get(Color::White),
+            primary: self.get(Color::Mid),
+            success: self.get(Color::SecondDark),
+            warning: self.get(Color::SecondLight),
+            danger: self.get(Color::ExtraDark),
+        })
+    }
+
+    fn name(&self) -> &str {
+        self.color.name()
     }
 }
 
@@ -452,11 +483,43 @@ impl widget::rule::Catalog for LauncherTheme {
     type Class<'a> = widget::rule::StyleFn<'a, LauncherTheme>;
 
     fn default<'a>() -> Self::Class<'a> {
-        Box::new(LauncherTheme::style_rule_default)
+        Box::new(|t| t.style_rule(Color::SecondDark))
     }
 
     fn style(&self, style: &widget::rule::StyleFn<'_, LauncherTheme>) -> widget::rule::Style {
         style(self)
+    }
+}
+
+impl widget::toggler::Catalog for LauncherTheme {
+    type Class<'a> = ();
+
+    fn default<'a>() -> Self::Class<'a> {}
+
+    fn style(&self, (): &(), status: widget::toggler::Status) -> widget::toggler::Style {
+        widget::toggler::Style {
+            background: self.get_bg(match status {
+                widget::toggler::Status::Active { is_toggled: true }
+                | widget::toggler::Status::Hovered { is_toggled: false } => Color::Dark,
+                widget::toggler::Status::Hovered { is_toggled: true } => Color::SecondDark,
+                widget::toggler::Status::Active { is_toggled: false }
+                | widget::toggler::Status::Disabled { .. } => Color::ExtraDark,
+            }),
+            background_border_width: BORDER_WIDTH,
+            background_border_color: self.get(match status {
+                widget::toggler::Status::Active { is_toggled: true }
+                | widget::toggler::Status::Hovered { is_toggled: false } => Color::Mid,
+                widget::toggler::Status::Active { is_toggled: false } => Color::SecondDark,
+                widget::toggler::Status::Hovered { is_toggled: true } => Color::SecondLight,
+                widget::toggler::Status::Disabled { .. } => Color::Dark,
+            }),
+            foreground: self.get_bg(Color::Light),
+            foreground_border_width: 1.0,
+            foreground_border_color: self.get(Color::Light),
+            text_color: None,
+            border_radius: Some(iced::border::Radius::new(BORDER_RADIUS)),
+            padding_ratio: 0.1,
+        }
     }
 }
 
@@ -484,6 +547,22 @@ impl widget::pane_grid::Catalog for LauncherTheme {
                 color: self.get(Color::Mid),
                 width: 1.0,
             },
+        }
+    }
+}
+
+impl widgets::generic_overlay::Catalog for LauncherTheme {
+    type Class<'a> = ();
+
+    fn default<'a>() -> Self::Class<'a> {}
+
+    fn style(&self, (): &Self::Class<'_>) -> widgets::generic_overlay::Style {
+        widgets::generic_overlay::Style {
+            background: self.get(Color::Dark),
+            header_background: self.get(Color::ExtraDark),
+            border_color: self.get(Color::SecondDark),
+            text_color: self.get(Color::SecondLight),
+            shadow: SHADOW,
         }
     }
 }

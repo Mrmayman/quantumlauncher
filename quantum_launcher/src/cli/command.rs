@@ -392,7 +392,6 @@ async fn install_optifine(
         instance.get_name().to_owned(),
         PathBuf::from(more),
         None,
-        None,
         OptifineUniqueVersion::from_version(details.get_id()),
     )
     .await?;

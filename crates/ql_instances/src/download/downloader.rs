@@ -1,7 +1,7 @@
+use sipper::Sender;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
-    sync::mpsc::Sender,
 };
 
 use crate::json_profiles::ProfileJson;
@@ -80,7 +80,7 @@ impl GameDownloader {
             ));
         };
         let version_json =
-            match GameDownloader::new_download_version_json(version, sender.as_ref()).await {
+            match GameDownloader::new_download_version_json(version, sender.clone()).await {
                 Ok(n) => n,
                 Err(DownloadError::VersionNotFoundInManifest(v)) => {
                     fs::remove_dir_all(&instance_dir)
@@ -115,7 +115,8 @@ impl GameDownloader {
 
     pub async fn download_jar(&self) -> Result<(), DownloadError> {
         info!("Downloading game jar file.");
-        self.send_progress(DownloadProgress::DownloadingJar, false);
+        self.send_progress(DownloadProgress::DownloadingJar, false)
+            .await;
 
         let version_dir = self
             .instance_dir
@@ -149,7 +150,7 @@ impl GameDownloader {
         Ok(())
     }
 
-    pub async fn download_assets(&self) -> Result<(), DownloadError> {
+    pub async fn download_assets(&mut self) -> Result<(), DownloadError> {
         info!("Downloading assets");
         let asset_index: AssetIndex =
             file_utils::download_file_to_json(&self.version_json.assetIndex.url, false).await?;
@@ -180,7 +181,7 @@ impl GameDownloader {
         let bar = &indicatif::ProgressBar::new(out_of as u64);
         let progress_num = &Mutex::new(0);
 
-        let results = asset_index.objects.values().map(|asset| async move {
+        _ = do_jobs(asset_index.objects.values().map(|asset| async {
             asset.download(assets_objects_path).await?;
 
             let mut progress = progress_num.lock().await;
@@ -192,14 +193,14 @@ impl GameDownloader {
                     out_of,
                 },
                 true,
-            );
+            )
+            .await;
 
             bar.inc(1);
 
             Ok::<(), DownloadFileError>(())
-        });
-
-        _ = do_jobs(results).await?;
+        }))
+        .await?;
         Ok(())
     }
 
@@ -344,11 +345,11 @@ impl GameDownloader {
 
     async fn new_download_version_json(
         version: &ListEntry,
-        sender: Option<&Sender<DownloadProgress>>,
+        mut sender: Option<Sender<DownloadProgress>>,
     ) -> Result<VersionDetails, DownloadError> {
         info!("Downloading version manifest JSON");
-        if let Some(sender) = sender {
-            _ = sender.send(DownloadProgress::DownloadingJsonManifest);
+        if let Some(sender) = &mut sender {
+            sender.send(DownloadProgress::DownloadingJsonManifest).await;
         }
         let manifest = Manifest::download().await?;
 
@@ -360,8 +361,8 @@ impl GameDownloader {
                 ))?;
 
         info!("Downloading version details JSON");
-        if let Some(sender) = sender {
-            _ = sender.send(DownloadProgress::DownloadingVersionJson);
+        if let Some(sender) = &mut sender {
+            sender.send(DownloadProgress::DownloadingVersionJson).await;
         }
         let json = file_utils::download_file_to_string(&version.url, false).await?;
         let json = serde_json::from_str(&json).json(json)?;
@@ -385,11 +386,10 @@ impl GameDownloader {
         Ok(Some(current_instance_dir))
     }
 
-    pub fn send_progress(&self, progress: DownloadProgress, print: bool) {
-        if let Some(ref sender) = self.sender {
-            if sender.send(progress).is_ok() {
-                return;
-            }
+    pub async fn send_progress(&self, progress: DownloadProgress, print: bool) {
+        if let Some(mut sender) = self.sender.clone() {
+            sender.send(progress).await;
+            return;
         }
         if print {
             pt!("{progress}");

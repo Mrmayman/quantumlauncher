@@ -1,9 +1,12 @@
-use iced::{widget, Length};
+use iced::{
+    widget::{self, column},
+    Length,
+};
 use ql_core::InstanceSelection;
 
 use crate::{
     icons,
-    menu_renderer::{back_button, button_with_icon, link, Element},
+    menu_renderer::{back_button, button_with_icon, link, ui::checkbox, Element},
     state::{ManageJarModsMessage, ManageModsMessage, MenuEditJarMods, Message, SelectedState},
     stylesheet::{color::Color, styles::LauncherTheme},
 };
@@ -13,11 +16,11 @@ impl MenuEditJarMods {
         let menu_main = widget::row!(
             widget::container(
                 widget::scrollable(
-                    widget::column!(
+                    column!(
                         back_button().on_press(Message::ManageMods(
                             ManageModsMessage::ScreenOpenWithoutUpdate
                         )),
-                        widget::column![
+                        column![
                             {
                                 let path = selected_instance.get_instance_path().join("jarmods");
 
@@ -33,10 +36,10 @@ impl MenuEditJarMods {
                             link("McArchive", "https://mcarchive.net".to_owned()),
                         ]
                         .wrap(),
-                        widget::horizontal_rule(1),
-                        widget::column![
+                        widget::rule::horizontal(1),
+                        column![
                             "WARNING: JarMods are mainly for OLD Minecraft versions.",
-                            widget::Space::with_height(5),
+                            widget::space().height(5),
                             widget::text(
                                 "This is easier than copying .class files into Minecraft's jar"
                             )
@@ -73,7 +76,7 @@ impl MenuEditJarMods {
 
     fn get_mod_list(&'_ self) -> Element<'_> {
         if self.jarmods.mods.is_empty() {
-            return widget::column!("Add some mods to get started")
+            return column!("Add some mods to get started")
                 .spacing(10)
                 .padding(10)
                 .width(Length::Fill)
@@ -81,8 +84,8 @@ impl MenuEditJarMods {
         }
 
         widget::container(
-            widget::column!(
-                widget::column![
+            column!(
+                column![
                     widget::text("Select some JarMods to perform actions on them").size(14),
                     widget::row![
                         widget::button("Delete")
@@ -117,21 +120,20 @@ impl MenuEditJarMods {
         widget::scrollable(
             widget::column({
                 self.jarmods.mods.iter().map(|jarmod| {
-                    widget::checkbox(
-                        format!(
+                    checkbox(
+                        widget::text(format!(
                             "{}{}",
                             if jarmod.enabled { "" } else { "(DISABLED) " },
                             jarmod.filename
-                        ),
+                        )),
                         self.selected_mods.contains(&jarmod.filename),
+                        move |t| {
+                            Message::ManageJarMods(ManageJarModsMessage::ToggleCheckbox(
+                                jarmod.filename.clone(),
+                                t,
+                            ))
+                        },
                     )
-                    .on_toggle(move |t| {
-                        Message::ManageJarMods(ManageJarModsMessage::ToggleCheckbox(
-                            jarmod.filename.clone(),
-                            t,
-                        ))
-                    })
-                    .into()
                 })
             })
             .padding(10)

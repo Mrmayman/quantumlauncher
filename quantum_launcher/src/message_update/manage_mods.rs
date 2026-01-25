@@ -1,16 +1,16 @@
 use iced::{futures::executor::block_on, keyboard::Modifiers};
 use iced::{widget, Task};
 use ql_core::{
-    err, jarmod::JarMods, InstanceSelection, IntoIoError, IntoStringError, ModId,
-    SelectedMod,
+    err, jarmod::JarMods, InstanceSelection, IntoIoError, IntoStringError, ModId, SelectedMod,
 };
 use ql_mod_manager::store::ModIndex;
 use std::{collections::HashSet, path::PathBuf};
 
+use crate::sip;
 use crate::state::{
     AutoSaveKind, ExportModsMessage, Launcher, ManageJarModsMessage, ManageModsMessage,
-    MenuCurseforgeManualDownload, MenuEditJarMods, MenuEditMods, MenuEditModsModal, Message,
-    ProgressBar, SelectedState, State,
+    MenuCurseforgeManualDownload, MenuEditJarMods, MenuEditMods, Message, ProgressBar,
+    SelectedState, State,
 };
 
 impl Launcher {
@@ -239,11 +239,6 @@ impl Launcher {
                     });
                 }
             }
-            ManageModsMessage::SetModal(modal) => {
-                if let State::EditMods(menu) = &mut self.state {
-                    menu.modal = modal;
-                }
-            }
             ManageModsMessage::SetSearch(search) => {
                 if let State::EditMods(menu) = &mut self.state {
                     menu.search = search;
@@ -256,20 +251,14 @@ impl Launcher {
             }
             ManageModsMessage::RightClick(clicked_id) => {
                 if let State::EditMods(menu) = &mut self.state {
-                    if let Some(MenuEditModsModal::RightClick(old_id, _)) = &menu.modal {
+                    if let Some((old_id, _)) = &menu.right_click {
                         if *old_id == clicked_id {
-                            menu.modal = None;
+                            menu.right_click = None;
                         } else {
-                            menu.modal = Some(MenuEditModsModal::RightClick(
-                                clicked_id,
-                                self.window_state.mouse_pos,
-                            ));
+                            menu.right_click = Some((clicked_id, self.window_state.mouse_pos));
                         }
                     } else {
-                        menu.modal = Some(MenuEditModsModal::RightClick(
-                            clicked_id,
-                            self.window_state.mouse_pos,
-                        ));
+                        menu.right_click = Some((clicked_id, self.window_state.mouse_pos));
                     }
                     return menu.scroll_fix();
                 }
@@ -325,11 +314,10 @@ impl Launcher {
             return Task::none();
         };
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let selected_instance = self.selected_instance.as_ref().unwrap();
+        let selected_instance = self.selected_instance.clone().unwrap();
 
-        self.state = State::ImportModpack(ProgressBar::with_recv(receiver));
-        self.mod_updates_checked.remove(selected_instance);
+        self.state = State::ImportModpack(ProgressBar::new());
+        self.mod_updates_checked.remove(&selected_instance);
 
         // Modpacks being imported
         if paths
@@ -337,15 +325,12 @@ impl Launcher {
             .filter_map(|n| n.extension())
             .any(|n| !n.eq_ignore_ascii_case("jar"))
         {
-            self.mod_updates_checked.remove(selected_instance);
+            self.mod_updates_checked.remove(&selected_instance);
         }
 
-        let files_task = Task::perform(
-            ql_mod_manager::add_files(
-                self.selected_instance.clone().unwrap(),
-                paths.clone(),
-                Some(sender),
-            ),
+        let paths2 = paths.clone();
+        let files_task = sip(
+            |sender| ql_mod_manager::add_files(selected_instance, paths2, Some(sender)),
             move |n| Message::ManageMods(ManageModsMessage::AddFileDone(n.strerr())),
         );
         if delete_file {
@@ -700,7 +685,7 @@ impl MenuEditMods {
         pressed_ctrl: bool,
         pressed_shift: bool,
     ) {
-        self.modal = None;
+        self.right_click = None;
 
         match (pressed_ctrl, pressed_shift) {
             (true, _) => {
@@ -762,7 +747,7 @@ impl MenuEditMods {
     }
 
     fn scroll_fix(&self) -> Task<Message> {
-        let id = widget::scrollable::Id::new("MenuEditMods:mods");
-        widget::scrollable::scroll_to(id, self.list_scroll)
+        let id = widget::Id::new("MenuEditMods:mods");
+        widget::operation::scroll_to(id, self.list_scroll)
     }
 }

@@ -69,6 +69,7 @@ use ql_core::{info, pt, retry, GenericProgress, IntoJsonError, JsonError, Reques
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use serde_json::json;
+use sipper::Sender;
 use std::collections::HashMap;
 
 use crate::auth::AccountType;
@@ -212,9 +213,9 @@ impl From<keyring::Error> for Error {
 pub async fn login_refresh(
     username: String,
     refresh_token: String,
-    sender: Option<std::sync::mpsc::Sender<GenericProgress>>,
+    mut sender: Option<Sender<GenericProgress>>,
 ) -> Result<AccountData, Error> {
-    send_progress(sender.as_ref(), 0, 4, "Refreshing account token...");
+    send_progress(sender.as_mut(), 0, 4, "Refreshing account token...").await;
 
     let response: String = retry(|| async {
         CLIENT
@@ -279,20 +280,20 @@ pub async fn login_1_link() -> Result<AuthCodeResponse, Error> {
 
 pub async fn login_3_xbox(
     data: AuthTokenResponse,
-    sender: Option<std::sync::mpsc::Sender<GenericProgress>>,
+    mut sender: Option<Sender<GenericProgress>>,
     check_ownership: bool,
 ) -> Result<AccountData, Error> {
     let steps = if check_ownership { 5 } else { 4 };
 
-    send_progress(sender.as_ref(), 1, steps, "Logging into Xbox live...");
+    send_progress(sender.as_mut(), 1, steps, "Logging into Xbox live...").await;
     let xbox = login_in_xbox_live(&CLIENT, &data).await?;
-    send_progress(sender.as_ref(), 2, steps, "Logging into Minecraft...");
+    send_progress(sender.as_mut(), 2, steps, "Logging into Minecraft...").await;
     let minecraft = login_in_minecraft(&CLIENT, &xbox).await?;
-    send_progress(sender.as_ref(), 3, steps, "Getting account details...");
+    send_progress(sender.as_mut(), 3, steps, "Getting account details...").await;
     let final_details = get_final_details(&CLIENT, &minecraft).await?;
 
     if check_ownership {
-        send_progress(sender.as_ref(), 4, steps, "Checking game ownership...");
+        send_progress(sender.as_mut(), 4, steps, "Checking game ownership...").await;
         let owns_game = check_minecraft_ownership(&minecraft.access_token).await?;
 
         if !owns_game {
@@ -319,20 +320,22 @@ pub async fn login_3_xbox(
     Ok(data)
 }
 
-fn send_progress(
-    sender: Option<&std::sync::mpsc::Sender<GenericProgress>>,
+async fn send_progress(
+    sender: Option<&mut Sender<GenericProgress>>,
     done: usize,
     total: usize,
     message: &str,
 ) {
     pt!("{message}");
     if let Some(sender) = sender {
-        _ = sender.send(GenericProgress {
-            done,
-            total,
-            message: Some(message.to_owned()),
-            has_finished: false,
-        });
+        sender
+            .send(GenericProgress {
+                done,
+                total,
+                message: Some(message.to_owned()),
+                has_finished: false,
+            })
+            .await;
     }
 }
 

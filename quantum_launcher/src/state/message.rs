@@ -1,8 +1,8 @@
-use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
+use std::{collections::HashSet, path::PathBuf, process::ExitStatus, sync::Arc};
 
 use crate::{
     message_handler::ForgeKind,
-    state::{LaunchModal, MenuEditModsModal},
+    state::LaunchModal,
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
 use iced::widget::{self, scrollable::AbsoluteOffset};
@@ -11,7 +11,8 @@ use ql_core::{
     jarmod::JarMods,
     json::instance_config::{MainClassMode, PreLaunchPrefixMode},
     read_log::Diagnostic,
-    InstanceSelection, LaunchedProcess, ListEntry, Loader, ModId, StoreBackendType,
+    GenericProgress, InstanceSelection, LaunchedProcess, ListEntry, Loader, ModId,
+    StoreBackendType,
 };
 use ql_instances::{
     auth::{
@@ -60,7 +61,6 @@ pub enum CreateInstanceMessage {
 
     SearchInput(String),
     SearchSubmit,
-    ContextMenuToggle,
     CategoryToggle(ql_core::ListEntryKind),
 
     Start,
@@ -134,7 +134,6 @@ pub enum ManageModsMessage {
     AddFileDone(Res<HashSet<CurseforgeNotAllowed>>),
 
     SelectAll,
-    SetModal(Option<MenuEditModsModal>),
     RightClick(ModId),
     SetSearch(Option<String>),
 
@@ -214,16 +213,16 @@ pub enum RecommendedModMessage {
     DownloadEnd(Res<HashSet<CurseforgeNotAllowed>>),
 }
 
-#[derive(Debug, Clone)]
+/*#[derive(Debug, Clone)]
 pub enum WindowMessage {
     Dragged,
     // HOOK: Decorations
-    // Resized(iced::window::Direction),
+    Resized(iced::window::Direction),
     ClickClose,
     ClickMinimize,
     ClickMaximize,
-    // IsMaximized(bool),
-}
+    IsMaximized(bool),
+}*/
 
 #[allow(unused)]
 #[derive(Debug, Clone)]
@@ -268,7 +267,7 @@ pub enum LauncherSettingsMessage {
     LoadedSystemTheme(Res<dark_light::Mode>),
     ThemePicked(LauncherThemeLightness),
     ColorSchemePicked(LauncherThemeColor),
-    UiScale(f64),
+    UiScale(f32),
     UiScaleApply,
     UiOpacity(f32),
     UiIdleFps(f64),
@@ -368,8 +367,7 @@ pub enum Message {
     LauncherSettings(LauncherSettingsMessage),
     Notes(NotesMessage),
     GameLog(GameLogMessage),
-    Window(WindowMessage),
-
+    // Window(WindowMessage),
     ManageMods(ManageModsMessage),
     ManageJarMods(ManageJarModsMessage),
     InstallMods(InstallModsMessage),
@@ -392,6 +390,7 @@ pub enum Message {
         is_server: Option<bool>,
     },
     MChangeTab(LaunchTab),
+    #[allow(unused)]
     MModal(Option<LaunchModal>),
 
     MSidebarResize(f32),
@@ -417,6 +416,8 @@ pub enum Message {
 
     CoreCopyError,
     CoreCopyLog,
+    CoreProgress(Arc<dyn ql_core::Progress>),
+    CJavaInstallProgress(GenericProgress),
     CoreOpenLink(String),
     CoreOpenPath(PathBuf),
     CoreCopyText(String),

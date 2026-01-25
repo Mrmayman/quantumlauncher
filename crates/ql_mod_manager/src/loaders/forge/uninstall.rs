@@ -44,15 +44,9 @@ async fn uninstall_client(instance: &str) -> Result<(), String> {
             .path(&installer_path)
             .strerr()?
         {
-            loaders::optifine::install(
-                instance.to_owned(),
-                installer_path.clone(),
-                None,
-                None,
-                None,
-            )
-            .await
-            .strerr()?;
+            loaders::optifine::install(instance.to_owned(), installer_path.clone(), None, None)
+                .await
+                .strerr()?;
             tokio::fs::remove_file(&installer_path)
                 .await
                 .path(&installer_path)

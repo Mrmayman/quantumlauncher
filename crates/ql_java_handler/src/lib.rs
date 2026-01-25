@@ -40,7 +40,6 @@
 //! ## Linux platforms
 //! - Risc-V
 //! - PowerPC
-//! - aarch64
 //! - Alpha
 //! - S390 (IBM Z)
 //! - SPARC
@@ -55,11 +54,10 @@ use json::{
     list::JavaListJson,
 };
 use owo_colors::OwoColorize;
-use std::{
-    path::{Path, PathBuf},
-    sync::{mpsc::Sender, Mutex},
-};
+use sipper::Sender;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
+use tokio::sync::Mutex;
 
 use ql_core::{
     constants::OS_NAME,
@@ -104,7 +102,7 @@ pub const JAVA: &str = which_java();
 /// - `version`: The version of Java you want to use ([`JavaVersion`]).
 /// - `name`: The name of the executable you want to use.
 ///   For example, "java" for the Java runtime, or "javac" for the Java compiler.
-/// - `java_install_progress_sender`: An optional `Sender<GenericProgress>`
+/// - `progress`: An optional `Sender<GenericProgress>`
 ///   to send progress updates to. If not needed, simply pass `None` to the function.
 ///   If you want, you can hook this up to a progress bar, by using a
 ///   `std::sync::mpsc::channel::<JavaInstallMessage>()`,
@@ -144,7 +142,7 @@ pub const JAVA: &str = which_java();
 pub async fn get_java_binary(
     mut version: JavaVersion,
     name: &str,
-    java_install_progress_sender: Option<&Sender<GenericProgress>>,
+    progress: Option<Sender<GenericProgress>>,
 ) -> Result<PathBuf, JavaInstallError> {
     let java_dir = LAUNCHER_DIR.join("java_installs").join(version.to_string());
     let is_incomplete_install = java_dir.join("install.lock").exists();
@@ -159,7 +157,7 @@ pub async fn get_java_binary(
 
     if !java_dir.exists() || is_incomplete_install {
         info!("Installing Java: {version}");
-        install_java(version, java_install_progress_sender).await?;
+        install_java(version, progress).await?;
     }
 
     let bin_path = find_java_bin(name, &java_dir).await?;
@@ -194,7 +192,7 @@ async fn find_java_bin(name: &str, java_dir: &Path) -> Result<PathBuf, JavaInsta
 
 async fn install_java(
     version: JavaVersion,
-    java_install_progress_sender: Option<&Sender<GenericProgress>>,
+    mut progress: Option<Sender<GenericProgress>>,
 ) -> Result<(), JavaInstallError> {
     #[cfg(target_os = "macos")]
     const LIMIT: usize = 16;
@@ -204,13 +202,13 @@ async fn install_java(
     let install_dir = get_install_dir(version).await?;
     let lock_file = lock_init(&install_dir).await?;
 
-    send_progress(java_install_progress_sender, GenericProgress::default());
+    send_progress(progress.as_mut(), GenericProgress::default()).await;
 
     let java_list_json = JavaListJson::download().await?;
     let Some(java_files_url) = java_list_json.get_url(version) else {
         // Mojang doesn't officially provide java for som platforms.
         // In that case, fetch from alternate sources.
-        return alternate_java::install(version, java_install_progress_sender, &install_dir).await;
+        return alternate_java::install(version, progress, &install_dir).await;
     };
 
     let json: JavaFilesJson = file_utils::download_file_to_json(&java_files_url, false).await?;
@@ -221,7 +219,7 @@ async fn install_java(
     _ = do_jobs_with_limit(
         json.files.iter().map(|(file_name, file)| {
             java_install_fn(
-                java_install_progress_sender,
+                progress.clone(),
                 &file_num,
                 num_files,
                 file_name,
@@ -234,7 +232,7 @@ async fn install_java(
     .await?;
 
     lock_finish(&lock_file).await?;
-    send_progress(java_install_progress_sender, GenericProgress::finished());
+    send_progress(progress.as_mut(), GenericProgress::finished()).await;
     info!("Finished installing {}", version.to_string());
 
     Ok(())
@@ -268,19 +266,14 @@ async fn get_install_dir(version: JavaVersion) -> Result<PathBuf, JavaInstallErr
     Ok(install_dir)
 }
 
-fn send_progress(
-    java_install_progress_sender: Option<&Sender<GenericProgress>>,
-    progress: GenericProgress,
-) {
-    if let Some(java_install_progress_sender) = java_install_progress_sender {
-        if let Err(err) = java_install_progress_sender.send(progress) {
-            err!("Error sending java install progress: {err}\nThis should probably be safe to ignore");
-        }
+async fn send_progress(sender: Option<&mut Sender<GenericProgress>>, progress: GenericProgress) {
+    if let Some(sender) = sender {
+        sender.send(progress).await;
     }
 }
 
 async fn java_install_fn(
-    java_install_progress_sender: Option<&Sender<GenericProgress>>,
+    mut progress: Option<Sender<GenericProgress>>,
     file_num: &Mutex<usize>,
     num_files: usize,
     file_name: &str,
@@ -317,16 +310,17 @@ async fn java_install_fn(
     }
 
     let file_num = {
-        let mut file_num = file_num.lock().unwrap();
+        let mut file_num = file_num.lock().await;
         send_progress(
-            java_install_progress_sender,
+            progress.as_mut(),
             GenericProgress {
                 done: *file_num,
                 total: num_files,
                 message: Some(format!("Installed file: {file_name}")),
                 has_finished: false,
             },
-        );
+        )
+        .await;
         *file_num += 1;
         *file_num
     } - 1;

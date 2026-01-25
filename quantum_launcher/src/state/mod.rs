@@ -8,9 +8,8 @@ use std::{
 use iced::Task;
 use notify::Watcher;
 use ql_core::{
-    err, file_utils, read_log::LogLine, GenericProgress, InstanceSelection,
-    IntoIoError, IntoStringError, IoError, JsonFileError, LaunchedProcess, ModId, Progress,
-    LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
+    err, file_utils, read_log::LogLine, InstanceSelection, IntoIoError, IntoStringError, IoError,
+    LaunchedProcess, ModId, Progress, LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
 };
 use ql_instances::auth::{ms::CLIENT_ID, AccountData, AccountType};
 use tokio::process::ChildStdin;
@@ -55,7 +54,6 @@ pub struct Launcher {
     pub tick_timer: usize,
     pub is_launching_game: bool,
 
-    pub java_recv: Option<ProgressBar<GenericProgress>>,
     pub custom_jar: Option<CustomJarState>,
     pub mod_updates_checked: HashMap<InstanceSelection, Vec<(ModId, String, bool)>>,
     /// See [`AutoSaveKind`]
@@ -94,7 +92,18 @@ pub enum AutoSaveKind {
 pub struct WindowState {
     pub size: (f32, f32),
     pub mouse_pos: (f32, f32),
+    #[allow(unused)]
     pub is_maximized: bool,
+}
+
+impl WindowState {
+    pub fn new(width: f32, height: f32) -> Self {
+        Self {
+            size: (width, height),
+            mouse_pos: (0.0, 0.0),
+            is_maximized: false,
+        }
+    }
 }
 
 pub struct CustomJarState {
@@ -121,8 +130,8 @@ impl Launcher {
     pub fn load_new(
         message: Option<String>,
         is_new_user: bool,
-        config: Result<LauncherConfig, JsonFileError>,
-    ) -> Result<Self, JsonFileError> {
+        config: Result<LauncherConfig, String>,
+    ) -> Result<Self, String> {
         if let Err(err) = file_utils::get_launcher_dir() {
             err!("Could not get launcher dir (This is a bug):");
             return Ok(Self::with_error(format!(
@@ -175,16 +184,11 @@ impl Launcher {
             accounts,
             accounts_dropdown,
 
-            window_state: WindowState {
-                size: (window_width, window_height),
-                mouse_pos: (0.0, 0.0),
-                is_maximized: false,
-            },
+            window_state: WindowState::new(window_width, window_height),
             accounts_selected: Some(selected_account),
 
             client_list: None,
             server_list: None,
-            java_recv: None,
             custom_jar: None,
 
             logs: HashMap::new(),
@@ -237,7 +241,6 @@ impl Launcher {
 
             state: State::Error { error },
 
-            java_recv: None,
             client_list: None,
             server_list: None,
             selected_instance: None,
@@ -256,11 +259,7 @@ impl Launcher {
             mod_updates_checked: HashMap::new(),
 
             images: ImageState::default(),
-            window_state: WindowState {
-                size: (window_width, window_height),
-                mouse_pos: (0.0, 0.0),
-                is_maximized: false,
-            },
+            window_state: WindowState::new(window_width, window_height),
             autosave: HashSet::new(),
             accounts_dropdown: vec![OFFLINE_ACCOUNT_NAME.to_owned(), NEW_ACCOUNT_NAME.to_owned()],
             accounts_selected: Some(OFFLINE_ACCOUNT_NAME.to_owned()),
@@ -467,43 +466,27 @@ pub async fn get_entries(is_server: bool) -> Res<(Vec<String>, bool)> {
     ))
 }
 
-pub struct ProgressBar<T: Progress> {
+pub struct ProgressBar {
     pub num: f32,
+    pub total: f32,
     pub message: Option<String>,
-    pub receiver: Receiver<T>,
-    pub progress: T,
 }
 
-impl<T: Default + Progress> ProgressBar<T> {
-    pub fn with_recv(receiver: Receiver<T>) -> Self {
+impl ProgressBar {
+    pub fn new() -> Self {
         Self {
             num: 0.0,
+            total: 1.0,
             message: None,
-            receiver,
-            progress: T::default(),
-        }
-    }
-
-    pub fn with_recv_and_msg(receiver: Receiver<T>, msg: String) -> Self {
-        Self {
-            num: 0.0,
-            message: Some(msg),
-            receiver,
-            progress: T::default(),
         }
     }
 }
 
-impl<T: Progress> ProgressBar<T> {
-    pub fn tick(&mut self) -> bool {
-        let mut has_ticked = false;
-        while let Ok(progress) = self.receiver.try_recv() {
-            self.num = progress.get_num();
-            self.message = progress.get_message();
-            self.progress = progress;
-            has_ticked = true;
-        }
-        has_ticked
+impl ProgressBar {
+    pub fn update<T: Progress>(&mut self, progress: T) {
+        self.num = progress.get_num();
+        self.message = progress.get_message();
+        self.total = progress.total();
     }
 }
 

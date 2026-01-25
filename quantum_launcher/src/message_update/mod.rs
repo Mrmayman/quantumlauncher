@@ -1,5 +1,15 @@
 use std::path::Path;
 
+use crate::{
+    config::{UiSettings, UiWindowDecorations},
+    sip,
+    state::{
+        self, GameLogMessage, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage,
+        InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsMessage,
+        MenuCurseforgeManualDownload, MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper,
+        MenuLaunch, MenuModsDownload, Message, ModOperation, NotesMessage, ProgressBar, State,
+    },
+};
 use frostmark::MarkState;
 use iced::futures::executor::block_on;
 use iced::widget::text_editor;
@@ -16,18 +26,6 @@ mod edit_instance;
 mod manage_mods;
 mod presets;
 mod recommended;
-
-use crate::config::UiWindowDecorations;
-use crate::state::{GameLogMessage, InstanceNotes, MenuLaunch, ModOperation, NotesMessage};
-use crate::{
-    config::UiSettings,
-    state::{
-        self, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage,
-        InstallPaperMessage, Launcher, LauncherSettingsMessage, MenuCurseforgeManualDownload,
-        MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuModsDownload, Message,
-        ProgressBar, State, WindowMessage,
-    },
-};
 
 pub const MSG_RESIZE: &str = "Resize your window to apply the changes.";
 
@@ -91,21 +89,19 @@ impl Launcher {
                     ..
                 }) = &mut self.state
                 {
-                    let (sender, receiver) = std::sync::mpsc::channel();
-                    *progress = Some(ProgressBar::with_recv(receiver));
+                    *progress = Some(ProgressBar::new());
                     let loader_version = fabric_version.clone();
 
                     let instance_name = self.selected_instance.clone().unwrap();
                     let backend = *backend;
-                    return Task::perform(
-                        async move {
+                    return sip(
+                        move |sender| {
                             loaders::fabric::install(
                                 Some(loader_version),
                                 instance_name,
-                                Some(&sender),
+                                Some(sender),
                                 backend,
                             )
-                            .await
                         },
                         |m| Message::InstallFabric(InstallFabricMessage::End(m.strerr())),
                     );
@@ -228,8 +224,8 @@ impl Launcher {
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.opened_mod = None;
                     menu.description = None;
-                    return iced::widget::scrollable::scroll_to(
-                        iced::widget::scrollable::Id::new("MenuModsDownload:main:mods_list"),
+                    return iced::widget::operation::scroll_to(
+                        iced::widget::Id::new("MenuModsDownload:main:mods_list"),
                         menu.scroll_offset,
                     );
                 }
@@ -289,14 +285,13 @@ impl Launcher {
                 }
             }
             InstallModsMessage::InstallModpack(id) => {
-                let (sender, receiver) = std::sync::mpsc::channel();
-                self.state = State::ImportModpack(ProgressBar::with_recv(receiver));
+                self.state = State::ImportModpack(ProgressBar::new());
 
                 let selected_instance = self.selected_instance.clone().unwrap();
                 self.mod_updates_checked.remove(&selected_instance);
 
-                return Task::perform(
-                    async move {
+                return sip(
+                    |sender| async move {
                         ql_mod_manager::store::download_mod(&id, &selected_instance, Some(sender))
                             .await
                             .map(|not_allowed| (id, not_allowed))
@@ -445,11 +440,11 @@ impl Launcher {
     }
 
     pub fn install_optifine_confirm(&mut self, installer_path: &Path) -> Task<Message> {
-        let (p_sender, p_recv) = std::sync::mpsc::channel();
-        let (j_sender, j_recv) = std::sync::mpsc::channel();
-
         let instance = self.instance();
         let instance_name = instance.get_name().to_owned();
+
+        // OptiFine does not support servers
+        // so it's safe to assume we've selected an instance.
         debug_assert!(!instance.is_server());
 
         let optifine_unique_version =
@@ -473,35 +468,30 @@ impl Launcher {
             false
         };
 
-        self.state = State::InstallOptifine(MenuInstallOptifine::Installing {
-            optifine_install_progress: ProgressBar::with_recv(p_recv),
-            java_install_progress: Some(ProgressBar::with_recv(j_recv)),
-            is_java_being_installed: false,
-        });
+        self.state = State::InstallOptifine(MenuInstallOptifine::Installing(ProgressBar::new()));
 
-        let installer_path = installer_path.to_owned();
-
-        Task::perform(
-            // OptiFine does not support servers
-            // so it's safe to assume we've selected an instance.
-            loaders::optifine::install(
-                instance_name,
-                installer_path.clone(),
-                Some(p_sender),
-                Some(j_sender),
-                optifine_unique_version,
-            ),
+        let installer_path2 = installer_path.to_owned();
+        let installer_path3 = installer_path.to_owned();
+        sip(
+            move |sender| {
+                loaders::optifine::install(
+                    instance_name,
+                    installer_path2,
+                    Some(sender),
+                    optifine_unique_version,
+                )
+            },
             |n| Message::InstallOptifine(InstallOptifineMessage::End(n.strerr())),
         )
         .chain(Task::perform(
             async move {
                 if delete_installer
-                    && installer_path.extension().is_some_and(|n| {
+                    && installer_path3.extension().is_some_and(|n| {
                         let n = n.to_ascii_lowercase();
                         n == "jar" || n == "zip"
                     })
                 {
-                    _ = tokio::fs::remove_file(installer_path).await;
+                    _ = tokio::fs::remove_file(installer_path3).await;
                 }
             },
             |()| Message::Nothing,
@@ -512,7 +502,7 @@ impl Launcher {
         match msg {
             LauncherSettingsMessage::ThemePicked(theme) => {
                 self.config.ui_mode = Some(theme);
-                self.theme.lightness = theme;
+                self.theme.mode = theme;
             }
             LauncherSettingsMessage::Open => {
                 self.go_to_launcher_settings();
@@ -717,28 +707,28 @@ impl Launcher {
         Task::none()
     }
 
-    pub fn update_window_msg(&mut self, msg: WindowMessage) -> Task<Message> {
+    /*pub fn update_window_msg(&mut self, msg: WindowMessage) -> Task<Message> {
         match msg {
-            WindowMessage::Dragged => iced::window::get_latest().and_then(iced::window::drag),
-            // WindowMessage::Resized(dir) => {
-            //     return iced::window::get_latest()
-            //         .and_then(move |id| iced::window::drag_resize(id, dir));
-            // }
-            WindowMessage::ClickMinimize => {
-                iced::window::get_latest().and_then(|id| iced::window::minimize(id, true))
+            WindowMessage::Dragged => iced::window::latest().and_then(iced::window::drag),
+            WindowMessage::Resized(dir) => {
+                return iced::window::latest()
+                    .and_then(move |id| iced::window::drag_resize(id, dir));
             }
-            WindowMessage::ClickMaximize => iced::window::get_latest().and_then(|id| {
-                iced::window::get_maximized(id)
+            WindowMessage::ClickMinimize => {
+                iced::window::latest().and_then(|id| iced::window::minimize(id, true))
+            }
+            WindowMessage::ClickMaximize => iced::window::latest().and_then(|id| {
+                iced::window::is_maximized(id)
                     .map(Some)
                     .and_then(move |max| iced::window::maximize(id, !max))
             }),
             WindowMessage::ClickClose => std::process::exit(0),
-            // WindowMessage::IsMaximized(n) => {
-            //     self.window_state.is_maximized = n;
-            //     Task::none()
-            // }
+            WindowMessage::IsMaximized(n) => {
+                self.window_state.is_maximized = n;
+                Task::none()
+            }
         }
-    }
+    }*/
 
     pub fn update_notes(&mut self, msg: NotesMessage) -> Task<Message> {
         match msg {

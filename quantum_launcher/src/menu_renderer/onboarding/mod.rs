@@ -1,6 +1,6 @@
 use std::sync::LazyLock;
 
-use iced::widget::{self, image::Handle};
+use iced::widget::{self, column, image::Handle};
 
 mod changelog;
 mod welcome;
@@ -18,7 +18,7 @@ pub static IMG_LOGO: LazyLock<Handle> = LazyLock::new(|| {
 
 pub fn x86_warning() -> iced::widget::Container<'static, Message, LauncherTheme> {
     widget::container(
-        widget::column![
+        column![
             widget::text(
                 "You downloaded the 32-bit version!\nYou may want the 64-bit version (x86_64)"
             )

@@ -36,7 +36,6 @@ impl Launcher {
             is_loading_continuation: false,
             has_continuation_ended: false,
             description: None,
-
             backend: StoreBackendType::Modrinth,
             query_type: QueryType::Mods,
         };

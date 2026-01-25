@@ -1,8 +1,9 @@
 use iced::{widget::pane_grid, Task};
-use ql_core::{DownloadProgress, InstanceSelection, IntoStringError, ListEntry, ListEntryKind};
+use ql_core::{InstanceSelection, IntoStringError, ListEntry, ListEntryKind};
 
 use crate::{
     message_handler::{SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
+    sip,
     state::{
         AutoSaveKind, CreateInstanceMessage, Launcher, MenuCreateInstance,
         MenuCreateInstanceChoosing, Message, ProgressBar, State,
@@ -75,9 +76,6 @@ impl Launcher {
                     }
                 });
             }
-            CreateInstanceMessage::ContextMenuToggle => iflet!(self, show_category_dropdown; {
-                *show_category_dropdown = !*show_category_dropdown;
-            }),
             CreateInstanceMessage::CategoryToggle(kind) => iflet!(self, selected_categories; {
                 if selected_categories.contains(&kind) {
                     // Don't allow removing the last category
@@ -113,13 +111,11 @@ impl Launcher {
                     .set_title("Select an instance...")
                     .pick_file()
                 {
-                    let (send, recv) = std::sync::mpsc::channel();
-                    let progress = ProgressBar::with_recv(recv);
-
+                    let progress = ProgressBar::new();
                     self.state = State::Create(MenuCreateInstance::ImportingInstance(progress));
 
-                    return Task::perform(
-                        ql_packager::import_instance(file.clone(), true, Some(send)),
+                    return sip(
+                        |send| ql_packager::import_instance(file, true, Some(send)),
                         |n| {
                             Message::CreateInstance(CreateInstanceMessage::ImportResult(n.strerr()))
                         },
@@ -194,7 +190,6 @@ then go to "Mods->Add File""#,
             instance_name: String::new(),
             download_assets: true,
             search_box: String::new(),
-            show_category_dropdown: false,
             selected_categories: self.config.c_persistent().get_create_instance_filters(),
             is_server,
             sidebar_grid_state,
@@ -224,14 +219,6 @@ then go to "Mods->Add File""#,
                 return Task::none();
             }
 
-            let (sender, receiver) = std::sync::mpsc::channel::<DownloadProgress>();
-            let progress = ProgressBar {
-                num: 0.0,
-                message: Some("Started download".to_owned()),
-                receiver,
-                progress: DownloadProgress::DownloadingJsonManifest,
-            };
-
             let version = selected_version.clone();
             let instance_name = if instance_name.trim().is_empty() {
                 version.name.clone()
@@ -240,23 +227,19 @@ then go to "Mods->Add File""#,
             };
             let download_assets = *download_assets;
 
-            self.state = State::Create(MenuCreateInstance::DownloadingInstance(progress));
+            self.state = State::Create(MenuCreateInstance::DownloadingInstance(ProgressBar::new()));
 
             return if is_server {
-                Task::perform(
-                    async move {
-                        let sender = sender;
-                        ql_servers::create_server(instance_name.clone(), version, Some(&sender))
-                            .await
-                            .strerr()
-                            .map(InstanceSelection::Server)
-                    },
-                    |n| Message::CreateInstance(CreateInstanceMessage::End(n)),
+                sip(|sender|
+                    ql_servers::create_server(instance_name, version, Some(sender)),
+                    |n| Message::CreateInstance(CreateInstanceMessage::End(
+                        n.strerr().map(InstanceSelection::Server)
+                    )),
                 )
             } else {
-                Task::perform(
-                    ql_instances::create_instance(
-                        instance_name.clone(),
+                sip(
+                    move |sender| ql_instances::create_instance(
+                        instance_name,
                         version,
                         Some(sender),
                         download_assets,

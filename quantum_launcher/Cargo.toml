@@ -39,16 +39,26 @@ ql_servers.path = "../crates/ql_servers"
 ql_packager.path = "../crates/ql_packager"
 
 # For the GUI
-iced = { version = "0.13", default-features = false, features = [
+iced = { version = "0.14", default-features = false, features = [
     "tokio",
     "image",
     "svg",
     "lazy",
     "advanced",
+    "sipper",
+    # Display backend
+    "x11",
+    "wayland"
+] }
+sipper.workspace = true
+widgets = { git = "https://github.com/A-Disruption/widgets.git" , features = [
+    # "tree",
+    # "collapsible",
+    "generic_overlay",
+    # "color_picker"
 ] }
 # The HTML/Markdown renderer
-# There is a "0.1.0" version, but it's outdated.
-frostmark = { git = "https://github.com/Mrmayman/frostmark.git", rev = "94a4e90456fcc31479c6d58e3b3ca89c8ec5e6c4", default-features = false, features = ["markdown"] } # TOML is a terrible language
+frostmark = { version = "0.3", default-features = false, features = ["markdown"] }
 # For table widget, I don't need this
 # tabular = { git = "https://github.com/Mrmayman/tabular.git" }
 

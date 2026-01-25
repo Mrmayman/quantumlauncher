@@ -1,11 +1,14 @@
 use std::collections::HashSet;
 
-use iced::{widget, Length};
+use iced::{
+    widget::{self, column},
+    Length,
+};
 use ql_core::SelectedMod;
 
 use crate::{
     icons,
-    menu_renderer::{back_button, button_with_icon, tsubtitle, Element},
+    menu_renderer::{back_button, button_with_icon, tsubtitle, ui::checkbox, Element},
     state::{
         EditPresetsMessage, ManageModsMessage, MenuEditPresets, MenuRecommendedMods, Message,
         ModListEntry, SelectedState,
@@ -16,7 +19,7 @@ use crate::{
 impl MenuEditPresets {
     pub fn view(&'_ self) -> Element<'_> {
         if let Some(progress) = &self.progress {
-            return widget::column!(
+            return column!(
                 widget::text("Installing mods").size(20),
                 progress.view(),
                 widget::text("Check debug log (at the bottom) for more info").size(12),
@@ -27,14 +30,14 @@ impl MenuEditPresets {
         }
 
         if self.is_building {
-            return widget::column!(widget::text("Building Preset").size(20))
+            return column!(widget::text("Building Preset").size(20))
                 .padding(10)
                 .spacing(10)
                 .into();
         }
 
         let p_main = widget::row![
-            widget::column![
+            column![
                 back_button().on_press(Message::ManageMods(
                     ManageModsMessage::ScreenOpenWithoutUpdate
                 )),
@@ -53,26 +56,26 @@ Modrinth/Curseforge modpack"
                 )
                 .style(tsubtitle)
                 .size(12),
-                widget::checkbox(
-                    "Include mod settings/configuration (config folder)",
-                    self.include_config
-                )
-                .on_toggle(|t| Message::EditPresets(EditPresetsMessage::ToggleIncludeConfig(t))),
+                checkbox(
+                    widget::text("Include mod settings/configuration\n(config folder)").size(12),
+                    self.include_config,
+                    |t| Message::EditPresets(EditPresetsMessage::ToggleIncludeConfig(t))
+                ),
                 button_with_icon(icons::floppydisk(), "Build Preset", 16)
                     .on_press(Message::EditPresets(EditPresetsMessage::BuildYourOwn)),
             ]
             .padding(10)
             .spacing(10),
             widget::container(
-                widget::column![
-                    widget::column![widget::button(
-                        if let SelectedState::All = self.selected_state {
+                column![
+                    column![
+                        widget::button(if let SelectedState::All = self.selected_state {
                             "Unselect All"
                         } else {
                             "Select All"
-                        }
-                    )
-                    .on_press(Message::EditPresets(EditPresetsMessage::SelectAll)),]
+                        })
+                        .on_press(Message::EditPresets(EditPresetsMessage::SelectAll)),
+                    ]
                     .padding({
                         let p: iced::Padding = 10.into();
                         p.bottom(0)
@@ -105,8 +108,10 @@ Modrinth/Curseforge modpack"
     ) -> widget::Column<'a, Message, LauncherTheme, iced::Renderer> {
         widget::column(self.sorted_mods_list.iter().map(|entry| {
             if entry.is_manually_installed() {
-                widget::checkbox(entry.name(), selected_mods.contains(&entry.clone().into()))
-                    .on_toggle(move |t| match entry {
+                checkbox(
+                    entry.name(),
+                    selected_mods.contains(&entry.clone().into()),
+                    move |t| match entry {
                         ModListEntry::Downloaded { id, config } => {
                             Message::EditPresets(EditPresetsMessage::ToggleCheckbox(
                                 (config.name.clone(), id.clone()),
@@ -116,8 +121,8 @@ Modrinth/Curseforge modpack"
                         ModListEntry::Local { file_name } => Message::EditPresets(
                             EditPresetsMessage::ToggleCheckboxLocal(file_name.clone(), t),
                         ),
-                    })
-                    .into()
+                    },
+                )
             } else {
                 widget::text!(" - (DEPENDENCY) {}", entry.name())
                     .shaping(widget::text::Shaping::Advanced)
@@ -137,49 +142,47 @@ impl MenuRecommendedMods {
         match self {
             MenuRecommendedMods::Loading { progress, .. } => progress.view().padding(10).into(),
             MenuRecommendedMods::InstallALoader => {
-                widget::column![
+                column![
                     back_button,
                     "Install a mod loader (like Fabric/Forge/NeoForge/Quilt/etc, whichever is compatible)",
                     "You need one before you can install mods"
                 ].padding(10).spacing(5).into()
             }
             MenuRecommendedMods::NotSupported => {
-                widget::column![
+                column![
                     back_button,
                     "No recommended mods found :)"
                 ].padding(10).spacing(5).into()
             }
             MenuRecommendedMods::Loaded { mods, .. } => {
                 let content: Element =
-                    widget::column!(
+                    column!(
                         back_button,
                         button_with_icon(icons::download(), "Download Recommended Mods", 16)
                             .on_press(Message::RecommendedMods(
                                 crate::state::RecommendedModMessage::Download
                             )),
                         widget::column(mods.iter().enumerate().map(|(i, (e, n))| {
-                            let elem: Element = widget::checkbox(n.name, *e)
-                                .on_toggle(move |n| {
-                                    Message::RecommendedMods(crate::state::RecommendedModMessage::Toggle(
-                                        i, n,
-                                    ))
-                                })
-                                .into();
-                            widget::column!(
+                            let elem = checkbox(n.name, *e, move |n| {
+                                Message::RecommendedMods(crate::state::RecommendedModMessage::Toggle(
+                                    i, n,
+                                ))
+                            });
+                            column![
                                 elem,
                                 widget::text(n.description)
                                     .shaping(widget::text::Shaping::Advanced)
                                     .size(12)
-                            )
-                                .spacing(5)
-                                .into()
+                            ]
+                            .spacing(5)
+                            .into()
                         }))
                         .spacing(10)
                     )
                     .spacing(10)
                     .into();
 
-                widget::scrollable(widget::column![content].padding(10))
+                widget::scrollable(column![content].padding(10))
                     .style(|t: &LauncherTheme, status| t.style_scrollable_flat_dark(status))
                     .into()
             }

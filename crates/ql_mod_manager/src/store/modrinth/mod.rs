@@ -1,9 +1,10 @@
-use std::{collections::HashSet, sync::mpsc::Sender, time::Instant};
+use std::{collections::HashSet, time::Instant};
 
 use chrono::DateTime;
 use download::version_sort;
 use info::ProjectInfo;
 use ql_core::{pt, GenericProgress, InstanceSelection, Loader, ModId};
+use sipper::Sender;
 use versions::ModVersion;
 
 use crate::{
@@ -120,7 +121,7 @@ impl Backend for ModrinthBackend {
         instance: &InstanceSelection,
         ignore_incompatible: bool,
         set_manually_installed: bool,
-        sender: Option<&Sender<GenericProgress>>,
+        sender: Option<&mut Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
         let _guard = lock().await;
 
@@ -134,16 +135,18 @@ impl Backend for ModrinthBackend {
         let len = ids.len();
 
         for (i, id) in ids.iter().enumerate() {
-            if let Some(sender) = &sender {
-                _ = sender.send(GenericProgress {
-                    done: i,
-                    total: len,
-                    message: downloader
-                        .info
-                        .get(id)
-                        .map(|n| format!("Downloading mod: {}", n.title)),
-                    has_finished: false,
-                });
+            if let Some(mut sender) = sender.as_ref().map(|n| (*n).clone()) {
+                sender
+                    .send(GenericProgress {
+                        done: i,
+                        total: len,
+                        message: downloader
+                            .info
+                            .get(id)
+                            .map(|n| format!("Downloading mod: {}", n.title)),
+                        has_finished: false,
+                    })
+                    .await;
             }
 
             let result = downloader.download(id, None, true).await;
@@ -165,8 +168,8 @@ impl Backend for ModrinthBackend {
         downloader.index.save(instance).await?;
 
         pt!("Finished");
-        if let Some(sender) = &sender {
-            _ = sender.send(GenericProgress::finished());
+        if let Some(sender) = sender {
+            sender.send(GenericProgress::finished()).await;
         }
 
         Ok(HashSet::new())
