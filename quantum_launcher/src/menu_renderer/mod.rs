@@ -4,6 +4,7 @@ use iced::{
 };
 use ql_core::WEBSITE;
 use ql_instances::auth::AccountType;
+use widgets::generic_overlay::OverlayButton;
 
 use crate::stylesheet::styles::{LauncherThemeLightness, BORDER_RADIUS, BORDER_WIDTH};
 use crate::{
@@ -151,6 +152,22 @@ pub fn ctxbox<'a>(inner: impl Into<Element<'a>>) -> widget::Container<'a, Messag
         })
 }
 
+pub fn overlaybox<'a>(
+    button_label: impl Into<Element<'a>>,
+    overlay_content: impl Into<Element<'a>>,
+) -> OverlayButton<'a, Message, LauncherTheme> {
+    OverlayButton::new(button_label, "", overlay_content)
+        .hide_header()
+        .close_on_click_outside()
+        .hover_positions_on_click()
+        .reset_on_close()
+        .overlay_width(Length::Fixed(200.0))
+        .overlay_padding(1.0)
+        .overlay_radius(BORDER_RADIUS)
+        .hover_gap(10.0)
+        .hover_alignment(Alignment::Start)
+}
+
 pub fn subbutton_with_icon<'a>(
     icon: impl Into<Element<'a>>,
     text: &'a str,
@@ -203,7 +220,15 @@ fn sidebar_button<'a, A: PartialEq>(
         .style(|n: &LauncherTheme, status| n.style_button(status, StyleButton::FlatExtraDark))
         .width(Length::Fill);
 
-    underline_maybe(button, Color::SecondDark, !is_selected)
+    if !is_selected {
+        widget::column![
+            button,
+            widget::rule::horizontal(1).style(move |t: &LauncherTheme| t.style_rule(Color::Dark))
+        ]
+        .into()
+    } else {
+        button.into()
+    }
 }
 
 fn tsubtitle(t: &LauncherTheme) -> widget::text::Style {

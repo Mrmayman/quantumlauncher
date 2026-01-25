@@ -66,7 +66,7 @@ impl MenuModsDownload {
                         ).size(12)
                     ).padding(10).width(Length::Fill).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
                 ),
-                widget::scrollable(mods_list.spacing(10).padding(10))
+                widget::scrollable(mods_list)
                     .style(|theme: &LauncherTheme, status|
                         theme
                             .style_scrollable_flat_extra_dark(status)
@@ -166,12 +166,14 @@ impl MenuModsDownload {
                         .enumerate()
                         .map(|(i, hit)| self.view_mod_entry(i, hit, images, results.backend)),
                 )
+                .spacing(5)
             }
             .push(widget::space().width(Length::Fill))
         } else {
             let dots = ".".repeat((tick_timer % 3) + 1);
             column!(widget::text!("Loading{dots}"))
         }
+        .padding(10)
     }
 
     /// Renders a single mod entry (and button) in the search results.

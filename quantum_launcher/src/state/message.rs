@@ -2,7 +2,7 @@ use std::{collections::HashSet, path::PathBuf, process::ExitStatus, sync::Arc};
 
 use crate::{
     message_handler::ForgeKind,
-    state::{LaunchModal, MenuEditModsModal},
+    state::LaunchModal,
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
 use iced::widget::{self, scrollable::AbsoluteOffset};
@@ -61,7 +61,6 @@ pub enum CreateInstanceMessage {
 
     SearchInput(String),
     SearchSubmit,
-    ContextMenuToggle,
     CategoryToggle(ql_core::ListEntryKind),
 
     Start,
@@ -135,7 +134,6 @@ pub enum ManageModsMessage {
     AddFileDone(Res<HashSet<CurseforgeNotAllowed>>),
 
     SelectAll,
-    SetModal(Option<MenuEditModsModal>),
     RightClick(ModId),
     SetSearch(Option<String>),
 
@@ -392,6 +390,7 @@ pub enum Message {
         is_server: Option<bool>,
     },
     MChangeTab(LaunchTab),
+    #[allow(unused)]
     MModal(Option<LaunchModal>),
 
     MSidebarResize(f32),

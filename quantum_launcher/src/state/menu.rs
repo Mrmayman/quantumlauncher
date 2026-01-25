@@ -52,8 +52,7 @@ impl std::fmt::Display for LaunchTab {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LaunchModal {
-    InstanceOptions,
-    // More in the future
+    // The code is in another dev branch, nothing to do here
 }
 
 pub enum InstanceNotes {
@@ -236,16 +235,10 @@ pub struct MenuEditMods {
     /// Index of the item selected before pressing shift
     pub list_shift_index: Option<usize>,
     pub drag_and_drop_hovered: bool,
-    pub modal: Option<MenuEditModsModal>,
+    pub right_click: Option<(ModId, (f32, f32))>,
     pub search: Option<String>,
 
     pub width_name: f32,
-}
-
-#[derive(Debug, Clone)]
-pub enum MenuEditModsModal {
-    Submenu,
-    RightClick(ModId, (f32, f32)),
 }
 
 impl MenuEditMods {
@@ -343,7 +336,6 @@ pub struct MenuCreateInstanceChoosing {
     // UI:
     pub is_server: bool,
     pub search_box: String,
-    pub show_category_dropdown: bool,
     pub selected_categories: HashSet<ql_core::ListEntryKind>,
     // Sidebar resizing:
     pub sidebar_grid_state: widget::pane_grid::State<bool>,

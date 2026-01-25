@@ -9,8 +9,8 @@ use std::{collections::HashSet, path::PathBuf};
 use crate::sip;
 use crate::state::{
     AutoSaveKind, ExportModsMessage, Launcher, ManageJarModsMessage, ManageModsMessage,
-    MenuCurseforgeManualDownload, MenuEditJarMods, MenuEditMods, MenuEditModsModal, Message,
-    ProgressBar, SelectedState, State,
+    MenuCurseforgeManualDownload, MenuEditJarMods, MenuEditMods, Message, ProgressBar,
+    SelectedState, State,
 };
 
 impl Launcher {
@@ -239,11 +239,6 @@ impl Launcher {
                     });
                 }
             }
-            ManageModsMessage::SetModal(modal) => {
-                if let State::EditMods(menu) = &mut self.state {
-                    menu.modal = modal;
-                }
-            }
             ManageModsMessage::SetSearch(search) => {
                 if let State::EditMods(menu) = &mut self.state {
                     menu.search = search;
@@ -256,20 +251,14 @@ impl Launcher {
             }
             ManageModsMessage::RightClick(clicked_id) => {
                 if let State::EditMods(menu) = &mut self.state {
-                    if let Some(MenuEditModsModal::RightClick(old_id, _)) = &menu.modal {
+                    if let Some((old_id, _)) = &menu.right_click {
                         if *old_id == clicked_id {
-                            menu.modal = None;
+                            menu.right_click = None;
                         } else {
-                            menu.modal = Some(MenuEditModsModal::RightClick(
-                                clicked_id,
-                                self.window_state.mouse_pos,
-                            ));
+                            menu.right_click = Some((clicked_id, self.window_state.mouse_pos));
                         }
                     } else {
-                        menu.modal = Some(MenuEditModsModal::RightClick(
-                            clicked_id,
-                            self.window_state.mouse_pos,
-                        ));
+                        menu.right_click = Some((clicked_id, self.window_state.mouse_pos));
                     }
                     return menu.scroll_fix();
                 }
@@ -696,7 +685,7 @@ impl MenuEditMods {
         pressed_ctrl: bool,
         pressed_shift: bool,
     ) {
-        self.modal = None;
+        self.right_click = None;
 
         match (pressed_ctrl, pressed_shift) {
             (true, _) => {

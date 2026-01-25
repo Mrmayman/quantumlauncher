@@ -414,21 +414,12 @@ impl Launcher {
 
     fn hide_submenu(&mut self) -> bool {
         if let State::EditMods(menu) = &mut self.state {
-            if menu.modal.is_some() {
-                menu.modal = None;
+            if menu.right_click.is_some() {
+                menu.right_click = None;
                 return true;
             }
             if menu.search.is_some() {
                 menu.search = None;
-                return true;
-            }
-        } else if let State::Create(MenuCreateInstance::Choosing(MenuCreateInstanceChoosing {
-            show_category_dropdown,
-            ..
-        })) = &mut self.state
-        {
-            if *show_category_dropdown {
-                *show_category_dropdown = false;
                 return true;
             }
         } else if let State::Launch(menu) = &mut self.state {

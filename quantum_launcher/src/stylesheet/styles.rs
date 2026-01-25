@@ -15,9 +15,9 @@ use super::{
 pub const BORDER_WIDTH: f32 = 1.0;
 pub const BORDER_RADIUS: f32 = 8.0;
 pub const SHADOW: iced::Shadow = iced::Shadow {
-    color: iced::Color::BLACK,
+    color: iced::Color::from_rgba(0.0, 0.0, 0.0, 0.2),
     offset: iced::Vector::new(0.0, 0.0),
-    blur_radius: BORDER_RADIUS,
+    blur_radius: 16.0,
 };
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -308,10 +308,7 @@ impl LauncherTheme {
                 background: if hovered {
                     self.get_bg(Color::Mid)
                 } else {
-                    iced::Background::Color(blend_colors(
-                        self.get(Color::SecondDark),
-                        self.get(Color::Mid),
-                    ))
+                    iced::Background::Color(mix(self.get(Color::SecondDark), self.get(Color::Mid)))
                 },
                 border: self.get_border_style(&style, Color::Light),
             },
@@ -339,10 +336,7 @@ impl LauncherTheme {
                 background: if is_vertical_scrollbar_dragged {
                     self.get_bg(Color::White)
                 } else {
-                    iced::Background::Color(blend_colors(
-                        self.get(Color::Mid),
-                        self.get(Color::SecondDark),
-                    ))
+                    iced::Background::Color(mix(self.get(Color::Mid), self.get(Color::SecondDark)))
                 },
                 border: self.get_border_style(&style, Color::Light),
             },
@@ -491,7 +485,7 @@ impl LauncherTheme {
         let c = if let LauncherThemeColor::Adwaita = self.color {
             self.get(Color::Dark)
         } else {
-            blend_colors(self.get(Color::Dark), self.get(Color::ExtraDark))
+            mix(self.get(Color::Dark), self.get(Color::ExtraDark))
         };
         iced::Background::Color(c.scale_alpha(self.alpha))
     }
@@ -613,7 +607,14 @@ impl LauncherTheme {
                     StyleButton::FlatExtraDark | StyleButton::SemiExtraDark(_) => Color::ExtraDark,
                 };
                 widget::button::Style {
-                    background: Some(self.get_bg(color)),
+                    background: Some(if let StyleButton::Round = style {
+                        iced::Background::Color(mix(
+                            self.get(Color::Dark),
+                            self.get(Color::SecondDark),
+                        ))
+                    } else {
+                        self.get_bg(color)
+                    }),
                     text_color: self.get(Color::White),
                     border: if let StyleButton::Round = style {
                         Border {
@@ -809,7 +810,7 @@ fn radius(t: bool) -> f32 {
     }
 }
 
-fn blend_colors(color1: iced::Color, color2: iced::Color) -> iced::Color {
+fn mix(color1: iced::Color, color2: iced::Color) -> iced::Color {
     // Calculate the average of each RGBA component
     let r = color1.r.midpoint(color2.r);
     let g = color1.g.midpoint(color2.g);

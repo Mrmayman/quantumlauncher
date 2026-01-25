@@ -51,6 +51,12 @@ iced = { version = "0.14", default-features = false, features = [
     "wayland"
 ] }
 sipper.workspace = true
+widgets = { git = "https://github.com/A-Disruption/widgets.git" , features = [
+    # "tree",
+    # "collapsible",
+    "generic_overlay",
+    # "color_picker"
+] }
 # The HTML/Markdown renderer
 frostmark = { version = "0.3", default-features = false, features = ["markdown"] }
 # For table widget, I don't need this

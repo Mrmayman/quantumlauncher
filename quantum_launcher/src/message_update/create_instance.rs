@@ -76,9 +76,6 @@ impl Launcher {
                     }
                 });
             }
-            CreateInstanceMessage::ContextMenuToggle => iflet!(self, show_category_dropdown; {
-                *show_category_dropdown = !*show_category_dropdown;
-            }),
             CreateInstanceMessage::CategoryToggle(kind) => iflet!(self, selected_categories; {
                 if selected_categories.contains(&kind) {
                     // Don't allow removing the last category
@@ -193,7 +190,6 @@ then go to "Mods->Add File""#,
             instance_name: String::new(),
             download_assets: true,
             search_box: String::new(),
-            show_category_dropdown: false,
             selected_categories: self.config.c_persistent().get_create_instance_filters(),
             is_server,
             sidebar_grid_state,

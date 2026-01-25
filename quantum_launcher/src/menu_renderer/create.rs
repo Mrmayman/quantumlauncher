@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use iced::{
     widget::{self, column, row, tooltip::Position},
     Alignment, Length,
@@ -10,7 +8,8 @@ use crate::{
     cli::EXPERIMENTAL_MMC_IMPORT,
     icons,
     menu_renderer::{
-        button_with_icon, ctxbox, dots, shortcut_ctrl, sidebar_button, tooltip, tsubtitle, Element,
+        button_with_icon, dots, overlaybox, shortcut_ctrl, sidebar_button, tooltip, tsubtitle,
+        Element,
     },
     state::{CreateInstanceMessage, MenuCreateInstance, MenuCreateInstanceChoosing, Message},
     stylesheet::{
@@ -44,7 +43,7 @@ impl MenuCreateInstance {
 
 impl MenuCreateInstanceChoosing {
     pub fn view(&self, existing_instances: Option<&[String]>, timer: usize) -> Element<'_> {
-        let view = widget::pane_grid(&self.sidebar_grid_state, |_, is_sidebar, _| {
+        widget::pane_grid(&self.sidebar_grid_state, |_, is_sidebar, _| {
             if *is_sidebar {
                 self.get_sidebar_contents(timer).into()
             } else {
@@ -53,18 +52,7 @@ impl MenuCreateInstanceChoosing {
         })
         .on_resize(10, |t| {
             Message::CreateInstance(CreateInstanceMessage::SidebarResize(t.ratio))
-        });
-
-        widget::stack!(
-            view,
-            self.show_category_dropdown.then_some(row![
-                widget::space().width(90),
-                column![
-                    widget::space().height(40),
-                    ctxbox(Self::get_category_dropdown(&self.selected_categories))
-                ]
-            ])
-        )
+        })
         .into()
     }
 
@@ -105,13 +93,13 @@ impl MenuCreateInstanceChoosing {
             column![
                 column![header].padding(10),
                 widget::scrollable(widget::column(versions_iter.map(|n| {
-                    let label = widget::text(&n.name).size(14).style(|t: &LauncherTheme| {
-                        t.style_text(if n.kind == ListEntryKind::Snapshot {
-                            Color::SecondLight
+                    let label = widget::text(&n.name).size(14).style(
+                        if n.kind == ListEntryKind::Snapshot {
+                            |t: &LauncherTheme| t.style_text(Color::SecondLight)
                         } else {
-                            Color::Light
-                        })
-                    });
+                            |t: &LauncherTheme| t.style_text(Color::Light)
+                        },
+                    );
 
                     sidebar_button(
                         n,
@@ -131,16 +119,12 @@ impl MenuCreateInstanceChoosing {
     }
 
     fn get_sidebar_header(&self) -> widget::Column<'_, Message, LauncherTheme> {
-        let opened_controls = self.show_category_dropdown;
         let hidden = self.selected_categories.len() == ListEntryKind::ALL.len();
 
         column![
-            row![
-                self.gback_button(),
-                gfilters_button(opened_controls, hidden)
-            ]
-            .spacing(5)
-            .wrap(),
+            row![self.gback_button(), self.gfilters_button(hidden)]
+                .spacing(5)
+                .wrap(),
             self.ghidden_versions(hidden),
             widget::text_input("Search...", &self.search_box)
                 .size(14)
@@ -244,49 +228,43 @@ impl MenuCreateInstanceChoosing {
         .into()
     }
 
-    fn get_category_dropdown(
-        selected_categories: &HashSet<ListEntryKind>,
-    ) -> widget::Column<'static, Message, LauncherTheme> {
+    fn get_category_dropdown(&self) -> widget::Column<'static, Message, LauncherTheme> {
         column![widget::text("Version Types:").size(14)]
             .extend(ListEntryKind::ALL.iter().map(|kind| {
-                let is_checked = selected_categories.contains(kind);
+                let on_press =
+                    move |_| Message::CreateInstance(CreateInstanceMessage::CategoryToggle(*kind));
+                let is_checked = self.selected_categories.contains(kind);
 
-                widget::row![
-                    widget::checkbox(is_checked).size(13).on_toggle(move |_| {
-                        Message::CreateInstance(CreateInstanceMessage::CategoryToggle(*kind))
-                    }),
-                    widget::text(kind.to_string()).size(13)
-                ]
-                .spacing(5)
+                widget::mouse_area(
+                    widget::row![
+                        widget::checkbox(is_checked).size(13).on_toggle(on_press),
+                        widget::text(kind.to_string()).size(13)
+                    ]
+                    .spacing(5)
+                    .align_y(Alignment::Center),
+                )
+                .on_press(on_press(is_checked))
                 .into()
             }))
+            .padding(8)
             .spacing(5)
     }
-}
 
-fn gfilters_button(
-    opened_controls: bool,
-    hidden: bool,
-) -> widget::Button<'static, Message, LauncherTheme> {
-    button_with_icon(
-        icons::filter_s(12),
-        if hidden { "Filters" } else { "Filters •" },
-        13,
-    )
-    .padding([4, 10])
-    .style(move |t: &LauncherTheme, s| {
-        t.style_button(
-            s,
-            if opened_controls {
-                StyleButton::Round
-            } else {
-                StyleButton::RoundDark
-            },
+    fn gfilters_button(&self, hidden: bool) -> Element<'static> {
+        overlaybox(
+            widget::row![
+                icons::filter_s(12),
+                widget::text(if hidden { "Filters" } else { "Filters •" }).size(13)
+            ]
+            .align_y(Alignment::Center)
+            .spacing(8),
+            self.get_category_dropdown(),
         )
-    })
-    .on_press(Message::CreateInstance(
-        CreateInstanceMessage::ContextMenuToggle,
-    ))
+        .opaque(true)
+        .hover_position(widgets::generic_overlay::Position::Bottom)
+        .padding([4, 10])
+        .into()
+    }
 }
 
 fn get_create_button(already_exists: bool) -> widget::Tooltip<'static, Message, LauncherTheme> {

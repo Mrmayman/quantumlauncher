@@ -7,10 +7,10 @@ use iced::{
 };
 use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
 
-use crate::cli::EXPERIMENTAL_SERVERS;
 use crate::menu_renderer::onboarding::x86_warning;
-use crate::menu_renderer::{ctx_button, ctxbox, tsubtitle, underline, underline_maybe, FONT_MONO};
-use crate::state::{GameLogMessage, InstanceNotes, LaunchModal, NotesMessage};
+use crate::menu_renderer::{ctx_button, tsubtitle, underline, underline_maybe, FONT_MONO};
+use crate::state::{GameLogMessage, InstanceNotes, NotesMessage};
+use crate::{cli::EXPERIMENTAL_SERVERS, menu_renderer::overlaybox};
 use crate::{
     icons,
     menu_renderer::DISCORD,
@@ -100,33 +100,14 @@ impl Launcher {
             .into()
         };
 
-        widget::stack!(
-            widget::column![
-                menu.get_tab_selector(decor),
-                view_info_message(menu),
-                widget::container(tab_body)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .style(|t: &LauncherTheme| t.style_container_bg(0.0, None)),
-            ],
-            menu.modal.as_ref().map(|n| {
-                match n {
-                    LaunchModal::InstanceOptions => widget::column![
-                        widget::space().height(Length::Fill),
-                        ctxbox(
-                            widget::column![
-                                ctx_button("Export Instance").on_press(Message::ExportInstanceOpen),
-                                ctx_button("Create Shortcut").on_press(Message::Nothing),
-                            ]
-                            .spacing(5)
-                        )
-                        .width(150),
-                        widget::space().height(30)
-                    ]
-                    .padding(12),
-                }
-            })
-        )
+        widget::column![
+            menu.get_tab_selector(decor),
+            view_info_message(menu),
+            widget::container(tab_body)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|t: &LauncherTheme| t.style_container_bg(0.0, None)),
+        ]
         .into()
     }
 
@@ -178,6 +159,13 @@ impl Launcher {
             }
         };
 
+        let instance_options = widget::column![
+            ctx_button("Export Instance").on_press(Message::ExportInstanceOpen),
+            ctx_button("Create Shortcut").on_press(Message::Nothing),
+        ]
+        .spacing(2)
+        .padding(8);
+
         column!(
             widget::row![
                 widget::text(selected.get_name()).font(FONT_MONO).size(20),
@@ -198,9 +186,11 @@ impl Launcher {
                 column![
                     get_view_servers(menu.is_viewing_server),
                     widget::row![
-                        widget::button(icons::lines_s(10))
-                            .padding([4, 8])
-                            .on_press(Message::MModal(Some(LaunchModal::InstanceOptions))),
+                        overlaybox(icons::lines_s(10), instance_options)
+                            .opaque(true)
+                            .hover_position(widgets::generic_overlay::Position::Top)
+                            .overlay_width(150.0)
+                            .padding([5, 9]),
                         widget::button(
                             widget::row![
                                 icons::edit_s(10),
@@ -212,6 +202,7 @@ impl Launcher {
                         .padding([4, 8])
                         .on_press(Message::Notes(NotesMessage::OpenEdit)),
                     ]
+                    .spacing(5)
                 ]
                 .spacing(5),
                 get_footer_text(),

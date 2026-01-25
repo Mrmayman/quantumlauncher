@@ -550,3 +550,19 @@ impl widget::pane_grid::Catalog for LauncherTheme {
         }
     }
 }
+
+impl widgets::generic_overlay::Catalog for LauncherTheme {
+    type Class<'a> = ();
+
+    fn default<'a>() -> Self::Class<'a> {}
+
+    fn style(&self, (): &Self::Class<'_>) -> widgets::generic_overlay::Style {
+        widgets::generic_overlay::Style {
+            background: self.get(Color::Dark),
+            header_background: self.get(Color::ExtraDark),
+            border_color: self.get(Color::SecondDark),
+            text_color: self.get(Color::SecondLight),
+            shadow: SHADOW,
+        }
+    }
+}

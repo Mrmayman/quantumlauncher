@@ -238,7 +238,7 @@ impl Launcher {
                 drag_and_drop_hovered: false,
                 update_check_handle,
                 version_json,
-                modal: None,
+                right_click: None,
                 search: None,
                 width_name: 220.0,
                 list_shift_index: None,

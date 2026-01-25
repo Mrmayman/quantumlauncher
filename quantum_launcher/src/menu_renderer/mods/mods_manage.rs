@@ -5,7 +5,7 @@ use iced::{
 };
 use ql_core::{InstanceSelection, Loader, SelectedMod};
 
-use crate::menu_renderer::ctx_button;
+use crate::menu_renderer::{ctx_button, overlaybox};
 use crate::{
     icons,
     menu_renderer::{
@@ -16,7 +16,7 @@ use crate::{
     state::{
         EditPresetsMessage, ImageState, InstallFabricMessage, InstallModsMessage,
         InstallOptifineMessage, InstallPaperMessage, ManageJarModsMessage, ManageModsMessage,
-        MenuEditMods, MenuEditModsModal, Message, ModListEntry, SelectedState,
+        MenuEditMods, Message, ModListEntry, SelectedState,
     },
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
@@ -58,29 +58,7 @@ impl MenuEditMods {
                 ))
             )
             .into()
-        } else if let Some(MenuEditModsModal::Submenu) = &self.modal {
-            let submenu = column![
-                ctx_button("Export list as text")
-                    .on_press(Message::ManageMods(ManageModsMessage::ExportMenuOpen)),
-                ctx_button("Export QMP Preset")
-                    .on_press(Message::EditPresets(EditPresetsMessage::Open)),
-                widget::rule::horizontal(1)
-                    .style(|t: &LauncherTheme| t.style_rule(Color::SecondDark)),
-                ctx_button("See recommended mods").on_press(Message::RecommendedMods(
-                    crate::state::RecommendedModMessage::Open
-                )),
-            ]
-            .spacing(4);
-
-            widget::stack!(
-                menu_main,
-                widget::row![
-                    widget::space().width(MODS_SIDEBAR_WIDTH + 30),
-                    column![widget::space().height(40), ctxbox(submenu).width(200)]
-                ]
-            )
-            .into()
-        } else if let Some(MenuEditModsModal::RightClick(id, (x, y))) = &self.modal {
+        } else if let Some((id, (x, y))) = &self.right_click {
             widget::stack!(
                 menu_main,
                 column![
@@ -394,18 +372,27 @@ impl MenuEditMods {
         .into()
     }
 
-    fn get_hamburger_dropdown(&self) -> widget::Button<'_, Message, LauncherTheme> {
-        widget::button(
-            widget::row![icons::lines_s(12)]
-                .align_y(Alignment::Center)
-                .padding(1),
-        )
-        .style(|t: &LauncherTheme, s| {
-            t.style_button(s, crate::stylesheet::widgets::StyleButton::RoundDark)
-        })
-        .on_press(Message::ManageMods(ManageModsMessage::SetModal(
-            self.modal.is_none().then_some(MenuEditModsModal::Submenu),
-        )))
+    fn get_hamburger_dropdown(&self) -> Element<'static> {
+        let overlay_content = column![
+            ctx_button("Export list as text")
+                .on_press(Message::ManageMods(ManageModsMessage::ExportMenuOpen)),
+            ctx_button("Export QMP Preset")
+                .on_press(Message::EditPresets(EditPresetsMessage::Open)),
+            widget::rule::horizontal(1).style(|t: &LauncherTheme| t.style_rule(Color::SecondDark)),
+            ctx_button("See recommended mods").on_press(Message::RecommendedMods(
+                crate::state::RecommendedModMessage::Open
+            )),
+        ]
+        .spacing(4)
+        .padding(10);
+
+        overlaybox(icons::lines_s(12), overlay_content)
+            .opaque(true)
+            .hover_position(widgets::generic_overlay::Position::Bottom)
+            .style(|t: &LauncherTheme, s| {
+                t.style_button(s, crate::stylesheet::widgets::StyleButton::RoundDark)
+            })
+            .into()
     }
 
     fn get_search_button(&self) -> widget::Button<'_, Message, LauncherTheme> {
