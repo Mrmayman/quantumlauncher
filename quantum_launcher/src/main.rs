@@ -30,7 +30,7 @@ use std::{
 };
 
 use config::LauncherConfig;
-use iced::{Settings, Task};
+use iced::{mouse, window, Settings, Task};
 use owo_colors::OwoColorize;
 use sipper::Sipper;
 use state::{get_entries, Launcher, Message};
@@ -130,9 +130,23 @@ impl Launcher {
         )
     }
 
-    #[allow(clippy::unused_self)]
     fn subscription(&self) -> iced::Subscription<Message> {
-        let events = iced::event::listen_with(|a, b, _| Some(Message::CoreEvent(a, b)));
+        let events = iced::event::listen_with(|a, b, _| {
+            let needed = matches!(
+                a,
+                iced::Event::Window(
+                    window::Event::CloseRequested
+                        | window::Event::Resized(_)
+                        | window::Event::FileHovered(_)
+                        | window::Event::FilesHoveredLeft
+                        | window::Event::FileDropped(_)
+                ) | iced::Event::Keyboard(_)
+                    | iced::Event::Mouse(
+                        mouse::Event::ButtonPressed(_) | mouse::Event::CursorMoved { .. }
+                    )
+            );
+            needed.then_some(Message::CoreEvent(a, b))
+        });
         let ui = self.config.ui.unwrap_or_default();
         let idle_fps = ui.get_idle_fps();
 

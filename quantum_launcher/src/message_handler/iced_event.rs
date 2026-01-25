@@ -19,6 +19,8 @@ use std::ffi::OsStr;
 use std::path::Path;
 
 impl Launcher {
+    // Note: If you're adding more events,
+    // make sure to register it at `Launcher::subscription` in `main.rs`
     pub fn iced_event(&mut self, event: iced::Event, status: iced::event::Status) -> Task<Message> {
         match event {
             iced::Event::Window(event) => match event {
@@ -65,13 +67,7 @@ impl Launcher {
                         return self.drag_and_drop(&path, &extension, filename);
                     }
                 }
-                iced::window::Event::Closed
-                | iced::window::Event::RedrawRequested(_)
-                | iced::window::Event::Moved { .. }
-                | iced::window::Event::Opened { .. }
-                | iced::window::Event::Focused
-                | iced::window::Event::Rescaled(_)
-                | iced::window::Event::Unfocused => {}
+                _ => {}
             },
             iced::Event::Keyboard(event) => match event {
                 keyboard::Event::KeyPressed {
