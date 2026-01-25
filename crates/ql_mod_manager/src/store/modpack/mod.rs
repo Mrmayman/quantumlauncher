@@ -78,14 +78,7 @@ pub async fn install_modpack(
     }
     let not_allowed = if let Some(index) = index_json_curseforge {
         is_valid = true;
-        curseforge::install(
-            &instance,
-            &config,
-            &json,
-            &index,
-            sender.as_ref().map(|n| &**n),
-        )
-        .await?
+        curseforge::install(&instance, &config, &json, &index, sender.as_deref()).await?
     } else {
         HashSet::new()
     };

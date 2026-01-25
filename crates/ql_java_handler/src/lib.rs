@@ -157,7 +157,7 @@ pub async fn get_java_binary(
 
     if !java_dir.exists() || is_incomplete_install {
         info!("Installing Java: {version}");
-        install_java(version, progress.map(|n| n.clone())).await?;
+        install_java(version, progress).await?;
     }
 
     let bin_path = find_java_bin(name, &java_dir).await?;

@@ -202,8 +202,8 @@ fn main() {
 
     // FIXME: Look at this garbage. Only way I could find to work
     // around the Fn() trait bounds
-    static CONFIG: LazyLock<RwLock<Option<(Result<LauncherConfig, String>, bool)>>> =
-        LazyLock::new(|| RwLock::new(None));
+    type MaybeData = Option<(Result<LauncherConfig, String>, bool)>;
+    static CONFIG: LazyLock<RwLock<MaybeData>> = LazyLock::new(|| RwLock::new(None));
     *CONFIG.write().unwrap() = Some((config, is_new_user));
 
     iced::application(

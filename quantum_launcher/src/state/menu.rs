@@ -330,6 +330,7 @@ pub struct MenuEditJarMods {
     pub drag_and_drop_hovered: bool,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum MenuCreateInstance {
     Choosing(MenuCreateInstanceChoosing),
     DownloadingInstance(ProgressBar),
