@@ -9,7 +9,6 @@ ql_core.path = "../ql_core"
 thiserror.workspace = true
 tokio.workspace = true
 serde.workspace = true
-serde_json.workspace = true
 owo-colors.workspace = true
 cfg-if.workspace = true
 
