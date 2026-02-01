@@ -37,7 +37,7 @@
 //!   whose jar file is extracted to the `natives` folder.
 //! - `classifiers: *` - Once again, part of main library
 //!   but have separate jar files for each OS. Just formatted
-//!   differently in the json.
+//!   differently in the JSON.
 //!
 //! For whatever reason, natives are arranged in an
 //! **extremely** messy way in the JSONs.

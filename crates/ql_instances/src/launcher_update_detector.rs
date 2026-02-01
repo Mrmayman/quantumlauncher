@@ -27,16 +27,15 @@ pub enum UpdateCheckInfo {
 /// (url pointing to zip file containing new version executable).
 ///
 /// # Errors
-/// - If current version is ahead of latest version
+/// - current version is ahead of latest version
 ///   (experimental dev build)
-/// - If the release info couldn't be downloaded
-/// - If the release info couldn't be parsed into JSON
-/// - If no releases could be found in the GitHub repo
-/// - If the new version's version number is incompatible
+/// - release info couldn't be downloaded
+/// - release info couldn't be parsed into JSON
+/// - no releases could be found in the GitHub repo
+/// - new version's version number is incompatible
 ///   with semver (even after conversion)
-/// - If user is on unsupported architecture
-/// - If user is on unsupported OS
-/// - If no matching download could be found for your OS
+/// - user is on unsupported architecture or OS
+/// - no matching download could be found for the platform
 pub async fn check_for_launcher_updates() -> Result<UpdateCheckInfo, UpdateError> {
     const URL: &str = "https://api.github.com/repos/Mrmayman/quantum-launcher/releases";
 

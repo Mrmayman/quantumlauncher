@@ -444,7 +444,7 @@ impl ListEntryKind {
         }
     }
 
-    /// Returns true if this is a "old" version category
+    /// Returns true if this is an "old" version category
     #[must_use]
     pub const fn is_old(&self) -> bool {
         matches!(

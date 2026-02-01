@@ -7,7 +7,7 @@
 
 # UX
 
-- Added quick uninstall button to Mod Store
+- Added quick uninstallation button to Mod Store
 - Improved new-user Welcome screen with keyboard navigation,
   better layout and more guidance
 

@@ -20,7 +20,7 @@ If you...
 You can:
 
 - Write code. Add features, fix bugs, improve user experience.
-  - Please do adhere to nice quality standards, although don't worry
+  - Please do adhere to nice quality standards, but don't worry
     about fitting in. We are welcoming!
 - Write documentation/guides
 - Contribute to the website (repo: <https://github.com/Mrmayman/Mrmayman.github.io>)

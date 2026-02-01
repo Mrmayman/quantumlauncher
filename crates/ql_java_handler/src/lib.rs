@@ -89,7 +89,7 @@ const fn which_java() -> &'static str {
 ///
 /// `javaw` on Windows, `java` on all other platforms.
 ///
-/// On windows, `javaw` is used to avoid accidentally opening
+/// On Windows, `javaw` is used to avoid accidentally opening
 /// secondary terminal window. This uses the Windows subsystem
 /// instead of the Console subsystem, so the OS treats it as
 /// a GUI app.

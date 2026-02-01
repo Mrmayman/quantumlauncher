@@ -127,7 +127,7 @@ tokio::fs::write(&path, &bytes).await.path(path)?;
 
 ### `.json(original_string)` (from `ql_core::IntoJsonError`)
 
-For adding context when parsing json **strings** into structs. Use on `serde_json` errors.
+For adding context when parsing JSON **strings** into structs. Use on `serde_json` errors.
 
 ### `.json_to()` (from `ql_core::IntoJsonError`)
 

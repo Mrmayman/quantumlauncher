@@ -23,7 +23,7 @@ const OPACITY: f32 = 0.9;
 ///
 /// # Why `Option`?
 ///
-/// Many fields are `Option`s for backwards compatibility.
+/// Many fields are `Option`'s for backwards compatibility.
 /// If upgrading from an older version,
 /// `serde` will deserialize missing fields as `None`,
 /// which is treated as a default value.

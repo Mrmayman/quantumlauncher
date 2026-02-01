@@ -278,7 +278,7 @@ impl MenuModsDownload {
         images: &'a ImageState,
         tick_timer: usize,
     ) -> Element<'a> {
-        // Parses the markdown description of the mod.
+        // Parses the Markdown description of the mod.
         let markdown_description = if let Some(desc) = &self.description {
             column!(MarkWidget::new(desc)
                 .on_clicking_link(Message::CoreOpenLink)
