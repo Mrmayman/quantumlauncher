@@ -54,7 +54,7 @@ impl MenuEditInstance {
                         widget::checkbox("DEBUG: Enable log system (recommended)", self.config.enable_logger.unwrap_or(true))
                             .on_toggle(|t| Message::EditInstance(EditInstanceMessage::LoggingToggle(t))),
                         widget::text("Once disabled, logs will be printed in launcher STDOUT.\nRun the launcher executable from the terminal/command prompt to see it").size(12).style(tsubtitle),
-                        widget::horizontal_space(),
+                        horizontal_space(),
                     ].spacing(5)
                 )
                 .spacing(10),

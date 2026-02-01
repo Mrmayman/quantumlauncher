@@ -117,7 +117,7 @@ impl Launcher {
         .push_maybe(if let Some(LaunchModal::InstanceOptions) = &menu.modal {
             Some(
                 column![
-                    widget::vertical_space(),
+                    vertical_space(),
                     ctxbox(
                         column![
                             ctx_button("Export Instance").on_press(Message::ExportInstanceOpen),
@@ -488,7 +488,7 @@ impl Launcher {
             .width(97)
     }
 
-    fn get_server_play_button<'a>(&'a self) -> iced::widget::Tooltip<'a, Message, LauncherTheme> {
+    fn get_server_play_button(&self) -> widget::Tooltip<'_, Message, LauncherTheme> {
         match &self.selected_instance {
             Some(n) if self.processes.contains_key(n) => tooltip(
                 button_with_icon(icons::play(), "Stop", 16)

@@ -42,7 +42,7 @@ pub enum InstallFabricMessage {
 pub enum InstallPaperMessage {
     End(Res),
     VersionSelected(PaperVersion),
-    VersionsLoaded(Res<Vec<ql_mod_manager::loaders::paper::PaperVersion>>),
+    VersionsLoaded(Res<Vec<PaperVersion>>),
     ButtonClicked,
     ScreenOpen,
 }

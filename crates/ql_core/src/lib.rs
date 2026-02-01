@@ -356,7 +356,7 @@ pub enum ListEntryKind {
     Special,
 }
 
-impl std::fmt::Display for ListEntryKind {
+impl Display for ListEntryKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ListEntryKind::Release => write!(f, "Release"),

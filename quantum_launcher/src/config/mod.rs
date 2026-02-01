@@ -419,7 +419,7 @@ impl Default for PersistentSettings {
 
 impl PersistentSettings {
     #[must_use]
-    pub fn get_create_instance_filters(&self) -> std::collections::HashSet<ListEntryKind> {
+    pub fn get_create_instance_filters(&self) -> HashSet<ListEntryKind> {
         self.create_instance_filters
             .clone()
             .filter(|n| !n.is_empty())

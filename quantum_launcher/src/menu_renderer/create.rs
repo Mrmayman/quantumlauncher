@@ -22,7 +22,7 @@ use crate::{
 };
 
 impl MenuCreateInstance {
-    pub fn view<'a>(&'a self, existing_instances: Option<&[String]>, timer: usize) -> Element<'a> {
+    pub fn view(&self, existing_instances: Option<&[String]>, timer: usize) -> Element<'_> {
         match self {
             MenuCreateInstance::Choosing(menu) => menu.view(existing_instances, timer),
             MenuCreateInstance::DownloadingInstance(progress) => column![
@@ -65,10 +65,10 @@ impl MenuCreateInstanceChoosing {
             .into()
     }
 
-    fn get_sidebar_contents<'a>(
-        &'a self,
+    fn get_sidebar_contents(
+        &self,
         timer: usize,
-    ) -> widget::Container<'a, Message, LauncherTheme> {
+    ) -> widget::Container<'_, Message, LauncherTheme> {
         let header = self.get_sidebar_header();
 
         let Some(versions) = &self.list else {
@@ -119,7 +119,7 @@ impl MenuCreateInstanceChoosing {
                 }),))
                 .style(LauncherTheme::style_scrollable_flat_extra_dark)
                 .height(Length::Fill)
-                .id(iced::widget::scrollable::Id::new(
+                .id(widget::scrollable::Id::new(
                     "MenuCreateInstance:sidebar"
                 ))
             ]

@@ -620,7 +620,7 @@ impl LauncherTheme {
                     text_color: self.get(Color::ExtraDark),
                     border: if let StyleButton::Round = style {
                         let (palette, color) = self.get_base(Color::SecondDark);
-                        iced::Border {
+                        Border {
                             color: palette.get(color),
                             width: 0.5,
                             radius: BORDER_RADIUS.into(),

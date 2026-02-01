@@ -654,7 +654,7 @@ pub enum State {
 
 pub struct MenuLicense {
     pub selected_tab: LicenseTab,
-    pub content: iced::widget::text_editor::Content,
+    pub content: widget::text_editor::Content,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

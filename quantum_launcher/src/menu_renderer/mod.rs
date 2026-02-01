@@ -217,7 +217,7 @@ fn sidebar<'a>(
             widget::scrollable(widget::column(children))
                 .style(LauncherTheme::style_scrollable_flat_extra_dark)
                 .height(Length::Fill)
-                .id(iced::widget::scrollable::Id::new(id))
+                .id(widget::scrollable::Id::new(id))
         ]
         .spacing(10),
     )
@@ -227,8 +227,8 @@ fn sidebar<'a>(
 
 fn offset<'a>(
     e: impl Into<Element<'a>>,
-    x: impl Into<iced::Length>,
-    y: impl Into<iced::Length>,
+    x: impl Into<Length>,
+    y: impl Into<Length>,
 ) -> Element<'a> {
     row![
         widget::Space::with_width(x),

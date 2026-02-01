@@ -348,7 +348,7 @@ impl MenuEditMods {
                                     .padding(1),
                             )
                             .style(|t: &LauncherTheme, s| {
-                                t.style_button(s, crate::stylesheet::widgets::StyleButton::RoundDark)
+                                t.style_button(s, StyleButton::RoundDark)
                             })
                             .on_press(ManageModsMessage::SetModal(self.modal.is_none().then_some(MenuEditModsModal::Submenu)).into()),
 
