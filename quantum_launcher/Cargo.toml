@@ -86,4 +86,4 @@ dark-light = "2"
 windows = { version = "0.61", features = ["Win32_System_Console"] }
 
 [target.'cfg(unix)'.dependencies]
-filthy-rich = "0.1.4"
+filthy-rich = "0.1.5"
