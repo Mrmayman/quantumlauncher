@@ -78,6 +78,12 @@ impl Launcher {
         let extra_java_args = self.config.extra_java_args.clone().unwrap_or_default();
 
         let instance_name = self.instance().get_name().to_owned();
+
+        self.update_presence(
+            &format!("{instance_name}"),
+            &format!("Playing as {username}"),
+        );
+
         Task::perform(
             async move {
                 ql_instances::launch(
@@ -285,6 +291,11 @@ impl Launcher {
             "Game"
         };
         info!("Game exited with status: {status}");
+
+        self.update_presence(
+            &format!("Last instance: {}", instance.get_name()),
+            &format!("({} mode)", kind.to_lowercase()),
+        );
 
         if let State::Launch(MenuLaunch { message, .. }) = &mut self.state {
             let has_crashed = !status.success();
