@@ -689,7 +689,7 @@ impl LauncherTheme {
                 selection: self.get(Color::Dark),
             },
             widget::text_editor::Status::Focused => widget::text_editor::Style {
-                background: self.get_bg(Color::Dark),
+                background: self.get_bg(Color::ExtraDark),
                 border: self.get_border(Color::SecondDark),
                 icon: self.get(Color::Light),
                 placeholder: self.get(Color::Light),

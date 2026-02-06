@@ -1,6 +1,6 @@
 use cfg_if::cfg_if;
 use frostmark::MarkWidget;
-use iced::widget::{column, horizontal_space, row, tooltip::Position, vertical_space};
+use iced::widget::{column, horizontal_space, row, text_editor, tooltip::Position, vertical_space};
 use iced::{keyboard::Modifiers, widget, Alignment, Length, Padding};
 use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
 
@@ -247,10 +247,12 @@ impl Launcher {
     ) -> widget::Column<'element, Message, LauncherTheme> {
         const TEXT_SIZE: f32 = 12.0;
 
-        let scroll = if let State::Launch(MenuLaunch { log_scroll, .. }) = &self.state {
-            *log_scroll
-        } else {
-            0
+        let State::Launch(MenuLaunch {
+            log_state: Some(log_state),
+            ..
+        }) = &self.state
+        else {
+            return get_no_logs_message();
         };
 
         let Some(InstanceLog {
@@ -262,38 +264,39 @@ impl Launcher {
             .as_ref()
             .and_then(|selection| self.logs.get(selection))
         else {
-            return get_no_logs_message().padding(10).spacing(10);
+            return get_no_logs_message();
         };
 
-        let log = Self::view_launcher_log(
-            log_data.clone(),
-            TEXT_SIZE,
-            scroll,
-            |s| Message::GameLog(GameLogMessage::Scroll(s)),
-            |s| Message::GameLog(GameLogMessage::ScrollAbsolute(s)),
-            |msg| {
-                widget::text(msg.clone())
-                    .font(iced::Font::with_name("JetBrains Mono"))
-                    .size(TEXT_SIZE)
-                    .width(Length::Fill)
-                    .into()
-            },
-            |msg| msg.clone(),
-        );
+        let log = widget::text_editor(&log_state.content)
+            .font(FONT_MONO)
+            .size(TEXT_SIZE)
+            .height(Length::Fill)
+            .on_action(|a| Message::GameLog(GameLogMessage::Action(a)));
+
+        let small_button = |t| widget::button(widget::text(t).size(12)).padding([4, 8]);
 
         column![
             row![
-                widget::button(widget::text("Copy Log").size(14))
-                    .on_press(Message::GameLog(GameLogMessage::Copy)),
-                widget::button(widget::text("Upload Log").size(14)).on_press_maybe(
+                small_button("Copy Log").on_press(Message::GameLog(GameLogMessage::Copy)),
+                small_button("Upload Log").on_press_maybe(
                     (!log_data.is_empty() && !menu.is_uploading_mclogs)
                         .then_some(Message::GameLog(GameLogMessage::Upload))
                 ),
-                widget::button(widget::text("Join Discord").size(14))
-                    .on_press(Message::CoreOpenLink(DISCORD.to_owned())),
+                small_button("Join Discord").on_press(Message::CoreOpenLink(DISCORD.to_owned())),
+                widget::horizontal_space(),
+                widget::mouse_area(widget::container(icons::arrow_up_s(12))).on_press(
+                    Message::GameLog(GameLogMessage::Action(text_editor::Action::Move(
+                        text_editor::Motion::PageUp
+                    )))
+                ),
+                widget::mouse_area(widget::container(icons::arrow_down_s(12))).on_press(
+                    Message::GameLog(GameLogMessage::Action(text_editor::Action::Move(
+                        text_editor::Motion::PageDown
+                    )))
+                ),
             ]
             .spacing(7),
-            widget::text("Having issues? Copy and send the game log for support").size(12)
+            widget::text(" Having issues? Copy and send the game log for support").size(12)
         ]
         .push_maybe(
             has_crashed.then_some(
@@ -318,7 +321,7 @@ impl Launcher {
         )
         .push(log)
         .padding(10)
-        .spacing(10)
+        .spacing(5)
     }
 
     fn get_sidebar<'a>(&'a self, menu: &'a MenuLaunch) -> Element<'a> {
@@ -636,6 +639,8 @@ fn get_no_logs_message<'a>() -> widget::Column<'a, Message, LauncherTheme> {
         )))
         .width(Length::Fill)
         .height(Length::Fill)
+        .padding(10)
+        .spacing(10)
 }
 
 fn get_footer_text() -> widget::Column<'static, Message, LauncherTheme> {

@@ -225,17 +225,16 @@ pub async fn launch_instance(
         censors.push(token.clone());
     }
 
-    if let Some(f) = child.read_logs(censors, None) {
-        match f.await {
-            Ok((s, _, diag)) => {
-                info!("Game exited with code {s}");
-                if let Some(diag) = diag {
-                    err!("{diag}");
-                }
-                exit(s.code().unwrap_or_default());
+    match child.read_logs(censors, None).await {
+        Some(Ok((s, _, diag))) => {
+            info!("Game exited with code {s}");
+            if let Some(diag) = diag {
+                err!("{diag}");
             }
-            Err(err) => Err(err)?,
+            exit(s.code().unwrap_or_default());
         }
+        Some(Err(err)) => Err(err)?,
+        None => {}
     }
     Ok(())
 }
