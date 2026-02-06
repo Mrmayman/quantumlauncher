@@ -8,7 +8,12 @@ use crate::{
 impl Launcher {
     pub fn update_main_menu(&mut self, msg: MainMenuMessage) -> Task<Message> {
         match msg {
-            MainMenuMessage::ChangeTab(tab) => self.load_edit_instance(Some(tab)),
+            MainMenuMessage::ChangeTab(tab) => {
+                self.load_edit_instance(Some(launch_tab_id));
+                if let LaunchTab::Log = launch_tab_id {
+                    self.load_logs(self.instance().clone());
+                }
+            }
             MainMenuMessage::Modal(modal) => {
                 if let State::Launch(menu) = &mut self.state {
                     menu.modal = match (&modal, &menu.modal) {
