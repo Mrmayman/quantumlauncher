@@ -1,0 +1,10 @@
+# Minimum Supported Rust Version (MSRV) for QuantumLauncher
+# See the top level README.md for more information
+#
+# This file pins the Rust version to ensure consistent builds
+# and prevents accidentally using newer language features.
+
+[toolchain]
+channel = "1.82.0"
+
+components = ["rustfmt", "clippy", "rust-src","rust-analyzer"]
