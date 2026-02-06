@@ -128,7 +128,7 @@ enum PrintCmd {
 
 /// Prints the "intro" to the screen
 /// consisting of the **ASCII art logo**, as well as
-/// **stylised text saying `QuantumLauncher`**
+/// **stylized text saying `QuantumLauncher`**
 ///
 /// The actual data is `include_str!()`ed from
 /// - `assets/ascii/icon.txt` for the ASCII art

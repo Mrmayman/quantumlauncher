@@ -73,10 +73,8 @@ size.
 What about the others? Well...
 
 - The official Minecraft launcher is slow, unstable, buggy and frustrating to use,
-  with barely any modding features.
-- Prism Launcher is a great launcher overall, but it does not support
-  offline accounts. Same for MultiMC.
-- Legacy Launcher isn't as feature rich as this
+  with barely any modding features
+- Legacy Launcher lacks many features
 - TLauncher is *suspected* to be malware
 
 # File Locations

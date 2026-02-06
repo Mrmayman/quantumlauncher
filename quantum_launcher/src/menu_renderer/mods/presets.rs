@@ -35,9 +35,7 @@ impl MenuEditPresets {
 
         let p_main = widget::row![
             widget::column![
-                back_button().on_press(Message::ManageMods(
-                    ManageModsMessage::ScreenOpenWithoutUpdate
-                )),
+                back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
                 widget::text(
                     r"Mod Presets (.qmp files) are a
 simple way to share
@@ -57,9 +55,9 @@ Modrinth/Curseforge modpack"
                     "Include mod settings/configuration (config folder)",
                     self.include_config
                 )
-                .on_toggle(|t| Message::EditPresets(EditPresetsMessage::ToggleIncludeConfig(t))),
+                .on_toggle(|t| EditPresetsMessage::ToggleIncludeConfig(t).into()),
                 button_with_icon(icons::floppydisk(), "Build Preset", 16)
-                    .on_press(Message::EditPresets(EditPresetsMessage::BuildYourOwn)),
+                    .on_press(EditPresetsMessage::BuildYourOwn.into()),
             ]
             .padding(10)
             .spacing(10),
@@ -72,7 +70,7 @@ Modrinth/Curseforge modpack"
                             "Select All"
                         }
                     )
-                    .on_press(Message::EditPresets(EditPresetsMessage::SelectAll)),]
+                    .on_press(EditPresetsMessage::SelectAll.into())]
                     .padding({
                         let p: iced::Padding = 10.into();
                         p.bottom(0)
@@ -108,14 +106,12 @@ Modrinth/Curseforge modpack"
                 widget::checkbox(entry.name(), selected_mods.contains(&entry.clone().into()))
                     .on_toggle(move |t| match entry {
                         ModListEntry::Downloaded { id, config } => {
-                            Message::EditPresets(EditPresetsMessage::ToggleCheckbox(
-                                (config.name.clone(), id.clone()),
-                                t,
-                            ))
+                            EditPresetsMessage::ToggleCheckbox((config.name.clone(), id.clone()), t)
+                                .into()
                         }
-                        ModListEntry::Local { file_name } => Message::EditPresets(
-                            EditPresetsMessage::ToggleCheckboxLocal(file_name.clone(), t),
-                        ),
+                        ModListEntry::Local { file_name } => {
+                            EditPresetsMessage::ToggleCheckboxLocal(file_name.clone(), t).into()
+                        }
                     })
                     .into()
             } else {
@@ -130,9 +126,7 @@ Modrinth/Curseforge modpack"
 
 impl MenuRecommendedMods {
     pub fn view(&'_ self) -> Element<'_> {
-        let back_button = back_button().on_press(Message::ManageMods(
-            ManageModsMessage::ScreenOpenWithoutUpdate,
-        ));
+        let back_button = back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into());
 
         match self {
             MenuRecommendedMods::Loading { progress, .. } => progress.view().padding(10).into(),
@@ -154,15 +148,11 @@ impl MenuRecommendedMods {
                     widget::column!(
                         back_button,
                         button_with_icon(icons::download(), "Download Recommended Mods", 16)
-                            .on_press(Message::RecommendedMods(
-                                crate::state::RecommendedModMessage::Download
-                            )),
+                            .on_press(crate::state::RecommendedModMessage::Download.into()),
                         widget::column(mods.iter().enumerate().map(|(i, (e, n))| {
                             let elem: Element = widget::checkbox(n.name, *e)
                                 .on_toggle(move |n| {
-                                    Message::RecommendedMods(crate::state::RecommendedModMessage::Toggle(
-                                        i, n,
-                                    ))
+                                    crate::state::RecommendedModMessage::Toggle(i, n).into()
                                 })
                                 .into();
                             widget::column!(

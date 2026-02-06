@@ -356,7 +356,7 @@ pub enum ListEntryKind {
     Special,
 }
 
-impl std::fmt::Display for ListEntryKind {
+impl Display for ListEntryKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ListEntryKind::Release => write!(f, "Release"),
@@ -444,7 +444,7 @@ impl ListEntryKind {
         }
     }
 
-    /// Returns true if this is a "old" version category
+    /// Returns true if this is an "old" version category
     #[must_use]
     pub const fn is_old(&self) -> bool {
         matches!(

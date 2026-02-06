@@ -16,7 +16,7 @@ pub static IMG_LOGO: LazyLock<Handle> = LazyLock::new(|| {
     Handle::from_bytes(include_bytes!("../../../../assets/icon/ql_logo.png").as_slice())
 });
 
-pub fn x86_warning() -> iced::widget::Container<'static, Message, LauncherTheme> {
+pub fn x86_warning() -> widget::Container<'static, Message, LauncherTheme> {
     widget::container(
         widget::column![
             widget::text(

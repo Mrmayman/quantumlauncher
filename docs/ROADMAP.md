@@ -16,7 +16,7 @@ Plans for the future of QuantumLauncher.
 - 🟠¹: 1.12.2 and below
 - 🔴: Not supported
 
-> Not all platforms are well supported due to lack of
+> Not all platforms are well-supported due to lack of
 > development resources. If you can, consider
 > contributing and helping out.
 > 

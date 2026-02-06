@@ -3989,7 +3989,6 @@ dependencies = [
  "owo-colors",
  "ql_core",
  "serde",
- "serde_json",
  "tar",
  "thiserror 2.0.14",
  "tokio",
@@ -4002,7 +4001,6 @@ version = "0.0.0"
 dependencies = [
  "chrono",
  "futures",
- "image",
  "owo-colors",
  "ql_core",
  "ql_java_handler",
@@ -4038,11 +4036,9 @@ dependencies = [
 name = "ql_servers"
 version = "0.0.0"
 dependencies = [
- "chrono",
  "owo-colors",
  "ql_core",
  "ql_java_handler",
- "serde",
  "serde_json",
  "thiserror 2.0.14",
  "tokio",

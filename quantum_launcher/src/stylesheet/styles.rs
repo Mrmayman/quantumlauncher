@@ -551,7 +551,9 @@ impl LauncherTheme {
                     | StyleButton::RoundDark
                     | StyleButton::SemiDark(_)
                     | StyleButton::SemiDarkBorder(_) => Color::Dark,
-                    StyleButton::FlatExtraDark | StyleButton::SemiExtraDark(_) => Color::ExtraDark,
+                    StyleButton::FlatExtraDark
+                    | StyleButton::SemiExtraDark(_)
+                    | StyleButton::FlatExtraDarkDead => Color::ExtraDark,
                 };
                 widget::button::Style {
                     background: Some(self.get_bg(color)),
@@ -582,6 +584,7 @@ impl LauncherTheme {
                     | StyleButton::SemiDark(_)
                     | StyleButton::SemiDarkBorder(_) => Color::Mid,
                     StyleButton::FlatExtraDark | StyleButton::SemiExtraDark(_) => Color::Dark,
+                    StyleButton::FlatExtraDarkDead => Color::ExtraDark,
                 };
                 widget::button::Style {
                     background: Some(self.get_bg(color)),
@@ -601,11 +604,15 @@ impl LauncherTheme {
             },
             widget::button::Status::Disabled => {
                 let color = match style {
-                    StyleButton::Flat | StyleButton::Round | StyleButton::RoundDark => Color::Dark,
-                    StyleButton::FlatDark
-                    | StyleButton::SemiDark(_)
+                    StyleButton::Flat
+                    | StyleButton::Round
+                    | StyleButton::RoundDark
+                    | StyleButton::FlatDark => Color::Dark,
+                    StyleButton::SemiDark(_)
                     | StyleButton::SemiDarkBorder(_)
-                    | StyleButton::SemiExtraDark(_) => Color::ExtraDark,
+                    | StyleButton::SemiExtraDark(_)
+                    | StyleButton::FlatExtraDarkDead => Color::ExtraDark,
+                    // Selected button
                     StyleButton::FlatExtraDark => Color::SecondDark,
                 };
                 widget::button::Style {
@@ -613,7 +620,7 @@ impl LauncherTheme {
                     text_color: self.get(Color::ExtraDark),
                     border: if let StyleButton::Round = style {
                         let (palette, color) = self.get_base(Color::SecondDark);
-                        iced::Border {
+                        Border {
                             color: palette.get(color),
                             width: 0.5,
                             radius: BORDER_RADIUS.into(),

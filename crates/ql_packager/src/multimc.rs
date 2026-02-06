@@ -316,7 +316,7 @@ async fn install_fabric(
 
     let version_json = VersionDetails::load(instance_selection).await?;
     if !version_json.is_before_or_eq(V_OFFICIAL_FABRIC_SUPPORT) {
-        ql_mod_manager::loaders::fabric::install(
+        fabric::install(
             version,
             instance_selection.clone(),
             sender,

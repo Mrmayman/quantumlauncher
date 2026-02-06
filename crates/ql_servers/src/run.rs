@@ -122,7 +122,7 @@ impl ServerLauncher {
 
     pub async fn get_server_jar(&self) -> Result<PathBuf, ServerError> {
         Ok(if let Some(custom_jar) = &self.config.custom_jar {
-            // Should I prioritise Fabric/Forge/Paper over a custom JAR?
+            // Should I prioritize Fabric/Forge/Paper over a custom JAR?
             PathBuf::from(&custom_jar.name)
         } else {
             let regular = self.dir.join("server.jar");

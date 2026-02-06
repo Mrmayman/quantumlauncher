@@ -7,7 +7,6 @@ use tokio::io::AsyncWriteExt;
 use owo_colors::OwoColorize;
 
 use crate::{
-    message_handler::{SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
     state::{
         AutoSaveKind, CustomJarState, GameProcess, LaunchTab, Launcher, LauncherSettingsMessage,
         ManageModsMessage, MenuExportInstance, MenuLaunch, MenuLicense, MenuWelcome, Message,
@@ -61,6 +60,7 @@ impl Launcher {
                 self.state = State::Welcome(MenuWelcome::P3Auth);
             }
 
+            Message::MainMenu(msg) => return self.update_main_menu(msg),
             Message::Account(msg) => return self.update_account(msg),
             Message::ManageMods(msg) => return self.update_manage_mods(msg),
             Message::ExportMods(msg) => return self.update_export_mods(msg),
@@ -70,18 +70,10 @@ impl Launcher {
             Message::Notes(msg) => return self.update_notes(msg),
             Message::GameLog(msg) => return self.update_game_log(msg),
 
-            Message::LaunchInstanceSelected(inst) => {
-                self.selected_instance = Some(inst);
-                return self.on_instance_selected();
-            }
             Message::LauncherSettings(msg) => return self.update_launcher_settings(msg),
             Message::InstallOptifine(msg) => return self.update_install_optifine(msg),
             Message::InstallPaper(msg) => return self.update_install_paper(msg),
 
-            Message::LaunchUsernameSet(username) => {
-                self.config.username = username;
-                self.autosave.remove(&AutoSaveKind::LauncherConfig);
-            }
             Message::LaunchStart => return self.launch_start(),
             Message::LaunchEnd(result) => return self.finish_launching(result),
             Message::CreateInstance(message) => return self.update_create_instance(message),
@@ -261,12 +253,6 @@ impl Launcher {
                 self.state = State::GenericMessage(msg);
             }
             Message::CoreEvent(event, status) => return self.iced_event(event, status),
-            Message::MChangeTab(launch_tab_id) => {
-                self.load_edit_instance(Some(launch_tab_id));
-                if let LaunchTab::Log = launch_tab_id {
-                    self.load_logs(self.instance().clone());
-                }
-            }
             Message::CoreLogToggle => {
                 self.is_log_open = !self.is_log_open;
             }
@@ -278,26 +264,6 @@ impl Launcher {
             }
             Message::CoreLogScrollAbsolute(lines) => {
                 self.log_scroll = lines;
-            }
-            Message::MSidebarResize(ratio) => {
-                if let State::Launch(menu) = &mut self.state {
-                    // self.autosave.remove(&AutoSaveKind::LauncherConfig);
-                    let window_width = self.window_state.size.0;
-                    let ratio = ratio * window_width;
-                    menu.resize_sidebar(
-                        ratio.clamp(SIDEBAR_LIMIT_LEFT, window_width - SIDEBAR_LIMIT_RIGHT)
-                            / window_width,
-                    );
-                }
-            }
-            Message::MSidebarScroll(total) => {
-                if let State::Launch(MenuLaunch {
-                    sidebar_scrolled: sidebar_height,
-                    ..
-                }) = &mut self.state
-                {
-                    *sidebar_height = total;
-                }
             }
 
             Message::ExportInstanceOpen => {
@@ -422,20 +388,17 @@ impl Launcher {
             Message::CoreFocusNext => {
                 return iced::widget::focus_next();
             }
-            Message::MModal(m) => {
-                if let State::Launch(menu) = &mut self.state {
-                    menu.modal = match (m, menu.modal) {
-                        // Unset if you click on it again
-                        (Some(m), Some(n)) if m == n => None,
-                        (m, _) => m,
-                    }
-                }
+            Message::CoreHideModal => {
+                self.hide_submenu();
             }
         }
         Task::none()
     }
 
     fn core_list_loaded(&mut self, list: Vec<String>, is_server: bool) {
+        self.config.update_sidebar(&list, is_server);
+        self.autosave.remove(&AutoSaveKind::LauncherConfig);
+
         let persistent = self.config.c_persistent();
         if is_server {
             if let Some(n) = &persistent.selected_server {

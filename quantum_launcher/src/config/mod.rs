@@ -1,3 +1,4 @@
+use crate::config::sidebar::{InstanceKind, SidebarConfig, SidebarNode, SidebarNodeKind};
 use crate::stylesheet::styles::{LauncherTheme, LauncherThemeColor, LauncherThemeLightness};
 use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use ql_core::json::GlobalSettings;
@@ -8,6 +9,8 @@ use ql_core::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::{collections::HashMap, path::Path};
+
+pub mod sidebar;
 
 pub const SIDEBAR_WIDTH: f32 = 0.33;
 const OPACITY: f32 = 0.9;
@@ -20,7 +23,7 @@ const OPACITY: f32 = 0.9;
 ///
 /// # Why `Option`?
 ///
-/// Many fields are `Option`s for backwards compatibility.
+/// Many fields are `Option`'s for backwards compatibility.
 /// If upgrading from an older version,
 /// `serde` will deserialize missing fields as `None`,
 /// which is treated as a default value.
@@ -94,6 +97,8 @@ pub struct LauncherConfig {
     pub ui: Option<UiSettings>,
     // Since: v0.5.0
     pub persistent: Option<PersistentSettings>,
+    // Since: v0.5.1
+    pub sidebar: Option<SidebarConfig>,
 }
 
 impl Default for LauncherConfig {
@@ -114,6 +119,7 @@ impl Default for LauncherConfig {
             extra_java_args: None,
             ui: None,
             persistent: None,
+            sidebar: None,
         }
     }
 }
@@ -164,6 +170,32 @@ impl LauncherConfig {
             .await
             .path(config_path)?;
         Ok(())
+    }
+
+    pub fn update_sidebar(&mut self, instances: &[String], is_server: bool) {
+        let sidebar = self.sidebar.get_or_insert_with(SidebarConfig::default);
+        let kind = if is_server {
+            InstanceKind::Server
+        } else {
+            InstanceKind::Client
+        };
+
+        // Remove nonexistent instances
+        sidebar.retain_instances(|node| match &node.kind {
+            SidebarNodeKind::Instance(instance_kind) => {
+                *instance_kind == kind && instances.contains(&node.name)
+            }
+            SidebarNodeKind::Folder { .. } => true,
+        });
+        // Add new instances
+        for instance in instances {
+            if !sidebar.contains_instance(instance, kind) {
+                sidebar.list.push(SidebarNode {
+                    name: instance.clone(),
+                    kind: SidebarNodeKind::Instance(kind),
+                });
+            }
+        }
     }
 
     fn create(path: &Path) -> Result<Self, JsonFileError> {
@@ -244,6 +276,10 @@ impl LauncherConfig {
     pub fn c_persistent(&mut self) -> &mut PersistentSettings {
         self.persistent
             .get_or_insert_with(PersistentSettings::default)
+    }
+
+    pub fn c_sidebar(&mut self) -> &mut SidebarConfig {
+        self.sidebar.get_or_insert_with(SidebarConfig::default)
     }
 }
 
@@ -383,7 +419,7 @@ impl Default for PersistentSettings {
 
 impl PersistentSettings {
     #[must_use]
-    pub fn get_create_instance_filters(&self) -> std::collections::HashSet<ListEntryKind> {
+    pub fn get_create_instance_filters(&self) -> HashSet<ListEntryKind> {
         self.create_instance_filters
             .clone()
             .filter(|n| !n.is_empty())

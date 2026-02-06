@@ -10,7 +10,8 @@ use crate::{
     cli::EXPERIMENTAL_MMC_IMPORT,
     icons,
     menu_renderer::{
-        button_with_icon, ctxbox, dots, shortcut_ctrl, sidebar_button, tooltip, tsubtitle, Element,
+        button_with_icon, ctxbox, dots, offset, shortcut_ctrl, sidebar_button, tooltip, tsubtitle,
+        Element,
     },
     state::{CreateInstanceMessage, MenuCreateInstance, MenuCreateInstanceChoosing, Message},
     stylesheet::{
@@ -21,7 +22,7 @@ use crate::{
 };
 
 impl MenuCreateInstance {
-    pub fn view<'a>(&'a self, existing_instances: Option<&[String]>, timer: usize) -> Element<'a> {
+    pub fn view(&self, existing_instances: Option<&[String]>, timer: usize) -> Element<'_> {
         match self {
             MenuCreateInstance::Choosing(menu) => menu.view(existing_instances, timer),
             MenuCreateInstance::DownloadingInstance(progress) => column![
@@ -56,20 +57,18 @@ impl MenuCreateInstanceChoosing {
         });
 
         widget::stack!(view)
-            .push_maybe(self.show_category_dropdown.then_some(row![
-                widget::Space::with_width(90),
-                column![
-                    widget::Space::with_height(40),
-                    ctxbox(Self::get_category_dropdown(&self.selected_categories))
-                ]
-            ]))
+            .push_maybe(self.show_category_dropdown.then_some(offset(
+                ctxbox(Self::get_category_dropdown(&self.selected_categories)),
+                90,
+                40,
+            )))
             .into()
     }
 
-    fn get_sidebar_contents<'a>(
-        &'a self,
+    fn get_sidebar_contents(
+        &self,
         timer: usize,
-    ) -> widget::Container<'a, Message, LauncherTheme> {
+    ) -> widget::Container<'_, Message, LauncherTheme> {
         let header = self.get_sidebar_header();
 
         let Some(versions) = &self.list else {
@@ -120,7 +119,7 @@ impl MenuCreateInstanceChoosing {
                 }),))
                 .style(LauncherTheme::style_scrollable_flat_extra_dark)
                 .height(Length::Fill)
-                .id(iced::widget::scrollable::Id::new(
+                .id(widget::scrollable::Id::new(
                     "MenuCreateInstance:sidebar"
                 ))
             ]

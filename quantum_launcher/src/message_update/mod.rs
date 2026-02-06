@@ -13,6 +13,7 @@ use ql_mod_manager::{
 mod accounts;
 mod create_instance;
 mod edit_instance;
+mod launch;
 mod manage_mods;
 mod presets;
 mod recommended;

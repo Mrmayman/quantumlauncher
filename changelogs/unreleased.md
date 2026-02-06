@@ -1,6 +1,15 @@
 # unreleased changelog
 
-- Added quick uninstall button to Mod Store
+# Sidebar
+
+- Added instance folders
+- You can now drag and reorder instances/folders around
+
+# UX
+
+- Added quick uninstallation button to Mod Store
+- Improved new-user Welcome screen with keyboard navigation,
+  better layout and more guidance
 
 # Technical
 
@@ -11,6 +20,7 @@
 
 # Fixes
 
+- Fixed context menus not closing after a click
 - Fixed many concurrent downloading bugs with CurseForge
 - Fixed account login being broken for new users
 

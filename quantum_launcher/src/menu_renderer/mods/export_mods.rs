@@ -58,15 +58,13 @@ impl MenuExportMods {
                 widget::row![
                     widget::button(widget::text("Copy").size(14))
                         .padding([8, 16])
-                        .on_press(Message::ExportMods(
-                            ExportModsMessage::CopyPlainTextToClipboard
-                        )),
+                        .on_press(ExportModsMessage::CopyPlainTextToClipboard.into()),
                     widget::button(widget::text("Save").size(14))
                         .padding([8, 16])
                         .style(|theme: &LauncherTheme, status| {
                             theme.style_button(status, StyleButton::FlatDark)
                         })
-                        .on_press(Message::ExportMods(ExportModsMessage::ExportAsPlainText)),
+                        .on_press(ExportModsMessage::ExportAsPlainText.into()),
                 ]
                 .spacing(12)
             ]
@@ -88,16 +86,14 @@ impl MenuExportMods {
                 widget::row![
                     widget::button(widget::text("Copy").size(14))
                         .padding([8, 16])
-                        .on_press(Message::ExportMods(
-                            ExportModsMessage::CopyMarkdownToClipboard,
-                        )),
+                        .on_press(ExportModsMessage::CopyMarkdownToClipboard.into()),
                     widget::button(widget::text("Save").size(14))
                         .padding([8, 16])
                         .style(|theme: &LauncherTheme, status| {
                             use crate::stylesheet::widgets::StyleButton;
                             theme.style_button(status, StyleButton::FlatDark)
                         })
-                        .on_press(Message::ExportMods(ExportModsMessage::ExportAsMarkdown))
+                        .on_press(ExportModsMessage::ExportAsMarkdown.into())
                 ]
                 .spacing(12)
             ]
@@ -113,9 +109,7 @@ impl MenuExportMods {
 
         widget::column![
             widget::row![
-                back_button().on_press(Message::ManageMods(
-                    ManageModsMessage::ScreenOpenWithoutUpdate
-                )),
+                back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
                 widget::text("Export Mods List")
                     .size(24)
                     .style(|theme: &LauncherTheme| { theme.style_text(Color::Light) }),
