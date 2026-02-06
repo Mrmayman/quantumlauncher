@@ -1,7 +1,7 @@
 use std::{fmt::Display, path::PathBuf, process::exit};
 
 use clap::Parser;
-use ql_core::{do_jobs, eeprintln, print::LogConfig, ListEntry, LAUNCHER_DIR};
+use ql_core::{do_jobs, eeprintln, print::LogConfig, ListEntry, Loader, LAUNCHER_DIR};
 use ql_instances::DownloadError;
 
 use crate::version::{Version, VERSIONS_LWJGL2, VERSIONS_LWJGL3};
@@ -16,6 +16,9 @@ mod version;
 )]
 #[command(author = "Mrmayman")]
 struct Cli {
+    #[arg(long)]
+    #[arg(help = "Test a specific version")]
+    specific: Option<String>,
     #[arg(short, long)]
     #[arg(help = "Whether to reuse existing test files instead of redownloading them")]
     existing: bool,
@@ -61,15 +64,21 @@ async fn main() {
     let cli = Cli::parse();
 
     if !cli.existing {
-        attempt(
-            do_jobs(cli.get_versions().map(|version| async {
-                let path = LAUNCHER_DIR.join("instances").join(version.0);
-                _ = tokio::fs::remove_dir_all(&path).await;
-                create_instance(version.0.to_owned()).await?;
-                Ok::<(), DownloadError>(())
-            }))
-            .await,
-        );
+        if let Some(name) = &cli.specific {
+            let path = LAUNCHER_DIR.join("instances").join(name);
+            _ = tokio::fs::remove_dir_all(&path).await;
+            attempt(create_instance(name.to_owned()).await);
+        } else {
+            attempt(
+                do_jobs(cli.get_versions().map(|version| async {
+                    let path = LAUNCHER_DIR.join("instances").join(version.0);
+                    _ = tokio::fs::remove_dir_all(&path).await;
+                    create_instance(version.0.to_owned()).await?;
+                    Ok::<(), DownloadError>(())
+                }))
+                .await,
+            );
+        }
     }
 
     #[cfg(any(
@@ -81,34 +90,11 @@ async fn main() {
 
     let mut fails = Vec::new();
 
-    for Version(name, loaders) in cli.get_versions() {
-        let instance = ql_core::InstanceSelection::new(name, false);
-        attempt(ql_mod_manager::loaders::uninstall_loader(instance.clone()).await);
-        set_terminal(cli.verbose);
-        if !launch::launch((*name).to_owned(), cli.timeout.unwrap_or(60.0)).await {
-            fails.push((*name, None));
-        }
-        for loader in *loaders {
-            println!("(Loader: {loader:?})");
-            if let Err(err) = ql_mod_manager::loaders::install_specified_loader(
-                instance.clone(),
-                *loader,
-                None,
-                None,
-            )
-            .await
-            {
-                eeprintln!("{err}");
-                fails.push((*name, Some(*loader)));
-                continue;
-            }
-
-            println!("Done");
-            if !launch::launch((*name).to_owned(), cli.timeout.unwrap_or(60.0)).await {
-                fails.push((*name, Some(*loader)));
-            }
-            set_terminal(cli.verbose);
-            attempt(ql_mod_manager::loaders::uninstall_loader(instance.clone()).await);
+    if let Some(name) = &cli.specific {
+        try_version(name, &[], &mut fails, &cli).await;
+    } else {
+        for Version(name, loaders) in cli.get_versions() {
+            try_version(name, loaders, &mut fails, &cli).await;
         }
     }
 
@@ -121,6 +107,38 @@ async fn main() {
                 println!("{name} (vanilla)");
             }
         }
+    }
+}
+
+async fn try_version<'a>(
+    name: &'a str,
+    loaders: &[Loader],
+    fails: &mut Vec<(&'a str, Option<Loader>)>,
+    cli: &Cli,
+) {
+    let instance = ql_core::InstanceSelection::new(name, false);
+    attempt(ql_mod_manager::loaders::uninstall_loader(instance.clone()).await);
+    set_terminal(cli.verbose);
+    if !launch::launch(name.to_owned(), cli.timeout.unwrap_or(60.0), cli).await {
+        fails.push((name, None));
+    }
+    for loader in loaders {
+        println!("(Loader: {loader:?})");
+        if let Err(err) =
+            ql_mod_manager::loaders::install_specified_loader(instance.clone(), *loader, None, None)
+                .await
+        {
+            eeprintln!("{err}");
+            fails.push((name, Some(*loader)));
+            continue;
+        }
+
+        println!("Done");
+        if !launch::launch((*name).to_owned(), cli.timeout.unwrap_or(60.0), cli).await {
+            fails.push((name, Some(*loader)));
+        }
+        set_terminal(cli.verbose);
+        attempt(ql_mod_manager::loaders::uninstall_loader(instance.clone()).await);
     }
 }
 

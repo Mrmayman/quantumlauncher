@@ -818,17 +818,15 @@ impl Launcher {
 
     pub fn update_game_log(&mut self, msg: GameLogMessage) -> Task<Message> {
         match msg {
-            GameLogMessage::Scroll(lines) => {
-                if let State::Launch(MenuLaunch { log_scroll, .. }) = &mut self.state {
-                    let new_scroll = *log_scroll - lines;
-                    if new_scroll >= 0 {
-                        *log_scroll = new_scroll;
+            GameLogMessage::Action(action) => {
+                if let State::Launch(MenuLaunch {
+                    log_state: Some(logs),
+                    ..
+                }) = &mut self.state
+                {
+                    if !action.is_edit() {
+                        logs.content.perform(action);
                     }
-                }
-            }
-            GameLogMessage::ScrollAbsolute(lines) => {
-                if let State::Launch(MenuLaunch { log_scroll, .. }) = &mut self.state {
-                    *log_scroll = lines;
                 }
             }
             GameLogMessage::Copy => {

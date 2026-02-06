@@ -3,7 +3,8 @@ use error::GameLaunchError;
 use ql_core::{
     err, info, GenericProgress, InstanceSelection, LaunchedProcess, REDACT_SENSITIVE_INFO,
 };
-use std::sync::{mpsc::Sender, Arc, Mutex};
+use std::sync::{mpsc::Sender, Arc};
+use tokio::sync::Mutex;
 
 pub(super) mod error;
 mod launcher;

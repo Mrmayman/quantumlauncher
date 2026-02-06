@@ -146,7 +146,7 @@ impl JavaVersion {
     #[cfg(target_os = "macos")]
     fn get_url_macos(self) -> Option<&'static str> {
         cfg_if!(if #[cfg(target_arch = "x86_64")] {
-            Some(match self {
+            return Some(match self {
                 JavaVersion::Java16 |
                 JavaVersion::Java17 => "https://corretto.aws/downloads/latest/amazon-corretto-17-x64-macos-jdk.tar.gz",
                 JavaVersion::Java21 => "https://corretto.aws/downloads/latest/amazon-corretto-21-x64-macos-jdk.tar.gz",
@@ -154,7 +154,7 @@ impl JavaVersion {
                 JavaVersion::Java8  => "https://corretto.aws/downloads/latest/amazon-corretto-8-x64-macos-jdk.tar.gz",
             })
         } else if #[cfg(target_arch = "aarch64")] {
-            Some(match self {
+            return Some(match self {
                 JavaVersion::Java16 |
                 JavaVersion::Java17 => "https://corretto.aws/downloads/latest/amazon-corretto-17-aarch64-macos-jdk.tar.gz",
                 JavaVersion::Java21 => "https://corretto.aws/downloads/latest/amazon-corretto-21-aarch64-macos-jdk.tar.gz",
@@ -176,15 +176,9 @@ impl JavaVersion {
                 JavaVersion::Java25 => "https://corretto.aws/downloads/latest/amazon-corretto-25-x64-windows-jdk.zip",
                 JavaVersion::Java8  => "https://corretto.aws/downloads/latest/amazon-corretto-8-x64-windows-jdk.zip",
             });
-        } else if #[cfg(target_arch = "x86")] {
-            return Some(match self {
-                JavaVersion::Java16 |
-                JavaVersion::Java17 => "https://corretto.aws/downloads/latest/amazon-corretto-17-x86-windows-jdk.zip",
-                JavaVersion::Java21 => "https://corretto.aws/downloads/latest/amazon-corretto-21-x86-windows-jdk.zip",
-                JavaVersion::Java25 => "https://corretto.aws/downloads/latest/amazon-corretto-25-x86-windows-jdk.zip",
-                JavaVersion::Java8  => "https://corretto.aws/downloads/latest/amazon-corretto-8-x86-windows-jdk.zip",
-            });
         });
+        // The bastards at Amazon Corretto removed 32-bit support
+        // I am gonna ditch them later lmao
         #[allow(unreachable_code)]
         None
     }

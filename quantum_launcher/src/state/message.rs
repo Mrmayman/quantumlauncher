@@ -345,8 +345,7 @@ pub enum NotesMessage {
 
 #[derive(Debug, Clone)]
 pub enum GameLogMessage {
-    Scroll(isize),
-    ScrollAbsolute(isize),
+    Action(widget::text_editor::Action),
     Copy,
     Upload,
     Uploaded(Res<String>),
