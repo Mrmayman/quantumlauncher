@@ -2,15 +2,17 @@ use iced::Task;
 
 use crate::{
     message_handler::{SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
-    state::{AutoSaveKind, LaunchModal, Launcher, MainMenuMessage, MenuLaunch, Message, State},
+    state::{
+        AutoSaveKind, LaunchModal, LaunchTab, Launcher, MainMenuMessage, MenuLaunch, Message, State,
+    },
 };
 
 impl Launcher {
     pub fn update_main_menu(&mut self, msg: MainMenuMessage) -> Task<Message> {
         match msg {
             MainMenuMessage::ChangeTab(tab) => {
-                self.load_edit_instance(Some(launch_tab_id));
-                if let LaunchTab::Log = launch_tab_id {
+                self.load_edit_instance(Some(tab));
+                if let LaunchTab::Log = tab {
                     self.load_logs(self.instance().clone());
                 }
             }
