@@ -1476,11 +1476,12 @@ dependencies = [
 
 [[package]]
 name = "filthy-rich"
-version = "0.1.5"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "124cfc637bba094f088723ffff4297ba054e61c6b4370748c03f6a13effb19a9"
+checksum = "e5f0299ed09c31b54a1d2a4032faaebeb07ac31cf5ff1d76e0e8d16ce73b8c6f"
 dependencies = [
  "anyhow",
+ "tokio",
  "uuid",
 ]
 
@@ -5283,6 +5284,7 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
+ "parking_lot 0.12.4",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2 0.6.0",

@@ -20,8 +20,7 @@ use crate::{
     stylesheet::styles::LauncherTheme,
 };
 
-#[cfg(unix)]
-use filthy_rich::DiscordIPC;
+use filthy_rich::ipc::DiscordIPCSync;
 
 mod images;
 mod menu;
@@ -58,8 +57,7 @@ pub struct Launcher {
     pub tick_timer: usize,
     pub is_launching_game: bool,
 
-    #[cfg(unix)]
-    pub discord_ipc_client: Option<DiscordIPC>,
+    pub discord_ipc_client: Option<DiscordIPCSync>,
 
     pub java_recv: Option<ProgressBar<GenericProgress>>,
     pub custom_jar: Option<CustomJarState>,
@@ -170,8 +168,7 @@ impl Launcher {
         let persistent = config.c_persistent();
 
         // discord rich presence identity
-        #[cfg(unix)]
-        let discord_ipc_client = match DiscordIPC::new_from("1468876407756029965") {
+        let discord_ipc_client = match DiscordIPCSync::new("1468876407756029965") {
             Ok(mut client) => {
                 if let Err(e) = client.run() {
                     err!("Discord Rich Presence failed to run: {e}");
@@ -216,7 +213,6 @@ impl Launcher {
             is_log_open: false,
             is_launching_game: false,
 
-            #[cfg(unix)]
             discord_ipc_client,
 
             log_scroll: 0,
@@ -228,7 +224,6 @@ impl Launcher {
         })
     }
 
-    #[cfg(unix)]
     pub fn update_presence(&mut self, details: &str, state: &str) {
         if let Some(ref mut client) = self.discord_ipc_client {
             client.set_activity(details, state).unwrap_or_default()
@@ -279,7 +274,6 @@ impl Launcher {
             log_scroll: 0,
             tick_timer: 0,
 
-            #[cfg(unix)]
             discord_ipc_client: None,
 
             logs: HashMap::new(),

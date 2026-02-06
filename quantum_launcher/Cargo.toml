@@ -69,6 +69,9 @@ paste = "1"
 # For the file picker
 rfd.workspace = true
 
+# For Discord Rich Presence management
+filthy-rich = "0.1.7"
+
 # Terminal
 owo-colors.workspace = true
 clap = { version = "4", features = ["help", "derive"] }
@@ -84,6 +87,3 @@ dark-light = "2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.61", features = ["Win32_System_Console"] }
-
-[target.'cfg(unix)'.dependencies]
-filthy-rich = "0.1.5"

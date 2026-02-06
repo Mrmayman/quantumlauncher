@@ -103,7 +103,6 @@ impl Launcher {
         let mut launcher =
             Launcher::load_new(None, is_new_user, config).unwrap_or_else(Launcher::with_error);
 
-        #[cfg(unix)]
         {
             let version = env!("CARGO_PKG_VERSION");
             launcher.update_presence("Loaded launcher", &format!("Version {version}"));
