@@ -168,7 +168,9 @@ impl Launcher {
         let persistent = config.c_persistent();
 
         // discord rich presence identity
-        let discord_ipc_client = match DiscordIPCSync::new("1468876407756029965") {
+        const DISCORD_APP_ID: &str = "1468876407756029965";
+        let discord_ipc_client = match DiscordIPCSync::new(DISCORD_APP_ID) {
+
             Ok(mut client) => {
                 if let Err(e) = client.run() {
                     err!("Discord Rich Presence failed to run: {e}");
