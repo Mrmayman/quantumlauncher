@@ -1,4 +1,3 @@
-use cfg_if::cfg_if;
 use iced::{
     widget::{self, column, row, tooltip::Position},
     Alignment, Length,
@@ -6,7 +5,6 @@ use iced::{
 use ql_core::{Progress, WEBSITE};
 use ql_instances::auth::AccountType;
 
-use crate::state::{MenuShortcut, ShortcutMessage};
 use crate::stylesheet::styles::{LauncherThemeLightness, BORDER_RADIUS, BORDER_WIDTH};
 use crate::{
     config::LauncherConfig,
@@ -26,6 +24,7 @@ mod login;
 mod mods;
 mod onboarding;
 mod settings;
+mod shortcut;
 
 pub use onboarding::changelog;
 
@@ -402,96 +401,6 @@ impl MenuLicense {
                     .style(LauncherTheme::style_text_editor_flat_extra_dark)
             )
             .style(LauncherTheme::style_scrollable_flat_dark)
-        ]
-        .into()
-    }
-}
-
-impl MenuShortcut {
-    pub fn view(&self) -> Element<'_> {
-        cfg_if!(if #[cfg(target_os = "windows")] {
-            const MENU_NAME: &str = "the Start Menu";
-            const IS_UNIX: bool = false;
-        } else if #[cfg(target_os = "macos")] {
-            const MENU_NAME: &str = "Applications";
-            const IS_UNIX: bool = false;
-        } else {
-            const MENU_NAME: &str = "the Applications Menu";
-            const IS_UNIX: bool = true;
-        });
-
-        row![
-            widget::scrollable(
-                column![
-                    row![
-                        back_button().on_press(Message::MScreenOpen {
-                            message: None,
-                            clear_selection: false,
-                            is_server: None
-                        }),
-                        widget::text("Create Launch Shortcut").size(20),
-                    ]
-                    .align_y(Alignment::Center)
-                    .spacing(16),
-                    widget::text!("Launch this instance directly from your Desktop or {MENU_NAME} without opening the launcher")
-                        .size(14)
-                        .style(tsubtitle),
-                    column![row![
-                        "Name:",
-                        widget::text_input("(Required)", &self.shortcut.name)
-                            .size(14)
-                            .on_input(|n| Message::Shortcut(ShortcutMessage::EditName(n)))
-                    ].spacing(10).align_y(Alignment::Center)]
-                    .spacing(5)
-                    .push_maybe(
-                        IS_UNIX.then_some(
-                            row![
-                                "Description:",
-                                widget::text_input("Leave blank for none", &self.shortcut.description)
-                                    .size(14)
-                                    .on_input(|n| Message::Shortcut(ShortcutMessage::EditDescription(n)))
-                            ].align_y(Alignment::Center).spacing(10)
-                        )
-                    ),
-                    column![
-                        widget::checkbox(format!("Add to {MENU_NAME}"), self.add_to_menu)
-                            .on_toggle(|t| Message::Shortcut(ShortcutMessage::ToggleAddToMenu(t)))
-                            .size(12)
-                            .text_size(12),
-                        widget::checkbox(format!("Add to Desktop"), self.add_to_desktop)
-                            .on_toggle(|t| Message::Shortcut(ShortcutMessage::ToggleAddToDesktop(t)))
-                            .size(12)
-                            .text_size(12),
-                        button_with_icon(icons::checkmark_s(14), "Create Shortcut", 14).on_press(Message::Nothing),
-                    ]
-                    .spacing(5),
-                    column![
-                        widget::text("Or save a shortcut file to use anywhere")
-                            .size(14)
-                            .style(tsubtitle),
-                        button_with_icon(icons::floppydisk_s(14), "Export Shortcut File...", 14).on_press(Message::Nothing),
-                    ]
-                    .spacing(5)
-                ]
-                .width(Length::Fill)
-                .padding(16)
-                .spacing(16)
-            )
-            .style(|t: &LauncherTheme, s| t.style_scrollable_flat_dark(s)),
-            widget::scrollable(
-                column![
-                    widget::text("Existing Shortcuts").size(20),
-                    widget::text(
-                        "TODO: Store and show shortcut info here, and have options to delete them"
-                    )
-                    .size(12)
-                ]
-                .padding(16)
-                .spacing(10)
-            )
-            .height(Length::Fill)
-            .width(200)
-            .style(|t: &LauncherTheme, s| t.style_scrollable_flat_extra_dark(s))
         ]
         .into()
     }

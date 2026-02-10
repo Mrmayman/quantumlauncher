@@ -360,6 +360,13 @@ pub enum ShortcutMessage {
     ToggleAddToDesktop(bool),
     EditName(String),
     EditDescription(String),
+
+    AccountSelected(String),
+    AccountOffline(String),
+
+    SaveCustom,
+    SaveCustomPicked(PathBuf),
+    Done(Res),
 }
 
 #[derive(Debug, Clone)]

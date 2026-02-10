@@ -638,12 +638,10 @@ impl Launcher {
 
         match selected_instance {
             InstanceSelection::Instance(_) => {
-                if let Some(account) = &self.accounts_selected {
-                    if account == OFFLINE_ACCOUNT_NAME
-                        && (self.config.username.is_empty() || self.config.username.contains(' '))
-                    {
-                        return Task::none();
-                    }
+                if self.account_selected == OFFLINE_ACCOUNT_NAME
+                    && (self.config.username.is_empty() || self.config.username.contains(' '))
+                {
+                    return Task::none();
                 }
 
                 self.is_launching_game = true;

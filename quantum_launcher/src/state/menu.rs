@@ -643,6 +643,8 @@ pub struct MenuShortcut {
     pub shortcut: Shortcut,
     pub add_to_menu: bool,
     pub add_to_desktop: bool,
+    pub account: String,
+    pub account_offline: String,
 }
 
 pub struct MenuLicense {
