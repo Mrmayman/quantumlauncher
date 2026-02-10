@@ -163,6 +163,7 @@ impl Launcher {
             | State::CurseforgeManualDownload(_)
             | State::LogUploadResult { .. }
             | State::InstallPaper(_)
+            | State::CreateShortcut(_)
             | State::ExportMods(_) => {}
         }
 

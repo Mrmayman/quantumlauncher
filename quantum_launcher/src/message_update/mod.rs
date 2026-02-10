@@ -29,6 +29,8 @@ use crate::{
     },
 };
 
+mod shortcuts;
+
 pub const MSG_RESIZE: &str = "Resize your window to apply the changes.";
 
 impl Launcher {

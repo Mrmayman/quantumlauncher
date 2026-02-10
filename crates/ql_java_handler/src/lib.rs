@@ -10,7 +10,7 @@
 //!
 //! - ✅: [From Mojang](https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json)
 //! - 🟢: Supported through [Azul Zulu](https://www.azul.com/downloads/#zulu)
-//!       ([API](https://docs.azul.com/core/install/metadata-api))
+//!   ([API](https://docs.azul.com/core/install/metadata-api))
 //! - 🟢¹: Uses newer Java (with backwards compatibility)
 //! - 🟢²: Installed from:
 //!   - FreeBSD: <https://github.com/Mrmayman/get-jdk>

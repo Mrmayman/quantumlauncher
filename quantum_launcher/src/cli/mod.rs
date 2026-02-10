@@ -54,9 +54,14 @@ enum QSubCommand {
         instance_name: String,
         #[arg(help = "Username to play with")]
         username: String,
+
+        // Used by shortcuts, do not break
         #[arg(short, long, short_alias = 'a')]
         #[arg(help = "Whether to use a logged in account of the given username (if any)")]
         use_account: bool,
+        // Used by shortcuts
+        #[arg(long)]
+        show_progress: bool,
     },
     #[command(aliases = ["list", "list-instances"], short_flag = 'l')]
     #[command(about = "Lists installed instances")]
@@ -214,14 +219,26 @@ pub fn start_cli(is_dir_err: bool) {
                 instance_name,
                 username,
                 use_account,
+                show_progress,
             } => {
-                quit(runtime.block_on(command::launch_instance(
+                let res = runtime.block_on(command::launch_instance(
                     instance_name,
                     username,
                     use_account,
                     cli.server,
-                )));
+                    show_progress,
+                ));
+                std::process::exit(if let Err(err) = res {
+                    err!("{err}");
+                    if show_progress {
+                        show_notification(err.to_string());
+                    }
+                    1
+                } else {
+                    0
+                });
             }
+
             QSubCommand::ListAvailableVersions => {
                 command::list_available_versions();
                 std::process::exit(0);
@@ -240,6 +257,13 @@ pub fn start_cli(is_dir_err: bool) {
     } else {
         print_intro();
     }
+}
+
+fn show_notification(err: String) {
+    _ = notify_rust::Notification::new()
+        .summary("Error launching game")
+        .body(&err)
+        .show();
 }
 
 fn quit(res: Result<(), Box<dyn std::error::Error + 'static>>) {

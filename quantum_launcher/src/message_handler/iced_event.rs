@@ -315,6 +315,7 @@ impl Launcher {
             | State::LoginAlternate(MenuLoginAlternate {
                 is_loading: false, ..
             })
+            | State::CreateShortcut(_)
             | State::Welcome(_) => {
                 ret_to_main_screen = true;
             }

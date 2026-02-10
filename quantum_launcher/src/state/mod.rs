@@ -63,7 +63,7 @@ pub struct Launcher {
 
     pub accounts: HashMap<String, AccountData>,
     pub accounts_dropdown: Vec<String>,
-    pub accounts_selected: Option<String>,
+    pub account_selected: String,
 
     pub client_list: Option<Vec<String>>,
     pub server_list: Option<Vec<String>>,
@@ -159,7 +159,7 @@ impl Launcher {
             State::ChangeLog
         };
 
-        let (accounts, accounts_dropdown, selected_account) = load_accounts(&mut config);
+        let (accounts, accounts_dropdown, account_selected) = load_accounts(&mut config);
 
         let persistent = config.c_persistent();
 
@@ -180,7 +180,7 @@ impl Launcher {
                 mouse_pos: (0.0, 0.0),
                 is_maximized: false,
             },
-            accounts_selected: Some(selected_account),
+            account_selected,
 
             client_list: None,
             server_list: None,
@@ -263,7 +263,7 @@ impl Launcher {
             },
             autosave: HashSet::new(),
             accounts_dropdown: vec![OFFLINE_ACCOUNT_NAME.to_owned(), NEW_ACCOUNT_NAME.to_owned()],
-            accounts_selected: Some(OFFLINE_ACCOUNT_NAME.to_owned()),
+            account_selected: OFFLINE_ACCOUNT_NAME.to_owned(),
             modifiers_pressed: iced::keyboard::Modifiers::empty(),
         }
     }
