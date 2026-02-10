@@ -1,0 +1,8 @@
+[package]
+name = "ezshortcut"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cfg-if.workspace = true
+tokio.workspace = true

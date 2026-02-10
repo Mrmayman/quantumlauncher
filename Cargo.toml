@@ -1,13 +1,16 @@
 [workspace]
 members = [
-    "quantum_launcher",
+    "crates/ql_core",
     "crates/ql_instances",
     "crates/ql_mod_manager",
-    "crates/ql_core",
     "crates/ql_servers",
-    "crates/ql_java_handler",
     "crates/ql_packager",
+    # Binaries
+    "quantum_launcher",
     "tests",
+    # Utility Libraries
+    "crates/ql_java_handler",
+    "crates/ezshortcut",
 ]
 default-members = ["quantum_launcher"]
 resolver = "2"
