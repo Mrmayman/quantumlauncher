@@ -231,6 +231,7 @@ impl GameDownloader {
                 continue;
             }
             #[allow(unused)]
+            #[allow(clippy::let_and_return)]
             if !(OS_NAMES.iter().any(|os_name| {
                 let os_name = format!("natives-{os_name}");
                 cfg_if!(if #[cfg(feature = "simulate_linux_arm64")] {

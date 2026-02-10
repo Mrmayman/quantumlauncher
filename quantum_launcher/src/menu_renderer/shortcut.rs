@@ -53,7 +53,7 @@ impl MenuShortcut {
                                 .on_toggle(|t| Message::Shortcut(ShortcutMessage::ToggleAddToMenu(t)))
                                 .size(12)
                                 .text_size(12),
-                            widget::checkbox(format!("Add to Desktop"), self.add_to_desktop)
+                            widget::checkbox("Add to Desktop", self.add_to_desktop)
                                 .on_toggle(|t| Message::Shortcut(ShortcutMessage::ToggleAddToDesktop(t)))
                                 .size(12)
                                 .text_size(12),

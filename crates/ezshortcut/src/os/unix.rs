@@ -5,7 +5,7 @@ use std::{
 
 use tokio::fs;
 
-use crate::{make_filename_safe, Shortcut};
+use crate::Shortcut;
 
 pub fn get_menu_path() -> Option<PathBuf> {
     if let Ok(dir) = std::env::var("XDG_DATA_HOME") {

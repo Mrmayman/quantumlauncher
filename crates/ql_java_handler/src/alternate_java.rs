@@ -78,7 +78,7 @@ async fn get_url(mut version: JavaVersion) -> Result<Option<String>, JavaInstall
         version = next;
         res = get_inner(version).await?;
     }
-    return Ok(res);
+    Ok(res)
 }
 
 #[derive(Deserialize)]
