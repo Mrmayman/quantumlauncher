@@ -1,8 +1,19 @@
-use std::{os::unix::fs::PermissionsExt, path::Path};
+use std::{
+    os::unix::fs::PermissionsExt,
+    path::{Path, PathBuf},
+};
 
 use tokio::fs;
 
 use crate::{make_filename_safe, Shortcut};
+
+pub fn get_menu_path() -> Option<PathBuf> {
+    if let Ok(dir) = std::env::var("XDG_DATA_HOME") {
+        Some(PathBuf::from(dir).join("applications"))
+    } else {
+        dirs::home_dir().map(|h| h.join(".local/share/applications"))
+    }
+}
 
 pub async fn create(shortcut: &Shortcut, path: impl AsRef<Path>) -> std::io::Result<()> {
     let path = path.as_ref();
@@ -38,14 +49,7 @@ Categories=Game;",
     match fs::metadata(path).await {
         Ok(n) => {
             if n.is_dir() {
-                write_file(
-                    &path.join(format!(
-                        "{}.desktop",
-                        make_filename_safe(&shortcut.name, true)
-                    )),
-                    content,
-                )
-                .await?;
+                write_file(&path.join(shortcut.get_filename()), content).await?;
             }
         }
         _ => write_file(path, content).await?,

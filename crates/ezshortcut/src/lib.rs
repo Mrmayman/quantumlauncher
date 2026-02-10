@@ -1,12 +1,12 @@
 use std::path::Path;
 
-mod async_impl;
-mod sync_impl;
+mod os;
+pub use os::{get_menu_path, EXTENSION};
 
-pub use sync_impl::get_menu_path;
-
+#[derive(Debug, Clone)]
 pub struct Shortcut {
     pub name: String,
+    /// Linux/BSD/Unix only, leave blank for none
     pub description: String,
     pub exec: String,
     pub icon: Option<String>,
@@ -14,7 +14,13 @@ pub struct Shortcut {
 
 impl Shortcut {
     pub async fn generate(&self, path: &Path) -> std::io::Result<()> {
-        async_impl::create(self, path).await
+        os::create(self, path).await
+    }
+
+    pub fn get_filename(&self) -> String {
+        let mut filtered_name = make_filename_safe(&self.name, !cfg!(target_os = "windows"));
+        filtered_name.push_str(EXTENSION);
+        filtered_name
     }
 }
 
