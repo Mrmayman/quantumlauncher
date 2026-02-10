@@ -69,7 +69,10 @@ impl Launcher {
             Message::Window(msg) => return self.update_window_msg(msg),
             Message::Notes(msg) => return self.update_notes(msg),
             Message::GameLog(msg) => return self.update_game_log(msg),
-            Message::Shortcut(msg) => return self.update_shortcut(msg),
+            Message::Shortcut(msg) => match self.update_shortcut(msg) {
+                Ok(n) => return n,
+                Err(e) => self.set_error(e),
+            },
 
             Message::LaunchInstanceSelected(inst) => {
                 self.selected_instance = Some(inst);

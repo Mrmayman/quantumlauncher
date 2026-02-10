@@ -11,3 +11,10 @@ pub async fn create(shortcut: &Shortcut, path: impl AsRef<Path>) -> std::io::Res
         "Shortcuts aren't supported on this platform",
     ))
 }
+
+pub async fn create_in_applications(shortcut: &Shortcut) -> std::io::Result<()> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "Shortcuts aren't supported on this platform",
+    ))
+}

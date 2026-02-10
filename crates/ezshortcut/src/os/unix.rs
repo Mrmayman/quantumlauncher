@@ -15,6 +15,27 @@ pub fn get_menu_path() -> Option<PathBuf> {
     }
 }
 
+fn refresh_applications() {
+    tokio::task::spawn(async {
+        _ = tokio::process::Command::new("update-desktop-database")
+            .output()
+            .await;
+        _ = tokio::process::Command::new("kbuildsycoca5").output().await;
+    });
+}
+
+pub async fn create_in_applications(shortcut: &Shortcut) -> std::io::Result<()> {
+    let path = dirs::data_dir()
+        .ok_or(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Couldn't access data dir (.local/share)",
+        ))?
+        .join("applications");
+    create(shortcut, path).await?;
+    refresh_applications();
+    Ok(())
+}
+
 pub async fn create(shortcut: &Shortcut, path: impl AsRef<Path>) -> std::io::Result<()> {
     let path = path.as_ref();
     create_inner(shortcut, path).await?;

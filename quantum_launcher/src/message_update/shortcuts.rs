@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use ezshortcut::Shortcut;
 use iced::Task;
 use ql_core::{info, IntoStringError};
@@ -17,21 +15,10 @@ macro_rules! iflet {
 }
 
 impl Launcher {
-    pub fn update_shortcut(&mut self, msg: ShortcutMessage) -> Task<Message> {
+    pub fn update_shortcut(&mut self, msg: ShortcutMessage) -> Result<Task<Message>, String> {
         match msg {
             ShortcutMessage::Open => {
-                self.state = State::CreateShortcut(MenuShortcut {
-                    shortcut: Shortcut {
-                        name: self.instance().get_name().to_owned(),
-                        description: "".to_owned(),
-                        exec: String::new(),
-                        icon: None,
-                    },
-                    add_to_menu: true,
-                    add_to_desktop: false,
-                    account: self.account_selected.clone(),
-                    account_offline: self.config.username.clone(),
-                })
+                self.shortcut_open();
             }
             ShortcutMessage::ToggleAddToMenu(t) => iflet!(menu, self.state, {
                 if t || menu.add_to_desktop {
@@ -61,7 +48,7 @@ impl Launcher {
             }),
 
             ShortcutMessage::SaveCustom => iflet!(menu, self.state, {
-                return Task::perform(
+                return Ok(Task::perform(
                     rfd::AsyncFileDialog::new()
                         .add_filter("Shortcut", &[ezshortcut::EXTENSION])
                         .set_file_name(menu.shortcut.get_filename())
@@ -76,49 +63,67 @@ impl Launcher {
                             Message::Nothing
                         }
                     },
-                );
+                ));
             }),
-            ShortcutMessage::SaveCustomPicked(path) => return self.shortcut_generate(path),
-            ShortcutMessage::SaveMenu => iflet!(menu, &mut self.state, {
-                let t_desktop = if menu.add_to_desktop {
-                    let Some(desktop) = ezshortcut::get_desktop_dir() else {
-                        self.set_error("Couldn't access Desktop folder");
-                        return Task::none();
-                    };
-                    self.shortcut_generate(desktop)
-                } else {
-                    Task::none()
-                };
-
-                let t_menu = Task::none(); // TODO
-
-                return Task::batch([t_desktop, t_menu]);
-            }),
-            ShortcutMessage::Done(r) => match r {
-                Ok(()) => {
-                    info!("Created instance shortcut");
-                    // TODO: keep track of created shortcuts
+            ShortcutMessage::SaveCustomPicked(path) => {
+                let shortcut = self.shortcut_prepare()?;
+                return Ok(Task::perform(
+                    async move { shortcut.generate(&path).await },
+                    |n| Message::Shortcut(ShortcutMessage::Done(n.strerr())),
+                ));
+            }
+            ShortcutMessage::SaveMenu => {
+                let shortcut = self.shortcut_prepare()?;
+                if let State::CreateShortcut(menu) = &self.state {
+                    return Ok(Task::batch([
+                        if menu.add_to_desktop {
+                            shortcut_desktop(&shortcut)?
+                        } else {
+                            Task::none()
+                        },
+                        if menu.add_to_menu {
+                            shortcut_menu(shortcut)
+                        } else {
+                            Task::none()
+                        },
+                    ]));
                 }
-                Err(err) => self.set_error(err),
-            },
+            }
+            ShortcutMessage::Done(result) => {
+                result?;
+                info!("Created shortcut");
+                // TODO: keep track of created shortcuts
+            }
         }
-        Task::none()
+        Ok(Task::none())
     }
 
-    pub fn shortcut_generate(&mut self, path: PathBuf) -> Task<Message> {
+    fn shortcut_open(&mut self) {
+        self.state = State::CreateShortcut(MenuShortcut {
+            shortcut: Shortcut {
+                name: self.instance().get_name().to_owned(),
+                description: "".to_owned(),
+                exec: String::new(),
+                icon: None,
+            },
+            add_to_menu: true,
+            add_to_desktop: false,
+            account: self.account_selected.clone(),
+            account_offline: self.config.username.clone(),
+        })
+    }
+
+    pub fn shortcut_prepare(&mut self) -> Result<Shortcut, String> {
         let State::CreateShortcut(menu) = &self.state else {
-            return Task::none();
+            self.shortcut_open();
+            return self.shortcut_prepare();
         };
         let mut shortcut = menu.shortcut.clone();
         let instance = self.selected_instance.as_ref().unwrap();
 
-        let exec_path = match std::env::current_exe() {
-            Ok(n) => n,
-            Err(err) => {
-                self.set_error(format!("while getting path to current exe:\n{err}"));
-                return Task::none();
-            }
-        };
+        let exec_path = std::env::current_exe()
+            .map_err(|n| format!("while getting path to current exe:\n{n}"))?;
+
         let launch = format!(
             "{exe} {server}launch {name} {username}{login} --show-progress",
             exe = exec_path.to_string_lossy(),
@@ -142,8 +147,23 @@ impl Launcher {
         );
         shortcut.exec = launch;
 
-        Task::perform(async move { shortcut.generate(&path).await }, |n| {
-            Message::Shortcut(ShortcutMessage::Done(n.strerr()))
-        })
+        Ok(shortcut)
     }
+}
+
+fn shortcut_menu(shortcut: Shortcut) -> Task<Message> {
+    Task::perform(
+        async move { shortcut.generate_to_applications().await },
+        |n| Message::Shortcut(ShortcutMessage::Done(n.strerr())),
+    )
+}
+
+fn shortcut_desktop(shortcut: &Shortcut) -> Result<Task<Message>, String> {
+    let desktop =
+        ezshortcut::get_desktop_dir().ok_or_else(|| "Couldn't access Desktop folder".to_owned())?;
+    let s = shortcut.clone();
+    Ok(Task::perform(
+        async move { s.generate(&desktop).await },
+        |n| Message::Shortcut(ShortcutMessage::Done(n.strerr())),
+    ))
 }

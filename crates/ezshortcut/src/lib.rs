@@ -17,10 +17,23 @@ pub struct Shortcut {
 }
 
 impl Shortcut {
+    /// Create the shortcut and save it to `path`.
+    ///
+    /// Note: On Linux, if you just place the shortcut anywhere,
+    /// it may not work. You may need to save it to system-wide locations
+    /// (see [`Self::generate_to_applications`]).
     pub async fn generate(&self, path: &Path) -> std::io::Result<()> {
         os::create(self, path).await
     }
 
+    /// Creates the shortcut and adds it to Start Menu/Applications/Application Menu.
+    ///
+    /// This also *tries* to refresh the application list, it may take a while to update though.
+    pub async fn generate_to_applications(&self) -> std::io::Result<()> {
+        os::create_in_applications(self).await
+    }
+
+    /// Gets the recommended filename for the shortcut based on OS behavior.
     pub fn get_filename(&self) -> String {
         let mut filtered_name = make_filename_safe(&self.name, !cfg!(target_os = "windows"));
         filtered_name.push_str(EXTENSION);
