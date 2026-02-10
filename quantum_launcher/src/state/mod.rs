@@ -8,9 +8,9 @@ use std::{
 use iced::Task;
 use notify::Watcher;
 use ql_core::{
-    err, file_utils, read_log::LogLine, GenericProgress, InstanceSelection,
-    IntoIoError, IntoStringError, IoError, JsonFileError, LaunchedProcess, ModId, Progress,
-    LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
+    err, file_utils, read_log::LogLine, GenericProgress, InstanceSelection, IntoIoError,
+    IntoStringError, IoError, JsonFileError, LaunchedProcess, ModId, Progress, LAUNCHER_DIR,
+    LAUNCHER_VERSION_NAME,
 };
 use ql_instances::auth::{ms::CLIENT_ID, AccountData, AccountType};
 use tokio::process::ChildStdin;

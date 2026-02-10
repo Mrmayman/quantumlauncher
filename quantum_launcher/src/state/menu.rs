@@ -157,6 +157,7 @@ pub struct MenuEditInstance {
     // Changing RAM:
     pub slider_value: f32,
     pub slider_text: String,
+    pub memory_input: String,
 
     pub main_class_mode: Option<MainClassMode>,
     pub arg_split_by_space: bool,

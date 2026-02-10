@@ -220,6 +220,7 @@ impl Launcher {
             instance_name: instance_name.to_owned(),
             old_instance_name: instance_name.to_owned(),
             slider_text: format_memory(memory_mb),
+            memory_input: memory_mb.to_string(),
             is_editing_name: false,
             arg_split_by_space: true,
         });

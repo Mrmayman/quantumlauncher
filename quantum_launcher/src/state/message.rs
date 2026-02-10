@@ -81,6 +81,7 @@ pub enum EditInstanceMessage {
     JavaOverride(String),
     JavaOverrideVersion(usize),
     MemoryChanged(f32),
+    MemoryInputChanged(String),
     LoggingToggle(bool),
     CloseLauncherToggle(bool),
     SetMainClass(Option<MainClassMode>, Option<String>),

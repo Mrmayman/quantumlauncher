@@ -104,6 +104,23 @@ impl Launcher {
                     menu.slider_value = new_slider_value;
                     menu.config.ram_in_mb = 2f32.powf(new_slider_value) as usize;
                     menu.slider_text = format_memory(menu.config.ram_in_mb);
+                    menu.memory_input = menu.config.ram_in_mb.to_string();
+                }
+            }
+            EditInstanceMessage::MemoryInputChanged(input) => {
+                if let State::Launch(MenuLaunch {
+                    edit_instance: Some(menu),
+                    ..
+                }) = &mut self.state
+                {
+                    menu.memory_input = input.clone();
+                    if let Ok(mb) = input.parse::<usize>() {
+                        if mb > 0 {
+                            menu.config.ram_in_mb = mb;
+                            menu.slider_value = f32::log2(mb as f32);
+                            menu.slider_text = format_memory(mb);
+                        }
+                    }
                 }
             }
             EditInstanceMessage::LoggingToggle(t) => iflet_config!(&mut self.state, config <- {
