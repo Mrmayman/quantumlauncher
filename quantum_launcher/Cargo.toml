@@ -79,6 +79,7 @@ terminal_size = "0.4"
 notify = "8"
 open = "5.3.2"
 dark-light = "2"
+notify-rust = { version = "4", default-features = false, features = ["z-with-tokio"] }
 
 # iced::widget::markdown doesn't have inline
 # HTML support, so I made my own renderer.

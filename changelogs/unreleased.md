@@ -19,6 +19,9 @@
 - Usernames are now redacted in log paths
   - eg: `C:\Users\YOUR_NAME` -> `C:\Users\[REDACTED]`
   - Disable temporarily with `--no-redact-info` flag
+- When launching headlessly (`quantum_launcher launch <INSTANCE> <USERNAME>`),
+  you can now use `--show-progress` to get desktop notifications on account login progress or errors
+  - Especially useful for shortcuts/scripts
 
 ## Java
 

@@ -202,8 +202,9 @@ pub async fn launch_instance(
     username: String,
     use_account: bool,
     servers: bool,
+    show_progress: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let account = refresh_account(&username, use_account).await?;
+    let account = refresh_account(&username, use_account, show_progress).await?;
 
     let child = if servers {
         // TODO: stdin input
@@ -242,6 +243,7 @@ pub async fn launch_instance(
 async fn refresh_account(
     username: &String,
     use_account: bool,
+    show_progress: bool,
 ) -> Result<Option<auth::AccountData>, Box<dyn std::error::Error>> {
     Ok(if use_account {
         let config = LauncherConfig::load_s()?;
@@ -254,6 +256,15 @@ async fn refresh_account(
         }) else {
             err!("No logged-in account called {username:?} was found!");
             exit(1);
+        };
+
+        if show_progress {
+            tokio::task::spawn_blocking(|| {
+                notify_rust::Notification::new()
+                    .summary("Launching game")
+                    .body("Refreshing account...")
+                    .show()
+            });
         };
 
         match account.account_type.as_deref() {
