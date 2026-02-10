@@ -1,6 +1,15 @@
 # unreleased changelog
 
-- Added quick uninstall button to Mod Store
+- Added a Quick Uninstall button to the Mod Store
+
+# Shortcuts
+
+- Launch instances with a single click; no launcher required!
+- Create one-click shortcuts for:
+  - Desktop
+  - Start Menu / Applications Menu (Windows/Linux)
+  - Applications (macOS)
+  - Other custom locations
 
 # Technical
 
