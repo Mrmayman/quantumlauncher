@@ -9,7 +9,9 @@ use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
 use crate::cli::EXPERIMENTAL_SERVERS;
 use crate::menu_renderer::onboarding::x86_warning;
 use crate::menu_renderer::{ctx_button, ctxbox, tsubtitle, underline, underline_maybe, FONT_MONO};
-use crate::state::{GameLogMessage, InstanceNotes, LaunchModal, NotesMessage, WindowMessage};
+use crate::state::{
+    GameLogMessage, InstanceNotes, LaunchModal, NotesMessage, ShortcutMessage, WindowMessage,
+};
 use crate::{
     icons,
     menu_renderer::DISCORD,
@@ -115,7 +117,8 @@ impl Launcher {
                     ctxbox(
                         widget::column![
                             ctx_button("Export Instance").on_press(Message::ExportInstanceOpen),
-                            ctx_button("Create Shortcut").on_press(Message::Nothing),
+                            ctx_button("Create Shortcut")
+                                .on_press(Message::Shortcut(ShortcutMessage::Open)),
                         ]
                         .spacing(5)
                     )
@@ -199,7 +202,7 @@ impl Launcher {
                     .push(
                         widget::row![
                             widget::button(icons::lines_s(10))
-                                .padding([4, 8])
+                                .padding([5, 8])
                                 .on_press(Message::MModal(Some(LaunchModal::InstanceOptions))),
                             widget::button(
                                 widget::row![

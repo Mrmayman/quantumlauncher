@@ -12,23 +12,26 @@ pub async fn create(shortcut: &Shortcut, path: impl AsRef<Path>) -> std::io::Res
 }
 
 async fn create_inner(shortcut: &Shortcut, path: &Path) -> Result<(), std::io::Error> {
+    let desc = shortcut.description.trim();
     let content = format!(
         r"[Desktop Entry]
 Version=1.0
 Type=Application
 Name={name}
-Comment={description}
-Exec={exec}
-{icon}
+{icon}{description}Exec={exec}
 Terminal=false
 Categories=Game;",
         name = shortcut.name,
-        description = shortcut.description,
+        description = if desc.is_empty() {
+            String::new()
+        } else {
+            format!("Comment={desc}\n")
+        },
         exec = shortcut.exec,
         icon = shortcut
             .icon
             .as_deref()
-            .map(|n| format!("Icon={n}"))
+            .map(|n| format!("Icon={n}\n"))
             .unwrap_or_default()
     );
 

@@ -6,6 +6,7 @@ use std::{
 use crate::{
     config::SIDEBAR_WIDTH, message_handler::get_locally_installed_mods, state::NotesMessage,
 };
+use ezshortcut::Shortcut;
 use frostmark::MarkState;
 use iced::{
     widget::{self, scrollable::AbsoluteOffset},
@@ -632,8 +633,15 @@ pub enum State {
     LogUploadResult {
         url: String,
     },
+    CreateShortcut(MenuShortcut),
 
     License(MenuLicense),
+}
+
+pub struct MenuShortcut {
+    pub shortcut: Shortcut,
+    pub add_to_menu: bool,
+    pub add_to_desktop: bool,
 }
 
 pub struct MenuLicense {

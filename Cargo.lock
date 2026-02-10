@@ -4076,6 +4076,7 @@ dependencies = [
  "clap",
  "dark-light",
  "embed-resource",
+ "ezshortcut",
  "frostmark",
  "iced",
  "notify",

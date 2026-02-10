@@ -151,6 +151,7 @@ impl Launcher {
             State::LogUploadResult { url } => {
                 view_log_upload_result(url, self.instance().is_server())
             }
+            State::CreateShortcut(menu) => menu.view(),
 
             State::LoginAlternate(menu) => menu.view(self.tick_timer),
             State::ExportInstance(menu) => menu.view(self.tick_timer),

@@ -1,8 +1,12 @@
-use iced::widget::tooltip::Position;
-use iced::{widget, Alignment, Length};
+use cfg_if::cfg_if;
+use iced::{
+    widget::{self, column, row, tooltip::Position},
+    Alignment, Length,
+};
 use ql_core::{Progress, WEBSITE};
 use ql_instances::auth::AccountType;
 
+use crate::state::{MenuShortcut, ShortcutMessage};
 use crate::stylesheet::styles::{LauncherThemeLightness, BORDER_RADIUS, BORDER_WIDTH};
 use crate::{
     config::LauncherConfig,
@@ -102,8 +106,8 @@ pub fn underline<'a>(
     color: Color,
 ) -> widget::Stack<'a, Message, LauncherTheme> {
     widget::stack!(
-        widget::column![e.into()],
-        widget::column![
+        column![e.into()],
+        column![
             widget::vertical_space(),
             widget::horizontal_rule(1).style(move |t: &LauncherTheme| t.style_rule(color, 1)),
             widget::Space::with_height(1),
@@ -120,7 +124,7 @@ pub fn underline_maybe<'a>(e: impl Into<Element<'a>>, color: Color, un: bool) ->
 }
 
 pub fn center_x<'a>(e: impl Into<Element<'a>>) -> widget::Row<'a, Message, LauncherTheme> {
-    widget::row![
+    row![
         widget::horizontal_space(),
         e.into(),
         widget::horizontal_space(),
@@ -153,7 +157,7 @@ pub fn subbutton_with_icon<'a>(
     text: &'a str,
 ) -> widget::Button<'a, Message, LauncherTheme> {
     widget::button(
-        widget::row![icon.into()]
+        row![icon.into()]
             .push_maybe((!text.is_empty()).then_some(widget::text(text).size(12)))
             .align_y(Alignment::Center)
             .spacing(8)
@@ -168,7 +172,7 @@ pub fn button_with_icon<'a>(
     size: u16,
 ) -> widget::Button<'a, Message, LauncherTheme> {
     widget::button(
-        widget::row![icon.into()]
+        row![icon.into()]
             .push_maybe((!text.is_empty()).then_some(widget::text(text).size(size)))
             .align_y(Alignment::Center)
             .spacing(size as f32 / 1.6),
@@ -209,7 +213,7 @@ fn sidebar<'a>(
     children: impl IntoIterator<Item = Element<'a>>,
 ) -> widget::Container<'a, Message, LauncherTheme> {
     widget::container(
-        widget::column![
+        column![
             widget::Column::new()
                 .push_maybe(header)
                 .padding(PADDING_NOT_BOTTOM),
@@ -231,11 +235,11 @@ fn dots(tick_timer: usize) -> String {
 impl MenuLauncherUpdate {
     pub fn view(&'_ self) -> Element<'_> {
         if let Some(progress) = &self.progress {
-            return widget::column!("Updating QuantumLauncher...", progress.view())
+            return column!["Updating QuantumLauncher...", progress.view()]
                 .padding(10)
                 .into();
         }
-        widget::column!(
+        column![
             "A new launcher update has been found! Do you want to download it?",
             widget::Row::new()
             .push_maybe((!cfg!(target_os = "macos")).then_some(
@@ -252,13 +256,13 @@ impl MenuLauncherUpdate {
             .push(button_with_icon(icons::globe(), "Open Website", 16)
                 .on_press(Message::CoreOpenLink(WEBSITE.to_owned())))
             .spacing(5).wrap(),
-        )
+        ]
         // WARN: Auto update configurations
         .push_maybe(cfg!(target_os = "linux").then_some(
-            widget::column!(
+            column![
                 "If you installed this launcher from a package manager/store (flatpak/apt/dnf/pacman/..) then update from there",
                 "If you downloaded it from website then it's fine."
-            )
+            ]
         ))
         .padding(10)
         .spacing(10)
@@ -286,11 +290,11 @@ pub fn get_mode_selector(config: &LauncherConfig) -> Element<'static> {
         };
 
         if *n == theme {
-            widget::container(widget::row![icon.style(td), name].spacing(5))
+            widget::container(row![icon.style(td), name].spacing(5))
                 .padding(PADDING)
                 .into()
         } else {
-            widget::button(widget::row![icon, name].spacing(5))
+            widget::button(row![icon, name].spacing(5))
                 .on_press(Message::LauncherSettings(
                     LauncherSettingsMessage::ThemePicked(*n),
                 ))
@@ -313,21 +317,15 @@ fn back_to_launch_screen(is_server: Option<bool>, message: Option<String>) -> Me
 impl<T: Progress> ProgressBar<T> {
     pub fn view(&'_ self) -> widget::Column<'_, Message, LauncherTheme> {
         let total = T::total();
-        if let Some(message) = &self.message {
-            widget::column!(
-                widget::progress_bar(0.0..=total, self.num),
-                widget::text(message)
-            )
-        } else {
-            widget::column!(widget::progress_bar(0.0..=total, self.num))
-        }
-        .spacing(10)
+        column![widget::progress_bar(0.0..=total, self.num)]
+            .push_maybe(self.message.as_deref().map(widget::text))
+            .spacing(10)
     }
 }
 
 impl MenuCurseforgeManualDownload {
     pub fn view(&'_ self) -> Element<'_> {
-        widget::column![
+        column![
             "Some Curseforge mods have blocked this launcher!\nYou need to manually download the files and add them to your mods",
 
             widget::scrollable(
@@ -339,7 +337,7 @@ impl MenuCurseforgeManualDownload {
                         entry.file_id
                     );
 
-                    widget::row![
+                    row![
                         widget::button(widget::text("Open link").size(14)).on_press(Message::CoreOpenLink(url)),
                         widget::text(&entry.name)
                             .shaping(widget::text::Shaping::Advanced)
@@ -354,7 +352,7 @@ impl MenuCurseforgeManualDownload {
             .style(LauncherTheme::style_scrollable_flat_extra_dark),
 
             "Warning: Ignoring this may lead to crashes!",
-            widget::row![
+            row![
                 widget::button(widget::text("+ Select above downloaded files").size(14)).on_press(Message::ManageMods(ManageModsMessage::AddFile(self.delete_mods))),
                 widget::button(widget::text("Continue").size(14)).on_press(if self.is_store {
                     Message::InstallMods(InstallModsMessage::Open)
@@ -376,7 +374,7 @@ impl MenuCurseforgeManualDownload {
 
 impl MenuLicense {
     pub fn view(&'_ self) -> Element<'_> {
-        widget::row![
+        row![
             sidebar(
                 "MenuLicense:sidebar",
                 Some(
@@ -409,13 +407,103 @@ impl MenuLicense {
     }
 }
 
+impl MenuShortcut {
+    pub fn view(&self) -> Element<'_> {
+        cfg_if!(if #[cfg(target_os = "windows")] {
+            const MENU_NAME: &str = "the Start Menu";
+            const IS_UNIX: bool = false;
+        } else if #[cfg(target_os = "macos")] {
+            const MENU_NAME: &str = "Applications";
+            const IS_UNIX: bool = false;
+        } else {
+            const MENU_NAME: &str = "the Applications Menu";
+            const IS_UNIX: bool = true;
+        });
+
+        row![
+            widget::scrollable(
+                column![
+                    row![
+                        back_button().on_press(Message::MScreenOpen {
+                            message: None,
+                            clear_selection: false,
+                            is_server: None
+                        }),
+                        widget::text("Create Launch Shortcut").size(20),
+                    ]
+                    .align_y(Alignment::Center)
+                    .spacing(16),
+                    widget::text!("Launch this instance directly from your Desktop or {MENU_NAME} without opening the launcher")
+                        .size(14)
+                        .style(tsubtitle),
+                    column![row![
+                        "Name:",
+                        widget::text_input("(Required)", &self.shortcut.name)
+                            .size(14)
+                            .on_input(|n| Message::Shortcut(ShortcutMessage::EditName(n)))
+                    ].spacing(10).align_y(Alignment::Center)]
+                    .spacing(5)
+                    .push_maybe(
+                        IS_UNIX.then_some(
+                            row![
+                                "Description:",
+                                widget::text_input("Leave blank for none", &self.shortcut.description)
+                                    .size(14)
+                                    .on_input(|n| Message::Shortcut(ShortcutMessage::EditDescription(n)))
+                            ].align_y(Alignment::Center).spacing(10)
+                        )
+                    ),
+                    column![
+                        widget::checkbox(format!("Add to {MENU_NAME}"), self.add_to_menu)
+                            .on_toggle(|t| Message::Shortcut(ShortcutMessage::ToggleAddToMenu(t)))
+                            .size(12)
+                            .text_size(12),
+                        widget::checkbox(format!("Add to Desktop"), self.add_to_desktop)
+                            .on_toggle(|t| Message::Shortcut(ShortcutMessage::ToggleAddToDesktop(t)))
+                            .size(12)
+                            .text_size(12),
+                        button_with_icon(icons::checkmark_s(14), "Create Shortcut", 14).on_press(Message::Nothing),
+                    ]
+                    .spacing(5),
+                    column![
+                        widget::text("Or save a shortcut file to use anywhere")
+                            .size(14)
+                            .style(tsubtitle),
+                        button_with_icon(icons::floppydisk_s(14), "Export Shortcut File...", 14).on_press(Message::Nothing),
+                    ]
+                    .spacing(5)
+                ]
+                .width(Length::Fill)
+                .padding(16)
+                .spacing(16)
+            )
+            .style(|t: &LauncherTheme, s| t.style_scrollable_flat_dark(s)),
+            widget::scrollable(
+                column![
+                    widget::text("Existing Shortcuts").size(20),
+                    widget::text(
+                        "TODO: Store and show shortcut info here, and have options to delete them"
+                    )
+                    .size(12)
+                ]
+                .padding(16)
+                .spacing(10)
+            )
+            .height(Length::Fill)
+            .width(200)
+            .style(|t: &LauncherTheme, s| t.style_scrollable_flat_extra_dark(s))
+        ]
+        .into()
+    }
+}
+
 pub fn view_account_login<'a>() -> Element<'a> {
-    widget::column![
+    column![
         back_button().on_press(back_to_launch_screen(None, None)),
         widget::vertical_space(),
-        widget::row![
+        row![
             widget::horizontal_space(),
-            widget::column![
+            column![
                 widget::text("Login").size(20),
                 widget::button("Login with Microsoft").on_press(Message::Account(
                     AccountMessage::OpenMenu {
@@ -449,9 +537,9 @@ pub fn view_account_login<'a>() -> Element<'a> {
 
 pub fn view_error(error: &'_ str) -> Element<'_> {
     widget::scrollable(
-        widget::column!(
+        column![
             widget::text!("Error: {error}"),
-            widget::row![
+            row![
                 widget::button("Back").on_press(back_to_launch_screen(None, None)),
                 widget::button("Copy Error").on_press(Message::CoreCopyError),
                 widget::button("Copy Error + Log").on_press(Message::CoreCopyLog),
@@ -460,7 +548,7 @@ pub fn view_error(error: &'_ str) -> Element<'_> {
             ]
             .spacing(5)
             .wrap()
-        )
+        ]
         .padding(10)
         .spacing(10),
     )
@@ -471,9 +559,9 @@ pub fn view_error(error: &'_ str) -> Element<'_> {
 }
 
 pub fn view_log_upload_result(url: &'_ str, is_server: bool) -> Element<'_> {
-    widget::column![
+    column![
         back_button().on_press(back_to_launch_screen(Some(is_server), None)),
-        widget::column![
+        column![
             widget::vertical_space(),
             widget::text(format!(
                 "{} log uploaded successfully!",
@@ -483,7 +571,7 @@ pub fn view_log_upload_result(url: &'_ str, is_server: bool) -> Element<'_> {
             widget::text("Your log has been uploaded to mclo.gs. You can share the link below:")
                 .size(14),
             widget::container(
-                widget::row![
+                row![
                     widget::text(url).font(FONT_MONO),
                     widget::button("Copy").on_press(Message::CoreCopyText(url.to_string())),
                     widget::button("Open").on_press(Message::CoreOpenLink(url.to_string()))
@@ -513,13 +601,13 @@ pub fn view_confirm<'a>(
         color: Some(iced::Color::WHITE),
     };
 
-    widget::column![
+    column![
         widget::vertical_space(),
         widget::text!("Are you sure you want to {msg1}?").size(20),
         msg2,
-        widget::row![
+        row![
             widget::button(
-                widget::row![
+                row![
                     icons::cross().style(t_white),
                     widget::text("No").style(t_white)
                 ]
@@ -532,7 +620,7 @@ pub fn view_confirm<'a>(
                 style_button_color(status, (0x72, 0x22, 0x24), (0x9f, 0x2c, 0x2f))
             }),
             widget::button(
-                widget::row![
+                row![
                     icons::deselectall().style(t_white),
                     widget::text("Yes").style(t_white)
                 ]

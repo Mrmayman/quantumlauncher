@@ -353,6 +353,15 @@ pub enum GameLogMessage {
 }
 
 #[derive(Debug, Clone)]
+pub enum ShortcutMessage {
+    Open,
+    ToggleAddToMenu(bool),
+    ToggleAddToDesktop(bool),
+    EditName(String),
+    EditDescription(String),
+}
+
+#[derive(Debug, Clone)]
 pub enum Message {
     Nothing,
     Error(String),
@@ -369,6 +378,7 @@ pub enum Message {
     Notes(NotesMessage),
     GameLog(GameLogMessage),
     Window(WindowMessage),
+    Shortcut(ShortcutMessage),
 
     ManageMods(ManageModsMessage),
     ManageJarMods(ManageJarModsMessage),
