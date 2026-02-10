@@ -1,6 +1,9 @@
 use std::path::Path;
 
 mod async_impl;
+mod sync_impl;
+
+pub use sync_impl::get_menu_path;
 
 pub struct Shortcut {
     pub name: String,

@@ -2,7 +2,7 @@ use std::{os::unix::fs::PermissionsExt, path::Path};
 
 use tokio::fs;
 
-use crate::{Shortcut, make_filename_safe};
+use crate::{make_filename_safe, Shortcut};
 
 pub async fn create(shortcut: &Shortcut, path: impl AsRef<Path>) -> std::io::Result<()> {
     let path = path.as_ref();
