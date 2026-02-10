@@ -47,7 +47,7 @@ impl MenuShortcut {
                     self.get_info_fields(accounts),
 
                     row![
-                        button_with_icon(icons::checkmark_s(14), "Create Shortcut", 14).on_press(Message::Nothing),
+                        button_with_icon(icons::checkmark_s(14), "Create Shortcut", 14).on_press(Message::Shortcut(ShortcutMessage::SaveMenu)),
                         column![
                             widget::checkbox(format!("Add to {MENU_NAME}"), self.add_to_menu)
                                 .on_toggle(|t| Message::Shortcut(ShortcutMessage::ToggleAddToMenu(t)))

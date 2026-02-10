@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use ezshortcut::Shortcut;
 use iced::Task;
 use ql_core::{info, IntoStringError};
@@ -76,43 +78,21 @@ impl Launcher {
                     },
                 );
             }),
-            ShortcutMessage::SaveCustomPicked(f) => iflet!(menu, self.state, {
-                let mut shortcut = menu.shortcut.clone();
-                let instance = self.selected_instance.as_ref().unwrap();
-
-                let exec_path = match std::env::current_exe() {
-                    Ok(n) => n,
-                    Err(err) => {
-                        self.set_error(format!("while getting path to current exe:\n{err}"));
+            ShortcutMessage::SaveCustomPicked(path) => return self.shortcut_generate(path),
+            ShortcutMessage::SaveMenu => iflet!(menu, &mut self.state, {
+                let t_desktop = if menu.add_to_desktop {
+                    let Some(desktop) = ezshortcut::get_desktop_dir() else {
+                        self.set_error("Couldn't access Desktop folder");
                         return Task::none();
-                    }
+                    };
+                    self.shortcut_generate(desktop)
+                } else {
+                    Task::none()
                 };
-                let launch = format!(
-                    "{exe} {server}launch {name} {username}{login} --show-progress",
-                    exe = exec_path.to_string_lossy(),
-                    server = if instance.is_server() {
-                        "--enable-server-manager -s "
-                    } else {
-                        ""
-                    },
-                    name = serde_json::to_string(&instance.get_name())
-                        .unwrap_or_else(|_| instance.get_name().to_owned()),
-                    username = if menu.account == OFFLINE_ACCOUNT_NAME {
-                        &menu.account_offline
-                    } else {
-                        &menu.account
-                    },
-                    login = if menu.account == OFFLINE_ACCOUNT_NAME {
-                        ""
-                    } else {
-                        " -u"
-                    }
-                );
-                shortcut.exec = launch;
 
-                return Task::perform(async move { shortcut.generate(&f).await }, |n| {
-                    Message::Shortcut(ShortcutMessage::Done(n.strerr()))
-                });
+                let t_menu = Task::none(); // TODO
+
+                return Task::batch([t_desktop, t_menu]);
             }),
             ShortcutMessage::Done(r) => match r {
                 Ok(()) => {
@@ -123,5 +103,47 @@ impl Launcher {
             },
         }
         Task::none()
+    }
+
+    pub fn shortcut_generate(&mut self, path: PathBuf) -> Task<Message> {
+        let State::CreateShortcut(menu) = &self.state else {
+            return Task::none();
+        };
+        let mut shortcut = menu.shortcut.clone();
+        let instance = self.selected_instance.as_ref().unwrap();
+
+        let exec_path = match std::env::current_exe() {
+            Ok(n) => n,
+            Err(err) => {
+                self.set_error(format!("while getting path to current exe:\n{err}"));
+                return Task::none();
+            }
+        };
+        let launch = format!(
+            "{exe} {server}launch {name} {username}{login} --show-progress",
+            exe = exec_path.to_string_lossy(),
+            server = if instance.is_server() {
+                "--enable-server-manager -s "
+            } else {
+                ""
+            },
+            name = serde_json::to_string(&instance.get_name())
+                .unwrap_or_else(|_| instance.get_name().to_owned()),
+            username = if menu.account == OFFLINE_ACCOUNT_NAME {
+                &menu.account_offline
+            } else {
+                &menu.account
+            },
+            login = if menu.account == OFFLINE_ACCOUNT_NAME {
+                ""
+            } else {
+                " -u"
+            }
+        );
+        shortcut.exec = launch;
+
+        Task::perform(async move { shortcut.generate(&path).await }, |n| {
+            Message::Shortcut(ShortcutMessage::Done(n.strerr()))
+        })
     }
 }

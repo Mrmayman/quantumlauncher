@@ -366,6 +366,7 @@ pub enum ShortcutMessage {
 
     SaveCustom,
     SaveCustomPicked(PathBuf),
+    SaveMenu,
     Done(Res),
 }
 
