@@ -215,6 +215,9 @@ pub async fn download_file_to_json<T: DeserializeOwned>(
         user_agent: bool,
     ) -> Result<T, JsonDownloadError> {
         let text = download_file_to_string(url, user_agent).await?;
+        if text.trim().is_empty() {
+            return Err(JsonDownloadError::EmptyResponse(url.to_owned()));
+        }
         Ok(serde_json::from_str(&text).json(text)?)
     }
 
@@ -359,6 +362,8 @@ pub enum RequestError {
     ReqwestError(#[from] reqwest::Error),
     #[error("Download Error (invalid header value){NETWORK_ERROR_MSG}")]
     InvalidHeaderValue(#[from] InvalidHeaderValue),
+    #[error("{0}")]
+    Message(String),
 }
 
 impl RequestError {
@@ -372,6 +377,7 @@ impl RequestError {
             RequestError::InvalidHeaderValue(_) => {
                 "Download Error: invalid header value".to_owned()
             }
+            RequestError::Message(msg) => msg.clone(),
         }
     }
 }

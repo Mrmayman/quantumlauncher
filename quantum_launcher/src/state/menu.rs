@@ -188,6 +188,21 @@ impl ModListEntry {
             ModListEntry::Downloaded { config, .. } => &config.name,
         }
     }
+
+    /// Returns the project type ("mod", "resourcepack", "shader", "datapack")
+    /// Local files are assumed to be mods.
+    pub fn project_type(&self) -> &str {
+        match self {
+            ModListEntry::Local { .. } => "mod",
+            ModListEntry::Downloaded { config, .. } => &config.project_type,
+        }
+    }
+
+    /// Returns true if this entry can be toggled (disabled/enabled).
+    /// Only mods support toggling.
+    pub fn can_toggle(&self) -> bool {
+        self.project_type() == "mod"
+    }
 }
 
 impl From<ModListEntry> for SelectedMod {
@@ -219,6 +234,39 @@ impl PartialEq<ModListEntry> for SelectedMod {
     }
 }
 
+/// Filter for content types in the mods menu
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ContentFilter {
+    #[default]
+    All,
+    Mods,
+    ResourcePacks,
+    Shaders,
+    DataPacks,
+}
+
+impl ContentFilter {
+    pub fn matches(&self, project_type: &str) -> bool {
+        match self {
+            ContentFilter::All => true,
+            ContentFilter::Mods => project_type == "mod",
+            ContentFilter::ResourcePacks => project_type == "resourcepack",
+            ContentFilter::Shaders => project_type == "shader",
+            ContentFilter::DataPacks => project_type == "datapack",
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            ContentFilter::All => "All",
+            ContentFilter::Mods => "Mods",
+            ContentFilter::ResourcePacks => "Resource Packs",
+            ContentFilter::Shaders => "Shaders",
+            ContentFilter::DataPacks => "Data Packs",
+        }
+    }
+}
+
 pub struct MenuEditMods {
     pub mod_update_progress: Option<ProgressBar<GenericProgress>>,
 
@@ -245,12 +293,14 @@ pub struct MenuEditMods {
     pub search: Option<String>,
 
     pub width_name: f32,
+    pub content_filter: ContentFilter,
 }
 
 #[derive(Debug, Clone)]
 pub enum MenuEditModsModal {
     Submenu,
     RightClick(ModId, (f32, f32)),
+    FolderMenu,
 }
 
 impl MenuEditMods {
