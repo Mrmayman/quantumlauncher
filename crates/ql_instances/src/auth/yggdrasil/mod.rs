@@ -2,6 +2,7 @@ use crate::auth::alt::AccountResponse;
 
 use super::{AccountData, AccountType};
 use ql_core::{info, pt, IntoJsonError, CLIENT};
+use tokio::task::spawn_blocking;
 
 pub use super::alt::{Account, AccountResponseError, Error};
 use ql_core::file_utils::check_for_success;
@@ -59,8 +60,9 @@ pub async fn login_new(
         }
     };
 
-    let entry = account_type.get_keyring_entry(&email_or_username)?;
-    entry.set_password(&account_response.accessToken)?;
+    let entry = account_type.get_keyring_entry(&email_or_username).await?;
+    let access_token = account_response.accessToken.clone();
+    spawn_blocking(move || entry.set_password(&access_token)).await??;
 
     Ok(Account::Account(AccountData {
         access_token: Some(account_response.accessToken.clone()),
@@ -69,7 +71,7 @@ pub async fn login_new(
         username: email_or_username,
         nice_username: account_response.selectedProfile.name,
 
-        refresh_token: account_response.accessToken,
+        refresh_token: Ok(account_response.accessToken),
         needs_refresh: false,
         account_type,
     }))
@@ -89,7 +91,7 @@ pub async fn login_refresh(
     account_type: AccountType,
 ) -> Result<AccountData, Error> {
     pt!("Refreshing {account_type} account...");
-    let entry = account_type.get_keyring_entry(&email_or_username)?;
+    let entry = account_type.get_keyring_entry(&email_or_username).await?;
 
     let mut value = serde_json::json!({
         "accessToken": refresh_token,
@@ -105,7 +107,8 @@ pub async fn login_refresh(
     let text = response.text().await?;
 
     let account_response = serde_json::from_str::<AccountResponse>(&text).json(text.clone())?;
-    entry.set_password(&account_response.accessToken)?;
+    let access_token = account_response.accessToken.clone();
+    spawn_blocking(move || entry.set_password(&access_token)).await??;
 
     Ok(AccountData {
         access_token: Some(account_response.accessToken.clone()),
@@ -114,7 +117,7 @@ pub async fn login_refresh(
         username: email_or_username,
         nice_username: account_response.selectedProfile.name,
 
-        refresh_token: account_response.accessToken,
+        refresh_token: Ok(account_response.accessToken),
         needs_refresh: false,
         account_type,
     })

@@ -34,7 +34,8 @@ use ql_core::{constants::OS_NAME, err, file_utils, info, pt, IntoStringError, Js
 
 use crate::{
     menu_renderer::FONT_DEFAULT,
-    state::{CustomJarState, State},
+    message_handler::account_load::load_all_accounts,
+    state::{AccountMessage, CustomJarState, State},
 };
 
 /// The CLI interface of the launcher.
@@ -110,6 +111,10 @@ impl Launcher {
         } else {
             Task::none()
         };
+        let accounts_load_command = Task::perform(
+            load_all_accounts(launcher.config.accounts.clone().unwrap_or_default()),
+            |n| Message::Account(AccountMessage::Initialized(n)),
+        );
 
         (
             launcher,
@@ -117,6 +122,7 @@ impl Launcher {
                 check_for_updates_command,
                 get_entries_command,
                 load_notes_command,
+                accounts_load_command,
                 Task::perform(ql_core::clean::dir("logs"), |n| {
                     Message::CoreCleanComplete(n.strerr())
                 }),
