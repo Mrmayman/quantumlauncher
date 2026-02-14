@@ -71,7 +71,6 @@ rfd.workspace = true
 
 # For Discord Rich Presence management
 filthy-rich = "0.1.10"
-anyhow = "1.0.101"
 
 # Terminal
 owo-colors.workspace = true
