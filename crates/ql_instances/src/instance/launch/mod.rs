@@ -28,6 +28,7 @@ pub async fn launch(
     instance_name: String,
     username: String,
     java_install_progress_sender: Option<Sender<GenericProgress>>,
+    launch_progress_sender: Option<Sender<GenericProgress>>,
     auth: Option<AccountData>,
     global_settings: Option<GlobalSettings>,
     extra_java_args: Vec<String>,
@@ -43,6 +44,7 @@ pub async fn launch(
         instance_name.clone(),
         username,
         java_install_progress_sender,
+        launch_progress_sender,
         global_settings,
         extra_java_args,
     )

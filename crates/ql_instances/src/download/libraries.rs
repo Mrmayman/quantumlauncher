@@ -25,6 +25,53 @@ use super::{DownloadError, GameDownloader};
 const MACOS_ARM_LWJGL_294_1: &str = "https://libraries.minecraft.net/org/lwjgl/lwjgl/lwjgl-platform/2.9.4-nightly-20150209/lwjgl-platform-2.9.4-nightly-20150209-natives-osx.jar";
 const MACOS_ARM_LWJGL_294_2: &str = "https://github.com/Dungeons-Guide/lwjgl/releases/download/2.9.4-20150209-mmachina.2-syeyoung.1/lwjgl-platform-2.9.4-nightly-20150209-natives-osx-arm64.jar";
 
+/// Check if natives need to be re-extracted for the given LWJGL version
+/// Returns true if the natives directory doesn't exist or if the version has changed
+async fn should_reextract_natives(
+    natives_dir: &Path,
+    lwjgl_version: &str,
+) -> Result<bool, IoError> {
+    let version_file = natives_dir.join(".lwjgl_version");
+
+    if !natives_dir.exists() {
+        return Ok(true);
+    }
+
+    if !version_file.exists() {
+        return Ok(true);
+    }
+
+    match tokio::fs::read_to_string(&version_file).await {
+        Ok(current_version) => Ok(current_version.trim() != lwjgl_version),
+        Err(_) => Ok(true), // If we can't read the file, re-extract
+    }
+}
+
+/// Mark the natives directory with the current LWJGL version
+async fn mark_natives_version(natives_dir: &Path, lwjgl_version: &str) -> Result<(), IoError> {
+    let version_file = natives_dir.join(".lwjgl_version");
+    tokio::fs::write(&version_file, lwjgl_version)
+        .await
+        .path(version_file)?;
+    Ok(())
+}
+
+/// Extract LWJGL version from library list
+/// Returns "default" if no LWJGL libraries are found
+fn detect_lwjgl_version(libraries: &[Library]) -> String {
+    for library in libraries {
+        if let Some(name) = &library.name {
+            if name.starts_with("org.lwjgl:") || name.starts_with("org.lwjgl.lwjgl:") {
+                // Parse "org.lwjgl:lwjgl:3.3.1" -> "3.3.1"
+                if let Some(version) = name.split(':').nth(2) {
+                    return version.to_string();
+                }
+            }
+        }
+    }
+    "default".to_string()
+}
+
 impl GameDownloader {
     pub async fn download_libraries(&mut self) -> Result<(), DownloadError> {
         info!("Downloading libraries");
@@ -201,6 +248,26 @@ impl GameDownloader {
     ) -> Result<Vec<u8>, DownloadError> {
         let lib_file_path = libraries_dir.join(PathBuf::from(artifact.get_path()));
 
+        // Check if library already exists and verify integrity
+        if lib_file_path.exists() {
+            if let Ok(existing_bytes) = tokio::fs::read(&lib_file_path).await {
+                // Verify size matches if available
+                if let Some(expected_size) = artifact.size.as_u64() {
+                    if existing_bytes.len() as u64 == expected_size {
+                        pt!(
+                            "Library already exists with correct size, skipping: {}",
+                            artifact.url
+                        );
+                        return Ok(existing_bytes);
+                    }
+                } else {
+                    // No size verification available, assume file is valid
+                    pt!("Library already exists, skipping: {}", artifact.url);
+                    return Ok(existing_bytes);
+                }
+            }
+        }
+
         let lib_dir_path = lib_file_path
             .parent()
             .expect(
@@ -225,6 +292,28 @@ impl GameDownloader {
         extract: Option<&LibraryExtract>,
     ) -> Result<(), DownloadError> {
         let natives_dir = libraries_dir.join("natives");
+
+        // Detect LWJGL version from library list to track native version
+        let lwjgl_version = detect_lwjgl_version(&self.version_json.libraries);
+
+        // Check if natives need re-extraction based on version tracking
+        if !should_reextract_natives(&natives_dir, &lwjgl_version).await? {
+            pt!(
+                "Natives already extracted for LWJGL {}, skipping",
+                lwjgl_version
+            );
+            return Ok(());
+        }
+
+        // Clear old natives if version changed
+        if natives_dir.exists() {
+            tokio::fs::remove_dir_all(&natives_dir)
+                .await
+                .path(&natives_dir)?;
+        }
+        tokio::fs::create_dir_all(&natives_dir)
+            .await
+            .path(&natives_dir)?;
 
         for (os, download) in classifiers {
             if os == "sources" {
@@ -297,6 +386,9 @@ impl GameDownloader {
                 }
             }
         }
+
+        // Mark natives directory with current LWJGL version
+        mark_natives_version(&natives_dir, &lwjgl_version).await?;
 
         Ok(())
     }

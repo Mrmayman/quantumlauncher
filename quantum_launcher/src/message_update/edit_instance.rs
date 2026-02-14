@@ -278,6 +278,61 @@ impl Launcher {
                     },
                 ));
             }
+            EditInstanceMessage::LwjglScreenOpen => {
+                // Get current LWJGL version from config
+                let current_version = if let State::Launch(MenuLaunch {
+                    edit_instance: Some(MenuEditInstance { config, .. }),
+                    ..
+                }) = &self.state
+                {
+                    config.lwjgl_version.clone()
+                } else {
+                    None
+                };
+
+                // Check if we have cached versions
+                if let Some(cached_versions) = &self.lwjgl_versions_cache {
+                    // Use cached versions
+                    let selected_version = current_version.clone().unwrap_or_else(|| {
+                        cached_versions
+                            .lwjgl3
+                            .first()
+                            .or_else(|| cached_versions.lwjgl2.first())
+                            .cloned()
+                            .unwrap_or_default()
+                    });
+
+                    self.state = State::EditLwjgl(crate::state::MenuEditLwjgl::Loaded {
+                        versions: cached_versions.clone(),
+                        selected_version: selected_version.clone(),
+                        initial_version: current_version,
+                        is_applying: false,
+                        mismatch_confirm: None,
+                    });
+                    return Ok(Task::none());
+                }
+
+                // Fetch versions from Maven
+                let (task, handle) = Task::perform(
+                    async { ql_core::json::lwjgl::fetch_lwjgl_versions().await },
+                    |result| match result {
+                        Ok(versions) => Message::EditLwjgl(
+                            crate::state::EditLwjglMessage::VersionsLoaded(Ok(versions)),
+                        ),
+                        Err(err) => Message::EditLwjgl(
+                            crate::state::EditLwjglMessage::VersionsLoaded(Err(err)),
+                        ),
+                    },
+                )
+                .abortable();
+
+                self.state = State::EditLwjgl(crate::state::MenuEditLwjgl::Loading {
+                    _handle: handle,
+                    initial_version: current_version,
+                });
+
+                return Ok(task);
+            }
         }
         Ok(Task::none())
     }

@@ -378,6 +378,7 @@ impl Launcher {
             | State::ImportModpack(_)
             | State::CurseforgeManualDownload(_)
             | State::LoginAlternate(_)
+            | State::EditLwjgl(_)
             | State::LogUploadResult { .. }
             | State::RecommendedMods(MenuRecommendedMods::Loading { .. })
             | State::Launch(_) => {}

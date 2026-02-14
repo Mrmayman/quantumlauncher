@@ -122,6 +122,7 @@ async fn write_config(
             is_special_lwjgl3: version_json.id.ends_with("-lwjgl3"),
         }),
         main_class_override: None,
+        lwjgl_version: None,
     };
     let server_config_path = server_dir.join("config.json");
     tokio::fs::write(

@@ -22,11 +22,7 @@ use crate::state::{
 impl Launcher {
     pub fn tick(&mut self) -> Task<Message> {
         match &mut self.state {
-            State::Launch(MenuLaunch {
-                ref edit_instance,
-                ref tab,
-                ..
-            }) => {
+            State::Launch(menu) => {
                 if let Some(receiver) = &mut self.java_recv {
                     if receiver.tick() {
                         self.state = State::InstallJava;
@@ -34,9 +30,16 @@ impl Launcher {
                     }
                 }
 
+                if let Some(progress) = &mut menu.launch_progress {
+                    progress.tick();
+                    if progress.progress.has_finished {
+                        menu.launch_progress = None;
+                    }
+                }
+
                 let mut commands = Vec::new();
 
-                if let (Some(edit), LaunchTab::Edit) = (&edit_instance, tab) {
+                if let (Some(edit), LaunchTab::Edit) = (&menu.edit_instance, &menu.tab) {
                     let config = edit.config.clone();
                     self.tick_edit_instance(config, &mut commands);
                 }
@@ -163,7 +166,8 @@ impl Launcher {
             | State::CurseforgeManualDownload(_)
             | State::LogUploadResult { .. }
             | State::InstallPaper(_)
-            | State::ExportMods(_) => {}
+            | State::ExportMods(_)
+            | State::EditLwjgl(_) => {}
         }
 
         Task::none()

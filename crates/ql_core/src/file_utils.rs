@@ -6,10 +6,13 @@ use std::{
     sync::LazyLock,
 };
 
+use std::sync::mpsc::Sender;
+
 use futures::StreamExt;
 use reqwest::header::InvalidHeaderValue;
 use serde::de::DeserializeOwned;
 use thiserror::Error;
+use tokio::io::AsyncWriteExt;
 use tokio_util::io::StreamReader;
 use walkdir::WalkDir;
 use zip::{write::FileOptions, ZipArchive, ZipWriter};
@@ -295,6 +298,92 @@ pub async fn download_file_to_path(
     }
 
     retry(|| async { inner(url, user_agent, path.as_ref()).await }).await
+}
+
+/// Downloads a file from the given URL and saves it to a path,
+/// while optionally sending progress updates.
+///
+/// Progress is reported as bytes downloaded vs total content length when known.
+/// When the response doesn't provide a `Content-Length`, the progress bar will
+/// remain indeterminate (0/1) and only the message will update.
+///
+/// # Errors
+/// Same as [`download_file_to_path`].
+pub async fn download_file_to_path_with_progress(
+    url: &str,
+    user_agent: bool,
+    path: &Path,
+    progress_sender: Option<&Sender<crate::GenericProgress>>,
+    progress_label: Option<&str>,
+) -> Result<(), DownloadFileError> {
+    async fn inner(
+        url: &str,
+        user_agent: bool,
+        path: &Path,
+        progress_sender: Option<&Sender<crate::GenericProgress>>,
+        progress_label: Option<&str>,
+    ) -> Result<(), DownloadFileError> {
+        let mut get = CLIENT.get(url);
+        if user_agent {
+            get = get.header("User-Agent", "quantumlauncher");
+        }
+        let response = get.send().await?;
+        check_for_success(&response)?;
+
+        let total_len = response.content_length();
+
+        if let Some(parent) = path.parent() {
+            if !parent.is_dir() {
+                tokio::fs::create_dir_all(&parent).await.path(parent)?;
+            }
+        }
+
+        let mut file = tokio::fs::File::create(&path).await.path(path)?;
+
+        let mut downloaded: u64 = 0;
+        let mut stream = response
+            .bytes_stream()
+            .map(|n| n.map_err(std::io::Error::other));
+
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| IoError::Io {
+                error: e.to_string(),
+                path: path.to_owned(),
+            })?;
+            file.write_all(&chunk).await.path(path)?;
+            downloaded = downloaded.saturating_add(chunk.len() as u64);
+
+            if let Some(sender) = progress_sender {
+                let (done, total) = match total_len {
+                    Some(total) if total > 0 => {
+                        let done = downloaded.min(total);
+                        (done as usize, total as usize)
+                    }
+                    _ => (0, 1),
+                };
+
+                let message = progress_label.map(|label| {
+                    if let Some(total) = total_len {
+                        format!("{label} ({downloaded}/{total} bytes)")
+                    } else {
+                        format!("{label} ({downloaded} bytes)")
+                    }
+                });
+
+                let _ = sender.send(crate::GenericProgress {
+                    done,
+                    total,
+                    message,
+                    has_finished: false,
+                });
+            }
+        }
+
+        file.flush().await.path(path)?;
+        Ok(())
+    }
+
+    retry(|| async { inner(url, user_agent, path, progress_sender, progress_label).await }).await
 }
 
 /// Downloads a file from the given URL into a `Vec<u8>`,

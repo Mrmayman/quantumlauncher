@@ -332,6 +332,7 @@ impl GameDownloader {
                 is_special_lwjgl3: self.version_json.id.ends_with("-lwjgl3"),
             }),
             main_class_override: None,
+            lwjgl_version: None,
         };
         let config_json = serde_json::to_string(&config_json).json_to()?;
 

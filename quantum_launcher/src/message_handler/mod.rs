@@ -89,8 +89,13 @@ impl Launcher {
             self.config.username.clone()
         };
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        self.java_recv = Some(ProgressBar::with_recv(receiver));
+        let (java_sender, java_receiver) = std::sync::mpsc::channel();
+        self.java_recv = Some(ProgressBar::with_recv(java_receiver));
+
+        let (launch_sender, launch_receiver) = std::sync::mpsc::channel();
+        if let State::Launch(menu) = &mut self.state {
+            menu.launch_progress = Some(ProgressBar::with_recv(launch_receiver));
+        }
 
         let global_settings = self.config.global_settings.clone();
         let extra_java_args = self.config.extra_java_args.clone().unwrap_or_default();
@@ -101,7 +106,8 @@ impl Launcher {
                 ql_instances::launch(
                     instance_name,
                     username,
-                    Some(sender),
+                    Some(java_sender),
+                    Some(launch_sender),
                     account_data,
                     global_settings,
                     extra_java_args,
@@ -116,6 +122,9 @@ impl Launcher {
     pub fn finish_launching(&mut self, result: Result<LaunchedProcess, String>) -> Task<Message> {
         self.java_recv = None;
         self.is_launching_game = false;
+        if let State::Launch(menu) = &mut self.state {
+            menu.launch_progress = None;
+        }
         match result {
             Ok(child) => {
                 let selected_instance = child.instance.clone();

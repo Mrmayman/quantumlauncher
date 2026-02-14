@@ -406,7 +406,9 @@ impl Launcher {
     }
 
     fn get_accounts_bar(&self, menu: &MenuLaunch) -> Element<'_> {
-        let something_is_happening = self.java_recv.is_some() || menu.login_progress.is_some();
+        let something_is_happening = self.java_recv.is_some()
+            || menu.login_progress.is_some()
+            || menu.launch_progress.is_some();
 
         let dropdown: Element = if something_is_happening {
             widget::text_input("", self.accounts_selected.as_deref().unwrap_or_default())
@@ -716,8 +718,14 @@ fn get_sidebar_new_button(
 fn view_info_message(
     menu: &'_ MenuLaunch,
 ) -> Option<widget::Container<'_, Message, LauncherTheme>> {
-    (!menu.message.is_empty()).then_some(
-        widget::container(
+    if menu.message.is_empty() && menu.launch_progress.is_none() && menu.login_progress.is_none() {
+        return None;
+    }
+
+    let mut col = widget::column![];
+
+    if !menu.message.is_empty() {
+        col = col.push(
             widget::row![
                 widget::button(
                     icons::close()
@@ -735,9 +743,21 @@ fn view_info_message(
             ]
             .spacing(16)
             .align_y(Alignment::Center),
-        )
-        .width(Length::Fill)
-        .padding(10)
-        .style(|t: &LauncherTheme| t.style_container_sharp_box(0.0, Color::ExtraDark)),
+        );
+    }
+
+    if let Some(progress) = &menu.launch_progress {
+        col = col.push(progress.view());
+    }
+
+    if let Some(progress) = &menu.login_progress {
+        col = col.push(progress.view());
+    }
+
+    Some(
+        widget::container(col.spacing(10))
+            .width(Length::Fill)
+            .padding(10)
+            .style(|t: &LauncherTheme| t.style_container_sharp_box(0.0, Color::ExtraDark)),
     )
 }

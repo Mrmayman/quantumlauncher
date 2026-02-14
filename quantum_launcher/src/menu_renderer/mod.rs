@@ -16,6 +16,7 @@ use crate::{
 
 mod create;
 mod edit_instance;
+mod edit_lwjgl;
 mod launch;
 mod log;
 mod login;
@@ -57,7 +58,7 @@ pub fn checkered_list<'a, Item: Into<Element<'a>>>(
             .style(move |t: &LauncherTheme| {
                 t.style_container_sharp_box(
                     0.0,
-                    if i % 2 == 0 {
+                    if i.is_multiple_of(2) {
                         Color::Dark
                     } else {
                         Color::ExtraDark
