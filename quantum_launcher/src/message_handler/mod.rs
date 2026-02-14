@@ -25,7 +25,6 @@ use ql_core::{
 use ql_core::{info, pt, LaunchedProcess};
 use ql_instances::auth::AccountData;
 use ql_mod_manager::{loaders, store::ModIndex};
-use std::sync::Arc;
 use std::{
     collections::HashSet,
     ffi::OsStr,
@@ -337,16 +336,16 @@ impl Launcher {
 
     pub fn start_discord_ipc_run(&self) -> Task<Message> {
         if let Some(client) = &self.discord_ipc_client {
-            let client = Arc::clone(client);
-
+            let mut client = client.clone();
             Task::perform(
                 async move {
-                    let mut c = client.lock().await;
-
                     // Start the IPC run loop
-                    if c.run().await.is_ok() {
+                    if client.run().await.is_ok() {
                         // After run() is successful, update presence
-                        c.set_activity("Started launcher", "Minecraft").await.ok();
+                        client
+                            .set_activity("Started launcher", "Minecraft")
+                            .await
+                            .ok();
                     }
                 },
                 |_| Message::Nothing,
@@ -359,11 +358,10 @@ impl Launcher {
     /// TODO: implement this into more areas of the launcher.
     pub fn update_presence(&self, details: String, state: String) -> Task<Message> {
         if let Some(client) = &self.discord_ipc_client {
-            let client = Arc::clone(client);
+            let mut client = client.clone();
             Task::perform(
                 async move {
-                    let mut c = client.lock().await;
-                    c.set_activity(&details, &state).await.ok();
+                    client.set_activity(&details, &state).await.ok();
                 },
                 |_| Message::Nothing,
             )

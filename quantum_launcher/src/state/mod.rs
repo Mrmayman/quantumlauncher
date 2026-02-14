@@ -4,7 +4,6 @@ use std::{
     path::Path,
     sync::{
         mpsc::{self, Receiver},
-        Arc,
     },
 };
 
@@ -17,7 +16,7 @@ use ql_core::{
     LAUNCHER_VERSION_NAME,
 };
 use ql_instances::auth::{ms::CLIENT_ID, AccountData, AccountType};
-use tokio::{process::ChildStdin, sync::Mutex};
+use tokio::{process::ChildStdin};
 
 use crate::{
     config::{LauncherConfig, SIDEBAR_WIDTH},
@@ -59,7 +58,7 @@ pub struct Launcher {
     pub tick_timer: usize,
     pub is_launching_game: bool,
 
-    pub discord_ipc_client: Option<Arc<Mutex<DiscordIPC>>>,
+    pub discord_ipc_client: Option<DiscordIPC>,
 
     pub java_recv: Option<ProgressBar<GenericProgress>>,
     pub custom_jar: Option<CustomJarState>,

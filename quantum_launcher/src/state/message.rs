@@ -1,4 +1,4 @@
-use std::{collections::HashSet, path::PathBuf, process::ExitStatus, sync::Arc};
+use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
 
 use crate::{
     message_handler::ForgeKind,
@@ -381,7 +381,7 @@ pub enum Message {
     ExportMods(ExportModsMessage),
     RecommendedMods(RecommendedModMessage),
 
-    DiscordIPCClientLaunched(Result<Arc<tokio::sync::Mutex<DiscordIPC>>, String>),
+    DiscordIPCClientLaunched(Result<DiscordIPC, String>),
 
     LaunchInstanceSelected(InstanceSelection),
     LaunchUsernameSet(String),

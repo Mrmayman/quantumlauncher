@@ -23,7 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #![allow(clippy::cast_sign_loss)]
 #![allow(clippy::cast_precision_loss)]
 
-use std::{borrow::Cow, sync::Arc, time::Duration};
+use std::{borrow::Cow, time::Duration};
 
 use config::LauncherConfig;
 use filthy_rich::DiscordIPC;
@@ -119,8 +119,6 @@ impl Launcher {
             async {
                 DiscordIPC::new(DISCORD_APP_ID)
                     .await
-                    .map(tokio::sync::Mutex::new)
-                    .map(Arc::new)
                     .map_err(|e| e.to_string())
             },
             Message::DiscordIPCClientLaunched,
