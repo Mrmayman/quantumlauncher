@@ -117,7 +117,7 @@ impl MenuCreateInstanceChoosing {
                         label,
                         Message::CreateInstance(CreateInstanceMessage::VersionSelected(n.clone())),
                     )
-                }),))
+                })))
                 .style(LauncherTheme::style_scrollable_flat_extra_dark)
                 .height(Length::Fill)
                 .id(iced::widget::scrollable::Id::new(

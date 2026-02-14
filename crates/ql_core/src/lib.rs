@@ -40,11 +40,11 @@ pub mod file_utils;
 pub mod jarmod;
 /// JSON structs for version, instance config, Fabric, Forge, Optifine, Quilt, Neoforge, etc.
 pub mod json;
-mod loader;
 /// Logging macros.
 pub mod print;
 mod progress;
 pub mod read_log;
+mod structs;
 mod urlcache;
 
 pub use crate::json::InstanceConfigJson;
@@ -54,9 +54,9 @@ pub use error::{
     JsonError, JsonFileError,
 };
 pub use file_utils::{RequestError, LAUNCHER_DIR};
-pub use loader::Loader;
 pub use print::{logger_finish, LogType, LoggingState, LOGGER};
 pub use progress::{DownloadProgress, GenericProgress, Progress};
+pub use structs::{JavaVersion, Loader};
 pub use urlcache::url_cache_get;
 
 pub static REGEX_SNAPSHOT: LazyLock<Regex> =

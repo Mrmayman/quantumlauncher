@@ -19,14 +19,20 @@ pub struct InstanceConfigJson {
     /// Memory allocation in MB
     // Since: v0.1
     pub ram_in_mb: usize,
-    /// Path to custom `java` binary. Uses auto-installed Java if `None` or empty
-    // Since: v0.1
-    pub java_override: Option<String>,
     /// **Default: `Vanilla` (meaning, no loader)**
     // Since: v0.1
     pub mod_type: Loader,
-
+    /// More metadata about the mod type
+    // Since: v0.5
     pub mod_type_info: Option<ModTypeInfo>,
+
+    /// Use a different **launcher-provided** java version.
+    /// Prioritized over [`Self::java_override`]
+    // Since: v0.5.1
+    pub java_override_version: Option<usize>,
+    /// Use a different **user-provided** `java` binary (path)
+    // Since: v0.1
+    pub java_override: Option<String>,
 
     /// Show logs in launcher (`true`, default) or raw console output AKA `stdout`/`stderr` (`false`).
     // Since: v0.3
@@ -239,6 +245,12 @@ impl InstanceConfigJson {
             }
             Some(PathBuf::from(path))
         }
+
+        if self.java_override_version.is_some() {
+            // Use that instead
+            return None;
+        }
+
         let java_override = self.java_override.as_ref()?.trim();
         let path = inner(java_override)?;
 

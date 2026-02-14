@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
 
-use crate::err;
+use crate::{err, json::version::JavaVersionJson};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Loader {
@@ -103,6 +103,76 @@ impl Loader {
                 err!("Unsupported loader for curseforge: {self:?}");
                 "0"
             } // Not supported
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum JavaVersion {
+    Java8 = 8,
+    Java16 = 16,
+    Java17 = 17,
+    Java21 = 21,
+    Java25 = 25,
+}
+
+impl JavaVersion {
+    pub const ALL: &[Self] = &[
+        Self::Java8,
+        Self::Java16,
+        Self::Java17,
+        Self::Java21,
+        Self::Java25,
+    ];
+
+    #[must_use]
+    pub const fn next(self) -> Option<Self> {
+        match self {
+            Self::Java8 => Some(Self::Java16),
+            Self::Java16 => Some(Self::Java17),
+            Self::Java17 => Some(Self::Java21),
+            Self::Java21 => Some(Self::Java25),
+            Self::Java25 => None,
+        }
+    }
+}
+
+impl Display for JavaVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Java8 => "java_8",
+                Self::Java16 => "java_16",
+                Self::Java17 => "java_17",
+                Self::Java21 => "java_21",
+                Self::Java25 => "java_25",
+            }
+        )
+    }
+}
+
+impl From<JavaVersionJson> for JavaVersion {
+    fn from(version: JavaVersionJson) -> Self {
+        match version.majorVersion {
+            8 => Self::Java8,
+            16 => Self::Java16,
+            17 => Self::Java17,
+            21 => Self::Java21,
+            _ => Self::Java25,
+        }
+    }
+}
+
+impl From<usize> for JavaVersion {
+    fn from(value: usize) -> Self {
+        match value {
+            8 => Self::Java8,
+            16 => Self::Java16,
+            17 => Self::Java17,
+            21 => Self::Java21,
+            _ => Self::Java25,
         }
     }
 }

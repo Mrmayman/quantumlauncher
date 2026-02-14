@@ -217,8 +217,10 @@ impl Launcher {
 
             logs.entry(instance.clone())
                 .or_insert_with(|| {
+                    let mut text = log_start().join("\n");
+                    text.push('\n');
                     *log_state = Some(LogState {
-                        content: text_editor::Content::with_text(&log_start().join("\n")),
+                        content: text_editor::Content::with_text(&text),
                     });
                     InstanceLog {
                         log: log_start(),

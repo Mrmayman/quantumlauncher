@@ -67,7 +67,7 @@ impl MenuLauncherSettings {
     }
 
     fn get_heading() -> widget::Row<'static, Message, LauncherTheme> {
-        widget::row![icons::gear_s(20), widget::text("Settings").size(20),]
+        widget::row![icons::gear_s(20), widget::text("Settings").size(20)]
             .padding(iced::Padding {
                 top: 5.0,
                 right: 0.0,

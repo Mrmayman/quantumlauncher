@@ -20,9 +20,9 @@ pub mod optifine;
 pub mod paper;
 
 pub(crate) const FORGE_INSTALLER_CLIENT: &[u8] =
-    include_bytes!("../../../../assets/installers/ForgeInstaller.class");
+    include_bytes!("../../../../assets/installers/forge/ForgeInstaller.class");
 pub(crate) const FORGE_INSTALLER_SERVER: &[u8] =
-    include_bytes!("../../../../assets/installers/ForgeInstallerServer.class");
+    include_bytes!("../../../../assets/installers/forge/ForgeInstallerServer.class");
 
 async fn change_instance_type(
     instance_dir: &Path,

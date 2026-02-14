@@ -6,9 +6,9 @@ license = "GPL-3.0-only"
 
 [features]
 default = []
-simulate_linux_arm64 = ["ql_core/simulate_linux_arm64"]
-simulate_linux_arm32 = ["ql_core/simulate_linux_arm32"]
-simulate_macos_arm64 = ["ql_core/simulate_macos_arm64"]
+simulate_linux_arm64 = ["ql_core/simulate_linux_arm64", "ql_java_handler/simulate_linux_arm64"]
+simulate_linux_arm32 = ["ql_core/simulate_linux_arm32", "ql_java_handler/simulate_linux_arm32"]
+simulate_macos_arm64 = ["ql_core/simulate_macos_arm64", "ql_java_handler/simulate_macos_arm64"]
 
 [dependencies]
 ql_core.path = "../ql_core"

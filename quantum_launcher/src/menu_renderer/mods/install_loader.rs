@@ -313,7 +313,7 @@ impl MenuInstallPaper {
             .spacing(10)
             .into(),
             MenuInstallPaper::Installing => {
-                widget::column![widget::text!("Installing Paper{dots}").size(20),]
+                widget::column![widget::text!("Installing Paper{dots}").size(20)]
                     .padding(10)
                     .into()
             }

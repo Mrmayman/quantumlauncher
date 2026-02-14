@@ -100,6 +100,7 @@ async fn write_config(
     #[allow(deprecated)]
     let server_config = InstanceConfigJson {
         mod_type: Loader::Vanilla,
+        java_override_version: None,
         java_override: None,
         ram_in_mb: 2048,
         enable_logger: Some(true),
