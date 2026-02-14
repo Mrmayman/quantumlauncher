@@ -2,9 +2,13 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
     path::Path,
-    sync::mpsc::{self, Receiver},
+    sync::{
+        mpsc::{self, Receiver},
+        Arc,
+    },
 };
 
+use filthy_rich::DiscordIPC;
 use iced::Task;
 use notify::Watcher;
 use ql_core::{
@@ -13,14 +17,12 @@ use ql_core::{
     LAUNCHER_VERSION_NAME,
 };
 use ql_instances::auth::{ms::CLIENT_ID, AccountData, AccountType};
-use tokio::process::ChildStdin;
+use tokio::{process::ChildStdin, sync::Mutex};
 
 use crate::{
     config::{LauncherConfig, SIDEBAR_WIDTH},
     stylesheet::styles::LauncherTheme,
 };
-
-use filthy_rich::ipc::DiscordIPCSync;
 
 mod images;
 mod menu;
@@ -57,7 +59,7 @@ pub struct Launcher {
     pub tick_timer: usize,
     pub is_launching_game: bool,
 
-    pub discord_ipc_client: Option<DiscordIPCSync>,
+    pub discord_ipc_client: Option<Arc<Mutex<DiscordIPC>>>,
 
     pub java_recv: Option<ProgressBar<GenericProgress>>,
     pub custom_jar: Option<CustomJarState>,
@@ -167,21 +169,6 @@ impl Launcher {
 
         let persistent = config.c_persistent();
 
-        // discord rich presence identity
-        const DISCORD_APP_ID: &str = "1468876407756029965";
-        let discord_ipc_client = match DiscordIPCSync::new(DISCORD_APP_ID) {
-
-            Ok(mut client) => {
-                if let Err(e) = client.run() {
-                    err!("Discord Rich Presence failed to run: {e}");
-                    None
-                } else {
-                    Some(client)
-                }
-            }
-            Err(_) => None,
-        };
-
         Ok(Self {
             selected_instance: persistent
                 .selected_instance
@@ -215,7 +202,7 @@ impl Launcher {
             is_log_open: false,
             is_launching_game: false,
 
-            discord_ipc_client,
+            discord_ipc_client: None,
 
             log_scroll: 0,
             tick_timer: 0,
@@ -224,12 +211,6 @@ impl Launcher {
             images: ImageState::default(),
             modifiers_pressed: iced::keyboard::Modifiers::empty(),
         })
-    }
-
-    pub fn update_presence(&mut self, details: &str, state: &str) {
-        if let Some(ref mut client) = self.discord_ipc_client {
-            client.set_activity(details, state).unwrap_or_default()
-        }
     }
 
     pub fn with_error(error: impl Display) -> Self {

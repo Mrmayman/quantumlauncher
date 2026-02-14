@@ -25,6 +25,7 @@ use ql_core::{
 use ql_core::{info, pt, LaunchedProcess};
 use ql_instances::auth::AccountData;
 use ql_mod_manager::{loaders, store::ModIndex};
+use std::sync::Arc;
 use std::{
     collections::HashSet,
     ffi::OsStr,
@@ -96,11 +97,6 @@ impl Launcher {
         let extra_java_args = self.config.extra_java_args.clone().unwrap_or_default();
 
         let instance_name = self.instance().get_name().to_owned();
-
-        self.update_presence(
-            &format!("{instance_name}"),
-            &format!("Playing as {username}"),
-        );
 
         Task::perform(
             async move {
@@ -314,11 +310,6 @@ impl Launcher {
         };
         info!("Game exited ({status})");
 
-        self.update_presence(
-            &format!("Last instance: {}", instance.get_name()),
-            &format!("({} mode)", kind.to_lowercase()),
-        );
-
         let log_state = if let State::Launch(MenuLaunch {
             message, log_state, ..
         }) = &mut self.state
@@ -341,6 +332,43 @@ impl Launcher {
 
         if let Some(process) = self.processes.remove(instance) {
             Self::read_game_logs(&process, instance, &mut self.logs, log_state);
+        }
+    }
+
+    pub fn start_discord_ipc_run(&self) -> Task<Message> {
+        if let Some(client) = &self.discord_ipc_client {
+            let client = Arc::clone(client);
+
+            Task::perform(
+                async move {
+                    let mut c = client.lock().await;
+
+                    // Start the IPC run loop
+                    if c.run().await.is_ok() {
+                        // After run() is successful, update presence
+                        c.set_activity("Started launcher", "Minecraft").await.ok();
+                    }
+                },
+                |_| Message::Nothing,
+            )
+        } else {
+            Task::none()
+        }
+    }
+
+    /// TODO: implement this into more areas of the launcher.
+    pub fn update_presence(&self, details: String, state: String) -> Task<Message> {
+        if let Some(client) = &self.discord_ipc_client {
+            let client = Arc::clone(client);
+            Task::perform(
+                async move {
+                    let mut c = client.lock().await;
+                    c.set_activity(&details, &state).await.ok();
+                },
+                |_| Message::Nothing,
+            )
+        } else {
+            Task::none()
         }
     }
 

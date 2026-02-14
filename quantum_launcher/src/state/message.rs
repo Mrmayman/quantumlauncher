@@ -1,10 +1,11 @@
-use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
+use std::{collections::HashSet, path::PathBuf, process::ExitStatus, sync::Arc};
 
 use crate::{
     message_handler::ForgeKind,
     state::{LaunchModal, MenuEditModsModal},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
+use filthy_rich::DiscordIPC;
 use iced::widget::{self, scrollable::AbsoluteOffset};
 use ql_core::{
     file_utils::DirItem,
@@ -379,6 +380,8 @@ pub enum Message {
     EditPresets(EditPresetsMessage),
     ExportMods(ExportModsMessage),
     RecommendedMods(RecommendedModMessage),
+
+    DiscordIPCClientLaunched(Result<Arc<tokio::sync::Mutex<DiscordIPC>>, String>),
 
     LaunchInstanceSelected(InstanceSelection),
     LaunchUsernameSet(String),

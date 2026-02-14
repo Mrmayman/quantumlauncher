@@ -23,9 +23,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #![allow(clippy::cast_sign_loss)]
 #![allow(clippy::cast_precision_loss)]
 
-use std::{borrow::Cow, time::Duration};
+use std::{borrow::Cow, sync::Arc, time::Duration};
 
 use config::LauncherConfig;
+use filthy_rich::DiscordIPC;
 use iced::{Settings, Task};
 use owo_colors::OwoColorize;
 use state::{get_entries, Launcher, Message};
@@ -103,11 +104,6 @@ impl Launcher {
         let mut launcher =
             Launcher::load_new(None, is_new_user, config).unwrap_or_else(Launcher::with_error);
 
-        {
-            let version = env!("CARGO_PKG_VERSION");
-            launcher.update_presence("Loaded launcher", &format!("Version {version}"));
-        }
-
         let load_notes_command = if let (Some(instance), State::Launch(menu)) =
             (launcher.selected_instance.clone(), &mut launcher.state)
         {
@@ -116,12 +112,27 @@ impl Launcher {
             Task::none()
         };
 
+        // discord rich presence identity
+        const DISCORD_APP_ID: &str = "1468876407756029965";
+
+        let init_discord_ipc = Task::perform(
+            async {
+                DiscordIPC::new(DISCORD_APP_ID)
+                    .await
+                    .map(tokio::sync::Mutex::new)
+                    .map(Arc::new)
+                    .map_err(|e| e.to_string())
+            },
+            Message::DiscordIPCClientLaunched,
+        );
+
         (
             launcher,
             Task::batch([
                 check_for_updates_command,
                 get_entries_command,
                 load_notes_command,
+                init_discord_ipc,
                 Task::perform(ql_core::clean::dir("logs"), |n| {
                     Message::CoreCleanComplete(n.strerr())
                 }),

@@ -158,9 +158,9 @@ checksum = "90c6333e01ba7235575b6ab53e5af10f1c327927fd97c36462917e289557ea64"
 
 [[package]]
 name = "anyhow"
-version = "1.0.100"
+version = "1.0.101"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
+checksum = "5f0e0fee31ef5ed1ba1316088939cea399010ed7731dba877ed44aeb407a75ea"
 
 [[package]]
 name = "approx"
@@ -1476,9 +1476,9 @@ dependencies = [
 
 [[package]]
 name = "filthy-rich"
-version = "0.1.9"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f5dcd96b8f55471e8f7dec282c626f181f8f1c73608fbe6db4e887417146b87"
+checksum = "3dd9d4478053c2860d2586864421bf5b8b27d55c37d5c516aaca0ccb6dd07ae2"
 dependencies = [
  "anyhow",
  "tokio",
@@ -4029,6 +4029,7 @@ dependencies = [
 name = "quantum_launcher"
 version = "0.5.0"
 dependencies = [
+ "anyhow",
  "cfg-if",
  "chrono",
  "clap",
