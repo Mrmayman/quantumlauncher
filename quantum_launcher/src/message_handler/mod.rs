@@ -143,7 +143,31 @@ impl Launcher {
                     }
                 }
 
-                return Task::perform(
+                let version_presence_task = {
+                    let selected_instance = selected_instance.clone();
+                    let launcher_client = self.discord_ipc_client.clone(); // Arc<Mutex<DiscordIPC>>
+
+                    Task::perform(
+                        async move {
+                            // load async version details
+                            if let Ok(version_details) =
+                                VersionDetails::load(&selected_instance).await
+                            {
+                                // after loading, update Discord presence if client exists
+                                if let Some(mut client) = launcher_client {
+                                    let details =
+                                        format!("Instance: {}", selected_instance.get_name());
+                                    let state = format!("Minecraft v{}", version_details.id);
+
+                                    client.set_activity(&details, &state).await.ok();
+                                }
+                            }
+                        },
+                        |_| Message::Nothing,
+                    )
+                };
+
+                let launch_task = Task::perform(
                     async move {
                         let result = child.read_logs(censors, Some(sender)).await;
                         let default_output = Ok((ExitStatus::default(), selected_instance, None));
@@ -162,6 +186,8 @@ impl Launcher {
                     },
                     Message::LaunchGameExited,
                 );
+
+                return Task::batch([launch_task, version_presence_task]);
             }
             Err(err) => self.set_error(err),
         }
