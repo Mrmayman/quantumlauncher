@@ -61,6 +61,16 @@ impl Launcher {
                 self.state = State::Welcome(MenuWelcome::P3Auth);
             }
 
+            Message::DiscordIPCClientLaunched(result) => match result {
+                Ok(client) => {
+                    info!("Discord IPC client has been launched.");
+                    self.discord_ipc_client = Some(client);
+
+                    return self.start_discord_ipc_run();
+                }
+                Err(e) => info!("Discord IPC instance is being skipped: {e}"),
+            },
+
             Message::Account(msg) => return self.update_account(msg),
             Message::ManageMods(msg) => return self.update_manage_mods(msg),
             Message::ExportMods(msg) => return self.update_export_mods(msg),
@@ -181,7 +191,7 @@ impl Launcher {
                 return self.go_to_edit_mods_menu(false);
             }
             Message::LaunchGameExited(Ok((status, instance, diagnostic))) => {
-                self.set_game_exited(status, &instance, diagnostic);
+                return self.set_game_exited(status, &instance, diagnostic);
             }
             Message::LaunchKill => return self.kill_selected_instance(),
 

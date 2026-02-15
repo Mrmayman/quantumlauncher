@@ -85,6 +85,13 @@ pub struct LauncherConfig {
     // Since: v0.4.2
     pub window: Option<WindowProperties>,
 
+    /// Whether to enable Discord Rich Presence
+    /// support or not.
+    ///
+    /// Default: `true`
+    /// Since: <TODO: update>
+    pub rich_presence: Option<bool>,
+
     /// Settings that apply both on a per-instance basis and with global overrides.
     // Since: v0.4.2
     pub global_settings: Option<GlobalSettings>,
@@ -108,6 +115,7 @@ impl Default for LauncherConfig {
             ui_scale: None,
             java_installs: Some(Vec::new()),
             ui_antialiasing: Some(true),
+            rich_presence: Some(true),
             account_selected: None,
             window: None,
             global_settings: None,

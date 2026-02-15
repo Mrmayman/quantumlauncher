@@ -2,9 +2,12 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
     path::Path,
-    sync::mpsc::{self, Receiver},
+    sync::{
+        mpsc::{self, Receiver},
+    },
 };
 
+use filthy_rich::DiscordIPC;
 use iced::Task;
 use notify::Watcher;
 use ql_core::{
@@ -13,7 +16,7 @@ use ql_core::{
     LAUNCHER_VERSION_NAME,
 };
 use ql_instances::auth::{ms::CLIENT_ID, AccountData, AccountType};
-use tokio::process::ChildStdin;
+use tokio::{process::ChildStdin};
 
 use crate::{
     config::{LauncherConfig, SIDEBAR_WIDTH},
@@ -54,6 +57,8 @@ pub struct Launcher {
     pub log_scroll: isize,
     pub tick_timer: usize,
     pub is_launching_game: bool,
+
+    pub discord_ipc_client: Option<DiscordIPC>,
 
     pub java_recv: Option<ProgressBar<GenericProgress>>,
     pub custom_jar: Option<CustomJarState>,
@@ -196,6 +201,8 @@ impl Launcher {
             is_log_open: false,
             is_launching_game: false,
 
+            discord_ipc_client: None,
+
             log_scroll: 0,
             tick_timer: 0,
 
@@ -248,6 +255,8 @@ impl Launcher {
 
             log_scroll: 0,
             tick_timer: 0,
+
+            discord_ipc_client: None,
 
             logs: HashMap::new(),
             processes: HashMap::new(),

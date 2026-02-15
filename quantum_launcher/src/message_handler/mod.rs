@@ -96,6 +96,7 @@ impl Launcher {
         let extra_java_args = self.config.extra_java_args.clone().unwrap_or_default();
 
         let instance_name = self.instance().get_name().to_owned();
+
         Task::perform(
             async move {
                 ql_instances::launch(
@@ -142,7 +143,29 @@ impl Launcher {
                     }
                 }
 
-                return Task::perform(
+                let version_presence_task = {
+                    let selected_instance = selected_instance.clone();
+                    let launcher_client = self.discord_ipc_client.clone();
+
+                    Task::perform(
+                        async move {
+                            if let Ok(version_details) =
+                                VersionDetails::load(&selected_instance).await
+                            {
+                                if let Some(mut client) = launcher_client {
+                                    let details =
+                                        format!("Instance: {}", selected_instance.get_name());
+                                    let state = format!("Minecraft v{}", version_details.id);
+
+                                    client.set_activity(&details, &state).await.ok();
+                                }
+                            }
+                        },
+                        |_| Message::Nothing,
+                    )
+                };
+
+                let launch_task = Task::perform(
                     async move {
                         let result = child.read_logs(censors, Some(sender)).await;
                         let default_output = Ok((ExitStatus::default(), selected_instance, None));
@@ -161,6 +184,8 @@ impl Launcher {
                     },
                     Message::LaunchGameExited,
                 );
+
+                return Task::batch([launch_task, version_presence_task]);
             }
             Err(err) => self.set_error(err),
         }
@@ -300,7 +325,7 @@ impl Launcher {
         status: ExitStatus,
         instance: &InstanceSelection,
         diagnostic: Option<Diagnostic>,
-    ) {
+    ) -> Task<Message> {
         let kind = if instance.is_server() {
             "Server"
         } else {
@@ -330,6 +355,59 @@ impl Launcher {
 
         if let Some(process) = self.processes.remove(instance) {
             Self::read_game_logs(&process, instance, &mut self.logs, log_state);
+        }
+
+        let presence_task = {
+            let instance = instance.clone();
+            let client = self.discord_ipc_client.clone();
+
+            Task::perform(
+                async move {
+                    let details = VersionDetails::load(&instance).await;
+
+                    // TODO: might implement time here? since VersionDetails exposes this
+                    // but I'm not sure whether this is fully implemented yet
+
+                    if let Ok(details) = details {
+                        if let Some(mut client) = client {
+                            client
+                                .set_activity(
+                                    &format!("Last played version: {}", details.id),
+                                    &format!("Instance: {}", instance.get_name()),
+                                )
+                                .await
+                                .ok();
+                        }
+                    }
+                },
+                |_| Message::Nothing,
+            )
+        };
+
+        presence_task
+    }
+
+    pub fn start_discord_ipc_run(&self) -> Task<Message> {
+        if let Some(client) = &self.discord_ipc_client {
+            let mut client = client.clone();
+
+            let version = env!("CARGO_PKG_VERSION");
+
+            Task::perform(
+                async move {
+                    // Start the IPC run loop
+                    if client.run().await.is_ok() {
+                        // After run() is successful, update presence
+                        client
+                            .set_activity("Started launcher", &format!("Version {version}"))
+                            .await
+                            .ok();
+                    }
+                },
+                |_| Message::Nothing,
+            )
+        } else {
+            Task::none()
         }
     }
 

@@ -561,6 +561,9 @@ impl Launcher {
             LauncherSettingsMessage::ToggleAntialiasing(t) => {
                 self.config.ui_antialiasing = Some(t);
             }
+            LauncherSettingsMessage::ToggleDiscordRichPresence(t) => {
+                self.config.rich_presence = Some(t);
+            }
             LauncherSettingsMessage::ToggleWindowSize(t) => {
                 self.config.c_window().save_window_size = t;
             }

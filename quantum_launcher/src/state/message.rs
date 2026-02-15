@@ -5,6 +5,7 @@ use crate::{
     state::{LaunchModal, MenuEditModsModal},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
+use filthy_rich::DiscordIPC;
 use iced::widget::{self, scrollable::AbsoluteOffset};
 use ql_core::{
     file_utils::DirItem,
@@ -281,6 +282,7 @@ pub enum LauncherSettingsMessage {
     DefaultMinecraftHeightChanged(String),
 
     ToggleAntialiasing(bool),
+    ToggleDiscordRichPresence(bool),
     ToggleWindowSize(bool),
     ToggleInstanceRemembering(bool),
     #[allow(unused)]
@@ -379,6 +381,8 @@ pub enum Message {
     EditPresets(EditPresetsMessage),
     ExportMods(ExportModsMessage),
     RecommendedMods(RecommendedModMessage),
+
+    DiscordIPCClientLaunched(Result<DiscordIPC, String>),
 
     LaunchInstanceSelected(InstanceSelection),
     LaunchUsernameSet(String),
