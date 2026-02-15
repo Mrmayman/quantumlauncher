@@ -100,6 +100,25 @@ impl Launcher {
         #[cfg(not(feature = "auto_update"))]
         let check_for_updates_command = Task::none();
 
+        // discord rich presence identity
+        let init_discord_ipc = if config
+            .as_ref()
+            .is_ok_and(|f| f.rich_presence.unwrap_or(true))
+        {
+            const DISCORD_APP_ID: &str = "1468876407756029965";
+
+            Task::perform(
+                async {
+                    DiscordIPC::new(DISCORD_APP_ID)
+                        .await
+                        .map_err(|e| e.to_string())
+                },
+                Message::DiscordIPCClientLaunched,
+            )
+        } else {
+            Task::none()
+        };
+
         let get_entries_command = Task::perform(get_entries(false), Message::CoreListLoaded);
         let mut launcher =
             Launcher::load_new(None, is_new_user, config).unwrap_or_else(Launcher::with_error);
@@ -111,18 +130,6 @@ impl Launcher {
         } else {
             Task::none()
         };
-
-        // discord rich presence identity
-        const DISCORD_APP_ID: &str = "1468876407756029965";
-
-        let init_discord_ipc = Task::perform(
-            async {
-                DiscordIPC::new(DISCORD_APP_ID)
-                    .await
-                    .map_err(|e| e.to_string())
-            },
-            Message::DiscordIPCClientLaunched,
-        );
 
         (
             launcher,
