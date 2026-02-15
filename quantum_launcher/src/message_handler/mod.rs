@@ -145,15 +145,15 @@ impl Launcher {
 
                 let version_presence_task = {
                     let selected_instance = selected_instance.clone();
-                    let launcher_client = self.discord_ipc_client.clone(); // Arc<Mutex<DiscordIPC>>
+                    let launcher_client = self.discord_ipc_client.clone();
+
+                    info!("Game launch event; updating rich presence.");
 
                     Task::perform(
                         async move {
-                            // load async version details
                             if let Ok(version_details) =
                                 VersionDetails::load(&selected_instance).await
                             {
-                                // after loading, update Discord presence if client exists
                                 if let Some(mut client) = launcher_client {
                                     let details =
                                         format!("Instance: {}", selected_instance.get_name());
@@ -327,7 +327,7 @@ impl Launcher {
         status: ExitStatus,
         instance: &InstanceSelection,
         diagnostic: Option<Diagnostic>,
-    ) {
+    ) -> Task<Message> {
         let kind = if instance.is_server() {
             "Server"
         } else {
@@ -358,36 +358,54 @@ impl Launcher {
         if let Some(process) = self.processes.remove(instance) {
             Self::read_game_logs(&process, instance, &mut self.logs, log_state);
         }
+
+        let presence_task = {
+            let instance = instance.clone();
+            let client = self.discord_ipc_client.clone();
+
+            Task::perform(
+                async move {
+                    let details = VersionDetails::load(&instance).await;
+                    info!("Exit event; updating rich presence.");
+
+                    // TODO: might implement time here? since VersionDetails exposes this
+                    // but I'm not sure whether this is fully implemented yet
+
+                    if let Ok(details) = details {
+                        if let Some(mut client) = client {
+                            client
+                                .set_activity(
+                                    &format!("Last played version: {}", details.id),
+                                    &format!("Instance: {}", instance.get_name()),
+                                )
+                                .await
+                                .ok();
+                        }
+                    }
+                },
+                |_| Message::Nothing,
+            )
+        };
+
+        presence_task
     }
 
     pub fn start_discord_ipc_run(&self) -> Task<Message> {
         if let Some(client) = &self.discord_ipc_client {
             let mut client = client.clone();
+
+            let version = env!("CARGO_PKG_VERSION");
+
             Task::perform(
                 async move {
                     // Start the IPC run loop
                     if client.run().await.is_ok() {
                         // After run() is successful, update presence
                         client
-                            .set_activity("Started launcher", "Minecraft")
+                            .set_activity("Started launcher", &format!("Version {version}"))
                             .await
                             .ok();
                     }
-                },
-                |_| Message::Nothing,
-            )
-        } else {
-            Task::none()
-        }
-    }
-
-    /// TODO: implement this into more areas of the launcher.
-    pub fn update_presence(&self, details: String, state: String) -> Task<Message> {
-        if let Some(client) = &self.discord_ipc_client {
-            let mut client = client.clone();
-            Task::perform(
-                async move {
-                    client.set_activity(&details, &state).await.ok();
                 },
                 |_| Message::Nothing,
             )
