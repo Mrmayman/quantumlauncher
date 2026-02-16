@@ -154,7 +154,7 @@ impl Launcher {
                             if let Ok(version_details) =
                                 VersionDetails::load(&selected_instance).await
                             {
-                                if let Some(mut client) = launcher_client {
+                                if let Some(client) = launcher_client {
                                     let details =
                                         format!("Instance: {}", selected_instance.get_name());
                                     let state = format!("Minecraft v{}", version_details.id);
@@ -372,7 +372,7 @@ impl Launcher {
                     // but I'm not sure whether this is fully implemented yet
 
                     if let Ok(details) = details {
-                        if let Some(mut client) = client {
+                        if let Some(client) = client {
                             client
                                 .set_activity(
                                     &format!("Last played version: {}", details.id),
