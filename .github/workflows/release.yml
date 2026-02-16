@@ -228,6 +228,8 @@ jobs:
               if [[ "$platform_name" =~ "linux" ]] || [[ "$platform_name" =~ "appimage" ]]; then
                   chmod +x "$binary_path"
                   tar -czvf "dist/$pkgname.tar.gz" -C "$(dirname "$binary_path")" .
+              elif [[ "$platform_name" =~ "macos" ]]; then
+                  cp "$binary_path" "dist/$pkgname.dmg"
               else
                   zip -j "dist/$pkgname.zip" "$binary_path"
               fi
