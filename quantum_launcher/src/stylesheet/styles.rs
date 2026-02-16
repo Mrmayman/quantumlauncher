@@ -759,10 +759,10 @@ fn radius(t: bool) -> f32 {
 
 fn blend_colors(color1: iced::Color, color2: iced::Color) -> iced::Color {
     // Calculate the average of each RGBA component
-    let r = color1.r.midpoint(color2.r);
-    let g = color1.g.midpoint(color2.g);
-    let b = color1.b.midpoint(color2.b);
-    let a = color1.a.midpoint(color2.a);
+    let r = (color1.r + color2.r) / 2.0;
+    let g = (color1.g + color2.g) / 2.0;
+    let b = (color1.b + color2.b) / 2.0;
+    let a = (color1.a + color2.a) / 2.0;
 
     // Return a new Color with the blended RGBA values
     iced::Color::from_rgba(r, g, b, a)
