@@ -155,6 +155,8 @@ impl Launcher {
                                 VersionDetails::load(&selected_instance).await
                             {
                                 if let Some(client) = launcher_client {
+                                    let client = client.lock().await;
+
                                     let details =
                                         format!("Instance: {}", selected_instance.get_name());
                                     let state = format!("Minecraft v{}", version_details.id);
@@ -373,6 +375,7 @@ impl Launcher {
 
                     if let Ok(details) = details {
                         if let Some(client) = client {
+                            let client = client.lock().await;
                             client
                                 .set_activity(
                                     &format!("Last played version: {}", details.id),
@@ -392,13 +395,14 @@ impl Launcher {
 
     pub fn start_discord_ipc_run(&self) -> Task<Message> {
         if let Some(client) = &self.discord_ipc_client {
-            let mut client = client.clone();
-
+            let client = client.clone();
             let version = env!("CARGO_PKG_VERSION");
 
             Task::perform(
                 async move {
                     // Start the IPC run loop
+                    let mut client = client.lock().await;
+
                     if client.run().await.is_ok() {
                         // After run() is successful, update presence
                         client
