@@ -147,8 +147,6 @@ impl Launcher {
                     let selected_instance = selected_instance.clone();
                     let launcher_client = self.discord_ipc_client.clone();
 
-                    info!("Game launch event; updating rich presence.");
-
                     Task::perform(
                         async move {
                             if let Ok(version_details) =
@@ -368,7 +366,6 @@ impl Launcher {
             Task::perform(
                 async move {
                     let details = VersionDetails::load(&instance).await;
-                    info!("Exit event; updating rich presence.");
 
                     // TODO: might implement time here? since VersionDetails exposes this
                     // but I'm not sure whether this is fully implemented yet
