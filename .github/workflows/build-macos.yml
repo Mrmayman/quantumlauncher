@@ -15,18 +15,22 @@ jobs:
   dist:
     name: Dist
     runs-on: ${{ matrix.os }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: ${{ matrix.dep_target }}
     strategy:
       fail-fast: false
       matrix:
         build: [x86_64-macos, aarch64-macos]
         include:
           - build: x86_64-macos
+            dep_target: 10.15 # all pre-M1 devices
             os: macos-latest
             rust: stable
             target: x86_64-apple-darwin
             cross: false
             final_name: macos_x86_64
           - build: aarch64-macos
+            dep_target: 11 # M1 & post-M1
             os: macos-latest
             rust: stable
             target: aarch64-apple-darwin
