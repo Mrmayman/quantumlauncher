@@ -9,7 +9,6 @@ env:
   REPO_NAME: Mrmayman/quantum-launcher
   FINAL_NAME: quantum_launcher
   CARGO_TERM_COLOR: always # Tell cargo to always use colors
-  MACOSX_DEPLOYMENT_TARGET: 10.15
 
 jobs:
   dist:
