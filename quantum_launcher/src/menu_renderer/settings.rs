@@ -134,7 +134,7 @@ impl MenuLauncherSettings {
                     )),
                 widget::text("Makes text/menus crisper. Also nudges the launcher into using your dedicated GPU for the User Interface").size(12).style(tsubtitle),
                                 widget::Space::with_height(5),
-                widget::checkbox("Discord Rich Presence - Requires Restart", config.rich_presence.unwrap_or(true))
+                widget::checkbox("Discord Rich Presence", config.rich_presence.unwrap_or(true))
                                     .on_toggle(|n| Message::LauncherSettings(
                                         LauncherSettingsMessage::ToggleDiscordRichPresence(n)
                                     )),

@@ -563,6 +563,22 @@ impl Launcher {
             }
             LauncherSettingsMessage::ToggleDiscordRichPresence(t) => {
                 self.config.rich_presence = Some(t);
+
+                if t {
+                    return self.start_discord_ipc_run();
+                } else {
+                    if let Some(client) = &self.discord_ipc_client {
+                        let client = client.clone();
+
+                        return Task::perform(
+                            async move {
+                                let client = client.lock().await;
+                                client.close().await.ok();
+                            },
+                            |_| Message::Nothing,
+                        );
+                    }
+                }
             }
             LauncherSettingsMessage::ToggleWindowSize(t) => {
                 self.config.c_window().save_window_size = t;
