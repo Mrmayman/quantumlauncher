@@ -4125,6 +4125,7 @@ dependencies = [
  "chrono",
  "clap",
  "dark-light",
+ "dirs",
  "embed-resource",
  "ezshortcut",
  "frostmark",

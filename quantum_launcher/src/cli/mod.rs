@@ -1,4 +1,7 @@
-use std::sync::{LazyLock, RwLock};
+use std::{
+    path::PathBuf,
+    sync::{LazyLock, RwLock},
+};
 
 use clap::{Parser, Subcommand};
 use owo_colors::{OwoColorize, Style};
@@ -36,6 +39,8 @@ struct Cli {
     #[arg(help = "Operate on servers, not instances")]
     #[arg(hide = true)]
     server: bool,
+    #[arg(long)]
+    dir: Option<PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -191,11 +196,17 @@ fn get_right_text() -> String {
     message
 }
 
-pub fn start_cli(is_dir_err: bool) {
+pub fn start_cli(is_dir_err: bool, launcher_dir: &mut Option<PathBuf>) {
     let cli = Cli::parse();
     *REDACT_SENSITIVE_INFO.lock().unwrap() = !cli.no_redact_info;
     *EXPERIMENTAL_SERVERS.write().unwrap() = cli.enable_server_manager;
     *EXPERIMENTAL_MMC_IMPORT.write().unwrap() = cli.enable_mmc_import;
+
+    if let Some(p) = &cli.dir {
+        *launcher_dir = Some(p.clone());
+        std::env::set_var("QLDIR", p);
+    }
+
     if let Some(subcommand) = cli.command {
         if is_dir_err {
             std::process::exit(1);

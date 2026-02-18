@@ -1,6 +1,6 @@
 use ezshortcut::Shortcut;
 use iced::Task;
-use ql_core::{info, IntoStringError};
+use ql_core::{info, IntoStringError, LAUNCHER_DIR};
 
 use crate::state::{
     Launcher, MenuShortcut, Message, ShortcutMessage, State, NEW_ACCOUNT_NAME, OFFLINE_ACCOUNT_NAME,
@@ -131,21 +131,36 @@ impl Launcher {
             .map_err(|n| format!("while getting path to current exe:\n{n}"))?;
 
         shortcut.exec = exec_path.to_string_lossy().to_string();
+
+        // Environment setup
         if instance.is_server() {
             shortcut
                 .exec_args
                 .push("--enable-server-manager".to_owned());
             shortcut.exec_args.push("-s".to_owned());
         }
+        if let Some(n) = dirs::data_dir().map(|d| d.join("QuantumLauncher")) {
+            if &*LAUNCHER_DIR != &n {
+                shortcut.exec_args.push("--dir".to_owned());
+                shortcut
+                    .exec_args
+                    .push(LAUNCHER_DIR.to_string_lossy().to_string());
+            }
+        }
+
+        // Launch command
         shortcut
             .exec_args
             .extend(["launch".to_owned(), instance.get_name().to_owned()]);
+
+        // Account setup
         if menu.account == OFFLINE_ACCOUNT_NAME {
             shortcut.exec_args.push(menu.account_offline.clone());
         } else {
             shortcut.exec_args.push(menu.account.clone());
             shortcut.exec_args.push("-u".to_owned());
         }
+
         shortcut.exec_args.push("--show-progress".to_owned());
 
         Ok(shortcut)
