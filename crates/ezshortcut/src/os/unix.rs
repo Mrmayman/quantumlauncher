@@ -45,12 +45,13 @@ pub async fn create(shortcut: &Shortcut, path: impl AsRef<Path>) -> std::io::Res
 
 async fn create_inner(shortcut: &Shortcut, path: &Path) -> Result<(), std::io::Error> {
     let desc = shortcut.description.trim();
+    let args: String = shortcut.get_formatted_args();
     let content = format!(
         r"[Desktop Entry]
 Version=1.0
 Type=Application
 Name={name}
-{icon}{description}Exec={exec}
+{icon}{description}Exec={exec} {args}
 Terminal=false
 Categories=Game;",
         name = shortcut.name,

@@ -104,6 +104,7 @@ impl Launcher {
                 name: self.instance().get_name().to_owned(),
                 description: "".to_owned(),
                 exec: String::new(),
+                exec_args: vec![],
                 icon: None,
             },
             add_to_menu: true,
@@ -124,28 +125,23 @@ impl Launcher {
         let exec_path = std::env::current_exe()
             .map_err(|n| format!("while getting path to current exe:\n{n}"))?;
 
-        let launch = format!(
-            "{exe} {server}launch {name} {username}{login} --show-progress",
-            exe = exec_path.to_string_lossy(),
-            server = if instance.is_server() {
-                "--enable-server-manager -s "
-            } else {
-                ""
-            },
-            name = serde_json::to_string(&instance.get_name())
-                .unwrap_or_else(|_| instance.get_name().to_owned()),
-            username = if menu.account == OFFLINE_ACCOUNT_NAME {
-                &menu.account_offline
-            } else {
-                &menu.account
-            },
-            login = if menu.account == OFFLINE_ACCOUNT_NAME {
-                ""
-            } else {
-                " -u"
-            }
-        );
-        shortcut.exec = launch;
+        shortcut.exec = exec_path.to_string_lossy().to_string();
+        if instance.is_server() {
+            shortcut
+                .exec_args
+                .push("--enable-server-manager".to_owned());
+            shortcut.exec_args.push("-s".to_owned());
+        }
+        shortcut
+            .exec_args
+            .extend(["launch".to_owned(), instance.get_name().to_owned()]);
+        if menu.account == OFFLINE_ACCOUNT_NAME {
+            shortcut.exec_args.push(menu.account_offline.clone());
+        } else {
+            shortcut.exec_args.push(menu.account.clone());
+            shortcut.exec_args.push("-u".to_owned());
+        }
+        shortcut.exec_args.push("--show-progress".to_owned());
 
         Ok(shortcut)
     }

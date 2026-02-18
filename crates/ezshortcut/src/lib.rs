@@ -13,6 +13,7 @@ pub struct Shortcut {
     /// Linux/BSD/Unix only, leave blank for none
     pub description: String,
     pub exec: String,
+    pub exec_args: Vec<String>,
     pub icon: Option<String>,
 }
 
@@ -38,6 +39,15 @@ impl Shortcut {
         let mut filtered_name = make_filename_safe(&self.name, !cfg!(target_os = "windows"));
         filtered_name.push_str(EXTENSION);
         filtered_name
+    }
+
+    fn get_formatted_args(&self) -> String {
+        let mut s = String::new();
+        for e in self.exec_args.iter().map(|n| format!("{n:?}")) {
+            s.push_str(&e);
+            s.push(' ');
+        }
+        s
     }
 }
 
