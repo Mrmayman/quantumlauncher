@@ -288,6 +288,11 @@ async fn refresh_account(
             }
         }
     } else {
+        if show_progress {
+            tokio::task::spawn_blocking(|| {
+                show_notification("Launching game", "Enjoy!");
+            });
+        };
         None
     })
 }
