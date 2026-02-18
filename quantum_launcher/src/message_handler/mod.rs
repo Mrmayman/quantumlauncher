@@ -385,25 +385,13 @@ impl Launcher {
         presence_task
     }
 
-    pub fn start_discord_ipc_run(&self) -> Task<Message> {
+    pub fn start_discord_ipc_run(&self) {
         let client = self.discord_ipc_client.clone();
-        let version = env!("CARGO_PKG_VERSION");
 
-        Task::perform(
-            async move {
-                // Start the IPC run loop
-                let mut client = client.lock().await;
-
-                if client.run().await.is_ok() {
-                    // After run() is successful, update presence
-                    client
-                        .set_activity("Started launcher", &format!("Version {version}"))
-                        .await
-                        .ok();
-                }
-            },
-            |_| Message::Nothing,
-        )
+        tokio::spawn(async move {
+            let mut client = client.lock().await;
+            client.run().await.ok();
+        });
     }
 
     pub fn update_mods(&mut self) -> Task<Message> {

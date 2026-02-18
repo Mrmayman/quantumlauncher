@@ -63,7 +63,19 @@ impl Launcher {
 
             Message::LaunchDiscordIPCClient => {
                 info!("Discord IPC client has been launched.");
-                return self.start_discord_ipc_run();
+                self.start_discord_ipc_run();
+
+                let client = self.discord_ipc_client.clone();
+
+                tokio::spawn(async move {
+                    let client = client.lock().await;
+                    let version = env!("CARGO_PKG_VERSION");
+
+                    client
+                        .set_activity("Started launcher", &format!("Version: {version}"))
+                        .await
+                        .ok();
+                });
             }
 
             Message::Account(msg) => return self.update_account(msg),

@@ -138,7 +138,8 @@ impl MenuLauncherSettings {
                                     .on_toggle(|n| Message::LauncherSettings(
                                         LauncherSettingsMessage::ToggleDiscordRichPresence(n)
                                     )),
-                widget::Space::with_height(5),
+                widget::text("Sometimes toggling this option might take some time to apply the activity updates on Discord.").size(12).style(tsubtitle),
+                                widget::Space::with_height(5),
                 widget::checkbox("Remember window size", config.window.as_ref().is_none_or(|n| n.save_window_size))
                     .on_toggle(|n| Message::LauncherSettings(LauncherSettingsMessage::ToggleWindowSize(n))),
                 widget::Space::with_height(5),
