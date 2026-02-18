@@ -385,15 +385,25 @@ impl Launcher {
         presence_task
     }
 
-    pub fn start_discord_ipc_run(&self) -> Task<Message> {
+    pub fn start_discord_ipc_run(&self, first: bool) -> Task<Message> {
         let client = self.discord_ipc_client.clone();
 
         Task::perform(
-            async move {
-                let mut client = client.lock().await;
-                client.run().await.ok();
+            {
+                let first = first;
+                async move {
+                    let mut client = client.lock().await;
+                    client.run().await.ok();
+                    first
+                }
             },
-            |_| Message::DiscordIPCClientIsReady,
+            |first| {
+                if first {
+                    Message::DiscordIPCClientIsReady
+                } else {
+                    Message::Nothing
+                }
+            },
         )
     }
 

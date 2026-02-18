@@ -565,7 +565,7 @@ impl Launcher {
                 self.config.rich_presence = Some(t);
 
                 if t {
-                    return self.start_discord_ipc_run();
+                    return self.start_discord_ipc_run(false);
                 } else {
                     let client = self.discord_ipc_client.clone();
 

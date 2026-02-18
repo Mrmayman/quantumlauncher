@@ -62,7 +62,7 @@ impl Launcher {
             }
 
             Message::LaunchDiscordIPCClient => {
-                return self.start_discord_ipc_run();
+                return self.start_discord_ipc_run(true);
             }
 
             Message::DiscordIPCClientIsReady => {
