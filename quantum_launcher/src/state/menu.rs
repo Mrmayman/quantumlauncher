@@ -406,7 +406,7 @@ pub struct MenuLauncherUpdate {
     pub progress: Option<ProgressBar<GenericProgress>>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum ModOperation {
     Downloading,
     Deleting,

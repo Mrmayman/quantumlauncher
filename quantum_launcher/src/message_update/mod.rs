@@ -379,7 +379,7 @@ impl Launcher {
                 async move {
                     ql_mod_manager::store::download_mod(&id, &selected_instance, None)
                         .await
-                        .map(|not_allowed| (ModId::Modrinth(project_id), not_allowed))
+                        .map(|not_allowed| (id, not_allowed))
                 },
                 |n| Message::InstallMods(InstallModsMessage::DownloadComplete(n.strerr())),
             )
