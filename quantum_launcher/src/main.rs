@@ -26,7 +26,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 use std::{borrow::Cow, time::Duration};
 
 use config::LauncherConfig;
-use filthy_rich::DiscordIPC;
 use iced::{Settings, Task};
 use owo_colors::OwoColorize;
 use state::{get_entries, Launcher, Message};
@@ -100,25 +99,6 @@ impl Launcher {
         #[cfg(not(feature = "auto_update"))]
         let check_for_updates_command = Task::none();
 
-        // discord rich presence identity
-        let init_discord_ipc = if config
-            .as_ref()
-            .is_ok_and(|f| f.rich_presence.unwrap_or(true))
-        {
-            const DISCORD_APP_ID: &str = "1468876407756029965";
-
-            Task::perform(
-                async {
-                    DiscordIPC::new(DISCORD_APP_ID)
-                        .await
-                        .map_err(|e| e.to_string())
-                },
-                Message::DiscordIPCClientLaunched,
-            )
-        } else {
-            Task::none()
-        };
-
         let get_entries_command = Task::perform(get_entries(false), Message::CoreListLoaded);
         let mut launcher =
             Launcher::load_new(None, is_new_user, config).unwrap_or_else(Launcher::with_error);
@@ -137,7 +117,7 @@ impl Launcher {
                 check_for_updates_command,
                 get_entries_command,
                 load_notes_command,
-                init_discord_ipc,
+                Task::done(Message::LaunchDiscordIPCClient),
                 Task::perform(ql_core::clean::dir("logs"), |n| {
                     Message::CoreCleanComplete(n.strerr())
                 }),

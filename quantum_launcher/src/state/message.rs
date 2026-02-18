@@ -5,7 +5,6 @@ use crate::{
     state::{LaunchModal, MenuEditModsModal},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
-use filthy_rich::DiscordIPC;
 use iced::widget::{self, scrollable::AbsoluteOffset};
 use ql_core::{
     file_utils::DirItem,
@@ -382,7 +381,7 @@ pub enum Message {
     ExportMods(ExportModsMessage),
     RecommendedMods(RecommendedModMessage),
 
-    DiscordIPCClientLaunched(Result<DiscordIPC, String>),
+    LaunchDiscordIPCClient,
 
     LaunchInstanceSelected(InstanceSelection),
     LaunchUsernameSet(String),

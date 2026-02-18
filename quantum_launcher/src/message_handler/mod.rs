@@ -152,15 +152,12 @@ impl Launcher {
                             if let Ok(version_details) =
                                 VersionDetails::load(&selected_instance).await
                             {
-                                if let Some(client) = launcher_client {
-                                    let client = client.lock().await;
+                                let client = launcher_client.lock().await;
 
-                                    let details =
-                                        format!("Instance: {}", selected_instance.get_name());
-                                    let state = format!("Minecraft v{}", version_details.id);
+                                let details = format!("Instance: {}", selected_instance.get_name());
+                                let state = format!("Minecraft v{}", version_details.id);
 
-                                    client.set_activity(&details, &state).await.ok();
-                                }
+                                client.set_activity(&details, &state).await.ok();
                             }
                         },
                         |_| Message::Nothing,
@@ -371,16 +368,14 @@ impl Launcher {
                     // but I'm not sure whether this is fully implemented yet
 
                     if let Ok(details) = details {
-                        if let Some(client) = client {
-                            let client = client.lock().await;
-                            client
-                                .set_activity(
-                                    &format!("Last played version: {}", details.id),
-                                    &format!("Instance: {}", instance.get_name()),
-                                )
-                                .await
-                                .ok();
-                        }
+                        let client = client.lock().await;
+                        client
+                            .set_activity(
+                                &format!("Last played version: {}", details.id),
+                                &format!("Instance: {}", instance.get_name()),
+                            )
+                            .await
+                            .ok();
                     }
                 },
                 |_| Message::Nothing,
@@ -391,28 +386,24 @@ impl Launcher {
     }
 
     pub fn start_discord_ipc_run(&self) -> Task<Message> {
-        if let Some(client) = &self.discord_ipc_client {
-            let client = client.clone();
-            let version = env!("CARGO_PKG_VERSION");
+        let client = self.discord_ipc_client.clone();
+        let version = env!("CARGO_PKG_VERSION");
 
-            Task::perform(
-                async move {
-                    // Start the IPC run loop
-                    let mut client = client.lock().await;
+        Task::perform(
+            async move {
+                // Start the IPC run loop
+                let mut client = client.lock().await;
 
-                    if client.run().await.is_ok() {
-                        // After run() is successful, update presence
-                        client
-                            .set_activity("Started launcher", &format!("Version {version}"))
-                            .await
-                            .ok();
-                    }
-                },
-                |_| Message::Nothing,
-            )
-        } else {
-            Task::none()
-        }
+                if client.run().await.is_ok() {
+                    // After run() is successful, update presence
+                    client
+                        .set_activity("Started launcher", &format!("Version {version}"))
+                        .await
+                        .ok();
+                }
+            },
+            |_| Message::Nothing,
+        )
     }
 
     pub fn update_mods(&mut self) -> Task<Message> {

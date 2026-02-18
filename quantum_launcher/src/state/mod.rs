@@ -59,7 +59,7 @@ pub struct Launcher {
     pub tick_timer: usize,
     pub is_launching_game: bool,
 
-    pub discord_ipc_client: Option<Arc<Mutex<DiscordIPC>>>,
+    pub discord_ipc_client: Arc<Mutex<DiscordIPC>>,
 
     pub java_recv: Option<ProgressBar<GenericProgress>>,
     pub custom_jar: Option<CustomJarState>,
@@ -124,6 +124,8 @@ pub struct GameProcess {
 }
 
 impl Launcher {
+    const DISCORD_APP_ID: &str = "1468876407756029965";
+
     pub fn load_new(
         message: Option<String>,
         is_new_user: bool,
@@ -202,7 +204,7 @@ impl Launcher {
             is_log_open: false,
             is_launching_game: false,
 
-            discord_ipc_client: None,
+            discord_ipc_client: Arc::new(Mutex::new(DiscordIPC::new(Self::DISCORD_APP_ID))),
 
             log_scroll: 0,
             tick_timer: 0,
@@ -257,7 +259,7 @@ impl Launcher {
             log_scroll: 0,
             tick_timer: 0,
 
-            discord_ipc_client: None,
+            discord_ipc_client: Arc::new(Mutex::new(DiscordIPC::new(Self::DISCORD_APP_ID))),
 
             logs: HashMap::new(),
             processes: HashMap::new(),
