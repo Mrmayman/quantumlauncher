@@ -10,7 +10,7 @@ pub fn get_desktop_dir() -> Option<PathBuf> {
 #[derive(Debug, Clone)]
 pub struct Shortcut {
     pub name: String,
-    /// Linux/BSD/Unix only, leave blank for none
+    /// Leave blank for none. Unsupported on macOS
     pub description: String,
     pub exec: String,
     pub exec_args: Vec<String>,
@@ -41,13 +41,13 @@ impl Shortcut {
         filtered_name
     }
 
+    #[cfg(target_family = "unix")]
     fn get_formatted_args(&self) -> String {
-        let mut s = String::new();
-        for e in self.exec_args.iter().map(|n| format!("{n:?}")) {
-            s.push_str(&e);
-            s.push(' ');
-        }
-        s
+        self.exec_args
+            .iter()
+            .map(|n| format!("{n:?}"))
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 }
 

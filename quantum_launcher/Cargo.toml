@@ -83,8 +83,7 @@ dark-light = "2"
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 notify-rust = { version = "4", default-features = false, features = ["z-with-tokio"] }
 
-# iced::widget::markdown doesn't have inline
-# HTML support, so I made my own renderer.
-
+# Don't forget, also used by ezshortcut crate
+# If you update this update that too
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.61", features = ["Win32_System_Console"] }

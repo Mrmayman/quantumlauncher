@@ -12,13 +12,13 @@ use iced::{
 
 cfg_if!(if #[cfg(target_os = "windows")] {
     const MENU_NAME: &str = "the Start Menu";
-    const IS_UNIX: bool = false;
+    const SHOW_DESC: bool = true;
 } else if #[cfg(target_os = "macos")] {
     const MENU_NAME: &str = "Applications";
-    const IS_UNIX: bool = false;
+    const SHOW_DESC: bool = false;
 } else {
     const MENU_NAME: &str = "the Applications Menu";
-    const IS_UNIX: bool = true;
+    const SHOW_DESC: bool = true;
 });
 
 impl MenuShortcut {
@@ -111,7 +111,7 @@ impl MenuShortcut {
                 .size(14)
                 .on_input(|n| Message::Shortcut(ShortcutMessage::EditName(n)))
         )]
-        .push_maybe(IS_UNIX.then(|| {
+        .push_maybe(SHOW_DESC.then(|| {
             ifield(
                 " Description:",
                 widget::text_input("Leave blank for none", &self.shortcut.description)
