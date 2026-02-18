@@ -231,7 +231,7 @@ pub fn start_cli(is_dir_err: bool) {
                 std::process::exit(if let Err(err) = res {
                     err!("{err}");
                     if show_progress {
-                        show_notification(err.to_string());
+                        show_notification("Error launching game", &err.to_string());
                     }
                     1
                 } else {
@@ -259,11 +259,25 @@ pub fn start_cli(is_dir_err: bool) {
     }
 }
 
-fn show_notification(err: String) {
-    _ = notify_rust::Notification::new()
-        .summary("Error launching game")
-        .body(&err)
-        .show();
+fn show_notification(title: &str, body: &str) {
+    #[cfg(not(target_os = "macos"))]
+    {
+        _ = notify_rust::Notification::new()
+            .summary(title)
+            .body(err)
+            .show();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        _ = std::process::Command::new("osascript")
+            .args([
+                "-e",
+                &format!("display notification {body:?} with title {title:?}"),
+                "-e",
+                "delay 5",
+            ])
+            .spawn();
+    }
 }
 
 fn quit(res: Result<(), Box<dyn std::error::Error + 'static>>) {

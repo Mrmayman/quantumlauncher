@@ -79,6 +79,8 @@ terminal_size = "0.4"
 notify = "8"
 open = "5.3.2"
 dark-light = "2"
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
 notify-rust = { version = "4", default-features = false, features = ["z-with-tokio"] }
 
 # iced::widget::markdown doesn't have inline

@@ -9,7 +9,7 @@ use ql_mod_manager::loaders::LoaderInstallResult;
 use std::{path::PathBuf, process::exit};
 
 use crate::{
-    cli::{helpers::render_row, QLoader},
+    cli::{helpers::render_row, show_notification, QLoader},
     config::LauncherConfig,
     state::get_entries,
 };
@@ -260,10 +260,7 @@ async fn refresh_account(
 
         if show_progress {
             tokio::task::spawn_blocking(|| {
-                notify_rust::Notification::new()
-                    .summary("Launching game")
-                    .body("Refreshing account...")
-                    .show()
+                show_notification("Launching game", "Refreshing account...");
             });
         };
 
