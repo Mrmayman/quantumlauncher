@@ -124,8 +124,6 @@ pub struct GameProcess {
 }
 
 impl Launcher {
-    const DISCORD_APP_ID: &str = "1468876407756029965";
-
     pub fn load_new(
         message: Option<String>,
         is_new_user: bool,
@@ -204,7 +202,7 @@ impl Launcher {
             is_log_open: false,
             is_launching_game: false,
 
-            discord_ipc_client: Arc::new(Mutex::new(DiscordIPC::new(Self::DISCORD_APP_ID))),
+            discord_ipc_client: get_presence_identity(),
 
             log_scroll: 0,
             tick_timer: 0,
@@ -259,7 +257,7 @@ impl Launcher {
             log_scroll: 0,
             tick_timer: 0,
 
-            discord_ipc_client: Arc::new(Mutex::new(DiscordIPC::new(Self::DISCORD_APP_ID))),
+            discord_ipc_client: get_presence_identity(),
 
             logs: HashMap::new(),
             processes: HashMap::new(),
@@ -451,6 +449,11 @@ fn load_account(
             accounts_to_remove.push(username.to_owned());
         }
     }
+}
+
+pub fn get_presence_identity() -> Arc<Mutex<DiscordIPC>> {
+    const DISCORD_APP_ID: &str = "1468876407756029965";
+    Arc::new(Mutex::new(DiscordIPC::new(DISCORD_APP_ID)))
 }
 
 pub async fn get_entries(is_server: bool) -> Res<(Vec<String>, bool)> {

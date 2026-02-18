@@ -62,19 +62,27 @@ impl Launcher {
             }
 
             Message::LaunchDiscordIPCClient => {
-                return self.start_discord_ipc_run(true);
+                return self.start_discord_ipc_run();
             }
 
             Message::DiscordIPCClientIsReady => {
-                info!("DiscordIPC is ready; setting up activity.");
+                info!("DiscordIPC instance is ready; setting up activity.");
+
                 let client = self.discord_ipc_client.clone();
+                let selected_account = self.get_selected_account_data();
 
                 tokio::spawn(async move {
                     let client = client.lock().await;
                     let version = env!("CARGO_PKG_VERSION");
 
+                    let details = if let Some(acc) = selected_account {
+                        &format!("As {}", acc.nice_username)
+                    } else {
+                        "As offline player"
+                    };
+
                     client
-                        .set_activity("Started launcher", &format!("Version: {version}"))
+                        .set_activity(details, &format!("Version v{version}"))
                         .await
                         .ok();
                 });
