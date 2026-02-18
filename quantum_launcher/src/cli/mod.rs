@@ -264,7 +264,7 @@ fn show_notification(title: &str, body: &str) {
     {
         _ = notify_rust::Notification::new()
             .summary(title)
-            .body(err)
+            .body(body)
             .show();
     }
     #[cfg(target_os = "macos")]
