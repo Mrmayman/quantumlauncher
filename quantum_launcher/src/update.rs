@@ -62,9 +62,11 @@ impl Launcher {
             }
 
             Message::LaunchDiscordIPCClient => {
-                info!("Discord IPC client has been launched.");
-                self.start_discord_ipc_run();
+                return self.start_discord_ipc_run();
+            }
 
+            Message::DiscordIPCClientIsReady => {
+                info!("DiscordIPC is ready; setting up activity.");
                 let client = self.discord_ipc_client.clone();
 
                 tokio::spawn(async move {

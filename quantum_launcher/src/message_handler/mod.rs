@@ -385,13 +385,16 @@ impl Launcher {
         presence_task
     }
 
-    pub fn start_discord_ipc_run(&self) {
+    pub fn start_discord_ipc_run(&self) -> Task<Message> {
         let client = self.discord_ipc_client.clone();
 
-        tokio::spawn(async move {
-            let mut client = client.lock().await;
-            client.run().await.ok();
-        });
+        Task::perform(
+            async move {
+                let mut client = client.lock().await;
+                client.run().await.ok();
+            },
+            |_| Message::DiscordIPCClientIsReady,
+        )
     }
 
     pub fn update_mods(&mut self) -> Task<Message> {

@@ -382,6 +382,7 @@ pub enum Message {
     RecommendedMods(RecommendedModMessage),
 
     LaunchDiscordIPCClient,
+    DiscordIPCClientIsReady,
 
     LaunchInstanceSelected(InstanceSelection),
     LaunchUsernameSet(String),
