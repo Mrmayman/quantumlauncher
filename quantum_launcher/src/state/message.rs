@@ -356,6 +356,7 @@ pub enum GameLogMessage {
 #[derive(Debug, Clone)]
 pub enum ShortcutMessage {
     Open,
+    OpenFolder,
     ToggleAddToMenu(bool),
     ToggleAddToDesktop(bool),
     EditName(String),

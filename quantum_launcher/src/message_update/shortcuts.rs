@@ -20,6 +20,11 @@ impl Launcher {
             ShortcutMessage::Open => {
                 self.shortcut_open();
             }
+            ShortcutMessage::OpenFolder => {
+                if let Some(dir) = ezshortcut::get_menu_path() {
+                    _ = open::that(&dir);
+                }
+            }
             ShortcutMessage::ToggleAddToMenu(t) => iflet!(menu, self.state, {
                 if t || menu.add_to_desktop {
                     menu.add_to_menu = t;
