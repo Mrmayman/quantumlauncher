@@ -65,7 +65,7 @@ jobs:
         shell: bash
         run: |
           mkdir dist
-          APP_DIR="build/quantum-launcher.app"
+          APP_DIR="build/QuantumLauncher.app"
           MACOS_DIR="$APP_DIR/Contents/MacOS"
           RESOURCES_DIR="$APP_DIR/Contents/Resources"
           mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"

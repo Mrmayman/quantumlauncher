@@ -16,7 +16,7 @@ echo "Building (arm64, macOS 15)..."
 cargo build --profile "$PROFILE" --target "$RUST_TARGET"
 
 echo "Creating .app bundle..."
-APP_DIR="dist/quantum-launcher_arm64.app"
+APP_DIR="dist/QuantumLauncher.app"
 MACOS_DIR="$APP_DIR/Contents/MacOS"
 RESOURCES_DIR="$APP_DIR/Contents/Resources"
 
