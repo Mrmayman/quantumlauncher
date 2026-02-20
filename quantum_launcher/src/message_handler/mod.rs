@@ -154,10 +154,17 @@ impl Launcher {
                             {
                                 let client = launcher_client.lock().await;
 
-                                let details = format!("Instance: {}", selected_instance.get_name());
-                                let state = format!("Minecraft v{}", version_details.id);
+                                let instance_name = selected_instance.get_name();
+                                let version_name = version_details.id;
 
-                                client.set_activity(&details, &state).await.ok();
+                                let details = format!("Minecraft v{version_name}");
+                                let state = if instance_name.to_string() == version_name {
+                                    None
+                                } else {
+                                    Some(format!("Instance: {instance_name}"))
+                                };
+
+                                client.set_activity(details, state).await.ok();
                             }
                         },
                         |_| Message::Nothing,
@@ -369,10 +376,11 @@ impl Launcher {
 
                     if let Ok(details) = details {
                         let client = client.lock().await;
+
                         client
                             .set_activity(
-                                &format!("Last played version: {}", details.id),
-                                &format!("Instance: {}", instance.get_name()),
+                                "Just quit game".to_string(),
+                                Some(format!("Minecraft v{}", details.id)),
                             )
                             .await
                             .ok();
@@ -392,10 +400,16 @@ impl Launcher {
             {
                 async move {
                     let mut client = client.lock().await;
-                    client.run().await.ok();
+                    client.run(true).await.ok();
+
+                    let version = env!("CARGO_PKG_VERSION");
+                    client
+                        .set_activity(format!("Running v{version}"), None)
+                        .await
+                        .ok();
                 }
             },
-            |_| Message::DiscordIPCClientIsReady,
+            |_| Message::Nothing,
         )
     }
 

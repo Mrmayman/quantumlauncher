@@ -381,9 +381,6 @@ pub enum Message {
     ExportMods(ExportModsMessage),
     RecommendedMods(RecommendedModMessage),
 
-    LaunchDiscordIPCClient,
-    DiscordIPCClientIsReady,
-
     LaunchInstanceSelected(InstanceSelection),
     LaunchUsernameSet(String),
     LaunchStart,

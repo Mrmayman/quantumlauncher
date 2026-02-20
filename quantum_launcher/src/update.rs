@@ -61,33 +61,6 @@ impl Launcher {
                 self.state = State::Welcome(MenuWelcome::P3Auth);
             }
 
-            Message::LaunchDiscordIPCClient => {
-                return self.start_discord_ipc_run();
-            }
-
-            Message::DiscordIPCClientIsReady => {
-                info!("DiscordIPC instance is ready; setting up activity.");
-
-                let client = self.discord_ipc_client.clone();
-                let selected_account = self.get_selected_account_data();
-
-                tokio::spawn(async move {
-                    let client = client.lock().await;
-                    let version = env!("CARGO_PKG_VERSION");
-
-                    let details = if let Some(acc) = selected_account {
-                        &format!("As {}", acc.nice_username)
-                    } else {
-                        "As offline player"
-                    };
-
-                    client
-                        .set_activity(details, &format!("Version v{version}"))
-                        .await
-                        .ok();
-                });
-            }
-
             Message::Account(msg) => return self.update_account(msg),
             Message::ManageMods(msg) => return self.update_manage_mods(msg),
             Message::ExportMods(msg) => return self.update_export_mods(msg),
