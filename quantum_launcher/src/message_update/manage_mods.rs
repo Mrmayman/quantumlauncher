@@ -248,6 +248,15 @@ impl Launcher {
                     menu.search = search;
                 }
             }
+            ManageModsMessage::SetContentFilter(filter) => {
+                if let State::EditMods(menu) = &mut self.state {
+                    menu.content_filter = filter;
+                    // Clear selection when changing filter
+                    menu.selected_mods.clear();
+                    menu.shift_selected_mods.clear();
+                    menu.update_selected_state();
+                }
+            }
             ManageModsMessage::CurseforgeManualToggleDelete(t) => {
                 if let State::CurseforgeManualDownload(menu) = &mut self.state {
                     menu.delete_mods = t;

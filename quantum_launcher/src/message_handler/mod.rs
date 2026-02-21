@@ -282,6 +282,7 @@ impl Launcher {
                 width_name: 220.0,
                 list_shift_index: None,
                 list_scroll: AbsoluteOffset::default(),
+                content_filter: Default::default(),
             });
 
             Ok(Task::batch([update_local_mods_task, update_cmd]))

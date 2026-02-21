@@ -26,6 +26,14 @@ pub struct ModConfig {
     pub supported_versions: Vec<String>,
     pub dependencies: HashSet<String>,
     pub dependents: HashSet<String>,
+    /// Type of content: "mod", "resourcepack", "shader", "datapack"
+    /// Defaults to "mod" for backwards compatibility with older indices.
+    #[serde(default = "default_project_type")]
+    pub project_type: String,
+}
+
+fn default_project_type() -> String {
+    "mod".to_owned()
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -48,7 +56,7 @@ impl ModIndex {
 
         // 1) Try migrating old index
         match fs::read_to_string(&old_index_path).await {
-            Ok(index) => {
+            Ok(index) if !index.trim().is_empty() => {
                 let mod_index = serde_json::from_str(&index).json(index.clone())?;
 
                 fs::write(&index_path, &index).await.path(index_path)?;
@@ -58,6 +66,10 @@ impl ModIndex {
 
                 return Ok(mod_index);
             }
+            Ok(_) => {
+                // Old index exists but is empty, remove it
+                let _ = fs::remove_file(&old_index_path).await;
+            }
             Err(e) if e.kind() != ErrorKind::NotFound => {
                 return Err(e.path(index_path).into());
             }
@@ -66,7 +78,12 @@ impl ModIndex {
 
         // 2. Try current index
         match fs::read_to_string(&index_path).await {
-            Ok(index) => return Ok(serde_json::from_str::<Self>(&index).json(index)?),
+            Ok(index) if !index.trim().is_empty() => {
+                return Ok(serde_json::from_str::<Self>(&index).json(index)?)
+            }
+            Ok(_) => {
+                // File exists but is empty, create a new index
+            }
             Err(e) if e.kind() != ErrorKind::NotFound => {
                 return Err(e.path(index_path).into());
             }
@@ -103,24 +120,47 @@ impl ModIndex {
     }
 
     pub async fn fix(&mut self, selected_instance: &InstanceSelection) -> Result<(), ModError> {
-        let mods_dir = selected_instance.get_dot_minecraft_path().join("mods");
+        let dot_mc_dir = selected_instance.get_dot_minecraft_path();
+        let mods_dir = dot_mc_dir.join("mods");
+        let resourcepacks_dir = dot_mc_dir.join("resourcepacks");
+        let shaderpacks_dir = dot_mc_dir.join("shaderpacks");
+        let datapacks_dir = dot_mc_dir.join("datapacks");
+        // Old texture packs dir for legacy versions
+        let texturepacks_dir = dot_mc_dir.join("texturepacks");
+
         if !mods_dir.exists() {
             fs::create_dir(&mods_dir).await.path(&mods_dir)?;
-            return Ok(());
         }
 
         let mut removed_ids = Vec::new();
         let mut remove_dependents = Vec::new();
 
         for (id, mod_cfg) in &mut self.mods {
+            // Determine the correct directory based on project type
+            let content_dir = match mod_cfg.project_type.as_str() {
+                "resourcepack" => {
+                    if resourcepacks_dir.exists() {
+                        &resourcepacks_dir
+                    } else {
+                        &texturepacks_dir
+                    }
+                }
+                "shader" => &shaderpacks_dir,
+                "datapack" => &datapacks_dir,
+                _ => &mods_dir, // "mod" or unknown defaults to mods
+            };
+
             mod_cfg.files.retain(|file| {
-                mods_dir.join(&file.filename).is_file()
-                    || mods_dir
+                content_dir.join(&file.filename).is_file()
+                    || content_dir
                         .join(format!("{}.disabled", file.filename))
                         .is_file()
             });
             if mod_cfg.files.is_empty() {
-                info!("Cleaning deleted mod: {}", mod_cfg.name);
+                info!(
+                    "Cleaning deleted {}: {}",
+                    mod_cfg.project_type, mod_cfg.name
+                );
                 removed_ids.push(id.clone());
             }
             for dependent in &mod_cfg.dependents {
