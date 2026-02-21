@@ -982,8 +982,7 @@ dependencies = [
 [[package]]
 name = "cosmic-text"
 version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59fd57d82eb4bfe7ffa9b1cec0c05e2fd378155b47f255a67983cb4afe0e80c2"
+source = "git+https://github.com/Mrmayman/cosmic-text.git?branch=no-system-fonts#62935323d127a2cf4605c3731d1142bb393bd4e7"
 dependencies = [
  "bitflags 2.9.2",
  "fontdb 0.16.2",
@@ -4396,8 +4395,7 @@ dependencies = [
 [[package]]
 name = "resvg"
 version = "0.42.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "944d052815156ac8fa77eaac055220e95ba0b01fa8887108ca710c03805d9051"
+source = "git+https://github.com/Mrmayman/resvg.git?branch=no-system-fonts#bb336bdb41ccadd3803c22aa7b34279cfe07afa0"
 dependencies = [
  "gif",
  "jpeg-decoder",
@@ -5660,8 +5658,7 @@ checksum = "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da"
 [[package]]
 name = "usvg"
 version = "0.42.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b84ea542ae85c715f07b082438a4231c3760539d902e11d093847a0b22963032"
+source = "git+https://github.com/Mrmayman/resvg.git?branch=no-system-fonts#bb336bdb41ccadd3803c22aa7b34279cfe07afa0"
 dependencies = [
  "base64",
  "data-url",

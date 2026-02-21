@@ -264,7 +264,8 @@ async fn refresh_account(
                 } else {
                     AccountType::LittleSkin
                 };
-                let refresh_token = auth::read_refresh_token(real_name, account_type)?;
+                let refresh_token =
+                    auth::read_refresh_token(real_name.clone(), account_type).await?;
                 Some(
                     auth::yggdrasil::login_refresh(
                         real_name.to_owned(),
@@ -275,7 +276,8 @@ async fn refresh_account(
                 )
             }
             _ => {
-                let refresh_token = auth::read_refresh_token(real_name, AccountType::Microsoft)?;
+                let refresh_token =
+                    auth::read_refresh_token(real_name.clone(), AccountType::Microsoft).await?;
                 Some(auth::ms::login_refresh(real_name.clone(), refresh_token, None).await?)
             }
         }

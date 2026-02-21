@@ -37,6 +37,7 @@ forge*.log
 perf.data
 flamegraph.svg
 perf.data.old
+callgrind.out*
 
 # --------
 # Flatpak

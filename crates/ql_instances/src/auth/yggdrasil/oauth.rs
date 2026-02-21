@@ -3,6 +3,7 @@ use keyring;
 use ql_core::file_utils::check_for_success;
 use ql_core::{IntoJsonError, CLIENT};
 use serde::{Deserialize, Serialize};
+use tokio::task::spawn_blocking;
 
 use super::{Error, CLIENT_ID};
 
@@ -97,11 +98,13 @@ pub async fn poll_device_token(
     }
 
     // Store Minecraft token in keyring (same convention as password flow)
-    keyring::Entry::new(
-        "QuantumLauncher",
-        &format!("{}#littleskin", user_info.username),
-    )
-    .and_then(|e| e.set_password(&mc_token_resp.access_token))?;
+    let username = user_info.username.clone();
+    let access_token = mc_token_resp.access_token.clone();
+    spawn_blocking(move || {
+        keyring::Entry::new("QuantumLauncher", &format!("{username}#littleskin"))
+            .and_then(|e| e.set_password(&access_token))
+    })
+    .await??;
 
     // Build account data compatible with existing flows
     Ok(super::Account::Account(super::AccountData {
@@ -116,7 +119,7 @@ pub async fn poll_device_token(
             .selected_profile
             .as_ref()
             .map_or_else(|| user_info.username.clone(), |p| p.name.clone()),
-        refresh_token: mc_token_resp.access_token,
+        refresh_token: Ok(mc_token_resp.access_token),
         needs_refresh: false,
         account_type: crate::auth::AccountType::LittleSkin,
     }))
