@@ -1,0 +1,247 @@
+name: Cargo Clippy
+
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      deny_warnings:
+        description: "Fail on warnings"
+        required: true
+        type: boolean
+        default: false
+      all_features:
+        description: "--all-features"
+        required: true
+        type: boolean
+        default: true
+      all_targets:
+        description: "--all-targets"
+        required: true
+        type: boolean
+        default: true
+      # To make Pull Request work, read this first:
+      # https://github.com/peter-evans/create-pull-request#workflow-permissions
+      fix:
+        description: "--fix"
+        required: true
+        type: choice
+        options:
+          - none
+          - fix
+          - make a PR
+          - make a patch 
+        default: "none"
+
+env:
+  BIN_NAME: quantum_launcher
+  PROJECT_NAME: quantum_launcher
+  CARGO_TERM_COLOR: always
+
+jobs:
+  clippy:
+    name: Clippy (${{ matrix.build }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build: [
+            x86_64-linux,
+            # aarch64-linux,
+            # armv7-linux,
+            # x86_64-macos,
+            x86_64-windows,
+            aarch64-macos,
+            # aarch64-windows,
+            # i686-windows,
+          ]
+        include:
+          - build: x86_64-linux
+            os: ubuntu-22.04
+            rust: stable
+            target: x86_64-unknown-linux-gnu
+            cross: false
+          # - build: aarch64-linux
+          #   os: ubuntu-22.04-arm
+          #   rust: stable
+          #   target: aarch64-unknown-linux-gnu
+          #   cross: false
+          # - build: armv7-linux
+          #   os: ubuntu-22.04
+          #   rust: stable
+          #   target: armv7-unknown-linux-gnueabihf
+          #   cross: true
+          # - build: x86_64-macos
+          #   dep_target: 10.15
+          #   os: macos-latest
+          #   rust: stable
+          #   target: x86_64-apple-darwin
+          #   cross: false
+          - build: x86_64-windows
+            os: windows-latest
+            rust: stable
+            target: x86_64-pc-windows-msvc
+            cross: false
+          - build: aarch64-macos
+            dep_target: 11
+            os: macos-latest
+            rust: stable
+            target: aarch64-apple-darwin
+            cross: false
+          # - build: aarch64-windows
+          #   os: windows-11-arm
+          #   rust: stable
+          #   target: aarch64-pc-windows-msvc
+          #   cross: false
+          # - build: i686-windows
+          #   os: windows-latest
+          #   rust: stable-i686
+          #   target: i686-pc-windows-msvc
+          #   cross: false
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Install dependencies
+        if: matrix.os == 'ubuntu-22.04' || matrix.os == 'ubuntu-22.04-arm'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config libdbus-1-3
+
+      - name: Install rustup for ${{ matrix.os }}
+        if: matrix.os == 'windows-11-arm'
+        shell: bash
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://win.rustup.rs/aarch64 -o rustup-init.exe
+          ./rustup-init.exe -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install ${{ matrix.rust }} toolchain
+        shell: bash
+        run: |
+          rustup toolchain install ${{ matrix.rust }} --component clippy
+          rustup default ${{ matrix.rust }}
+          rustup target add ${{ matrix.target }}
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            cargo install cross --locked
+          fi
+
+      - name: Run Clippy
+        shell: bash
+        run: |
+          # Passed arguments
+          ARGS=""
+          if [[ "${{ github.event.inputs.all_features || 'true' }}" == "true" ]]; then
+            ARGS="$ARGS --all-features"
+          fi
+          if [[ "${{ github.event.inputs.all_targets || 'true' }}" == "true" ]]; then
+            ARGS="$ARGS --all-targets"
+          fi
+          if [[ "${{ github.event.inputs.fix || 'none' }}" != "none" ]]; then
+            ARGS="$ARGS --fix --allow-dirty --allow-staged"
+          fi
+          if [[ "${{ github.event.inputs.deny_warnings || 'true' }}" == "true" ]]; then
+            ARGS="$ARGS -- -D warnings"
+          fi
+
+          # MacOS Deployment Target
+          if [[ "${{ matrix.build }}" =~ "macos" ]]; then
+            export MACOSX_DEPLOYMENT_TARGET=${{ matrix.dep_target }}
+          fi
+
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            cross clippy --target ${{ matrix.target }} $ARGS
+          else
+            cargo clippy --target ${{ matrix.target }} $ARGS
+          fi
+
+      - name: Make a patch
+        if: github.event.inputs.fix == 'make a patch' || github.event.inputs.fix == 'make a PR'
+        shell: bash
+        run: |
+          git diff > clippy-${{ matrix.build }}.patch
+          # Only keep the patch file if changes were actually made
+          if [ ! -s clippy-${{ matrix.build }}.patch ]; then
+            rm clippy-${{ matrix.build }}.patch
+          fi
+
+      - name: Upload patch
+        if: github.event.inputs.fix == 'make a patch' || github.event.inputs.fix == 'make a PR'
+        uses: actions/upload-artifact@v6
+        with:
+          name: clippy-patch-${{ matrix.build }}
+          path: clippy-${{ matrix.build }}.patch
+          if-no-files-found: ignore
+
+  combine_fixes:
+    name: Combine Clippy Fixes
+    needs: clippy
+    if: github.event.inputs.fix == 'make a PR' || github.event.inputs.fix == 'make a patch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Download all patches
+        uses: actions/download-artifact@v7
+        with:
+          pattern: clippy-patch-*
+          path: patches
+          merge-multiple: true
+
+      - name: Apply patches
+        shell: bash
+        run: |
+          shopt -s nullglob
+          for patch in patches/*.patch; do
+            echo "Applying $patch."
+            git apply --3way "$patch" || git apply "$patch"
+          done
+
+          if git diff --quiet; then
+            echo "has_changes=true" >> $GITHUB_ENV
+            echo "All changes aggregated."
+          else
+            echo "has_changes=false" >> $GITHUB_ENV
+            echo "No changes found across all targets."
+
+          fi
+
+          git diff > combined-clippy.patch
+
+      - name: Upload Unified Patch
+        if: github.event.inputs.fix == 'make a patch' && env.has_changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: combined-clippy-patch
+          path: combined-clippy.patch
+
+      - name: Clean up the loose ends
+        shell: bash
+        run: |
+          rm -rf patches && rm -f combined-clippy.patch
+
+      - name: Create Unified Pull Request
+        if: github.event.inputs.fix == 'make a PR' && env.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: apply cargo clippy fixes"
+          title: "chore: apply cargo clippy fixes"
+          body: |
+            Automated PR to apply `cargo clippy` fixes combined across all build targets.
+
+            This aggregates the formatting and style rules unique to specific `#[cfg(os)]` blocks and architecture rules.
+          branch: "clippy"
+          branch-suffix: short-commit-hash
+          delete-branch: true
