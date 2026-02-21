@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 mod os;
-pub use os::{get_menu_path, EXTENSION};
+pub use os::{get_menu_path, EXTENSION, EXTENSION_S};
 
 pub fn get_desktop_dir() -> Option<PathBuf> {
     dirs::desktop_dir().or_else(|| dirs::home_dir().map(|n| n.join("Desktop")))

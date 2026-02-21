@@ -19,7 +19,7 @@ pub async fn create(shortcut: &Shortcut, path: impl AsRef<Path>) -> std::io::Res
 }
 
 async fn create_inner(shortcut: &Shortcut, path: &Path) -> std::io::Result<PathBuf> {
-    let path = if path.extension().is_some_and(|n| n == ".app") {
+    let path = if path.extension().is_some_and(|n| n == "app") {
         path.to_owned()
     } else {
         path.join(shortcut.get_filename())

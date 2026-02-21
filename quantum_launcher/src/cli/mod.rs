@@ -208,7 +208,7 @@ pub fn start_cli(is_dir_err: bool, launcher_dir: &mut Option<PathBuf>) {
     }
 
     if let Some(subcommand) = cli.command {
-        if is_dir_err {
+        if is_dir_err && cli.dir.is_none() {
             std::process::exit(1);
         }
         let runtime = tokio::runtime::Runtime::new().unwrap();

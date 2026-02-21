@@ -55,7 +55,7 @@ impl Launcher {
             ShortcutMessage::SaveCustom => iflet!(menu, self.state, {
                 return Ok(Task::perform(
                     rfd::AsyncFileDialog::new()
-                        .add_filter("Shortcut", &[ezshortcut::EXTENSION])
+                        .add_filter("Shortcut", &[ezshortcut::EXTENSION_S])
                         .set_file_name(menu.shortcut.get_filename())
                         .set_title("Save shortcut to...")
                         .save_file(),

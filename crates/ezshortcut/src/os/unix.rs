@@ -31,6 +31,7 @@ pub async fn create_in_applications(shortcut: &Shortcut) -> std::io::Result<()> 
             "Couldn't access data dir (.local/share)",
         ))?
         .join("applications");
+    fs::create_dir_all(&path).await?;
     create(shortcut, path).await?;
     refresh_applications();
     Ok(())
@@ -51,7 +52,7 @@ async fn create_inner(shortcut: &Shortcut, path: &Path) -> Result<(), std::io::E
 Version=1.0
 Type=Application
 Name={name}
-{icon}{description}Exec={exec} {args}
+{icon}{description}Exec={exec:?} {args}
 Terminal=false
 Categories=Game;",
         name = shortcut.name,
