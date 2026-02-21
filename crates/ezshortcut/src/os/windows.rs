@@ -27,7 +27,8 @@ pub fn get_menu_path() -> Option<PathBuf> {
 }
 
 pub async fn create(shortcut: &Shortcut, path: impl AsRef<Path>) -> std::io::Result<()> {
-    let path = match fs::metadata(path.as_ref()).await {
+    let path = path.as_ref();
+    let path = match fs::metadata(path).await {
         Ok(n) if n.is_dir() => path.join(shortcut.get_filename()),
         _ => path.to_owned(),
     };
@@ -78,7 +79,8 @@ pub async fn create_in_applications(shortcut: &Shortcut) -> std::io::Result<()> 
     fs::create_dir_all(&start_menu).await?;
 
     let file_path = start_menu.join(shortcut.get_filename());
-    spawn_blocking(move || create_inner(shortcut, file_path)).await??;
+    let shortcut = shortcut.clone();
+    spawn_blocking(move || create_inner(&shortcut, file_path)).await??;
 
     Ok(())
 }

@@ -59,7 +59,7 @@ exec {:?} {}
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>{}</string>
+    <string>{display_name}</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -71,8 +71,8 @@ exec {:?} {}
 </dict>
 </plist>
 "#,
+        display_name = xml_escape(&shortcut.name),
         sanitized = xml_escape(&make_filename_safe(&shortcut.name, true)),
-        xml_escape(&shortcut.name),
     );
     // TODO: Before the </dict> you could have
     // ```
