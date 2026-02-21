@@ -33,7 +33,8 @@ pub async fn create(shortcut: &Shortcut, path: impl AsRef<Path>) -> std::io::Res
         _ => path.to_owned(),
     };
 
-    spawn_blocking(move || create_inner(shortcut, path)).await??;
+    let shortcut = shortcut.clone();
+    spawn_blocking(move || create_inner(&shortcut, path)).await??;
     Ok(())
 }
 
