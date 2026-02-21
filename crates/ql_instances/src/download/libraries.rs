@@ -227,26 +227,43 @@ impl GameDownloader {
         let natives_dir = libraries_dir.join("natives");
 
         for (os, download) in classifiers {
+            if os == "sources" {
+                continue;
+            }
             #[allow(unused)]
             if !(OS_NAMES.iter().any(|os_name| {
+                let os_name = format!("natives-{os_name}");
                 cfg_if!(if #[cfg(feature = "simulate_linux_arm64")] {
-                    let matches = os == "natives-linux-arm64";
+                    // Simulating Linux ARM 64
+                    let matches = os == "natives-linux-arm64"
+                        || (*os == os_name && download.url.contains("arm64"));
                 } else if #[cfg(feature = "simulate_macos_arm64")] {
+                    // Simulating macOS ARM 64
                     let matches = os == "natives-osx-arm64";
                 } else if #[cfg(feature = "simulate_linux_arm32")] {
-                    let matches = os == "natives-linux-arm32";
+                    // Simulating Linux ARM 32
+                    let matches = os == "natives-linux-arm32"
+                        || (*os == os_name && download.url.contains("arm32"));
                 } else if #[cfg(all(target_os = "macos", target_arch = "aarch64"))] {
+                    // macOS ARM 64
                     let matches = os == "natives-osx-arm64";
                 } else if #[cfg(all(target_os = "linux", target_arch = "aarch64"))] {
-                    let matches = os == "natives-linux-arm64";
+                    // Linux ARM 64
+                    let matches = os == "natives-linux-arm64"
+                        || (*os == os_name && download.url.contains("arm64"));
                 } else if #[cfg(all(target_os = "windows", target_arch = "x86"))] {
+                    // Windows x86 32-bit
                     let matches = os == "natives-windows-32";
                 } else if #[cfg(all(target_os = "windows", target_arch = "x86_64"))] {
+                    // Windows x86_64
                     let matches = (os == "natives-windows-64") || (os == "natives-windows");
                 } else if #[cfg(all(target_os = "linux", target_arch = "arm"))] {
-                    let matches = os == "natives-linux-arm32";
+                    // Linux ARM 32
+                    let matches = os == "natives-linux-arm32"
+                        || (*os == os_name && download.url.contains("arm32"));
                 } else {
-                    let matches = *os == format!("natives-{os_name}");
+                    // Others
+                    let matches = *os == os_name;
                 });
 
                 matches

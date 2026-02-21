@@ -76,6 +76,10 @@ impl InstanceNotes {
     }
 }
 
+pub struct LogState {
+    pub content: widget::text_editor::Content,
+}
+
 /// The home screen of the launcher.
 pub struct MenuLaunch {
     pub message: String,
@@ -83,6 +87,7 @@ pub struct MenuLaunch {
     pub tab: LaunchTab,
     pub edit_instance: Option<MenuEditInstance>,
     pub notes: Option<InstanceNotes>,
+    pub log_state: Option<LogState>,
     pub modal: Option<LaunchModal>,
 
     pub sidebar_scrolled: f32,
@@ -91,7 +96,6 @@ pub struct MenuLaunch {
 
     pub is_viewing_server: bool,
     pub is_uploading_mclogs: bool,
-    pub log_scroll: isize,
 }
 
 impl Default for MenuLaunch {
@@ -119,7 +123,7 @@ impl MenuLaunch {
             sidebar_scrolled: 100.0,
             is_viewing_server: false,
             sidebar_grid_state,
-            log_scroll: 0,
+            log_state: None,
             is_uploading_mclogs: false,
             sidebar_split,
             notes: None,
@@ -152,6 +156,7 @@ pub struct MenuEditInstance {
     // Changing RAM:
     pub slider_value: f32,
     pub slider_text: String,
+    pub memory_input: String,
 
     pub main_class_mode: Option<MainClassMode>,
     pub arg_split_by_space: bool,

@@ -8,32 +8,33 @@
 //!
 //! # Platform Support
 //!
-//! - ¹: Only Java 8 supported (Minecraft 1.16.5 and below)
-//! - ✅: Obtained [from Mojang](https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json)
-//! - 🟢: Supported through [Amazon Corretto Java](https://aws.amazon.com/corretto/)
-//!   which we provide an alternate installer for.
-//! - 🟢²: Uses Java 17+ (with backwards compatibility),
-//!   may not be stable
-//! - 🟢³: Installed from
-//!   <https://github.com/Mrmayman/get-jdk>
+//! - ✅: [From Mojang](https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json)
+//! - 🟢: Supported through [Azul Zulu](https://www.azul.com/downloads/#zulu)
+//!       ([API](https://docs.azul.com/core/install/metadata-api))
+//! - 🟢¹: Uses newer Java (with backwards compatibility)
+//! - 🟢²: Installed from:
+//!   - FreeBSD: <https://github.com/Mrmayman/get-jdk>
+//!   - Others: <https://bell-sw.com/pages/downloads>
 //!
 //! | Platforms   | 8  | 16 | 17 | 21 | 25 |
 //! |:------------|:--:|:--:|:--:|:--:|:--:|
 //! | **Windows** `x86_64`  | ✅ | ✅ | ✅ | ✅ | ✅ |
-//! | **Windows** `i686`    | 🟢 | ✅ | ✅ | 🟢 | 🟢 |
-//! | **Windows** `aarch64`²| 🟢²| 🟢²| ✅ | ✅ | ✅ |
+//! |  *Windows*  `i686`    | ✅ | ✅ | ✅ | 🟢²|    |
+//! | **Windows** `aarch64`²| 🟢¹| 🟢 | ✅ | ✅ | ✅ |
 //! | | | | | |
 //! | **macOS**   `x86_64`  | ✅ | ✅ | ✅ | ✅ | ✅ |
 //! | **macOS**   `aarch64` | 🟢 | 🟢 | ✅ | ✅ | ✅ |
 //! | | | | | |
-//! | **Linux**   `x86_64`  | ✅ | ✅ | ✅ | ✅ | ✅ |
-//! | **Linux**   `i686`¹   | ✅ |    |    |    |    |
-//! | **Linux**   `aarch64` | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 |
-//! | **Linux**   `arm32`¹  | 🟢³|    |    |    |    |
+//! | **Linux**      `x86_64`  | ✅ | ✅ | ✅ | ✅ | ✅ |
+//! |  *Linux*       `i686`    | ✅ | 🟢 | 🟢 | 🟢²|    |
+//! | **Linux**      `aarch64` | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 |
+//! |  *Linux*       `arm32`   | 🟢 | 🟢¹| 🟢 | 🟢²|    |
+//! | **Linux** MUSL `x86_64`  | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 |
+//! | **Linux** MUSL `aarch64` | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 |
 //! | | | | | |
-//! | **FreeBSD** `x86_64`¹ | 🟢³|    |    |    |    |
-//! | **Solaris** `x86_64`¹ | 🟢³|    |    |    |    |
-//! | **Solaris** `sparc64`¹| 🟢³|    |    |    |    |
+//! | **FreeBSD** `x86_64`  | 🟢²|    |    |    |    |
+//! | **Solaris** `x86_64`  | 🟢 |    |    |    |    |
+//! | **Solaris** `sparc64` | 🟢 |    |    |    |    |
 //!
 //! # TODO
 //!
@@ -56,6 +57,7 @@ use json::{
 };
 use owo_colors::OwoColorize;
 use std::{
+    env::consts::ARCH,
     path::{Path, PathBuf},
     sync::{mpsc::Sender, Mutex},
 };
@@ -64,18 +66,17 @@ use thiserror::Error;
 use ql_core::{
     constants::OS_NAME,
     do_jobs_with_limit, err,
-    file_utils::{self, DirItem},
+    file_utils::{self, canonicalize_a, exists, DirItem},
     info, pt, GenericProgress, IntoIoError, IoError, JsonDownloadError, JsonError, RequestError,
     LAUNCHER_DIR,
 };
 
 mod compression;
 pub use compression::extract_tar_gz;
+pub use ql_core::JavaVersion;
 
 mod alternate_java;
 mod json;
-
-pub use json::list::JavaVersion;
 
 #[allow(dead_code)]
 const fn which_java() -> &'static str {
@@ -138,24 +139,15 @@ pub const JAVA: &str = which_java();
 /// # }
 /// ```
 ///
-/// # Side notes
-/// - On aarch64 linux, this function installs Amazon Corretto Java.
-/// - On all other platforms, this function installs Java from Mojang.
+/// Java may be fetched either from Mojang or other sources
+/// depending on platform (see crate-level docs for more info)
 pub async fn get_java_binary(
-    mut version: JavaVersion,
+    version: JavaVersion,
     name: &str,
     java_install_progress_sender: Option<&Sender<GenericProgress>>,
 ) -> Result<PathBuf, JavaInstallError> {
     let java_dir = LAUNCHER_DIR.join("java_installs").join(version.to_string());
-    let is_incomplete_install = java_dir.join("install.lock").exists();
-
-    if cfg!(target_os = "windows") && cfg!(target_arch = "aarch64") {
-        if let JavaVersion::Java8 | JavaVersion::Java16 = version {
-            // Java 8 and 16 are unsupported on Windows aarch64.
-            // Use Java 17 instead, which should be mostly compatible?
-            version = JavaVersion::Java17;
-        }
-    }
+    let is_incomplete_install = exists(java_dir.join("install.lock")).await;
 
     if !java_dir.exists() || is_incomplete_install {
         info!("Installing Java: {version}");
@@ -163,7 +155,7 @@ pub async fn get_java_binary(
     }
 
     let bin_path = find_java_bin(name, &java_dir).await?;
-    Ok(tokio::fs::canonicalize(&bin_path).await.path(bin_path)?)
+    Ok(canonicalize_a(&bin_path).await)
 }
 
 async fn find_java_bin(name: &str, java_dir: &Path) -> Result<PathBuf, JavaInstallError> {
@@ -173,34 +165,39 @@ async fn find_java_bin(name: &str, java_dir: &Path) -> Result<PathBuf, JavaInsta
         format!("jre.bundle/Contents/Home/bin/{name}"),
         format!("jdk1.8.0_231/{name}"),
         format!("jdk1.8.0_231/bin/{name}"),
+        format!("jdk-21.0.10/bin/{name}"),
     ];
 
     for name in names {
         let path = java_dir.join(&name);
-        if path.exists() {
+        if exists(&path).await {
             return Ok(path);
         }
-
         let path2 = java_dir.join(format!("{name}.exe"));
-        if path2.exists() {
+        if exists(&path2).await {
             return Ok(path2);
         }
     }
 
     let entries = file_utils::read_filenames_from_dir(java_dir).await;
+    if let Ok(entries) = entries.as_deref() {
+        if let Some(entry) = entries.iter().find(|n| n.name.contains("bellsoft")) {
+            return Box::pin(find_java_bin(name, &java_dir.join(&entry.name))).await;
+        }
+    }
 
     Err(JavaInstallError::NoJavaBinFound(entries))
 }
+
+#[cfg(target_os = "macos")]
+const CONCURRENCY_LIMIT: usize = 16;
+#[cfg(not(target_os = "macos"))]
+const CONCURRENCY_LIMIT: usize = 64;
 
 async fn install_java(
     version: JavaVersion,
     java_install_progress_sender: Option<&Sender<GenericProgress>>,
 ) -> Result<(), JavaInstallError> {
-    #[cfg(target_os = "macos")]
-    const LIMIT: usize = 16;
-    #[cfg(not(target_os = "macos"))]
-    const LIMIT: usize = 64;
-
     let install_dir = get_install_dir(version).await?;
     let lock_file = lock_init(&install_dir).await?;
 
@@ -210,7 +207,9 @@ async fn install_java(
     let Some(java_files_url) = java_list_json.get_url(version) else {
         // Mojang doesn't officially provide java for som platforms.
         // In that case, fetch from alternate sources.
-        return alternate_java::install(version, java_install_progress_sender, &install_dir).await;
+        alternate_java::install(version, java_install_progress_sender, &install_dir).await?;
+        lock_finish(&lock_file).await?;
+        return Ok(());
     };
 
     let json: JavaFilesJson = file_utils::download_file_to_json(&java_files_url, false).await?;
@@ -229,7 +228,7 @@ async fn install_java(
                 file,
             )
         }),
-        LIMIT,
+        CONCURRENCY_LIMIT,
     )
     .await?;
 
@@ -268,14 +267,9 @@ async fn get_install_dir(version: JavaVersion) -> Result<PathBuf, JavaInstallErr
     Ok(install_dir)
 }
 
-fn send_progress(
-    java_install_progress_sender: Option<&Sender<GenericProgress>>,
-    progress: GenericProgress,
-) {
-    if let Some(java_install_progress_sender) = java_install_progress_sender {
-        if let Err(err) = java_install_progress_sender.send(progress) {
-            err!("Error sending java install progress: {err}\nThis should probably be safe to ignore");
-        }
+fn send_progress(sender: Option<&Sender<GenericProgress>>, progress: GenericProgress) {
+    if let Some(sender) = sender {
+        _ = sender.send(progress);
     }
 }
 
@@ -365,32 +359,35 @@ async fn download_file(downloads: &JavaFileDownload) -> Result<Vec<u8>, JavaInst
 }
 
 const ERR_PREF1: &str = "while installing Java (OS: ";
+const UNSUPPORTED_MESSAGE: &str = r"Automatic Java installation isn’t supported on your platform for this Minecraft version.
+You can:
+- Install Java manually and set the executable path in the Instance → Edit tab
+- Try an older Minecraft version
+- Download the 64-bit launcher if you’re using the 32-bit version";
 
 #[derive(Debug, Error)]
 pub enum JavaInstallError {
-    #[error("{ERR_PREF1}{OS_NAME}):\n{0}")]
+    #[error("{ERR_PREF1}{OS_NAME} {ARCH}):\n{0}")]
     JsonDownload(#[from] JsonDownloadError),
-    #[error("{ERR_PREF1}{OS_NAME}):\n{0}")]
+    #[error("{ERR_PREF1}{OS_NAME} {ARCH}):\n{0}")]
     Request(#[from] RequestError),
-    #[error("{ERR_PREF1}{OS_NAME}):\n{0}")]
+    #[error("{ERR_PREF1}{OS_NAME} {ARCH}):\n{0}")]
     Json(#[from] JsonError),
-    #[error("{ERR_PREF1}{OS_NAME}):\n{0}")]
+    #[error("{ERR_PREF1}{OS_NAME} {ARCH}):\n{0}")]
     Io(#[from] IoError),
     #[error(
-        "{ERR_PREF1}{OS_NAME}):\ncouldn't find java binary (this is a bug! please report on discord!)\n{0:?}"
+        "{ERR_PREF1}{OS_NAME} {ARCH}):\ncouldn't find java binary (this is a bug! please report on discord!)\n{0:?}"
     )]
     NoJavaBinFound(Result<Vec<DirItem>, IoError>),
 
-    #[error("on your platform, only Java 8 (Minecraft 1.16.5 and below) is supported!\n")]
-    UnsupportedOnlyJava8,
-    #[error("Java auto-installation is not supported on your platform!\nPlease manually install Java,\nand add the executable path in instance Edit tab")]
+    #[error("({OS_NAME} {ARCH})\n{UNSUPPORTED_MESSAGE}")]
     UnsupportedPlatform,
 
-    #[error("{ERR_PREF1}{OS_NAME}):\nzip extract error:\n{0}")]
+    #[error("{ERR_PREF1}{OS_NAME} {ARCH}):\nzip extract error:\n{0}")]
     ZipExtract(#[from] zip::result::ZipError),
-    #[error("{ERR_PREF1}{OS_NAME}):\ncouldn't extract java tar.gz:\n{0}")]
+    #[error("{ERR_PREF1}{OS_NAME} {ARCH}):\ncouldn't extract java tar.gz:\n{0}")]
     TarGzExtract(std::io::Error),
-    #[error("{ERR_PREF1}{OS_NAME}):\nunknown extension for java: {0}\n\nThis is a bug, please report on discord!")]
+    #[error("{ERR_PREF1}{OS_NAME} {ARCH}):\nunknown extension for java: {0}\n\nThis is a bug, please report on discord!")]
     UnknownExtension(String),
 }
 

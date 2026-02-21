@@ -72,7 +72,7 @@ Modrinth/Curseforge modpack"
                             "Select All"
                         }
                     )
-                    .on_press(Message::EditPresets(EditPresetsMessage::SelectAll)),]
+                    .on_press(Message::EditPresets(EditPresetsMessage::SelectAll))]
                     .padding({
                         let p: iced::Padding = 10.into();
                         p.bottom(0)

@@ -313,6 +313,7 @@ impl GameDownloader {
         #[allow(deprecated)]
         let config_json = InstanceConfigJson {
             java_override: None,
+            java_override_version: None,
             ram_in_mb: DEFAULT_RAM_MB_FOR_INSTANCE,
             mod_type: Loader::Vanilla,
             enable_logger: Some(true),

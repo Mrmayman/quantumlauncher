@@ -295,9 +295,9 @@ async fn create_required_jsons(neoforge_dir: &Path) -> Result<(), ForgeInstallEr
 }
 
 const FORGE_INSTALLER_CLIENT: &[u8] =
-    include_bytes!("../../../../assets/installers/NeoForgeInstallerClient.class");
+    include_bytes!("../../../../assets/installers/neoforge/NeoForgeInstallerClient.class");
 const FORGE_INSTALLER_SERVER: &[u8] =
-    include_bytes!("../../../../assets/installers/NeoForgeInstallerServer.class");
+    include_bytes!("../../../../assets/installers/neoforge/NeoForgeInstallerServer.class");
 
 pub async fn run_installer(
     neoforge_dir: &Path,

@@ -39,7 +39,7 @@ pub struct GameLauncher {
     /// Server: `QuantumLauncher/servers/NAME/`
     pub minecraft_dir: PathBuf,
 
-    pub config_json: InstanceConfigJson,
+    pub config: InstanceConfigJson,
     pub version_json: VersionDetails,
     /// Launcher-wide instance settings. These
     /// can be overridden by `config_json.global_settings`.
@@ -62,7 +62,7 @@ impl GameLauncher {
             .await
             .path(&minecraft_dir)?;
 
-        let config_json = InstanceConfigJson::read_from_dir(&instance_dir).await?;
+        let config = InstanceConfigJson::read_from_dir(&instance_dir).await?;
 
         let instance = InstanceSelection::Instance(instance_name.clone());
         let mut version_json = VersionDetails::load(&instance).await?;
@@ -74,7 +74,7 @@ impl GameLauncher {
             java_install_progress_sender,
             instance_dir,
             minecraft_dir,
-            config_json,
+            config,
             version_json,
             global_settings,
             extra_java_args,
@@ -113,9 +113,8 @@ impl GameLauncher {
 
         // Add custom resolution arguments if specified
         // Priority: Instance-specific setting > Global default > Minecraft default
-        let (width_to_use, height_to_use) = self
-            .config_json
-            .get_window_size(self.global_settings.as_ref());
+        let (width_to_use, height_to_use) =
+            self.config.get_window_size(self.global_settings.as_ref());
 
         if let Some(width) = width_to_use {
             game_arguments.push("--width".to_owned());
@@ -126,7 +125,7 @@ impl GameLauncher {
             game_arguments.push(height.to_string());
         }
 
-        game_arguments.extend(self.config_json.game_args.clone().unwrap_or_default());
+        game_arguments.extend(self.config.game_args.clone().unwrap_or_default());
 
         Ok(game_arguments)
     }
@@ -236,7 +235,7 @@ impl GameLauncher {
 
         // TODO: deal with self.version_json.arguments.jvm (currently ignored)
         let mut args: Vec<String> = self
-            .config_json
+            .config
             .get_java_args(&self.extra_java_args)
             .into_iter()
             .filter(|arg| !arg.trim().is_empty())
@@ -247,7 +246,7 @@ impl GameLauncher {
                 format!("-Djna.tmpdir={natives_path}"),
                 format!("-Dorg.lwjgl.system.SharedLibraryExtractPath={natives_path}"),
                 format!("-Dio.netty.native.workdir={natives_path}"),
-                self.config_json.get_ram_argument(),
+                self.config.get_ram_argument(),
             ])
             .collect();
 
@@ -286,7 +285,7 @@ impl GameLauncher {
 
         // Backwards compatibility with Quantum Launcher v0.3.1 - v0.4.1
         #[allow(deprecated)]
-        if self.config_json.omniarchive.is_some() {
+        if self.config.omniarchive.is_some() {
             args.push("-Dhttp.proxyHost=betacraft.uk".to_owned());
             if self.version_json.id.starts_with("c0.") {
                 // Classic
@@ -315,7 +314,7 @@ impl GameLauncher {
         java_arguments: &mut Vec<String>,
         game_arguments: &mut Vec<String>,
     ) -> Result<Option<FabricJSON>, GameLaunchError> {
-        if !matches!(self.config_json.mod_type, Loader::Fabric | Loader::Quilt) {
+        if !matches!(self.config.mod_type, Loader::Fabric | Loader::Quilt) {
             return Ok(None);
         }
 
@@ -336,7 +335,7 @@ impl GameLauncher {
         java_arguments: &mut Vec<String>,
         game_arguments: &mut Vec<String>,
     ) -> Result<Option<forge::JsonDetails>, GameLaunchError> {
-        if !matches!(self.config_json.mod_type, Loader::Forge | Loader::Neoforge) {
+        if !matches!(self.config.mod_type, Loader::Forge | Loader::Neoforge) {
             return Ok(None);
         }
         if self.version_json.is_legacy_version() && self.version_json.get_id() != "1.5.2" {
@@ -398,7 +397,7 @@ impl GameLauncher {
         &self,
         game_arguments: &mut Vec<String>,
     ) -> Result<Option<(JsonOptifine, PathBuf)>, GameLaunchError> {
-        if !matches!(self.config_json.mod_type, Loader::OptiFine) {
+        if !matches!(self.config.mod_type, Loader::OptiFine) {
             return Ok(None);
         }
 
@@ -514,13 +513,13 @@ impl GameLauncher {
         } else {
             "net.minecraft.client.main.Main"
         };
-        self.config_json
+        self.config
             .custom_jar
             .as_ref()
             .is_some_and(|n| n.autoset_main_class)
             .then(|| forced_main_class.to_owned())
             .or_else(|| {
-                self.config_json
+                self.config
                     .main_class_override
                     .clone()
                     .filter(|n| !n.is_empty())
@@ -743,11 +742,13 @@ impl GameLauncher {
     }
 
     pub async fn get_java_command(&mut self) -> Result<(Command, PathBuf), GameLaunchError> {
-        if let Some(java_override) = self.config_json.get_java_override() {
+        if let Some(java_override) = self.config.get_java_override() {
             info!("Java (override): {java_override:?}\n");
             return Ok((Command::new(&java_override), java_override));
         }
-        let version = if let Some(version) = self.version_json.javaVersion.clone() {
+        let version = if let Some(version) = self.config.java_override_version {
+            version.into()
+        } else if let Some(version) = self.version_json.javaVersion.clone() {
             version.into()
         } else {
             JavaVersion::Java8
@@ -755,7 +756,7 @@ impl GameLauncher {
 
         let program = get_java_binary(
             version,
-            if cfg!(target_os = "windows") && self.config_json.enable_logger.unwrap_or(true) {
+            if cfg!(target_os = "windows") && self.config.enable_logger.unwrap_or(true) {
                 "javaw"
             } else {
                 "java"
@@ -793,7 +794,7 @@ impl GameLauncher {
     ) -> Result<(Command, PathBuf), GameLaunchError> {
         let (mut command, mut path) = self.get_java_command().await?;
 
-        let prefix_commands = self.config_json.build_launch_prefix(
+        let prefix_commands = self.config.build_launch_prefix(
             self.global_settings
                 .as_ref()
                 .and_then(|n| n.pre_launch_prefix.as_deref())
@@ -829,7 +830,7 @@ impl GameLauncher {
         }
 
         command.current_dir(&self.minecraft_dir);
-        if self.config_json.enable_logger.unwrap_or(true) {
+        if self.config.enable_logger.unwrap_or(true) {
             command.stdout(Stdio::piped()).stderr(Stdio::piped());
         }
 

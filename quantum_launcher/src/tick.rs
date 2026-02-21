@@ -1,10 +1,11 @@
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
+    sync::Arc,
 };
 
 use chrono::Datelike;
-use iced::Task;
+use iced::{widget::text_editor, Task};
 use ql_core::{
     constants::OS_NAME, json::InstanceConfigJson, InstanceSelection, IntoIoError, IntoJsonError,
     IntoStringError, JsonFileError, ModId,
@@ -13,7 +14,7 @@ use ql_mod_manager::store::{ModConfig, ModIndex};
 
 use crate::state::{
     AutoSaveKind, EditInstanceMessage, GameProcess, InstallModsMessage, InstanceLog, LaunchTab,
-    Launcher, ManageJarModsMessage, MenuCreateInstance, MenuEditMods, MenuExportInstance,
+    Launcher, LogState, ManageJarModsMessage, MenuCreateInstance, MenuEditMods, MenuExportInstance,
     MenuInstallFabric, MenuInstallOptifine, MenuLaunch, MenuLoginMS, MenuModsDownload,
     MenuRecommendedMods, Message, ModListEntry, State,
 };
@@ -39,7 +40,15 @@ impl Launcher {
                     let config = edit.config.clone();
                     self.tick_edit_instance(config, &mut commands);
                 }
-                self.tick_processes_and_logs();
+
+                for (name, process) in &mut self.processes {
+                    let log_state = if let State::Launch(menu) = &mut self.state {
+                        &mut menu.log_state
+                    } else {
+                        &mut None
+                    };
+                    Self::read_game_logs(process, name, &mut self.logs, log_state);
+                }
 
                 commands.push(self.autosave_config());
                 return Task::batch(commands);
@@ -182,58 +191,47 @@ impl Launcher {
         commands.push(cmd);
     }
 
-    fn tick_processes_and_logs(&mut self) {
-        let mut killed_processes = Vec::new();
-        for (name, process) in &mut self.processes {
-            Self::read_game_logs(process, name, &mut self.logs);
-            if let Ok(Some(_)) = process.child.child.lock().unwrap().try_wait() {
-                // Game process has exited.
-                killed_processes.push(name.to_owned());
-            }
-        }
-        for name in killed_processes {
-            self.processes.remove(&name);
-        }
-    }
-
-    fn read_game_logs(
+    pub fn read_game_logs(
         process: &GameProcess,
-        name: &InstanceSelection,
+        instance: &InstanceSelection,
         logs: &mut HashMap<InstanceSelection, InstanceLog>,
+        log_state: &mut Option<LogState>,
     ) {
         while let Some(message) = process.receiver.as_ref().and_then(|n| n.try_recv().ok()) {
             let message = message.to_string().replace('\t', &" ".repeat(8));
 
-            let mut log_start = vec![
-                format!(
-                    "{} ({})\n",
-                    if name.is_server() {
-                        "Starting Minecraft server"
-                    } else {
-                        "Launching Minecraft"
-                    },
-                    Self::get_current_date_formatted()
-                ),
-                format!("OS: {OS_NAME}\n"),
-            ];
+            let log_start = || {
+                vec![
+                    format!(
+                        "{} ({})\n",
+                        if instance.is_server() {
+                            "Starting Minecraft server"
+                        } else {
+                            "Launching Minecraft"
+                        },
+                        Self::get_current_date_formatted()
+                    ),
+                    format!("OS: {OS_NAME}\n"),
+                ]
+            };
 
-            if !logs.contains_key(name) {
-                log_start.push(message);
-
-                logs.insert(
-                    name.to_owned(),
+            logs.entry(instance.clone())
+                .or_insert_with(|| {
+                    let mut text = log_start().join("\n");
+                    text.push('\n');
+                    *log_state = Some(LogState {
+                        content: text_editor::Content::with_text(&text),
+                    });
                     InstanceLog {
-                        log: log_start,
+                        log: log_start(),
                         has_crashed: false,
                         command: String::new(),
-                    },
-                );
-            } else if let Some(log) = logs.get_mut(name) {
-                if log.log.is_empty() {
-                    log.log = log_start;
-                }
-                log.log.push(message);
-            }
+                    }
+                })
+                .log
+                .push(message.clone());
+
+            update_log_render_state(log_state.as_mut(), message);
         }
     }
 
@@ -353,5 +351,15 @@ impl MenuCreateInstance {
                 progress.tick();
             }
         }
+    }
+}
+
+fn update_log_render_state(log_state: Option<&mut LogState>, message: String) {
+    if let Some(state) = log_state {
+        use iced::widget::text_editor::{Action, Edit, Motion};
+        // TODO: preserve selection
+        let content = &mut state.content;
+        content.perform(Action::Move(Motion::DocumentEnd));
+        content.perform(Action::Edit(Edit::Paste(Arc::new(message))));
     }
 }

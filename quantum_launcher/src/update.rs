@@ -263,6 +263,9 @@ impl Launcher {
             Message::CoreEvent(event, status) => return self.iced_event(event, status),
             Message::MChangeTab(launch_tab_id) => {
                 self.load_edit_instance(Some(launch_tab_id));
+                if let LaunchTab::Log = launch_tab_id {
+                    self.load_logs(self.instance().clone());
+                }
             }
             Message::CoreLogToggle => {
                 self.is_log_open = !self.is_log_open;

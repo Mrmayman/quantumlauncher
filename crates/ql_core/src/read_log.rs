@@ -2,15 +2,17 @@ use std::{
     collections::HashMap,
     fmt::{Display, Write},
     process::ExitStatus,
-    sync::{mpsc::Sender, Arc, Mutex},
+    sync::{mpsc::Sender, Arc},
 };
 
 use owo_colors::OwoColorize;
 use serde::Deserialize;
 use thiserror::Error;
 use tokio::{
-    io::{AsyncBufReadExt, BufReader},
-    process::{Child, ChildStderr, ChildStdout},
+    io::{AsyncBufRead, AsyncBufReadExt, BufReader},
+    process::Child,
+    sync::Mutex,
+    task::JoinError,
 };
 
 use crate::{
@@ -18,93 +20,116 @@ use crate::{
     JsonFileError, REDACT_SENSITIVE_INFO,
 };
 
-/// Reads log output from the given instance
-/// and sends it to the given sender.
-///
-/// This async function runs till the instance process exits,
-/// then it returns the exit status.
-///
-/// This automatically deals with XML logs.
-///
-/// # Arguments
-/// - `stdout`: The stdout of the instance process.
-/// - `stderr`: The stderr of the instance process.
-/// - `child`: The instance process.
-/// - `sender`: The sender to send [`LogLine`]s to.
-/// - `instance_name`: The name of the instance.
-/// - `censors`: Any strings to censor (like session id, password, etc.)
-///   Leave blank if not needed.
-///
-/// # Errors
-/// If:
-/// - `details.json` couldn't be read or parsed into JSON
-///   (for checking if XML logs are used)
-/// - the `Receiver<LogLine>` was dropped,
-///   disconnecting the channel
-/// - Tokio *somehow* fails to read the `stdout` or `stderr`
-#[allow(clippy::missing_panics_doc)]
+// TODO: Use the "newfangled" approach of the Modrinth launcher:
+// https://github.com/modrinth/code/blob/main/packages/app-lib/src/state/process.rs#L208
+//
+// It uses tokio and quick_xml's async features.
+// It also looks a lot less "magic" than my approach.
+// Also, the Modrinth app is GNU GPLv3 so I guess it's
+// safe for me to take some code.
+
 pub(crate) async fn read_logs(
-    stdout: ChildStdout,
-    stderr: ChildStderr,
     child: Arc<Mutex<Child>>,
     sender: Option<Sender<LogLine>>,
     instance: InstanceSelection,
     censors: Vec<String>,
 ) -> Result<(ExitStatus, InstanceSelection, Option<Diagnostic>), ReadError> {
-    // TODO: Use the "newfangled" approach of the Modrinth launcher:
-    // https://github.com/modrinth/code/blob/main/packages/app-lib/src/state/process.rs#L208
-    //
-    // It uses tokio and quick_xml's async features.
-    // It also looks a lot less "magic" than my approach.
-    // Also, the Modrinth app is GNU GPLv3 so I guess it's
-    // safe for me to take some code.
+    let r = {
+        let mut c = child.lock().await;
+        (c.stdout.take(), c.stderr.take())
+    };
+    let (Some(stdout), Some(stderr)) = r else {
+        return Ok((ExitStatus::default(), instance, None));
+    };
 
     let uses_xml = !instance.is_server() && is_xml(instance.get_name()).await?;
 
-    let mut stdout_reader = BufReader::new(stdout).lines();
-    let mut stderr_reader = BufReader::new(stderr).lines();
+    let stdout = BufReader::new(stdout);
+    let stderr = BufReader::new(stderr);
 
+    let stdout_read = tokio::spawn(read_log_from_stream(
+        stdout,
+        sender.clone(),
+        censors.clone(),
+        uses_xml,
+        false,
+    ));
+    let stderr_read = tokio::spawn(read_log_from_stream(
+        stderr,
+        sender.clone(),
+        censors.clone(),
+        false,
+        false,
+    ));
+
+    let status = loop {
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        let mut child = child.lock().await;
+        if let Some(status) = child.try_wait()? {
+            break status;
+        }
+    };
+    let mut log_raw = stdout_read.await??;
+    log_raw.extend(stderr_read.await??);
+
+    let diag = Diagnostic::generate_from_log(&log_raw);
+    Ok((status, instance, diag))
+}
+
+async fn read_log_from_stream<R: AsyncBufRead + Unpin>(
+    stream: R,
+    sender: Option<Sender<LogLine>>,
+    censors: Vec<String>,
+    uses_xml: bool,
+    is_stderr: bool,
+) -> Result<Vec<String>, ReadError> {
+    let mut stream = stream.lines();
     let mut xml_cache = String::new();
+    // A clean formatting-free list of lines.
+    // For generating diagnostics from error messages.
     let mut log_raw = Vec::new();
-
     let mut has_errored = false;
 
-    loop {
-        {
-            let mut child = child.lock().unwrap();
-            if let Ok(Some(status)) = child.try_wait() {
-                // Game has exited.
-                let diag = Diagnostic::generate_from_log(&log_raw);
-                return Ok((status, instance, diag));
+    while let Ok(Some(mut line)) = stream.next_line().await {
+        line = censor(&line, &censors);
+        if uses_xml {
+            xml_parse(
+                sender.as_ref(),
+                &mut xml_cache,
+                &line,
+                &mut has_errored,
+                &mut log_raw,
+            );
+        } else {
+            if !line.ends_with('\n') {
+                line.push('\n');
             }
-        };
-
-        tokio::select! {
-            line = stdout_reader.next_line() => {
-                if let Some(mut line) = line? {
-                    line = censor(&line, &censors);
-                    if uses_xml {
-                        xml_parse(sender.as_ref(), &mut xml_cache, &line, &mut has_errored, &mut log_raw);
-                    } else {
-                        if !line.ends_with('\n') {
-                            line.push('\n');
-                        }
-                        log_raw.push(line.clone());
-                        send(sender.as_ref(), LogLine::Message(line));
-                    }
-                } // else EOF
-            },
-            line = stderr_reader.next_line() => {
-                if let Some(mut line) = line? {
-                    line = censor(&line, &censors);
-                    if !line.ends_with('\n') {
-                        line.push('\n');
-                    }
-                    send(sender.as_ref(), LogLine::Error(line));
-                }
-            }
+            log_raw.push(line.clone());
+            send(
+                sender.as_ref(),
+                if is_stderr {
+                    LogLine::Error(line)
+                } else {
+                    LogLine::Message(line)
+                },
+            );
         }
     }
+
+    let remaining = xml_cache.trim();
+    if !remaining.is_empty() {
+        log_raw.push(remaining.to_owned());
+        send(
+            sender.as_ref(),
+            if remaining.contains("Minecraft Crash Report") {
+                LogLine::Error
+            } else {
+                LogLine::Message
+            }(remaining.replace('\t', "\n    ")),
+        );
+    }
+
+    Ok(log_raw)
 }
 
 fn censor(input: &str, censors: &[String]) -> String {
@@ -241,6 +266,8 @@ pub enum ReadError {
     IoError(#[from] IoError),
     #[error("{READ_ERR_PREFIX}{0}")]
     Json(#[from] JsonError),
+    #[error("{READ_ERR_PREFIX}couldn't join async task:\n{0}")]
+    Join(#[from] JoinError),
     #[error("{0}")]
     Diagnostic(#[from] Diagnostic),
 }
@@ -260,6 +287,8 @@ pub enum Diagnostic {
     XrandrNotInstalled,
     #[error("Not enough stack size allocated! Add this to Java arguments:\n-Dorg.lwjgl.system.stackSize=256")]
     OutOfStackSpace,
+    #[error("Your mac's graphics drivers aren't working!\nThis is normal in virtual machines")]
+    MacOSPixelFormat,
 }
 
 impl Diagnostic {
@@ -280,6 +309,18 @@ impl Diagnostic {
             )
         {
             Some(Diagnostic::XrandrNotInstalled)
+        } else if cfg!(target_os = "macos")
+            && (c(
+                log,
+                "org.lwjgl.LWJGLException: Could not create pixel format",
+            ) || c(log, "GL pipe is running in software mode")
+                || c(
+                    log,
+                    "org.lwjgl.LWJGLException: Display could not be created",
+                )
+                || c(log, "Failed to find a suitable pixel format"))
+        {
+            Some(Diagnostic::MacOSPixelFormat)
         } else {
             None
         }

@@ -79,7 +79,9 @@ pub enum EditInstanceMessage {
     BrowseJavaOverride,
 
     JavaOverride(String),
+    JavaOverrideVersion(usize),
     MemoryChanged(f32),
+    MemoryInputChanged(String),
     LoggingToggle(bool),
     CloseLauncherToggle(bool),
     SetMainClass(Option<MainClassMode>, Option<String>),
@@ -345,8 +347,7 @@ pub enum NotesMessage {
 
 #[derive(Debug, Clone)]
 pub enum GameLogMessage {
-    Scroll(isize),
-    ScrollAbsolute(isize),
+    Action(widget::text_editor::Action),
     Copy,
     Upload,
     Uploaded(Res<String>),

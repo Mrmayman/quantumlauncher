@@ -1,7 +1,7 @@
 use std::{
     path::{Path, PathBuf},
     process::Stdio,
-    sync::{mpsc::Sender, Arc, Mutex},
+    sync::{mpsc::Sender, Arc},
 };
 
 use ql_core::{
@@ -11,7 +11,7 @@ use ql_core::{
     LAUNCHER_DIR,
 };
 use ql_java_handler::{get_java_binary, JavaVersion};
-use tokio::process::Command;
+use tokio::{process::Command, sync::Mutex};
 
 use crate::ServerError;
 

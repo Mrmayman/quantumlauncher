@@ -1,6 +1,7 @@
 use crate::config::SIDEBAR_WIDTH;
 use crate::state::{
-    AutoSaveKind, GameProcess, MenuCreateInstance, MenuCreateInstanceChoosing, MenuInstallOptifine,
+    AutoSaveKind, GameProcess, LaunchTab, LogState, MenuCreateInstance, MenuCreateInstanceChoosing,
+    MenuInstallOptifine,
 };
 use crate::tick::sort_dependencies;
 use crate::{
@@ -54,11 +55,28 @@ impl Launcher {
                 self.autosave.remove(&AutoSaveKind::LauncherConfig);
             }
         }
+        self.load_logs(instance.clone());
         if let State::Launch(menu) = &mut self.state {
             menu.modal = None;
             menu.reload_notes(instance)
         } else {
             Task::none()
+        }
+    }
+
+    pub fn load_logs(&mut self, instance: InstanceSelection) {
+        let State::Launch(menu) = &mut self.state else {
+            return;
+        };
+        if let (Some(logs), LaunchTab::Log) = (self.logs.get(&instance), menu.tab) {
+            if menu.log_state.is_some() && Some(instance) == self.selected_instance {
+                return;
+            }
+            menu.log_state = Some(LogState {
+                content: iced::widget::text_editor::Content::with_text(&logs.log.join("\n")),
+            });
+        } else {
+            menu.log_state = None;
         }
     }
 
@@ -102,7 +120,10 @@ impl Launcher {
             Ok(child) => {
                 let selected_instance = child.instance.clone();
 
-                let server_input = child.child.lock().unwrap().stdin.take().map(|n| (n, false));
+                let server_input = block_on(child.child.lock())
+                    .stdin
+                    .take()
+                    .map(|n| (n, false));
 
                 let (sender, receiver) = std::sync::mpsc::channel();
                 self.processes.insert(
@@ -121,25 +142,25 @@ impl Launcher {
                     }
                 }
 
-                if let Some(f) = child.read_logs(censors, Some(sender)) {
-                    return Task::perform(
-                        async move {
-                            let result = f.await;
+                return Task::perform(
+                    async move {
+                        let result = child.read_logs(censors, Some(sender)).await;
+                        let default_output = Ok((ExitStatus::default(), selected_instance, None));
 
-                            match result {
-                                Err(ReadError::Io(io))
-                                    if io.kind() == std::io::ErrorKind::InvalidData =>
-                                {
-                                    err!("Minecraft log contains invalid unicode! Stopping logs");
-                                    pt!("The game will continue to run");
-                                    Ok((ExitStatus::default(), selected_instance, None))
-                                }
-                                _ => result.strerr(),
+                        match result {
+                            Some(Err(ReadError::Io(io)))
+                                if io.kind() == std::io::ErrorKind::InvalidData =>
+                            {
+                                err!("Minecraft log contains invalid unicode! Stopping logs");
+                                pt!("The game will continue to run");
+                                default_output
                             }
-                        },
-                        Message::LaunchGameExited,
-                    );
-                }
+                            Some(result) => result.strerr(),
+                            None => default_output,
+                        }
+                    },
+                    Message::LaunchGameExited,
+                );
             }
             Err(err) => self.set_error(err),
         }
@@ -199,6 +220,7 @@ impl Launcher {
             instance_name: instance_name.to_owned(),
             old_instance_name: instance_name.to_owned(),
             slider_text: format_memory(memory_mb),
+            memory_input: memory_mb.to_string(),
             is_editing_name: false,
             arg_split_by_space: true,
         });
@@ -284,9 +306,12 @@ impl Launcher {
         } else {
             "Game"
         };
-        info!("Game exited with status: {status}");
+        info!("Game exited ({status})");
 
-        if let State::Launch(MenuLaunch { message, .. }) = &mut self.state {
+        let log_state = if let State::Launch(MenuLaunch {
+            message, log_state, ..
+        }) = &mut self.state
+        {
             let has_crashed = !status.success();
             if has_crashed {
                 *message = format!("{kind} crashed! ({status})\nCheck \"Logs\" for more info");
@@ -298,6 +323,13 @@ impl Launcher {
             if let Some(log) = self.logs.get_mut(instance) {
                 log.has_crashed = has_crashed;
             }
+            log_state
+        } else {
+            &mut None
+        };
+
+        if let Some(process) = self.processes.remove(instance) {
+            Self::read_game_logs(&process, instance, &mut self.logs, log_state);
         }
     }
 
@@ -549,7 +581,7 @@ impl Launcher {
         match instance {
             InstanceSelection::Instance(_) => {
                 if let Some(process) = self.processes.remove(instance) {
-                    let mut child = process.child.child.lock().unwrap();
+                    let mut child = block_on(process.child.child.lock());
                     _ = child.start_kill();
                 }
             }
@@ -562,7 +594,7 @@ impl Launcher {
                 {
                     *has_issued_stop_command = true;
                     if child.is_classic_server {
-                        _ = child.child.lock().unwrap().start_kill();
+                        _ = block_on(child.child.lock()).start_kill();
                     } else {
                         let future = stdin.write_all("stop\n".as_bytes());
                         _ = block_on(future);
