@@ -69,10 +69,8 @@ Categories=Game;",
     );
 
     match fs::metadata(path).await {
-        Ok(n) => {
-            if n.is_dir() {
-                write_file(&path.join(shortcut.get_filename()), content).await?;
-            }
+        Ok(n) if n.is_dir() => {
+            write_file(&path.join(shortcut.get_filename()), content).await?;
         }
         _ => write_file(path, content).await?,
     };

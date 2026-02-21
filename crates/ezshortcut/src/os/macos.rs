@@ -55,7 +55,7 @@ exec {:?} {}
     <key>CFBundleExecutable</key>
     <string>ql_shortcut</string>
     <key>CFBundleIdentifier</key>
-    <string>io.github.Mrmayman.QLShortcut_{}</string>
+    <string>io.github.Mrmayman.QLShortcut_{sanitized}</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
@@ -71,8 +71,8 @@ exec {:?} {}
 </dict>
 </plist>
 "#,
-        shortcut.name,
-        make_filename_safe(&shortcut.name, true),
+        sanitized = xml_escape(&make_filename_safe(&shortcut.name, true)),
+        xml_escape(&shortcut.name),
     );
     // TODO: Before the </dict> you could have
     // ```
@@ -96,4 +96,17 @@ pub async fn create_in_applications(shortcut: &Shortcut) -> std::io::Result<()> 
     _ = Command::new("open").arg("-R").arg(&shortcut_path).spawn();
     refresh_applications();
     Ok(())
+}
+
+fn xml_escape(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            '&' => "&amp;".into(),
+            '<' => "&lt;".into(),
+            '>' => "&gt;".into(),
+            '"' => "&quot;".into(),
+            '\'' => "&apos;".into(),
+            _ => c.to_string(),
+        })
+        .collect()
 }

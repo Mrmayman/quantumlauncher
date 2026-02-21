@@ -1,4 +1,4 @@
-use tokio::fs;
+use tokio::{fs, task::spawn_blocking};
 use windows::{
     core::{Interface, HSTRING},
     Win32::{
@@ -13,9 +13,9 @@ use windows::{
 };
 
 use crate::Shortcut;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-pub fn get_menu_path() -> Option<std::path::PathBuf> {
+pub fn get_menu_path() -> Option<PathBuf> {
     unsafe {
         let path_ptr =
             SHGetKnownFolderPath(&FOLDERID_Programs, KNOWN_FOLDER_FLAG::default(), None).ok()?;
@@ -27,16 +27,16 @@ pub fn get_menu_path() -> Option<std::path::PathBuf> {
 }
 
 pub async fn create(shortcut: &Shortcut, path: impl AsRef<Path>) -> std::io::Result<()> {
-    create_inner(shortcut, path.as_ref()).await?;
-    Ok(())
-}
-
-async fn create_inner(shortcut: &Shortcut, path: &Path) -> std::io::Result<()> {
-    let path = match fs::metadata(path).await {
+    let path = match fs::metadata(path.as_ref()).await {
         Ok(n) if n.is_dir() => path.join(shortcut.get_filename()),
         _ => path.to_owned(),
     };
 
+    spawn_blocking(move || create_inner(shortcut, path)).await??;
+    Ok(())
+}
+
+fn create_inner(shortcut: &Shortcut, path: PathBuf) -> std::io::Result<()> {
     let args = shortcut
         .exec_args
         .iter()
@@ -72,13 +72,15 @@ fn ioerr(err: impl std::error::Error + Send + Sync + 'static) -> std::io::Error 
 }
 
 pub async fn create_in_applications(shortcut: &Shortcut) -> std::io::Result<()> {
-    let start_menu = tokio::task::spawn_blocking(|| get_menu_path())
-        .await?
-        .ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::NotFound, "Start menu path not found")
-        })?;
+    let start_menu = spawn_blocking(|| get_menu_path()).await?.ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::NotFound, "Start menu path not found")
+    })?;
     fs::create_dir_all(&start_menu).await?;
-    create_inner(shortcut, &start_menu).await
+
+    let file_path = start_menu.join(shortcut.get_filename());
+    spawn_blocking(move || create_inner(shortcut, file_path)).await??;
+
+    Ok(())
 }
 
 fn quote_windows_arg(arg: &str) -> String {
