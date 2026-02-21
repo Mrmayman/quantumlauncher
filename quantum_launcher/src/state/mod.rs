@@ -153,7 +153,7 @@ impl Launcher {
             launch
         } else {
             if let Err(err) = migration(version) {
-                err!(no_log, "{err}")
+                err!(no_log, "{err}");
             }
             config.version = Some(LAUNCHER_VERSION_NAME.to_owned());
             State::ChangeLog

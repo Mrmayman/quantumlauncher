@@ -7,6 +7,7 @@ use tokio::fs;
 
 use crate::Shortcut;
 
+#[must_use]
 pub fn get_menu_path() -> Option<PathBuf> {
     if let Ok(dir) = std::env::var("XDG_DATA_HOME") {
         Some(PathBuf::from(dir).join("applications"))

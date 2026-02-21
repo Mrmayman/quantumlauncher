@@ -316,7 +316,7 @@ impl Launcher {
             },
         );
 
-        self.account_selected = username.clone();
+        self.account_selected.clone_from(&username);
         self.accounts.insert(username.clone(), data);
 
         self.go_to_launch_screen::<String>(None)

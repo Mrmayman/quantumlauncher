@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 mod os;
 pub use os::{get_menu_path, EXTENSION, EXTENSION_S};
 
+#[must_use]
 pub fn get_desktop_dir() -> Option<PathBuf> {
     dirs::desktop_dir().or_else(|| dirs::home_dir().map(|n| n.join("Desktop")))
 }
@@ -35,6 +36,7 @@ impl Shortcut {
     }
 
     /// Gets the recommended filename for the shortcut based on OS behavior.
+    #[must_use]
     pub fn get_filename(&self) -> String {
         let mut filtered_name = make_filename_safe(&self.name, !cfg!(target_os = "windows"));
         filtered_name.push_str(EXTENSION);
@@ -58,8 +60,8 @@ fn make_filename_safe(input: &str, remove_spaces: bool) -> String {
         match c {
             '-' | '_' | '.' => out.push(c),
             ' ' | '/' | '\\' | '|' | ':' => out.push('_'),
-            '<' | '>' | '"' | '\'' | '?' | '*' => continue,
-            c if c.is_control() => continue,
+            '<' | '>' | '"' | '\'' | '?' | '*' => {}
+            c if c.is_control() => {}
             c if c.is_whitespace() => out.push(if remove_spaces { '_' } else { ' ' }),
 
             _ => out.push(c),

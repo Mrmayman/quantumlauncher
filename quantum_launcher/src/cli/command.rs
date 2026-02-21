@@ -166,10 +166,10 @@ pub fn delete_instance(
         }
     }
 
-    let selected_instance = InstanceSelection::Instance(instance_name.clone());
-    let deleted_instance_dir = selected_instance.get_instance_path();
+    let instance = InstanceSelection::Instance(instance_name);
+    let deleted_instance_dir = instance.get_instance_path();
     std::fs::remove_dir_all(&deleted_instance_dir)?;
-    info!("Deleted instance {instance_name}");
+    info!("Deleted instance {}", instance.get_name());
 
     Ok(())
 }
@@ -262,7 +262,7 @@ async fn refresh_account(
             tokio::task::spawn_blocking(|| {
                 show_notification("Launching game", "Refreshing account...");
             });
-        };
+        }
 
         match account.account_type.as_deref() {
             // Hook: Account types
@@ -292,7 +292,7 @@ async fn refresh_account(
             tokio::task::spawn_blocking(|| {
                 show_notification("Launching game", "Enjoy!");
             });
-        };
+        }
         None
     })
 }

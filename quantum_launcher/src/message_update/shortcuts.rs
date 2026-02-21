@@ -107,7 +107,7 @@ impl Launcher {
         self.state = State::CreateShortcut(MenuShortcut {
             shortcut: Shortcut {
                 name: self.instance().get_name().to_owned(),
-                description: "".to_owned(),
+                description: String::new(),
                 exec: String::new(),
                 exec_args: vec![],
                 icon: None,
@@ -116,7 +116,7 @@ impl Launcher {
             add_to_desktop: false,
             account: self.account_selected.clone(),
             account_offline: self.config.username.clone(),
-        })
+        });
     }
 
     pub fn shortcut_prepare(&mut self) -> Result<Shortcut, String> {

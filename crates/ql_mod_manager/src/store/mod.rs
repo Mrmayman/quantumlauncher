@@ -273,6 +273,7 @@ pub struct SearchMod {
 }
 
 impl SearchMod {
+    #[must_use]
     pub fn get_id(&self, backend: StoreBackendType) -> ModId {
         ModId::from_pair(&self.id, backend)
     }

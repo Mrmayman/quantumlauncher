@@ -15,6 +15,7 @@ use windows::{
 use crate::Shortcut;
 use std::path::{Path, PathBuf};
 
+#[must_use]
 pub fn get_menu_path() -> Option<PathBuf> {
     unsafe {
         let path_ptr =
@@ -70,11 +71,11 @@ fn create_inner(shortcut: &Shortcut, path: PathBuf) -> std::io::Result<()> {
 }
 
 fn ioerr(err: impl std::error::Error + Send + Sync + 'static) -> std::io::Error {
-    std::io::Error::new(std::io::ErrorKind::Other, Box::new(err))
+    std::io::Error::other(Box::new(err))
 }
 
 pub async fn create_in_applications(shortcut: &Shortcut) -> std::io::Result<()> {
-    let start_menu = spawn_blocking(|| get_menu_path()).await?.ok_or_else(|| {
+    let start_menu = spawn_blocking(get_menu_path).await?.ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::NotFound, "Start menu path not found")
     })?;
     fs::create_dir_all(&start_menu).await?;

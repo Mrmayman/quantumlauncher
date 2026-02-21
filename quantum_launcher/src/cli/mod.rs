@@ -259,7 +259,7 @@ pub fn start_cli(is_dir_err: bool, launcher_dir: &mut Option<PathBuf>) {
                 force,
             } => quit(command::delete_instance(instance_name, force)),
             QSubCommand::ListInstalled { properties } => {
-                quit(command::list_instances(properties.as_deref(), cli.server))
+                quit(command::list_instances(properties.as_deref(), cli.server));
             }
             QSubCommand::Loader(cmd) => {
                 quit(runtime.block_on(command::loader(cmd, cli.server)));

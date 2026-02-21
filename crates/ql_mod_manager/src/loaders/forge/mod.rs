@@ -229,8 +229,7 @@ impl ForgeInstaller {
             self.version_json
                 .javaVersion
                 .clone()
-                .map(JavaVersion::from)
-                .unwrap_or(JavaVersion::Java21)
+                .map_or(JavaVersion::Java21, JavaVersion::from)
         } else {
             JavaVersion::Java8
         };

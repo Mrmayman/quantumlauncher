@@ -61,7 +61,7 @@ impl Launcher {
                         .or(iter().next())) {
                         *selected_version = sel.clone();
                     }
-                })
+                });
             }
             CreateInstanceMessage::SidebarResize(ratio) => {
                 let window_width = self.window_state.size.0;
@@ -158,13 +158,12 @@ then go to "Mods->Add File""#,
                 .enumerate()
                 .filter(|n| n.1.kind != ListEntryKind::Snapshot)
                 .find(|n| n.1.name == latest)
-                .map(|n| {
+                .map_or_else(|| ListEntry::new(latest), |n| {
                     offset = n.0 as f32 / len as f32;
                     n.1.clone()
-                })
-                .unwrap_or_else(|| ListEntry::new(latest));
+                });
             *list = Some(versions);
-        })
+        });
     }
 
     pub fn go_to_create_screen(&mut self, is_server: bool) -> Task<Message> {

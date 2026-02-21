@@ -237,7 +237,7 @@ impl Launcher {
                 }
             }
             Message::CoreListLoaded(Ok((list, is_server))) => {
-                self.core_list_loaded(list, is_server)
+                self.core_list_loaded(list, is_server);
             }
             Message::CoreCopyText(txt) => {
                 return iced::clipboard::write(txt);

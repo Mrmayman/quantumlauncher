@@ -1,6 +1,7 @@
 use crate::Shortcut;
 use std::path::{Path, PathBuf};
 
+#[must_use]
 pub fn get_menu_path() -> Option<PathBuf> {
     None
 }

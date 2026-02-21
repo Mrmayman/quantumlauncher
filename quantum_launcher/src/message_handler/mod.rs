@@ -450,7 +450,7 @@ impl Launcher {
     pub fn server_selected(&self) -> bool {
         self.selected_instance
             .as_ref()
-            .is_some_and(|n| n.is_server())
+            .is_some_and(InstanceSelection::is_server)
             || if let State::Launch(menu) = &self.state {
                 menu.is_viewing_server
             } else if let State::Create(MenuCreateInstance::Choosing(
@@ -598,7 +598,7 @@ impl Launcher {
                     } else {
                         let future = stdin.write_all("stop\n".as_bytes());
                         _ = block_on(future);
-                    };
+                    }
                 }
             }
         }

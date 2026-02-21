@@ -304,10 +304,10 @@ impl GameDownloader {
 
     async fn extract_file(&self, mut url: String) -> Result<(), DownloadError> {
         if url == "https://github.com/theofficialgman/lwjgl3-binaries-arm64/raw/lwjgl-3.1.6/lwjgl-jemalloc-natives-linux.jar" {
-            url = "https://github.com/theofficialgman/lwjgl3-binaries-arm64/raw/lwjgl-3.1.6/lwjgl-jemalloc-patched-natives-linux-arm64.jar".to_owned();
+            "https://github.com/theofficialgman/lwjgl3-binaries-arm64/raw/lwjgl-3.1.6/lwjgl-jemalloc-patched-natives-linux-arm64.jar".clone_into(&mut url);
         }
         if (cfg!(target_arch = "aarch64") && url == MACOS_ARM_LWJGL_294_1) || url == "https://github.com/MinecraftMachina/lwjgl/releases/download/2.9.4-20150209-mmachina.2/lwjgl-platform-2.9.4-nightly-20150209-natives-osx.jar" {
-            url = MACOS_ARM_LWJGL_294_2.to_owned();
+            MACOS_ARM_LWJGL_294_2.clone_into(&mut url);
         }
 
         #[cfg(any(

@@ -216,25 +216,20 @@ impl widget::pick_list::Catalog for LauncherTheme {
 
     fn style(&self, (): &(), status: widget::pick_list::Status) -> widget::pick_list::Style {
         match status {
-            widget::pick_list::Status::Active => widget::pick_list::Style {
-                text_color: self.get(Color::Light),
-                placeholder_color: self.get(Color::SecondLight),
-                handle_color: self.get(Color::Light),
-                background: self.get_bg(Color::Dark),
-                border: self.get_border(Color::SecondDark),
-            },
+            widget::pick_list::Status::Active | widget::pick_list::Status::Opened => {
+                widget::pick_list::Style {
+                    text_color: self.get(Color::Light),
+                    placeholder_color: self.get(Color::SecondLight),
+                    handle_color: self.get(Color::Light),
+                    background: self.get_bg(Color::Dark),
+                    border: self.get_border(Color::SecondDark),
+                }
+            }
             widget::pick_list::Status::Hovered => widget::pick_list::Style {
                 text_color: self.get(Color::Light),
                 placeholder_color: self.get(Color::SecondLight),
                 handle_color: self.get(Color::Light),
                 background: self.get_bg(Color::SecondDark),
-                border: self.get_border(Color::SecondDark),
-            },
-            widget::pick_list::Status::Opened => widget::pick_list::Style {
-                text_color: self.get(Color::Light),
-                placeholder_color: self.get(Color::SecondLight),
-                handle_color: self.get(Color::Light),
-                background: self.get_bg(Color::Dark),
                 border: self.get_border(Color::SecondDark),
             },
         }

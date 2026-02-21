@@ -62,6 +62,7 @@ impl Loader {
         Self::Rift,
     ];
 
+    #[must_use]
     pub fn not_vanilla(self) -> Option<Self> {
         (!self.is_vanilla()).then_some(self)
     }

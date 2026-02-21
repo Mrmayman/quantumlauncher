@@ -83,7 +83,7 @@ impl Launcher {
             EditInstanceMessage::JavaOverrideVersion(n) => {
                 iflet_config!(&mut self.state, config <- {
                     config.java_override_version = Some(n);
-                })
+                });
             }
             EditInstanceMessage::BrowseJavaOverride => {
                 if let Some(file) = rfd::FileDialog::new()
@@ -113,7 +113,6 @@ impl Launcher {
                     ..
                 }) = &mut self.state
                 {
-                    menu.memory_input = input.clone();
                     if let Ok(mb) = input.parse::<usize>() {
                         if mb > 0 {
                             menu.config.ram_in_mb = mb;
@@ -121,6 +120,7 @@ impl Launcher {
                             menu.slider_text = format_memory(mb);
                         }
                     }
+                    menu.memory_input = input;
                 }
             }
             EditInstanceMessage::LoggingToggle(t) => iflet_config!(&mut self.state, config <- {
@@ -169,12 +169,11 @@ impl Launcher {
                     ..
                 }) = &mut self.state
                 {
-                    menu.instance_name = self
-                        .selected_instance
+                    self.selected_instance
                         .as_ref()
                         .unwrap()
                         .get_name()
-                        .to_owned();
+                        .clone_into(&mut menu.instance_name);
                     menu.is_editing_name = !menu.is_editing_name;
                 }
             }
@@ -229,7 +228,7 @@ impl Launcher {
                         menu.config
                             .custom_jar
                             .get_or_insert_with(CustomJarConfig::default)
-                            .name = path
+                            .name = path;
                     }
                 }
             }
@@ -260,7 +259,7 @@ impl Launcher {
                     if let Some(c) = &mut config.custom_jar {
                         c.autoset_main_class = autos;
                     }
-                };
+                }
             }
             EditInstanceMessage::ReinstallLibraries => {
                 return Ok(self.instance_redownload_stage(
@@ -299,26 +298,7 @@ impl Launcher {
         )
     }
 
-    fn loaded_custom_jar(&mut self, items: Vec<String>) -> Task<Message> {
-        match &mut self.custom_jar {
-            Some(cx) => {
-                cx.choices = items.clone();
-            }
-            None => {
-                let (recv, watcher) = match dir_watch(LAUNCHER_DIR.join("custom_jars")) {
-                    Ok(n) => n,
-                    Err(err) => {
-                        err!("Couldn't load list of custom jars (2)! {err}");
-                        return Task::none();
-                    }
-                };
-                self.custom_jar = Some(CustomJarState {
-                    choices: items.clone(),
-                    recv,
-                    _watcher: watcher,
-                });
-            }
-        }
+    fn loaded_custom_jar(&mut self, choices: Vec<String>) -> Task<Message> {
         // If the currently selected jar got deleted/renamed
         // then unselect it
         if let State::Launch(MenuLaunch {
@@ -327,11 +307,29 @@ impl Launcher {
         }) = &mut self.state
         {
             if let Some(jar) = &menu.config.custom_jar {
-                if !items.contains(&jar.name) {
+                if !choices.contains(&jar.name) {
                     menu.config.custom_jar = None;
                 }
             }
         }
+
+        if let Some(cx) = &mut self.custom_jar {
+            cx.choices = choices;
+        } else {
+            let (recv, watcher) = match dir_watch(LAUNCHER_DIR.join("custom_jars")) {
+                Ok(n) => n,
+                Err(err) => {
+                    err!("Couldn't load list of custom jars (2)! {err}");
+                    return Task::none();
+                }
+            };
+            self.custom_jar = Some(CustomJarState {
+                choices,
+                recv,
+                _watcher: watcher,
+            });
+        }
+
         Task::none()
     }
 
