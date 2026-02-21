@@ -465,6 +465,7 @@ impl Launcher {
             .config
             .ui_mode
             .is_none_or(|n| n == LauncherThemeLightness::Auto);
+        #[allow(clippy::manual_is_multiple_of)] // Maintain Rust MSRV
         let interval = self.tick_timer % INTERVAL == 0;
 
         if is_auto_theme && interval {

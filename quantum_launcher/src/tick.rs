@@ -170,6 +170,7 @@ impl Launcher {
         Task::none()
     }
 
+    #[allow(clippy::manual_is_multiple_of)] // Maintain Rust MSRV
     pub fn autosave_config(&mut self) -> Task<Message> {
         if self.tick_timer % 5 == 0 && self.autosave.insert(AutoSaveKind::LauncherConfig) {
             let launcher_config = self.config.clone();
