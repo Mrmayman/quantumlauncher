@@ -264,8 +264,7 @@ fn load_fonts() -> Vec<Cow<'static, [u8]>> {
     ]
 }
 
-/// This is the only `unsafe` Rust code in the entire launcher.
-/// It tweaks Windows terminal behaviour so that:
+/// Tweaks Windows terminal behaviour so that:
 ///
 /// - If launcher is opened from terminal,
 ///   it shows output in terminal

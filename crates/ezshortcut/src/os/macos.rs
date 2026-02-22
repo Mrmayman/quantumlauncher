@@ -3,6 +3,7 @@ use tokio::{fs, process::Command};
 use crate::{make_filename_safe, Shortcut};
 use std::path::{Path, PathBuf};
 
+/// Fetches path to the Applications folder
 #[must_use]
 pub fn get_menu_path() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join("Applications"))

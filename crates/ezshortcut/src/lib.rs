@@ -1,25 +1,39 @@
+#![doc = include_str!("../README.md")]
+
 use std::path::{Path, PathBuf};
 
 mod os;
 pub use os::{get_menu_path, EXTENSION, EXTENSION_S};
 
+/// Fetches the path to user's `Desktop` folder
 #[must_use]
 pub fn get_desktop_dir() -> Option<PathBuf> {
     dirs::desktop_dir().or_else(|| dirs::home_dir().map(|n| n.join("Desktop")))
 }
 
+/// Information about the desktop shortcut to create. **Use this to create shortcuts!**
 #[derive(Debug, Clone)]
 pub struct Shortcut {
+    /// Name of the shortcut.
+    ///
+    /// A sanitized version of this will be used as the filename,
+    /// and the regular version will be the display name if possible.
     pub name: String,
     /// Leave blank for none. Unsupported on macOS
     pub description: String,
+    /// The executable binary to use.
+    ///
+    /// *No need for quotes/escaping! We will handle that*
     pub exec: String,
+    /// The arguments to pass to the executable.
+    ///
+    /// *No need for quotes/escaping! We will handle that*
     pub exec_args: Vec<String>,
     // pub icon: Option<String>,
 }
 
 impl Shortcut {
-    /// Create the shortcut and save it to `path`.
+    /// Creates the shortcut and save it to `path`.
     ///
     /// Note: On Linux, if you just place the shortcut anywhere,
     /// it may not work. You may need to save it to system-wide locations

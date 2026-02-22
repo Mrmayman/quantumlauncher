@@ -108,6 +108,9 @@ fn check_qlportable_file() -> Option<QlDirInfo> {
             .map(|s| s.trim().to_lowercase())
             .collect();
 
+        // Safety: At this specific moment, nothing else
+        // would read/write these env vars. This function
+        // is called at launcher startup on the main thread.
         unsafe {
             if flags.contains("i_vulkan") {
                 std::env::set_var("WGPU_BACKEND", "vulkan");
