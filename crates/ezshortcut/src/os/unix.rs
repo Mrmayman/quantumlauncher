@@ -64,9 +64,11 @@ Categories=Game;",
             format!("Comment={desc}\n")
         },
         exec = shortcut.exec,
-        icon = (!shortcut.icon.is_empty())
-            .then(|| format!("Icon={}\n", shortcut.icon))
-            .unwrap_or_default()
+        icon = if shortcut.icon.is_empty() {
+            String::new()
+        } else {
+            format!("Icon={}\n", shortcut.icon)
+        }
     );
 
     match fs::metadata(path).await {
