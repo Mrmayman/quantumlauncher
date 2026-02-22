@@ -37,6 +37,7 @@ ql_mod_manager.path = "../crates/ql_mod_manager"
 ql_core.path = "../crates/ql_core"
 ql_servers.path = "../crates/ql_servers"
 ql_packager.path = "../crates/ql_packager"
+ezshortcut.path = "../crates/ezshortcut"
 
 # For the GUI
 iced = { version = "0.13", default-features = false, features = [
@@ -78,9 +79,13 @@ terminal_size = "0.4"
 notify = "8"
 open = "5.3.2"
 dark-light = "2"
+dirs.workspace = true
+constcat = "0.6"
 
-# iced::widget::markdown doesn't have inline
-# HTML support, so I made my own renderer.
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+notify-rust = { version = "4", default-features = false, features = ["z-with-tokio"] }
 
+# Don't forget, also used by ezshortcut crate
+# If you update this update that too
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.61", features = ["Win32_System_Console"] }

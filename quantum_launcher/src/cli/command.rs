@@ -9,7 +9,7 @@ use ql_mod_manager::loaders::LoaderInstallResult;
 use std::{path::PathBuf, process::exit};
 
 use crate::{
-    cli::{helpers::render_row, QLoader},
+    cli::{helpers::render_row, show_notification, QLoader},
     config::LauncherConfig,
     state::get_entries,
 };
@@ -166,10 +166,10 @@ pub fn delete_instance(
         }
     }
 
-    let selected_instance = InstanceSelection::Instance(instance_name.clone());
-    let deleted_instance_dir = selected_instance.get_instance_path();
+    let instance = InstanceSelection::Instance(instance_name);
+    let deleted_instance_dir = instance.get_instance_path();
     std::fs::remove_dir_all(&deleted_instance_dir)?;
-    info!("Deleted instance {instance_name}");
+    info!("Deleted instance {}", instance.get_name());
 
     Ok(())
 }
@@ -202,8 +202,9 @@ pub async fn launch_instance(
     username: String,
     use_account: bool,
     servers: bool,
+    show_progress: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let account = refresh_account(&username, use_account).await?;
+    let account = refresh_account(&username, use_account, show_progress).await?;
 
     let child = if servers {
         // TODO: stdin input
@@ -242,6 +243,7 @@ pub async fn launch_instance(
 async fn refresh_account(
     username: &String,
     use_account: bool,
+    show_progress: bool,
 ) -> Result<Option<auth::AccountData>, Box<dyn std::error::Error>> {
     Ok(if use_account {
         let config = LauncherConfig::load_s()?;
@@ -255,6 +257,12 @@ async fn refresh_account(
             err!("No logged-in account called {username:?} was found!");
             exit(1);
         };
+
+        if show_progress {
+            tokio::task::spawn_blocking(|| {
+                show_notification("Launching game", "Refreshing account...");
+            });
+        }
 
         match account.account_type.as_deref() {
             // Hook: Account types
@@ -280,6 +288,11 @@ async fn refresh_account(
             }
         }
     } else {
+        if show_progress {
+            tokio::task::spawn_blocking(|| {
+                show_notification("Launching game", "Enjoy!");
+            });
+        }
         None
     })
 }

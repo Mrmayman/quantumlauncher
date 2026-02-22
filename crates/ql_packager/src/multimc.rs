@@ -88,7 +88,7 @@ pub async fn import(
     )
     .await?;
 
-    install_loader(&sender, &instance, &instance_recipe).await?;
+    install_loader(sender.as_deref(), &instance, &instance_recipe).await?;
 
     copy_files(temp_dir, sender, &instance).await?;
 
@@ -270,7 +270,7 @@ async fn get_instance_recipe(mmc_pack: &MmcPack) -> Result<InstanceRecipe, Insta
 }
 
 async fn install_loader(
-    sender: &Option<Arc<Sender<GenericProgress>>>,
+    sender: Option<&Sender<GenericProgress>>,
     instance: &InstanceSelection,
     instance_recipe: &InstanceRecipe,
 ) -> Result<(), InstancePackageError> {
@@ -278,7 +278,7 @@ async fn install_loader(
         match loader {
             n @ (Loader::Fabric | Loader::Quilt) => {
                 install_fabric(
-                    sender.as_deref(),
+                    sender,
                     instance,
                     instance_recipe.loader_version.clone(),
                     matches!(n, Loader::Quilt),
@@ -287,7 +287,7 @@ async fn install_loader(
             }
             n @ (Loader::Forge | Loader::Neoforge) => {
                 mmc_forge(
-                    sender.clone(),
+                    sender,
                     instance,
                     instance_recipe.loader_version.clone(),
                     matches!(n, Loader::Neoforge),
@@ -341,8 +341,10 @@ async fn install_fabric(
             get_list_of_versions_from_backend("1.14.4", backend, false)
                 .await?
                 .first()
-                .map(|n| n.loader.version.clone())
-                .unwrap_or_else(|| " No versions found! ".to_owned())
+                .map_or_else(
+                    || " No versions found! ".to_owned(),
+                    |n| n.loader.version.clone(),
+                )
         }
     );
     let fabric_json_text = file_utils::download_file_to_string(&url, false).await?;
@@ -468,13 +470,13 @@ async fn create_minecraft_instance(
 }
 
 async fn mmc_forge(
-    sender: Option<Arc<Sender<GenericProgress>>>,
+    sender: Option<&Sender<GenericProgress>>,
     instance_selection: &InstanceSelection,
     version: Option<String>,
     is_neoforge: bool,
 ) -> Result<(), InstancePackageError> {
     let (f_send, f_recv) = std::sync::mpsc::channel();
-    if let Some(sender) = sender.clone() {
+    if let Some(sender) = sender.cloned() {
         std::thread::spawn(move || {
             pipe_progress(f_recv, &sender);
         });

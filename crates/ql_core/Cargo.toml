@@ -11,7 +11,7 @@ simulate_linux_arm32 = []
 
 [dependencies]
 chrono.workspace = true
-dirs = "6"
+dirs.workspace = true
 futures.workspace = true
 owo-colors.workspace = true
 cfg-if.workspace = true

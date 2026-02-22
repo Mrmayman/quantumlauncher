@@ -353,8 +353,7 @@ Heavy modpacks / High settings: 4-8 GB+"
                     self.config
                         .custom_jar
                         .as_ref()
-                        .map(|n| n.name.clone())
-                        .unwrap_or(NONE_JAR_NAME.to_owned()),
+                        .map_or_else(|| NONE_JAR_NAME.to_owned(), |n| n.name.clone()),
                 ),
                 |t| Message::EditInstance(EditInstanceMessage::CustomJarPathChanged(t)),
             )
@@ -391,7 +390,7 @@ Heavy modpacks / High settings: 4-8 GB+"
                 Some(self.main_class_mode),
                 |t| Message::EditInstance(EditInstanceMessage::SetMainClass(
                     t,
-                    Some("".to_owned())
+                    Some(String::new())
                 ))
             )
             .size(14)
@@ -485,15 +484,15 @@ pub fn get_args_list(
     args: Option<&[String]>,
     msg: impl Fn(ListMessage) -> Message + Clone + 'static,
 ) -> Element<'_> {
-    const ITEM_SIZE: u16 = 10;
-
-    let args = args.unwrap_or_default();
-
     fn opt(icon: widget::Text<'_, LauncherTheme>) -> widget::Button<'_, Message, LauncherTheme> {
         widget::button(icon)
             .padding([6, 8])
             .style(move |t: &LauncherTheme, s| t.style_button(s, StyleButton::FlatDark))
     }
+
+    const ITEM_SIZE: u16 = 10;
+
+    let args = args.unwrap_or_default();
 
     widget::Column::new()
         .push_maybe(

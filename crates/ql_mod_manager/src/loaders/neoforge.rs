@@ -332,7 +332,7 @@ pub async fn run_installer(
         .current_dir(if is_server {
             neoforge_dir
                 .parent()
-                .map_or(neoforge_dir.join(".."), |n| n.to_owned())
+                .map_or(neoforge_dir.join(".."), Path::to_owned)
         } else {
             neoforge_dir.to_owned()
         });

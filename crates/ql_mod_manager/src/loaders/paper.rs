@@ -42,7 +42,7 @@ impl PaperVer {
     pub async fn get(&self, version: &str) -> Result<PaperVersion, PaperInstallerError> {
         if let PaperVer::Full(n) = self {
             return Ok(n.clone());
-        };
+        }
 
         let list = get_list_of_versions(version.to_owned()).await?;
         Ok(match self {

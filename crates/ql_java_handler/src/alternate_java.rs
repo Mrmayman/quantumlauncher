@@ -34,7 +34,7 @@ pub(crate) async fn install(
     } else if url.ends_with("zip") {
         file_utils::extract_zip_archive(Cursor::new(file_bytes), &install_dir, true).await?;
     } else {
-        return Err(JavaInstallError::UnknownExtension(url.to_owned()));
+        return Err(JavaInstallError::UnknownExtension(url));
     }
     Ok(())
 }
@@ -78,7 +78,7 @@ async fn get_url(mut version: JavaVersion) -> Result<Option<String>, JavaInstall
         version = next;
         res = get_inner(version).await?;
     }
-    return Ok(res);
+    Ok(res)
 }
 
 #[derive(Deserialize)]
