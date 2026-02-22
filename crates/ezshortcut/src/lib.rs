@@ -15,7 +15,7 @@ pub struct Shortcut {
     pub description: String,
     pub exec: String,
     pub exec_args: Vec<String>,
-    pub icon: Option<String>,
+    // pub icon: Option<String>,
 }
 
 impl Shortcut {

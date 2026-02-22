@@ -2,27 +2,28 @@ use tokio::{fs, task::spawn_blocking};
 use windows::{
     core::{Interface, HSTRING},
     Win32::{
-        System::Com::{
-            CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, IPersistFile,
-            CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED,
-        },
+        System::Com::{CoCreateInstance, CoTaskMemFree, IPersistFile, CLSCTX_INPROC_SERVER},
         UI::Shell::{
             FOLDERID_Programs, IShellLinkW, SHGetKnownFolderPath, ShellLink, KNOWN_FOLDER_FLAG,
         },
     },
 };
 
-use crate::Shortcut;
+use crate::{os::windows::comguard::ComGuard, Shortcut};
 use std::path::{Path, PathBuf};
 
+mod comguard;
+
+/// Fetches path to the Start Menu entries folder
 #[must_use]
 pub fn get_menu_path() -> Option<PathBuf> {
     unsafe {
         let path_ptr =
             SHGetKnownFolderPath(&FOLDERID_Programs, KNOWN_FOLDER_FLAG::default(), None).ok()?;
 
-        let path = path_ptr.to_string().ok()?;
+        let path = path_ptr.to_string().ok();
         CoTaskMemFree(Some(path_ptr.0 as _));
+        let path = path?; // Avoid memory leak if error occurs
         Some(std::path::PathBuf::from(path).join("QuantumLauncher"))
     }
 }
@@ -47,14 +48,12 @@ fn create_inner(shortcut: &Shortcut, path: PathBuf) -> std::io::Result<()> {
         .collect::<Vec<_>>()
         .join(" ");
 
-    unsafe {
-        CoInitializeEx(None, COINIT_APARTMENTTHREADED)
-            .ok()
-            .map_err(ioerr)?;
+    let _com = ComGuard::new().map_err(ioerr)?;
 
+    unsafe {
         let shell_link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)?;
         shell_link.SetPath(&HSTRING::from(&shortcut.exec))?;
-        if !args.trim().is_empty() {
+        if !args.is_empty() {
             shell_link.SetArguments(&HSTRING::from(args))?;
         }
         if !shortcut.description.trim().is_empty() {
@@ -62,9 +61,7 @@ fn create_inner(shortcut: &Shortcut, path: PathBuf) -> std::io::Result<()> {
         }
 
         let persist: IPersistFile = shell_link.cast()?;
-        persist.Save(&HSTRING::from(path.as_path()), true)?;
-
-        CoUninitialize();
+        persist.Save(&HSTRING::from(path.as_path()), true)?; // true means overwrite
     }
 
     Ok(())

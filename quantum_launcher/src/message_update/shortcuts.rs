@@ -110,7 +110,7 @@ impl Launcher {
                 description: String::new(),
                 exec: String::new(),
                 exec_args: vec![],
-                icon: None,
+                // icon: None,
             },
             add_to_menu: true,
             add_to_desktop: false,
