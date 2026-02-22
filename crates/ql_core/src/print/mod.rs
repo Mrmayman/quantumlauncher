@@ -22,8 +22,8 @@ pub static REDACTION_USERNAME: LazyLock<(Vec<String>, String)> = LazyLock::new(|
             return (
                 vec![
                     home_str.to_owned(),
-                    home_str.replace("\\", "/"),
-                    home_str.replace("\\", "\\\\"),
+                    home_str.replace('\\', "/"),
+                    home_str.replace('\\', "\\\\"),
                 ],
                 username.to_owned(),
             );

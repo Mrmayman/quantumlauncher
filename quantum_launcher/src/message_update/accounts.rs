@@ -33,9 +33,7 @@ impl Launcher {
             | AccountMessage::RefreshComplete(Err(err)) => {
                 self.set_error(err);
             }
-            AccountMessage::Selected(account) => {
-                return self.account_selected(account);
-            }
+            AccountMessage::Selected(account) => self.account_selected(account),
             AccountMessage::Response1 {
                 r: Ok(code),
                 is_from_welcome_screen,
@@ -49,9 +47,8 @@ impl Launcher {
                 return self.account_response_3(data);
             }
             AccountMessage::LogoutCheck => {
-                let username = self.accounts_selected.as_ref().unwrap();
                 self.state = State::ConfirmAction {
-                    msg1: format!("log out of your account: {username}"),
+                    msg1: format!("log out of your account: {}", self.account_selected),
                     msg2: "You can always log in later".to_owned(),
                     yes: Message::Account(AccountMessage::LogoutConfirm),
                     no: Message::MScreenOpen {
@@ -104,7 +101,7 @@ impl Launcher {
             }
             AccountMessage::LogoutConfirm => {
                 self.autosave.remove(&AutoSaveKind::LauncherConfig);
-                let username = self.accounts_selected.clone().unwrap();
+                let username = self.account_selected.clone();
                 let account_type = self
                     .accounts
                     .get(&username)
@@ -130,7 +127,7 @@ impl Launcher {
                     .first()
                     .cloned()
                     .unwrap_or_else(|| OFFLINE_ACCOUNT_NAME.to_owned());
-                self.accounts_selected = Some(selected_account);
+                self.account_selected = selected_account;
 
                 return self.go_to_launch_screen(Option::<String>::None);
             }
@@ -257,16 +254,15 @@ impl Launcher {
         Task::none()
     }
 
-    fn account_selected(&mut self, account: String) -> Task<Message> {
+    fn account_selected(&mut self, account: String) {
         if account == NEW_ACCOUNT_NAME {
             self.state = State::AccountLogin;
         } else {
             if account != OFFLINE_ACCOUNT_NAME {
                 self.config.account_selected = Some(account.clone());
             }
-            self.accounts_selected = Some(account);
+            self.account_selected = account;
         }
-        Task::none()
     }
 
     pub fn account_refresh(&mut self, account: &AccountData) -> Task<Message> {
@@ -320,7 +316,7 @@ impl Launcher {
             },
         );
 
-        self.accounts_selected = Some(username.clone());
+        self.account_selected.clone_from(&username);
         self.accounts.insert(username.clone(), data);
 
         self.go_to_launch_screen::<String>(None)
@@ -355,14 +351,11 @@ impl Launcher {
     }
 
     pub fn get_selected_account_data(&self) -> Option<AccountData> {
-        if let Some(account) = &self.accounts_selected {
-            if account == NEW_ACCOUNT_NAME || account == OFFLINE_ACCOUNT_NAME {
-                None
-            } else {
-                self.accounts.get(account).cloned()
-            }
-        } else {
+        let account = &self.account_selected;
+        if account == NEW_ACCOUNT_NAME || account == OFFLINE_ACCOUNT_NAME {
             None
+        } else {
+            self.accounts.get(account).cloned()
         }
     }
 }

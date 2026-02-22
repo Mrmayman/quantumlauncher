@@ -171,8 +171,8 @@ fn main() {
     let is_new_user = file_utils::is_new_user();
     // let is_new_user = true; // Uncomment to test the intro screen.
 
-    let (launcher_dir, is_dir_err) = load_launcher_dir();
-    cli::start_cli(is_dir_err);
+    let (mut launcher_dir, is_dir_err) = load_launcher_dir();
+    cli::start_cli(is_dir_err, &mut launcher_dir);
 
     info!(no_log, "Starting up the launcher... (OS: {OS_NAME})");
     if let Some(dir) = &launcher_dir {
@@ -271,8 +271,7 @@ fn load_fonts() -> Vec<Cow<'static, [u8]>> {
     ]
 }
 
-/// This is the only `unsafe` Rust code in the entire launcher.
-/// It tweaks Windows terminal behaviour so that:
+/// Tweaks Windows terminal behaviour so that:
 ///
 /// - If launcher is opened from terminal,
 ///   it shows output in terminal
@@ -334,7 +333,7 @@ fn do_migration() {
         } else if let Err(e) = file_utils::create_symlink(&new_dir, &legacy_dir) {
             eprintln!("Migration successful but couldn't create symlink to the legacy dir: {e}");
         } else {
-            ql_core::info!("Migration successful!\nYour launcher files are now in ~./local/share/QuantumLauncher");
+            println!("Migration successful!\nYour launcher files are now in ~./local/share/QuantumLauncher");
         }
     }
 }

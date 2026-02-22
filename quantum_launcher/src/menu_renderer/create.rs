@@ -66,10 +66,7 @@ impl MenuCreateInstanceChoosing {
             .into()
     }
 
-    fn get_sidebar_contents<'a>(
-        &'a self,
-        timer: usize,
-    ) -> widget::Container<'a, Message, LauncherTheme> {
+    fn get_sidebar_contents(&self, timer: usize) -> widget::Container<'_, Message, LauncherTheme> {
         let header = self.get_sidebar_header();
 
         let Some(versions) = &self.list else {

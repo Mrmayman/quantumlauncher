@@ -147,10 +147,12 @@ impl Launcher {
                 ]),
 
                 // Search Action (general)
-                ("f", true, _, _, State::Create(MenuCreateInstance::Choosing { .. }))
-                | ("/", _, _, true, State::Create(MenuCreateInstance::Choosing { .. }))
-                | ("f", true, _, _, State::ModsDownload(_))
-                | ("/", _, _, true, State::ModsDownload(_)) => Message::CoreFocusNext,
+                #[rustfmt::skip]
+                ("f", true, _, _,
+                    State::Create(MenuCreateInstance::Choosing { .. }) | State::ModsDownload(_))
+                | ("/", _, _, true,
+                    State::Create(MenuCreateInstance::Choosing { .. }) | State::ModsDownload(_))
+                => Message::CoreFocusNext,
 
                 // Misc
                 ("a", true, _, true, State::EditJarMods(_)) => {
@@ -315,6 +317,7 @@ impl Launcher {
             | State::LoginAlternate(MenuLoginAlternate {
                 is_loading: false, ..
             })
+            | State::CreateShortcut(_)
             | State::Welcome(_) => {
                 ret_to_main_screen = true;
             }
@@ -337,8 +340,10 @@ impl Launcher {
                 }
             }
             State::InstallOptifine(MenuInstallOptifine::Choosing { .. })
-            | State::InstallFabric(MenuInstallFabric::Loading { .. })
-            | State::InstallFabric(MenuInstallFabric::Loaded { progress: None, .. })
+            | State::InstallFabric(
+                MenuInstallFabric::Loading { .. }
+                | MenuInstallFabric::Loaded { progress: None, .. },
+            )
             | State::EditJarMods(_)
             | State::ExportMods(_)
             | State::ManagePresets(MenuEditPresets {

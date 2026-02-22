@@ -223,10 +223,10 @@ impl LauncherConfig {
     }
 
     pub fn uses_system_decorations(&self) -> bool {
+        // change this to `is_some_and` when enabling the experimental decorations
         self.ui
             .as_ref()
-            .map(|n| matches!(n.window_decorations, UiWindowDecorations::System))
-            .unwrap_or(true) // change this to false when enabling the experimental decorations
+            .is_none_or(|n| matches!(n.window_decorations, UiWindowDecorations::System))
     }
 
     pub fn c_theme(&self) -> LauncherTheme {
@@ -234,9 +234,7 @@ impl LauncherConfig {
             lightness: self.ui_mode.unwrap_or_default(),
             color: self.ui_theme.unwrap_or_default(),
             alpha: self.c_ui_opacity(),
-            system_dark_mode: dark_light::detect()
-                .map(|n| n == dark_light::Mode::Dark)
-                .unwrap_or_default(),
+            system_dark_mode: dark_light::detect().is_ok_and(|n| n == dark_light::Mode::Dark),
         }
     }
 
