@@ -158,7 +158,7 @@ impl Launcher {
                                 let version_name = version_details.id;
 
                                 let details = format!("Minecraft v{version_name}");
-                                let state = if instance_name.to_string() == version_name {
+                                let state = if instance_name == version_name {
                                     None
                                 } else {
                                     Some(format!("Instance: {instance_name}"))
