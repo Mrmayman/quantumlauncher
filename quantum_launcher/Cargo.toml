@@ -70,6 +70,9 @@ paste = "1"
 # For the file picker
 rfd.workspace = true
 
+# For Discord Rich Presence management
+filthy-rich = "0.5.1"
+
 # Terminal
 owo-colors.workspace = true
 clap = { version = "4", features = ["help", "derive"] }

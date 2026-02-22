@@ -133,8 +133,13 @@ impl MenuLauncherSettings {
                         LauncherSettingsMessage::ToggleAntialiasing(n)
                     )),
                 widget::text("Makes text/menus crisper. Also nudges the launcher into using your dedicated GPU for the User Interface").size(12).style(tsubtitle),
-                widget::Space::with_height(5),
-
+                                widget::Space::with_height(5),
+                widget::checkbox("Discord Rich Presence", config.rich_presence.unwrap_or(true))
+                                    .on_toggle(|n| Message::LauncherSettings(
+                                        LauncherSettingsMessage::ToggleDiscordRichPresence(n)
+                                    )),
+                widget::text("Sometimes toggling this option might take some time to apply the activity updates on Discord.").size(12).style(tsubtitle),
+                                widget::Space::with_height(5),
                 widget::checkbox("Remember window size", config.window.as_ref().is_none_or(|n| n.save_window_size))
                     .on_toggle(|n| Message::LauncherSettings(LauncherSettingsMessage::ToggleWindowSize(n))),
                 widget::Space::with_height(5),

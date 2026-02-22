@@ -185,7 +185,7 @@ impl Launcher {
                 return self.go_to_edit_mods_menu(false);
             }
             Message::LaunchGameExited(Ok((status, instance, diagnostic))) => {
-                self.set_game_exited(status, &instance, diagnostic);
+                return self.set_game_exited(status, &instance, diagnostic);
             }
             Message::LaunchKill => return self.kill_selected_instance(),
 
