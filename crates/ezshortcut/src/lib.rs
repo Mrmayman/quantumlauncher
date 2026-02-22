@@ -29,7 +29,10 @@ pub struct Shortcut {
     ///
     /// *No need for quotes/escaping! We will handle that*
     pub exec_args: Vec<String>,
-    // pub icon: Option<String>,
+    /// Path to icon, leave empty for none.
+    ///
+    /// Unimplemented on macOS currently (TODO)
+    pub icon: String,
 }
 
 impl Shortcut {

@@ -64,10 +64,8 @@ Categories=Game;",
             format!("Comment={desc}\n")
         },
         exec = shortcut.exec,
-        icon = shortcut
-            .icon
-            .as_deref()
-            .map(|n| format!("Icon={n}\n"))
+        icon = (!shortcut.icon.is_empty())
+            .then(|| format!("Icon={}\n", shortcut.icon))
             .unwrap_or_default()
     );
 

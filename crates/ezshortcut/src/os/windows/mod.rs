@@ -59,6 +59,9 @@ fn create_inner(shortcut: &Shortcut, path: PathBuf) -> std::io::Result<()> {
         if !shortcut.description.trim().is_empty() {
             shell_link.SetDescription(&HSTRING::from(&shortcut.description))?;
         }
+        if !shortcut.icon.trim().is_empty() {
+            shell_link.SetIconLocation(&HSTRING::from(&shortcut.icon), 0)?;
+        }
 
         let persist: IPersistFile = shell_link.cast()?;
         persist.Save(&HSTRING::from(path.as_path()), true)?; // true means overwrite
