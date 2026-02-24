@@ -180,10 +180,6 @@ impl<'a> ModDownloader<'a> {
         url: String,
         id_mod: &ModId,
     ) {
-        let QueryType::Mods = query_type else {
-            return;
-        };
-
         let id_index_str = id_mod.get_index_str();
         self.index.mods.insert(
             id_index_str.clone(),
@@ -222,6 +218,7 @@ impl<'a> ModDownloader<'a> {
                 } else {
                     HashSet::new()
                 },
+                project_type: query_type.to_modrinth_str().to_owned(),
             },
         );
     }

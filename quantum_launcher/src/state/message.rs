@@ -139,6 +139,7 @@ pub enum ManageModsMessage {
     SetModal(Option<MenuEditModsModal>),
     RightClick(ModId),
     SetSearch(Option<String>),
+    SetContentFilter(super::ContentFilter),
 
     ExportMenuOpen,
     CurseforgeManualToggleDelete(bool),
