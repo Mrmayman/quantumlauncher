@@ -96,6 +96,15 @@ pub struct InstanceConfigJson {
     /// An override for the main class when launching the game.
     /// Mainly only used for debugging purposes.
     pub main_class_override: Option<String>,
+    /// Override LWJGL version for this instance.
+    ///
+    /// ** Warning:** LWJGL 2.x and 3.x are NOT compatible
+    /// (will crash on mismatch)!
+    /// - Minecraft 1.12.2 and below use LWJGL 2.x
+    /// - Minecraft 1.13+ use LWJGL 3.x
+    ///
+    // Since: 0.5.1
+    pub lwjgl_version: Option<String>,
 
     #[serde(flatten)]
     _extra: HashMap<String, serde_json::Value>,
@@ -127,6 +136,7 @@ impl InstanceConfigJson {
 
             version_info: Some(version_info),
             main_class_override: None,
+            lwjgl_version: None,
             _extra: HashMap::new(),
         }
     }

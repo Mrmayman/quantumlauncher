@@ -426,6 +426,9 @@ fn item_footer(
                 button_with_icon(icons::version_download_s(14), "Update Assets", 13)
                     .padding([4, 8])
                     .on_press(EditInstanceMessage::UpdateAssets.into()),
+                button_with_icon(icons::version_download_s(14), "Change LWJGL Version", 13)
+                    .padding([4, 8])
+                    .on_press(EditInstanceMessage::LwjglScreenOpen.into()),
             ]
             .spacing(5)
             .wrap(),

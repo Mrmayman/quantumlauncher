@@ -364,7 +364,7 @@ impl Launcher {
             )
             .on_press(SidebarMessage::DragDrop(None).into()),
             widget::horizontal_rule(1).style(|t: &LauncherTheme| t.style_rule(Color::Dark, 1)),
-            self.get_accounts_bar(menu),
+            self.get_accounts_bar(),
         ]
         .spacing(5)
         .width(Length::Fill);
@@ -408,22 +408,14 @@ impl Launcher {
         self.processes.contains_key(instance)
     }
 
-    fn get_accounts_bar(&self, menu: &MenuLaunch) -> Element<'_> {
-        let something_is_happening = self.java_recv.is_some() || menu.login_progress.is_some();
-
-        let dropdown: Element = if something_is_happening {
-            widget::text_input("", &self.account_selected)
-                .width(Length::Fill)
-                .into()
-        } else {
-            widget::pick_list(
-                self.accounts_dropdown.as_slice(),
-                Some(&self.account_selected),
-                |n| AccountMessage::Selected(n).into(),
-            )
-            .width(Length::Fill)
-            .into()
-        };
+    fn get_accounts_bar(&self) -> Element<'_> {
+        let dropdown: Element = widget::pick_list(
+            self.accounts_dropdown.as_slice(),
+            Some(&self.account_selected),
+            |n| AccountMessage::Selected(n).into(),
+        )
+        .width(Length::Fill)
+        .into();
 
         widget::column![
             widget::row![widget::text(" Accounts:").size(14), horizontal_space()].push_maybe(

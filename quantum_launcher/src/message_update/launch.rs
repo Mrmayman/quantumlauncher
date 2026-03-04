@@ -23,7 +23,7 @@ impl Launcher {
                     {
                         if self.selected_instance.is_none() {
                             self.selected_instance =
-                                Some(InstanceSelection::new(name, kind.is_server()))
+                                Some(InstanceSelection::new(name, kind.is_server()));
                         }
                     }
                     *modal = None;

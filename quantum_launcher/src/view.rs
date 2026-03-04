@@ -165,6 +165,7 @@ impl Launcher {
             State::InstallOptifine(menu) => menu.view(),
             State::ManagePresets(menu) => menu.view(),
             State::RecommendedMods(menu) => menu.view(),
+            State::EditLwjgl(menu) => menu.view(self.tick_timer),
         };
 
         widget::mouse_area(if let State::Launch(_) = &self.state {
