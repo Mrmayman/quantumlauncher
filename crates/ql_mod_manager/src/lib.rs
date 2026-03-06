@@ -20,10 +20,10 @@
 
 /// Installers and Uninstallers for loaders (Fabric/Forge/Optifine/Quilt/Paper).
 pub mod loaders;
-mod presets;
+pub mod presets;
 mod rate_limiter;
 /// Mod manager integrated with Modrinth and Curseforge.
 pub mod store;
 
-pub use presets::{Preset, PresetOutput};
+pub use presets::PresetOutput;
 pub use store::add_files;

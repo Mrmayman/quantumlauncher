@@ -480,7 +480,7 @@ impl Launcher {
                 return Task::none();
             }
         };
-        match tokio::runtime::Handle::current().block_on(ql_mod_manager::Preset::load(
+        match tokio::runtime::Handle::current().block_on(ql_mod_manager::presets::load(
             self.selected_instance.clone().unwrap(),
             file,
             true,
@@ -494,13 +494,23 @@ impl Launcher {
                     menu.progress = Some(ProgressBar::with_recv(receiver));
                 }
                 let instance_name = self.selected_instance.clone().unwrap();
+
+                let blocked = mods.curseforge_blocked;
+
                 Task::perform(
                     ql_mod_manager::store::download_mods_bulk(
                         mods.to_install,
                         instance_name,
                         Some(sender),
                     ),
-                    |n| EditPresetsMessage::LoadComplete(n.strerr()).into(),
+                    move |n| {
+                        let blocked = blocked.clone();
+                        EditPresetsMessage::LoadComplete(n.strerr().map(|mut n| {
+                            n.extend(blocked);
+                            n
+                        }))
+                        .into()
+                    },
                 )
             }
             Err(err) => {

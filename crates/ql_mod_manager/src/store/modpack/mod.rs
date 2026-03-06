@@ -16,13 +16,13 @@ mod modrinth;
 
 pub use error::PackError;
 
-use crate::{store::download_mods_bulk, Preset};
+use crate::{presets, store::download_mods_bulk};
 
 use super::CurseforgeNotAllowed;
 
 /// Installs a modpack file.
 ///
-/// Not to be confused with [`crate::Preset`]
+/// Not to be confused with [`crate::preset`]
 /// (`.qmp` mod presets). Those are QuantumLauncher-only,
 /// but these are found across the internet.
 ///
@@ -62,7 +62,7 @@ pub async fn install_modpack(
 
             // Recursion: Won't happen as this function is only called by [`Preset::load`]
             // if there's no `index.json`
-            let out = Box::pin(Preset::load(instance.clone(), file, true)).await?;
+            let out = Box::pin(presets::load(instance.clone(), file, true)).await?;
 
             return Box::pin(download_mods_bulk(
                 out.to_install,

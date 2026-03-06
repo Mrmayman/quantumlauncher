@@ -57,7 +57,7 @@ impl Launcher {
                     let selected_mods = selected_mods.clone();
                     let include_config = *include_config;
                     return Task::perform(
-                        ql_mod_manager::Preset::generate(
+                        ql_mod_manager::presets::generate(
                             selected_instance,
                             selected_mods,
                             include_config,

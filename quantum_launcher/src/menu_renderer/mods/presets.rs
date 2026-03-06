@@ -52,9 +52,11 @@ Modrinth/Curseforge modpack"
                 .style(tsubtitle)
                 .size(12),
                 widget::checkbox(
-                    "Include mod settings/configuration (config folder)",
+                    "Include mod settings/configuration\n(config folder)",
                     self.include_config
                 )
+                .size(12)
+                .text_size(12)
                 .on_toggle(|t| EditPresetsMessage::ToggleIncludeConfig(t).into()),
                 button_with_icon(icons::floppydisk(), "Build Preset", 16)
                     .on_press(EditPresetsMessage::BuildYourOwn.into()),
