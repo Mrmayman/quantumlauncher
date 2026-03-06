@@ -66,7 +66,7 @@ impl MenuInstallOptifine {
         delete_installer: bool,
     ) -> widget::Column<'a, Message, LauncherTheme, iced::Renderer> {
         widget::column!(
-            back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
+            back_button().on_press(ManageModsMessage::Open.into()),
             widget::container(
                 widget::column!(
                     widget::text("Install OptiFine").size(20),
@@ -103,7 +103,7 @@ impl MenuInstallFabric {
                 let dots = ".".repeat((tick_timer % 3) + 1);
 
                 widget::column![
-                    back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
+                    back_button().on_press(ManageModsMessage::Open.into()),
                     widget::text!("Loading {loader_name} version list{dots}").size(20)
                 ]
             }
@@ -119,7 +119,7 @@ impl MenuInstallFabric {
             }
             MenuInstallFabric::Unsupported(is_quilt) => {
                 widget::column!(
-                    back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
+                    back_button().on_press(ManageModsMessage::Open.into()),
                     widget::text!(
                         "{} is unsupported for this Minecraft version.",
                         if *is_quilt { "Quilt" } else { "Fabric" }
@@ -132,7 +132,7 @@ impl MenuInstallFabric {
                 ..
             } => {
                 widget::column!(
-                    back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
+                    back_button().on_press(ManageModsMessage::Open.into()),
                     widget::text!("{backend} is unsupported for this Minecraft version.")
                 )
             }
@@ -205,7 +205,7 @@ impl MenuInstallFabric {
                 };
 
                 widget::column![
-                    back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
+                    back_button().on_press(ManageModsMessage::Open.into()),
                     widget::text!("Install {backend} for \"{}\"", selected_instance.get_name())
                         .size(20),
                     picker,
@@ -269,14 +269,14 @@ impl MenuInstallPaper {
         let dots = ".".repeat((tick_timer % 3) + 1);
         match self {
             MenuInstallPaper::Loading { .. } => widget::column![
-                back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
+                back_button().on_press(ManageModsMessage::Open.into()),
                 widget::text!("Loading{dots}").size(20),
             ]
             .padding(10)
             .spacing(10)
             .into(),
             MenuInstallPaper::Loaded { version, versions } => widget::column![
-                back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
+                back_button().on_press(ManageModsMessage::Open.into()),
                 widget::text!("Select Version").size(20),
                 widget::row![widget::pick_list(versions.clone(), Some(version), |v| {
                     Message::InstallPaper(InstallPaperMessage::VersionSelected(v))

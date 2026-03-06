@@ -1,7 +1,7 @@
 use cfg_if::cfg_if;
 use frostmark::MarkWidget;
 use iced::widget::{column, horizontal_space, row, text_editor, tooltip::Position, vertical_space};
-use iced::{keyboard::Modifiers, widget, Alignment, Length, Padding};
+use iced::{widget, Alignment, Length, Padding};
 use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
 
 use crate::cli::EXPERIMENTAL_SERVERS;
@@ -238,11 +238,7 @@ impl Launcher {
 
     fn get_mods_button(&self) -> widget::Button<'_, Message, LauncherTheme> {
         button_with_icon(icons::download(), "Mods", 15)
-            .on_press(if self.modifiers_pressed.contains(Modifiers::SHIFT) {
-                ManageModsMessage::ScreenOpenWithoutUpdate.into()
-            } else {
-                ManageModsMessage::ScreenOpen.into()
-            })
+            .on_press(ManageModsMessage::Open.into())
             .width(98)
     }
 

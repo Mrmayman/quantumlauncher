@@ -9,7 +9,7 @@ use iced::Task;
 use notify::Watcher;
 use ql_core::{
     err, file_utils, read_log::LogLine, GenericProgress, InstanceSelection, IntoIoError,
-    IntoStringError, IoError, JsonFileError, LaunchedProcess, ModId, Progress, LAUNCHER_DIR,
+    IntoStringError, IoError, JsonFileError, LaunchedProcess, Progress, LAUNCHER_DIR,
     LAUNCHER_VERSION_NAME,
 };
 use ql_instances::auth::{ms::CLIENT_ID, AccountData, AccountType};
@@ -57,7 +57,6 @@ pub struct Launcher {
 
     pub java_recv: Option<ProgressBar<GenericProgress>>,
     pub custom_jar: Option<CustomJarState>,
-    pub mod_updates_checked: HashMap<InstanceSelection, Vec<(ModId, String, bool)>>,
     /// See [`AutoSaveKind`]
     pub autosave: HashSet<AutoSaveKind>,
 
@@ -191,7 +190,6 @@ impl Launcher {
             processes: HashMap::new(),
 
             keys_pressed: HashSet::new(),
-            mod_updates_checked: HashMap::new(),
 
             is_log_open: false,
             is_launching_game: false,
@@ -253,7 +251,6 @@ impl Launcher {
             processes: HashMap::new(),
             accounts: HashMap::new(),
             keys_pressed: HashSet::new(),
-            mod_updates_checked: HashMap::new(),
 
             images: ImageState::default(),
             window_state: WindowState {

@@ -86,7 +86,7 @@ impl MenuModsDownload {
 
     fn get_side_panel(&'_ self) -> Element<'_> {
         let normal_controls = column!(
-            back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
+            back_button().on_press(ManageModsMessage::Open.into()),
             widget::Space::with_height(5),
             widget::text("Select store:").size(18),
             widget::radio(

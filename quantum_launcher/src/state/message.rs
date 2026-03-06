@@ -108,9 +108,7 @@ pub enum EditInstanceMessage {
 
 #[derive(Debug, Clone)]
 pub enum ManageModsMessage {
-    ScreenOpen,
-    ScreenOpenWithoutUpdate,
-
+    Open,
     ListScrolled(AbsoluteOffset),
     /// Simple, dumb selection
     SelectEnsure(String, Option<ModId>),
@@ -126,10 +124,11 @@ pub enum ManageModsMessage {
     ToggleSelected,
     ToggleFinished(Res),
 
-    UpdateMods,
-    UpdateModsFinished(Res),
+    UpdateCheck,
     UpdateCheckResult(Res<Vec<(ModId, String)>>),
     UpdateCheckToggle(usize, bool),
+    UpdatePerform,
+    UpdatePerformDone(Res),
 
     /// Add a mod, preset or modpack to the current instance.
     /// The field represents whether to delete the file after importing it.

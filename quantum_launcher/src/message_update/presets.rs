@@ -75,12 +75,11 @@ impl Launcher {
             EditPresetsMessage::LoadComplete(result) => {
                 match result.map(|not_allowed| {
                     if not_allowed.is_empty() {
-                        self.go_to_edit_mods_menu(true)
+                        self.go_to_edit_mods_menu()
                     } else {
                         self.state =
                             State::CurseforgeManualDownload(MenuCurseforgeManualDownload {
-                                unsupported: not_allowed,
-                                is_store: false,
+                                not_allowed,
                                 delete_mods: true,
                             });
                         Task::none()
@@ -156,7 +155,7 @@ impl Launcher {
             if let Err(err) = std::fs::write(&path, preset).path(&path) {
                 self.set_error(err);
             }
-            self.go_to_edit_mods_menu(true)
+            self.go_to_edit_mods_menu()
         } else {
             Task::none()
         }

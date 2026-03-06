@@ -14,6 +14,8 @@
 - Added a quick-uninstall button to Mod Store
 - Improved new-user Welcome screen with keyboard navigation,
   better layout and more guidance
+- Higher memory allocation values (upto 32 GB) now supported in Edit tab
+  - Also added manual input, alongside slider
 
 # Shortcuts
 
@@ -26,9 +28,10 @@
 
 # Technical
 
-- Higher memory allocation values (upto 32 GB)
-  are now supported in Edit Instance screen
-  - Manual input now supported, alongside slider
+- Mod update checking is no longer automatic
+  - Now trigger it manually through "... -> Check for Updates"
+  - We understand this is a UX regression, but
+    this significantly reduces network usage and "error code 504" issues
 - Usernames are now redacted in log paths
   - eg: `C:\Users\YOUR_NAME` -> `C:\Users\[REDACTED]`
   - Disable temporarily with `--no-redact-info` flag
@@ -45,8 +48,8 @@
 
 # Fixes
 
+- Fixed modrinth "error code 504" (caused by automatic update checks)
 - Fixed context menus not closing after a click
-
 - Fixed many CurseForge concurrent downloading issues
 - Fixed QMP presets added via "Add File" in Mods menu, to not install all mods
 - Fixed account login persistence for new users

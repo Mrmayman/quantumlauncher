@@ -83,7 +83,7 @@ impl Launcher {
                         // No need for manual download UI, such mods
                         // don't deserve to be recommended anyway.
                         debug_assert!(mods.is_empty());
-                        return self.go_to_edit_mods_menu(false);
+                        return self.go_to_edit_mods_menu();
                     }
                     Err(err) => self.set_error(err),
                 }

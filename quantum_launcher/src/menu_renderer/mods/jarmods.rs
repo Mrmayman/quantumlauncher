@@ -14,7 +14,7 @@ impl MenuEditJarMods {
             widget::container(
                 widget::scrollable(
                     widget::column!(
-                        back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
+                        back_button().on_press(ManageModsMessage::Open.into()),
                         widget::column![
                             {
                                 let path = selected_instance.get_instance_path().join("jarmods");

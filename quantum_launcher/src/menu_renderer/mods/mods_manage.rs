@@ -53,6 +53,8 @@ impl MenuEditMods {
             .into()
         } else if let Some(MenuEditModsModal::Submenu) = &self.modal {
             let submenu = widget::column![
+                ctx_button(icons::refresh_s(CTXI_SIZE), "Check for updates")
+                    .on_press(ManageModsMessage::UpdateCheck.into()),
                 ctx_button(icons::file_info_s(CTXI_SIZE), "Export list as text")
                     .on_press(ManageModsMessage::ExportMenuOpen.into()),
                 ctx_button(icons::file_zip_s(CTXI_SIZE), "Export QMP Preset")
@@ -191,7 +193,7 @@ impl MenuEditMods {
                     ))
                     .spacing(10),
                     button_with_icon(icons::version_download(), "Update", 16)
-                        .on_press(ManageModsMessage::UpdateMods.into()),
+                        .on_press(ManageModsMessage::UpdatePerform.into()),
                 )
                 .padding(10)
                 .spacing(10)

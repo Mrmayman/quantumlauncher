@@ -35,7 +35,7 @@ impl MenuEditPresets {
 
         let p_main = widget::row![
             widget::column![
-                back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into()),
+                back_button().on_press(ManageModsMessage::Open.into()),
                 widget::text(
                     r"Mod Presets (.qmp files) are a
 simple way to share
@@ -126,7 +126,7 @@ Modrinth/Curseforge modpack"
 
 impl MenuRecommendedMods {
     pub fn view(&'_ self) -> Element<'_> {
-        let back_button = back_button().on_press(ManageModsMessage::ScreenOpenWithoutUpdate.into());
+        let back_button = back_button().on_press(ManageModsMessage::Open.into());
 
         match self {
             MenuRecommendedMods::Loading { progress, .. } => progress.view().padding(10).into(),

@@ -175,7 +175,7 @@ impl Launcher {
                 return self.install_forge(kind);
             }
             Message::InstallForgeEnd(Ok(())) | Message::UninstallLoaderEnd(Ok(())) => {
-                return self.go_to_edit_mods_menu(false);
+                return self.go_to_edit_mods_menu();
             }
             Message::LaunchGameExited(Ok((status, instance, diagnostic))) => {
                 self.set_game_exited(status, &instance, diagnostic);
@@ -251,7 +251,7 @@ impl Launcher {
                         Message::ShowScreen("Uninstalling...".to_owned()),
                         (*msg).clone(),
                     ]),
-                    no: ManageModsMessage::ScreenOpenWithoutUpdate.into(),
+                    no: ManageModsMessage::Open.into(),
                 }
             }
             Message::ShowScreen(msg) => {

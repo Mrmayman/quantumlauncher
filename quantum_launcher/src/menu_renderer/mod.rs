@@ -350,7 +350,7 @@ impl MenuCurseforgeManualDownload {
             "Some Curseforge mods have blocked this launcher!\nYou need to manually download the files and add them to your mods",
 
             widget::scrollable(
-                widget::column(self.unsupported.iter().map(|entry| {
+                widget::column(self.not_allowed.iter().map(|entry| {
                     let url = format!(
                         "https://www.curseforge.com/minecraft/{}/{}/download/{}",
                         entry.project_type,
@@ -375,11 +375,7 @@ impl MenuCurseforgeManualDownload {
             "Warning: Ignoring this may lead to crashes!",
             row![
                 widget::button(widget::text("+ Select above downloaded files").size(14)).on_press(ManageModsMessage::AddFile(self.delete_mods).into()),
-                widget::button(widget::text("Continue").size(14)).on_press(if self.is_store {
-                    InstallModsMessage::Open.into()
-                } else {
-                    ManageModsMessage::ScreenOpenWithoutUpdate.into()
-                }),
+                widget::button(widget::text("Continue").size(14)).on_press(InstallModsMessage::Open.into()),
                 widget::checkbox("Delete files when done", self.delete_mods)
                     .text_size(14)
                     .on_toggle(|t| ManageModsMessage::CurseforgeManualToggleDelete(t).into())
