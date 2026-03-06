@@ -6,7 +6,7 @@ use std::{
 
 use chrono::DateTime;
 use ql_core::{
-    err, file_utils, info, json::VersionDetails, pt, GenericProgress, InstanceSelection,
+    download, err, file_utils, info, json::VersionDetails, pt, GenericProgress, InstanceSelection,
 };
 
 use crate::store::{
@@ -243,7 +243,7 @@ impl ModDownloader {
             return Ok(());
         }
         let file_path = self.dirs.get(project_type).unwrap().join(&file.filename);
-        file_utils::download_file_to_path(&file.url, true, &file_path).await?;
+        download(&file.url).user_agent_ql().path(&file_path).await?;
         Ok(())
     }
 

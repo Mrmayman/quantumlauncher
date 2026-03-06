@@ -7,7 +7,7 @@ use std::{
 
 use crate::{import::pipe_progress, import::OUT_OF, InstancePackageError};
 use ql_core::{
-    do_jobs, err, file_utils, info,
+    do_jobs, download, err, file_utils, info,
     jarmod::{JarMod, JarMods},
     json::{
         FabricJSON, InstanceConfigJson, Manifest, VersionDetails, V_1_12_2,
@@ -367,7 +367,7 @@ async fn install_fabric(
         tokio::fs::create_dir_all(parent_dir)
             .await
             .path(parent_dir)?;
-        file_utils::download_file_to_path(&url, false, &path).await?;
+        download(&url).path(&path).await?;
 
         {
             let mut i = i.lock().unwrap();

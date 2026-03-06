@@ -1,7 +1,7 @@
 use error::Is404NotFound;
 use owo_colors::OwoColorize;
 use ql_core::{
-    do_jobs, err, file_utils, info,
+    do_jobs, download, err, file_utils, info,
     json::{
         forge::{JsonDetails, JsonDetailsLibrary, JsonInstallProfile, JsonVersions},
         instance_config::ModTypeInfo,
@@ -355,7 +355,7 @@ impl ForgeInstaller {
 
         let dest = lib_dir_path.join(&file);
         if !dest.exists() {
-            let result = file_utils::download_file_to_path(&url, false, &dest).await;
+            let result = download(&url).path(&dest).await;
             if result.is_not_found() {
                 err!("Error 404 not found. Skipping...");
                 return Ok(());

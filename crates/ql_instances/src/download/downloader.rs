@@ -6,7 +6,7 @@ use std::{
 
 use crate::json_profiles::ProfileJson;
 use ql_core::{
-    do_jobs,
+    do_jobs, download,
     file_utils::{self, LAUNCHER_DIR},
     impl_3_errs_jri, info,
     json::{
@@ -127,12 +127,9 @@ impl GameDownloader {
 
         let jar_path = version_dir.join(format!("{}.jar", self.version_json.get_id()));
 
-        file_utils::download_file_to_path(
-            &self.version_json.downloads.client.url,
-            false,
-            &jar_path,
-        )
-        .await?;
+        download(&self.version_json.downloads.client.url)
+            .path(&jar_path)
+            .await?;
 
         Ok(())
     }
@@ -142,7 +139,8 @@ impl GameDownloader {
             let log_config_name = format!("logging-{}", logging.client.file.id);
             let config_path = self.instance_dir.join(log_config_name);
 
-            file_utils::download_file_to_path(&logging.client.file.url, false, &config_path)
+            download(&logging.client.file.url)
+                .path(&config_path)
                 .await?;
         }
         Ok(())
@@ -342,9 +340,7 @@ impl GameDownloader {
         if let Some(sender) = sender {
             _ = sender.send(DownloadProgress::DownloadingVersionJson);
         }
-        let json = file_utils::download_file_to_string(&version.url, false).await?;
-        let json = serde_json::from_str(&json).json(json)?;
-        Ok(json)
+        Ok(download(&version.url).json().await?)
     }
 
     async fn new_get_instance_dir(instance_name: &str) -> Result<Option<PathBuf>, IoError> {

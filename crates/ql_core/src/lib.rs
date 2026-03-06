@@ -44,6 +44,7 @@ pub mod json;
 pub mod print;
 mod progress;
 pub mod read_log;
+pub mod request;
 mod structs;
 mod urlcache;
 
@@ -56,6 +57,7 @@ pub use error::{
 pub use file_utils::{RequestError, LAUNCHER_DIR};
 pub use print::{logger_finish, LogType, LoggingState, LOGGER};
 pub use progress::{DownloadProgress, GenericProgress, Progress};
+pub use request::download;
 pub use structs::{JavaVersion, Loader};
 pub use urlcache::url_cache_get;
 

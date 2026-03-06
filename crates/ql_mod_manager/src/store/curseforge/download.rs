@@ -4,7 +4,8 @@ use std::{
 };
 
 use ql_core::{
-    err, file_utils, info, json::VersionDetails, pt, GenericProgress, InstanceSelection, ModId,
+    download, err, file_utils, info, json::VersionDetails, pt, GenericProgress, InstanceSelection,
+    ModId,
 };
 
 use crate::{
@@ -143,7 +144,7 @@ impl<'a> ModDownloader<'a> {
         };
 
         let file_dir = dir.join(&file_query.data.fileName);
-        file_utils::download_file_to_path(&url, true, &file_dir).await?;
+        download(&url).user_agent_ql().path(&file_dir).await?;
 
         let id_str = response.id.to_string();
         let id_mod = ModId::Curseforge(id_str.clone());

@@ -1,13 +1,13 @@
 use std::fmt::Display;
 
 use ql_core::{
-    file_utils, info,
+    download, info,
     json::{VersionDetails, V_OFFICIAL_FABRIC_SUPPORT},
-    pt, InstanceSelection, IntoJsonError, JsonDownloadError, RequestError,
+    pt, InstanceSelection, JsonDownloadError, RequestError,
 };
 use serde::Deserialize;
 
-use crate::loaders::fabric::{download_file_to_string, FabricInstallError};
+use crate::loaders::fabric::FabricInstallError;
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct FabricVersionListItem {
@@ -238,9 +238,9 @@ pub async fn get_list_of_versions_from_backend(
             if is_server { "server" } else { "client" }
         );
 
-        let list = file_utils::download_file_to_json::<List>(&url1, false).await?;
+        let list = download(&url1).json::<List>().await?;
         if list.is_empty() {
-            if let Ok(new_list) = file_utils::download_file_to_json::<List>(&url2, false).await {
+            if let Ok(new_list) = download(&url2).json::<List>().await {
                 new_list
             } else {
                 list
@@ -249,8 +249,9 @@ pub async fn get_list_of_versions_from_backend(
             list
         }
     } else {
-        let list = download_file_to_string(&format!("/versions/loader/{version}"), backend).await?;
-        serde_json::from_str(&list).json(list)?
+        download(&format!("{}/versions/loader/{version}", backend.get_url()))
+            .json()
+            .await?
     };
     Ok(versions)
 }
@@ -352,10 +353,11 @@ pub async fn get_latest_cursed_legacy_commit() -> Result<String, FabricInstallEr
         &input[0..slice_end]
     }
 
-    let version: Vec<GithubCommit> = file_utils::download_file_to_json(
+    let version: Vec<GithubCommit> = download(
         "https://api.github.com/repos/minecraft-cursed-legacy/Cursed-fabric-loader/commits",
-        true,
     )
+    .user_agent_ql()
+    .json()
     .await?;
 
     Ok(version.first().map_or("5e8a1e8".to_owned(), |n| {

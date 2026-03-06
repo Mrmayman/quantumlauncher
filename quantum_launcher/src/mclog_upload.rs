@@ -1,7 +1,6 @@
-use ql_core::file_utils::check_for_success;
-use ql_core::json::VersionDetails;
 use ql_core::{
-    InstanceConfigJson, InstanceSelection, IntoJsonError, IntoStringError, Loader, CLIENT,
+    json::VersionDetails, request::check_for_success, InstanceConfigJson, InstanceSelection,
+    IntoJsonError, IntoStringError, Loader, CLIENT,
 };
 use serde::Deserialize;
 

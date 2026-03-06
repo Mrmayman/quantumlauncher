@@ -1,6 +1,6 @@
 use crate::auth::alt::OauthError;
 use keyring;
-use ql_core::file_utils::check_for_success;
+use ql_core::request::check_for_success;
 use ql_core::{IntoJsonError, CLIENT};
 use serde::{Deserialize, Serialize};
 

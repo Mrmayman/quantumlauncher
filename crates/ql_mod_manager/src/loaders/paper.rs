@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::path::Path;
 
-use ql_core::impl_3_errs_jri;
+use ql_core::{download, impl_3_errs_jri};
 use ql_core::{
     file_utils, info,
     json::{instance_config::ModTypeInfo, VersionDetails},
@@ -69,7 +69,10 @@ pub async fn install(instance_name: String, version: PaperVer) -> Result<(), Pap
 
     pt!("Downloading jar");
     let jar_path = server_dir.join("paper_server.jar");
-    file_utils::download_file_to_path(&version.downloads.server.url, true, &jar_path).await?;
+    download(&version.downloads.server.url)
+        .user_agent_ql()
+        .path(&jar_path)
+        .await?;
 
     change_instance_type(
         &server_dir,
@@ -86,7 +89,7 @@ pub async fn get_list_of_versions(
     version: String,
 ) -> Result<Vec<PaperVersion>, PaperInstallerError> {
     let url = format!("https://fill.papermc.io/v3/projects/paper/versions/{version}/builds");
-    let json = file_utils::download_file_to_string(&url, false).await?;
+    let json = download(&url).string().await?;
 
     let not_found = json.contains("\"version_not_found\"");
     let json: Vec<PaperVersion> = match serde_json::from_str(&json).json(json) {

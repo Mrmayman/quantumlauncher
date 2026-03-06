@@ -6,18 +6,13 @@ use std::{
     sync::LazyLock,
 };
 
-use futures::StreamExt;
 use reqwest::header::InvalidHeaderValue;
 use serde::de::DeserializeOwned;
 use thiserror::Error;
-use tokio_util::io::StreamReader;
 use walkdir::WalkDir;
 use zip::{write::FileOptions, ZipArchive, ZipWriter};
 
-use crate::{
-    error::{DownloadFileError, IoError},
-    retry, IntoIoError, IntoJsonError, JsonDownloadError, CLIENT, WEBSITE,
-};
+use crate::{download, error::IoError, IntoIoError, JsonDownloadError};
 
 /// The path to the QuantumLauncher root folder.
 ///
@@ -177,20 +172,11 @@ pub fn is_new_user() -> bool {
 /// - Redirect loop detected
 /// - Redirect limit exhausted.
 pub async fn download_file_to_string(url: &str, user_agent: bool) -> Result<String, RequestError> {
-    async fn inner(url: &str, user_agent: bool) -> Result<String, RequestError> {
-        let mut get = CLIENT.get(url);
-        if user_agent {
-            get = get.header(
-                "User-Agent",
-                format!("Mrmayman/quantumlauncher ({WEBSITE})"),
-            );
-        }
-        let response = get.send().await?;
-        check_for_success(&response)?;
-        Ok(response.text().await?)
+    let mut r = download(url);
+    if user_agent {
+        r = r.user_agent_ql();
     }
-
-    retry(|| async { inner(url, user_agent).await }).await
+    r.string().await
 }
 
 /// Downloads a file from the given URL into a JSON.
@@ -213,15 +199,11 @@ pub async fn download_file_to_json<T: DeserializeOwned>(
     url: &str,
     user_agent: bool,
 ) -> Result<T, JsonDownloadError> {
-    async fn inner<T: DeserializeOwned>(
-        url: &str,
-        user_agent: bool,
-    ) -> Result<T, JsonDownloadError> {
-        let text = download_file_to_string(url, user_agent).await?;
-        Ok(serde_json::from_str(&text).json(text)?)
+    let mut r = download(url);
+    if user_agent {
+        r = r.user_agent_ql();
     }
-
-    retry(|| async { inner(url, user_agent).await }).await
+    r.json().await
 }
 
 /// Downloads a file from the given URL into a `Vec<u8>`.
@@ -238,110 +220,11 @@ pub async fn download_file_to_json<T: DeserializeOwned>(
 /// - Redirect loop detected
 /// - Redirect limit exhausted.
 pub async fn download_file_to_bytes(url: &str, user_agent: bool) -> Result<Vec<u8>, RequestError> {
-    async fn inner(url: &str, user_agent: bool) -> Result<Vec<u8>, RequestError> {
-        let mut get = CLIENT.get(url);
-        if user_agent {
-            get = get.header("User-Agent", "quantumlauncher");
-        }
-        let response = get.send().await?;
-        check_for_success(&response)?;
-        Ok(response.bytes().await?.to_vec())
+    let mut r = download(url);
+    if user_agent {
+        r = r.user_agent_ql();
     }
-
-    retry(|| async { inner(url, user_agent).await }).await
-}
-
-/// Downloads a file from the given URL and saves it to a path.
-///
-/// This uses `tokio` streams internally allowing for highly
-/// efficient downloading.
-///
-/// # Arguments
-/// - `url`: the URL to download from
-/// - `user_agent`: whether to use the quantum launcher
-///   user agent (required for modrinth)
-/// - `path`: the `&Path` to save the files to
-///
-/// # Errors
-/// Returns an error if:
-/// - Error sending request
-/// - Request is rejected (HTTP status code)
-/// - Redirect loop detected
-/// - Redirect limit exhausted.
-pub async fn download_file_to_path(
-    url: &str,
-    user_agent: bool,
-    path: impl AsRef<Path>,
-) -> Result<(), DownloadFileError> {
-    async fn inner(url: &str, user_agent: bool, path: &Path) -> Result<(), DownloadFileError> {
-        let mut get = CLIENT.get(url);
-        if user_agent {
-            get = get.header("User-Agent", "quantumlauncher");
-        }
-        let response = get.send().await?;
-        check_for_success(&response)?;
-
-        let stream = response
-            .bytes_stream()
-            .map(|n| n.map_err(std::io::Error::other));
-        let mut stream = StreamReader::new(stream);
-
-        if let Some(parent) = path.parent() {
-            if !parent.is_dir() {
-                tokio::fs::create_dir_all(&parent).await.path(parent)?;
-            }
-        }
-
-        let mut file = tokio::fs::File::create(&path).await.path(path)?;
-        tokio::io::copy(&mut stream, &mut file).await.path(path)?;
-        Ok(())
-    }
-
-    retry(|| async { inner(url, user_agent, path.as_ref()).await }).await
-}
-
-/// Downloads a file from the given URL into a `Vec<u8>`,
-/// with a custom user agent.
-///
-/// # Arguments
-/// - `url`: the URL to download from
-/// - `user_agent`: whether to use the quantum launcher
-///   user agent (required for modrinth)
-///
-/// # Errors
-/// Returns an error if:
-/// - Error sending request
-/// - Request is rejected (HTTP status code)
-/// - Redirect loop detected
-/// - Redirect limit exhausted.
-pub async fn download_file_to_bytes_with_agent(
-    url: &str,
-    user_agent: &str,
-) -> Result<Vec<u8>, RequestError> {
-    async fn inner(url: &str, user_agent: &str) -> Result<Vec<u8>, RequestError> {
-        let response = CLIENT
-            .get(url)
-            .header("User-Agent", user_agent)
-            .send()
-            .await?;
-        check_for_success(&response)?;
-        Ok(response.bytes().await?.to_vec())
-    }
-
-    retry(|| async { inner(url, user_agent).await }).await
-}
-
-/// # Errors
-/// If the HTTP response status is not a success code.
-pub fn check_for_success(response: &Response) -> Result<(), RequestError> {
-    if response.status().is_success() {
-        Ok(())
-    } else {
-        Err(RequestError::DownloadError {
-            code: response.status(),
-            url: response.url().clone(),
-        })
-    }
+    r.bytes().await
 }
 
 const NETWORK_ERROR_MSG: &str = r"
@@ -397,13 +280,6 @@ pub async fn set_executable(path: &Path) -> Result<(), IoError> {
     tokio::fs::set_permissions(path, perms).await.path(path)
 }
 
-#[cfg(unix)]
-use std::os::unix::fs::symlink;
-
-use reqwest::Response;
-#[cfg(windows)]
-use std::os::windows::fs::{symlink_dir, symlink_file};
-
 /// Creates a symbolic link (i.e. the file at `dest` "points" to `src`,
 /// accessing `dest` will actually access `src`)
 ///
@@ -415,17 +291,18 @@ use std::os::windows::fs::{symlink_dir, symlink_file};
 /// - If the path is invalid (part of path is not a directory for example)
 /// - Other niche stuff (Read only filesystem, Running out of disk space)
 pub fn create_symlink(src: &Path, dest: &Path) -> Result<(), IoError> {
+    #[cfg(windows)]
+    use std::os::windows::fs as osfs;
     #[cfg(unix)]
     {
-        symlink(src, dest).path(src)
+        std::os::unix::fs::symlink(src, dest).path(src)
     }
-
     #[cfg(windows)]
     {
         if src.is_dir() {
-            symlink_dir(src, dest).path(src)
+            osfs::symlink_dir(src, dest).path(src)
         } else {
-            symlink_file(src, dest).path(src)
+            osfs::symlink_file(src, dest).path(src)
         }
     }
 }

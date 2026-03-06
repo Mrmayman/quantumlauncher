@@ -1,7 +1,7 @@
 use std::sync::mpsc::Sender;
 
 use ql_core::{
-    file_utils, info,
+    download, file_utils, info,
     json::{instance_config::VersionInfo, InstanceConfigJson, Manifest, VersionDetails},
     pt, DownloadProgress, IntoIoError, IntoJsonError, IntoStringError, ListEntry, LAUNCHER_DIR,
 };
@@ -76,7 +76,7 @@ pub async fn create_server(
             .await
             .path(old_path)?;
     } else {
-        file_utils::download_file_to_path(&server.url, false, &server_jar_path).await?;
+        download(&server.url).path(&server_jar_path).await?;
     }
 
     version_json.save_to_dir(&server_dir).await?;

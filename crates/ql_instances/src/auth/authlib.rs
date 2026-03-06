@@ -1,4 +1,4 @@
-use ql_core::{file_utils, pt, DownloadFileError, IntoIoError, LAUNCHER_DIR};
+use ql_core::{download, pt, DownloadFileError, IntoIoError, LAUNCHER_DIR};
 
 /// Gets the java argument to start the authlib injector.
 ///
@@ -18,7 +18,7 @@ pub async fn get_authlib_injector(url: &str) -> Result<String, DownloadFileError
     let path = dir.join("authlib_injector.jar");
     if !path.is_file() {
         pt!("Downloading authlib-injector...");
-        file_utils::download_file_to_path(URL, false, &path).await?;
+        download(URL).path(&path).await?;
     }
 
     Ok(format!("-javaagent:{}={url}", path.to_string_lossy()))

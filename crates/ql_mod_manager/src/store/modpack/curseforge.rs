@@ -4,7 +4,7 @@ use std::{
 };
 
 use ql_core::{
-    do_jobs, file_utils,
+    do_jobs, download,
     json::{InstanceConfigJson, VersionDetails},
     pt, GenericProgress, InstanceSelection, IntoIoError, Loader,
 };
@@ -88,7 +88,7 @@ impl PackFile {
             }
         }
 
-        file_utils::download_file_to_path(&url, true, &path).await?;
+        download(&url).user_agent_ql().path(&path).await?;
         add_to_index(index, self.projectID.to_string(), &mod_info, query, url).await;
 
         send_progress(sender, i, len, &mod_info).await;

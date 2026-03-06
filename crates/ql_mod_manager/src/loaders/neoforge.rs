@@ -1,6 +1,6 @@
 use chrono::DateTime;
 use ql_core::{
-    file_utils, info,
+    download, file_utils, info,
     json::{instance_config::ModTypeInfo, VersionDetails},
     no_window, pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError, Loader,
     CLASSPATH_SEPARATOR, REGEX_SNAPSHOT,
@@ -151,7 +151,7 @@ async fn download_libraries(
         // WTF: I am NOT dealing with the unpack200 augmented library NONSENSE
         // because I haven't seen the launcher using it ONCE.
         // Please open an issue if you actually need it.
-        file_utils::download_file_to_path(&url, false, &file_path).await?;
+        download(&url).path(&file_path).await?;
     }
 
     let classpath_path = neoforge_dir.join("classpath.txt");

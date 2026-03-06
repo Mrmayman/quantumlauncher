@@ -4,10 +4,9 @@ use std::{
 };
 
 use ql_core::{
-    do_jobs, file_utils, info,
+    do_jobs, download, info,
     json::{instance_config::ModTypeInfo, FabricJSON, VersionDetails, V_1_12_2},
-    pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, Loader, RequestError,
-    LAUNCHER_DIR,
+    pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, Loader, LAUNCHER_DIR,
 };
 use version_compare::compare_versions;
 
@@ -30,18 +29,6 @@ pub use version_list::{
 
 const CURSED_LEGACY_JSON: &str =
     include_str!("../../../../../assets/installers/cursed_legacy_fabric.json");
-
-async fn download_file_to_string(url: &str, backend: BackendType) -> Result<String, RequestError> {
-    file_utils::download_file_to_string(
-        &format!(
-            "{}{}{url}",
-            backend.get_url(),
-            if url.starts_with('/') { "" } else { "/" },
-        ),
-        false,
-    )
-    .await
-}
 
 pub async fn install_server(
     loader_version: String,
@@ -156,7 +143,7 @@ async fn download_library(
         pt!("Skipping (no url): {}", library.name);
         return Ok(None);
     };
-    file_utils::download_file_to_path(&url, false, &library_path).await?;
+    download(&url).path(&library_path).await?;
 
     send_progress(i, library, progress, number_of_libraries);
     Ok::<_, FabricInstallError>(Some(library_path.clone()))
@@ -241,31 +228,32 @@ async fn get_fabric_json(
         "client"
     };
 
-    Ok(
-        if let BackendType::OrnitheMCFabric | BackendType::OrnitheMCQuilt = backend {
-            let fq = if backend.is_quilt() {
-                "quilt"
-            } else {
-                "fabric"
-            };
-            let url1 = format!("https://meta.ornithemc.net/v3/versions/{fq}-loader/{game_version}/{loader_version}/{implementation}/json");
-            let url2 = format!("https://meta.ornithemc.net/v3/versions/{fq}-loader/{game_version}-{implementation_kind}/{loader_version}/{implementation}/json");
-
-            match file_utils::download_file_to_string(&url1, false).await {
-                Ok(n) => n,
-                Err(err) => match file_utils::download_file_to_string(&url2, false).await {
-                    Ok(n) => n,
-                    Err(_) => Err(err)?,
-                },
-            }
+    let json = if let BackendType::OrnitheMCFabric | BackendType::OrnitheMCQuilt = backend {
+        let fq = if backend.is_quilt() {
+            "quilt"
         } else {
-            download_file_to_string(
-                &format!("/versions/loader/{game_version}/{loader_version}/{implementation}/json"),
-                backend,
-            )
-            .await?
-        },
-    )
+            "fabric"
+        };
+        let url1 = format!("https://meta.ornithemc.net/v3/versions/{fq}-loader/{game_version}/{loader_version}/{implementation}/json");
+        let url2 = format!("https://meta.ornithemc.net/v3/versions/{fq}-loader/{game_version}-{implementation_kind}/{loader_version}/{implementation}/json");
+
+        match download(&url1).string().await {
+            Ok(n) => n,
+            Err(err) => match download(&url2).string().await {
+                Ok(n) => n,
+                Err(_) => Err(err)?,
+            },
+        }
+    } else {
+        download(&format!(
+            "{}/versions/loader/{game_version}/{loader_version}/{implementation}/json",
+            backend.get_url()
+        ))
+        .string()
+        .await?
+    };
+
+    Ok(json)
 }
 
 async fn migrate_index_file(instance_dir: &Path) -> Result<(), FabricInstallError> {

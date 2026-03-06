@@ -7,7 +7,7 @@ use std::{
 };
 
 use ql_core::{
-    file_utils, impl_3_errs_jri, info, jarmod,
+    download, file_utils, impl_3_errs_jri, info, jarmod,
     json::{
         instance_config::ModTypeInfo, optifine::JsonOptifine, InstanceConfigJson, VersionDetails,
     },
@@ -280,7 +280,7 @@ async fn download_libraries(
         if jar_path.exists() {
             continue;
         }
-        file_utils::download_file_to_path(&url, false, &jar_path).await?;
+        download(&url).path(&jar_path).await?;
     }
     Ok(())
 }

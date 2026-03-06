@@ -16,7 +16,7 @@ use crate::{rate_limiter::RATE_LIMITER, store::SearchMod};
 
 use super::{Backend, CurseforgeNotAllowed, ModError, QueryType, SearchResult};
 use categories::get_categories;
-use ql_core::file_utils::check_for_success;
+use ql_core::request::check_for_success;
 
 mod categories;
 mod download;

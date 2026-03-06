@@ -1,7 +1,7 @@
 use sha2::{Digest, Sha256};
 use tokio::{fs, io::AsyncWriteExt};
 
-use crate::{file_utils, DownloadFileError, IntoIoError, LAUNCHER_DIR};
+use crate::{download, file_utils, DownloadFileError, IntoIoError, LAUNCHER_DIR};
 
 pub async fn url_cache_get(url: &str) -> Result<Vec<u8>, DownloadFileError> {
     let hash = hash(url);
@@ -26,11 +26,7 @@ pub async fn url_cache_get(url: &str) -> Result<Vec<u8>, DownloadFileError> {
             // their servers but what this is doing is clearly
             // not malicious. We're just downloading some images :)
 
-            file_utils::download_file_to_bytes_with_agent(
-                url,
-                "Mozilla/5.0 (X11; Linux x86_64; rv:135.0) Gecko/20100101 Firefox/135.0",
-            )
-            .await?
+            download(url).user_agent_spoof().bytes().await?
         }
     };
 
