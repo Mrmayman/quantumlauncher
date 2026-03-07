@@ -111,12 +111,19 @@ impl Launcher {
             Task::none()
         };
 
+        let presence_task = if launcher.config.rich_presence.unwrap_or(true) {
+            launcher.start_discord_ipc_run()
+        } else {
+            Task::none()
+        };
+
         (
             launcher,
             Task::batch([
                 check_for_updates_command,
                 get_entries_command,
                 load_notes_command,
+                presence_task,
                 Task::perform(ql_core::clean::dir("logs"), |n| {
                     Message::CoreCleanComplete(n.strerr())
                 }),

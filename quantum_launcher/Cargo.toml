@@ -55,9 +55,23 @@ frostmark = { git = "https://github.com/Mrmayman/frostmark.git", rev = "94a4e904
 
 serde.workspace = true
 serde_json.workspace = true
-tokio.workspace = true
 cfg-if.workspace = true
 semver.workspace = true
+
+# For URL encoding in log uploads
+urlencoding = "2"
+
+# For managing async tasks
+tokio.workspace = true
+# For managing the logging time/date
+chrono.workspace = true
+# For the icon widget macro
+paste = "1"
+# For the file picker
+rfd.workspace = true
+
+# For Discord Rich Presence management
+filthy-rich = "0.5.1"
 
 # Terminal
 owo-colors.workspace = true
@@ -70,8 +84,6 @@ open = "5.3.2"
 dark-light = "2"
 dirs.workspace = true
 
-paste = "1" # icon widget macro
-rfd.workspace = true # file picker
 constcat = "0.6"
 rand = "0.9"
 
