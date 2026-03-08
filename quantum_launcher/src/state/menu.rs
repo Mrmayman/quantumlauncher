@@ -549,6 +549,7 @@ pub enum MenuRecommendedMods {
     },
     Loaded {
         mods: Vec<(bool, RecommendedMod)>,
+        filters: HashSet<ql_mod_manager::store::recommended::Category>,
         config: InstanceConfigJson,
     },
     InstallALoader,

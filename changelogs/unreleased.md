@@ -30,6 +30,9 @@
 - Added a quick-uninstall button to Mod Store
 - Added a more visible toggler to mods list for enabling/disabling mods
 - Disabled mods now stay disabled when updating
+- Recommended Mods:
+  - Improved menu design with two columns, filters and better density
+  - Added more curated mods (thanks [@void90user](https://github.com/void90user/))
 
 # Technical
 
