@@ -311,7 +311,7 @@ fn renaming_folder(
         .padding([4, 8])
         .on_press(SidebarMessage::FolderRenameConfirm.into());
 
-    row![text_input, done_button,]
+    row![text_input, done_button]
         .push_maybe((!is_creating).then(|| {
             widget::button(icons::close_s(12))
                 .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::RoundDark))

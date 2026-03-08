@@ -302,8 +302,8 @@ impl MenuModsDownload {
         );
 
         widget::scrollable(
-            column!(
-                row!(
+            column![
+                row![
                     back_button().on_press(InstallModsMessage::BackToMainScreen.into()),
                     widget::tooltip(
                         button_with_icon(icons::globe(), "Open Mod Page", 14)
@@ -314,7 +314,7 @@ impl MenuModsDownload {
                     .style(|n| n.style_container_sharp_box(0.0, Color::ExtraDark)),
                     button_with_icon(icons::floppydisk(), "Copy ID", 14)
                         .on_press(Message::CoreCopyText(hit.id.clone())),
-                )
+                ]
                 .spacing(5),
                 row!(
                     images.view(&hit.icon_url, Some(32.0), Some(32.0), "".into()),
@@ -327,7 +327,7 @@ impl MenuModsDownload {
                     .shaping(widget::text::Shaping::Advanced)
                     .size(20),
                 markdown_description
-            )
+            ]
             .padding(20)
             .spacing(20),
         )
