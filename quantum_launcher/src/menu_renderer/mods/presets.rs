@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 
-use iced::{widget, Length};
+use iced::{
+    widget::{self, column, row},
+    Length,
+};
 use ql_core::SelectedMod;
 
 use crate::{
@@ -8,7 +11,7 @@ use crate::{
     menu_renderer::{back_button, button_with_icon, tsubtitle, Element},
     state::{
         EditPresetsMessage, ManageModsMessage, MenuEditPresets, MenuRecommendedMods, Message,
-        ModListEntry, SelectedState,
+        ModListEntry, RecommendedModMessage, SelectedState,
     },
     stylesheet::{color::Color, styles::LauncherTheme},
 };
@@ -16,25 +19,25 @@ use crate::{
 impl MenuEditPresets {
     pub fn view(&'_ self) -> Element<'_> {
         if let Some(progress) = &self.progress {
-            return widget::column!(
+            return column![
                 widget::text("Installing mods").size(20),
                 progress.view(),
                 widget::text("Check debug log (at the bottom) for more info").size(12),
-            )
+            ]
             .padding(10)
             .spacing(10)
             .into();
         }
 
         if self.is_building {
-            return widget::column!(widget::text("Building Preset").size(20))
+            return column![widget::text("Building Preset").size(20)]
                 .padding(10)
                 .spacing(10)
                 .into();
         }
 
-        let p_main = widget::row![
-            widget::column![
+        let p_main = row![
+            column![
                 back_button().on_press(ManageModsMessage::Open.into()),
                 widget::text(
                     r"Mod Presets (.qmp files) are a
@@ -62,15 +65,15 @@ Modrinth/Curseforge modpack"
             .padding(10)
             .spacing(10),
             widget::container(
-                widget::column![
-                    widget::column![widget::button(
-                        if let SelectedState::All = self.selected_state {
+                column![
+                    column![
+                        widget::button(if let SelectedState::All = self.selected_state {
                             "Unselect All"
                         } else {
                             "Select All"
-                        }
-                    )
-                    .on_press(EditPresetsMessage::SelectAll.into())]
+                        })
+                        .on_press(EditPresetsMessage::SelectAll.into())
+                    ]
                     .padding({
                         let p: iced::Padding = 10.into();
                         p.bottom(0)
@@ -131,48 +134,67 @@ impl MenuRecommendedMods {
         match self {
             MenuRecommendedMods::Loading { progress, .. } => progress.view().padding(10).into(),
             MenuRecommendedMods::InstallALoader => {
-                widget::column![
+                column![
                     back_button,
                     "Install a mod loader (like Fabric/Forge/NeoForge/Quilt/etc, whichever is compatible)",
                     "You need one before you can install mods"
                 ].padding(10).spacing(5).into()
             }
             MenuRecommendedMods::NotSupported => {
-                widget::column![
+                column![
                     back_button,
                     "No recommended mods found :)"
                 ].padding(10).spacing(5).into()
             }
             MenuRecommendedMods::Loaded { mods, .. } => {
-                let content: Element =
-                    widget::column!(
+
+                let content = column![
+                    row![
                         back_button,
                         button_with_icon(icons::download(), "Download Recommended Mods", 16)
-                            .on_press(crate::state::RecommendedModMessage::Download.into()),
-                        widget::column(mods.iter().enumerate().map(|(i, (e, n))| {
-                            let elem: Element = widget::checkbox(n.name, *e)
-                                .on_toggle(move |n| {
-                                    crate::state::RecommendedModMessage::Toggle(i, n).into()
-                                })
-                                .into();
-                            widget::column!(
-                                elem,
-                                widget::text(n.description)
-                                    .shaping(widget::text::Shaping::Advanced)
-                                    .size(12)
-                            )
-                                .spacing(5)
-                                .into()
-                        }))
-                        .spacing(10)
-                    )
-                    .spacing(10)
-                    .into();
+                            .on_press(RecommendedModMessage::Download.into()),
+                    ].spacing(10),
+                    mods_list(mods),
+                    widget::text("Credit to Void98 (https://github.com/void90user) for many of these :D").size(12).style(tsubtitle)
+                ].padding(10).spacing(10);
 
-                widget::scrollable(widget::column![content].padding(10))
+                widget::scrollable(content)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
                     .style(|t: &LauncherTheme, status| t.style_scrollable_flat_dark(status))
                     .into()
             }
         }
     }
+}
+
+fn mods_list(
+    mods: &[(bool, ql_mod_manager::store::RecommendedMod)],
+) -> widget::Column<'_, Message, LauncherTheme> {
+    widget::column(mods.chunks(2).enumerate().map(|(i, chunks)| {
+        widget::row(chunks.iter().enumerate().map(|(j, (enabled, m))| {
+            let idx = (i * 2) + j;
+            widget::mouse_area(
+                row![
+                    widget::checkbox("", *enabled)
+                        .spacing(0)
+                        .on_toggle(move |t| RecommendedModMessage::Toggle(idx, t).into()),
+                    column![
+                        widget::text(m.name).size(14),
+                        widget::text(m.description)
+                            .shaping(widget::text::Shaping::Advanced)
+                            .style(tsubtitle)
+                            .size(12)
+                    ]
+                    .spacing(2)
+                ]
+                .width(Length::FillPortion(1))
+                .spacing(5),
+            )
+            .on_press(RecommendedModMessage::Toggle(idx, !*enabled).into())
+            .into()
+        }))
+        .into()
+    }))
+    .spacing(10)
 }
