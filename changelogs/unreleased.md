@@ -27,7 +27,7 @@
 
 ## Mods
 
-- Added a quick-uninstall button to Mod Store
+- Redesigned Mod Store, with category filters and quick uninstall!
 - Added a more visible toggler to mods list for enabling/disabling mods
 - Disabled mods now stay disabled when updating
 

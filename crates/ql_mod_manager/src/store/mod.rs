@@ -185,16 +185,16 @@ impl QueryType {
     /// delete this and use ALL in the store too.
     pub const STORE_QUERIES: &'static [Self] = &[
         Self::Mods,
+        Self::ModPacks,
         Self::ResourcePacks,
         Self::Shaders,
-        Self::ModPacks,
     ];
 
     pub const ALL: &'static [Self] = &[
+        Self::Mods,
+        Self::ModPacks,
         Self::DataPacks,
         Self::ResourcePacks,
-        Self::ModPacks,
-        Self::Mods,
         Self::Shaders,
     ];
 

@@ -1,15 +1,15 @@
 use std::collections::BTreeMap;
 
-use ql_core::{IntoJsonError, JsonDownloadError};
+use ql_core::IntoJsonError;
 use serde::Deserialize;
 
-use crate::store::{Query, QueryType};
+use crate::store::{ModError, Query, QueryType};
 
 pub async fn do_request(
     query: &Query,
     offset: usize,
     query_type: QueryType,
-) -> Result<Search, JsonDownloadError> {
+) -> Result<Search, ModError> {
     const SEARCH_URL: &str = "https://api.modrinth.com/v2/search";
 
     let mut params = BTreeMap::from([
@@ -46,7 +46,25 @@ pub async fn do_request(
         .text()
         .await?;
 
-    let json: Search = serde_json::from_str(&text).json(text)?;
+    let json: Search = match serde_json::from_str(&text) {
+        Ok(json) => json,
+        Err(e) => {
+            #[derive(Deserialize)]
+            struct Error {
+                error: String,
+                description: String,
+            }
+
+            if let Ok(error) = serde_json::from_str::<Error>(&text) {
+                return Err(ModError::ApiError {
+                    error_id: error.error,
+                    description: error.description,
+                });
+            }
+
+            return Err(e).json(text).map_err(|n| n.into());
+        }
+    };
 
     Ok(json)
 }
