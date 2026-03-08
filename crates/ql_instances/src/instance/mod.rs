@@ -1,6 +1,7 @@
 pub mod launch;
 pub mod list_versions;
 mod migrate;
+mod cloning;
 
 pub mod notes {
     use ql_core::{InstanceSelection, IntoIoError, IoError};
