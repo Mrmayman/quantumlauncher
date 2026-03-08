@@ -213,6 +213,7 @@ pub enum RecommendedModMessage {
     Open,
     ModCheckResult(Res<Vec<RecommendedMod>>),
     Toggle(usize, bool),
+    ToggleFilter(ql_mod_manager::store::recommended::Category, bool),
     Download,
     DownloadEnd(Res<HashSet<CurseforgeNotAllowed>>),
 }

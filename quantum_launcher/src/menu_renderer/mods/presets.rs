@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use iced::{
     widget::{self, column, row},
-    Length,
+    Alignment, Length,
 };
 use ql_core::SelectedMod;
 
@@ -146,15 +146,23 @@ impl MenuRecommendedMods {
                     "No recommended mods found :)"
                 ].padding(10).spacing(5).into()
             }
-            MenuRecommendedMods::Loaded { mods, .. } => {
-
+            MenuRecommendedMods::Loaded { mods, filters, .. } => {
                 let content = column![
                     row![
                         back_button,
                         button_with_icon(icons::download(), "Download Recommended Mods", 16)
                             .on_press(RecommendedModMessage::Download.into()),
                     ].spacing(10),
-                    mods_list(mods),
+                    row!["Filter:"]
+                        .extend(ql_mod_manager::store::recommended::Category::ALL.iter().map(|n| {
+                            widget::checkbox(n.to_string(), filters.contains(n))
+                                .size(14)
+                                .on_toggle(|t| RecommendedModMessage::ToggleFilter(*n, t).into()).into()
+                        }))
+                        .align_y(Alignment::Center)
+                        .spacing(5),
+                    widget::horizontal_rule(1),
+                    mods_list(mods, filters),
                     widget::text("Credit to Void98 (https://github.com/void90user) for many of these :D").size(12).style(tsubtitle)
                 ].padding(10).spacing(10);
 
@@ -170,30 +178,37 @@ impl MenuRecommendedMods {
 
 fn mods_list(
     mods: &[(bool, ql_mod_manager::store::RecommendedMod)],
-) -> widget::Column<'_, Message, LauncherTheme> {
+    filters: &HashSet<ql_mod_manager::store::recommended::Category>,
+) -> widget::Column<'static, Message, LauncherTheme> {
     widget::column(mods.chunks(2).enumerate().map(|(i, chunks)| {
-        widget::row(chunks.iter().enumerate().map(|(j, (enabled, m))| {
-            let idx = (i * 2) + j;
-            widget::mouse_area(
-                row![
-                    widget::checkbox("", *enabled)
-                        .spacing(0)
-                        .on_toggle(move |t| RecommendedModMessage::Toggle(idx, t).into()),
-                    column![
-                        widget::text(m.name).size(14),
-                        widget::text(m.description)
-                            .shaping(widget::text::Shaping::Advanced)
-                            .style(tsubtitle)
-                            .size(12)
-                    ]
-                    .spacing(2)
-                ]
-                .width(Length::FillPortion(1))
-                .spacing(5),
-            )
-            .on_press(RecommendedModMessage::Toggle(idx, !*enabled).into())
-            .into()
-        }))
+        widget::row(
+            chunks
+                .iter()
+                .enumerate()
+                .filter(|n| filters.contains(&n.1 .1.category))
+                .map(|(j, (enabled, m))| {
+                    let idx = (i * 2) + j;
+                    widget::mouse_area(
+                        row![
+                            widget::checkbox("", *enabled)
+                                .spacing(0)
+                                .on_toggle(move |t| RecommendedModMessage::Toggle(idx, t).into()),
+                            column![
+                                widget::text!("{} ({})", m.name, m.category).size(14),
+                                widget::text(m.description)
+                                    .shaping(widget::text::Shaping::Advanced)
+                                    .style(tsubtitle)
+                                    .size(12)
+                            ]
+                            .spacing(2)
+                        ]
+                        .width(Length::FillPortion(1))
+                        .spacing(5),
+                    )
+                    .on_press(RecommendedModMessage::Toggle(idx, !*enabled).into())
+                    .into()
+                }),
+        )
         .into()
     }))
     .spacing(10)
