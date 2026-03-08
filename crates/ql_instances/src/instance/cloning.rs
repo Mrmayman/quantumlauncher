@@ -2,73 +2,81 @@ use fs_extra::dir::copy;
 use std::path::Path;
 use std::fs;
 use ql_core::file_utils::get_launcher_dir;
+use walkdir::WalkDir;
 
 
-pub async fn all_clone_instance(new_instance_type : String, clone_from: String, new_instance_name: String) {
-    match new_instance_type.as_str() {
-        "instance" => {
-            let from = Path::new(get_launcher_dir().unwrap().as_path()).join("QuantumLauncher").join("instances").join(clone_from);
-            let to = Path::new(get_launcher_dir().unwrap().as_path()).join("QuantumLauncher").join("instances").join(new_instance_name);
+pub async fn clone_all(instance_type : String, instance_name: String ,  new_instance_name: String) {
+
+            let from = Path::new(get_launcher_dir().unwrap().as_path()).join("QuantumLauncher").join(&instance_type).join(instance_name);
+            let to = Path::new(get_launcher_dir().unwrap().as_path()).join("QuantumLauncher").join(&instance_type).join(new_instance_name);
+
             fs::create_dir_all(&to).expect("Unable to create directory!");
             copy(from, to, &Default::default()).expect("Unable to copy!");
-        },
-        "server" => {
-            let from = Path::new(get_launcher_dir().unwrap().as_path()).join("QuantumLauncher").join("servers").join(clone_from);
-            let to = Path::new(get_launcher_dir().unwrap().as_path()).join("QuantumLauncher").join("servers").join(new_instance_name);
-            fs::create_dir_all(&to).expect("Unable to create directory!");
-            copy(from, to, &Default::default()).expect("Unable to copy!");
-        },
-        _ => {}
-    }
 }
 
 
+pub async fn clone_selected(instance_type : String, instance_name: String, new_instance_name: String, selected: Vec<String>)  {
 
+            let from = Path::new(get_launcher_dir().unwrap().as_path()).join("QuantumLauncher").join(&instance_type).join(instance_name);
+            let to = Path::new(get_launcher_dir().unwrap().as_path()).join("QuantumLauncher").join(&instance_type).join(new_instance_name);
 
+            for entry in WalkDir::new(&from) {
+                let entry = entry.unwrap();
+                let name = entry.file_name().to_string_lossy();
+
+                if selected.contains(&name.to_string()) {
+                    let relative_path = entry.path().strip_prefix(&from).unwrap();
+                    let target = to.join(relative_path);
+
+                    if entry.file_type().is_dir() {
+                        fs::create_dir_all(&target).unwrap();
+                    }
+                    else {
+                        fs::create_dir_all(target.parent().unwrap()).unwrap();
+                        fs::copy(entry.path(), &target).unwrap();
+                    }
+                }
+            }
+}
 
 
 // For fronted integration
 
-// FOR INSTANCE
 async fn clone() {
 
-    let current_instance = String::from("SELECT ME THE CURRENT INSTANCE NAME HERE"); // NAME MUST BE FOLDER NAME
+    let current_instance_name = String::from("SELECT ME THE CURRENT SERVER NAME HERE"); // TODO NAME MUST BE FOLDER NAME OF THE SELECTED INSTANCE/SERVER
 
-    let mut new_instance_name = String::new();
-    // GET USER INPUT and input the name for the new instance
+    let new_instance_name ;
+    // TODO GET USER INPUT and input the name for the new server
+    new_instance_name = "placeholder";  // PLACEHOLDER TODO REMOVE WHEN IMPLEMENTED INPUT
     let trimmed_name = String::from(new_instance_name.trim());
 
-    let instance_type:String = String::from("instance");
+    let is_server = false;
+    // TODO MAKE THIS OPTION GET INPUT BY THE TYPE OF SELECTED INSTANCE!!!!!!
 
-    if Path::new(get_launcher_dir().unwrap().as_path()).join("QuantumLauncher").join("instances").join(&new_instance_name).is_dir() == true {
+    let clone_all_option = false;
+    // TODO MAKE THIS OPTION GET INPUT BY THE USER IF SELECTED CLONING IS SELECTED THIS SHOULD = FALSE!
+
+    let instance_type ;
+    if is_server == false {instance_type = String::from("instance") }
+    else {instance_type = String::from("server")};
+
+    if Path::new(get_launcher_dir().unwrap().as_path()).join("QuantumLauncher").join(&instance_type).join(&new_instance_name).is_dir() == true {
         println!("Directory already exists! Try a different name.")
     }
     else {
-        all_clone_instance(instance_type, current_instance, trimmed_name).await;
-        println!("Cloned profile successfully")
+
+        if clone_all_option == true{
+            clone_all(instance_type, current_instance_name, trimmed_name).await;
+            println!("Cloned profile successfully")
+        }
+        else {
+            let selected: Vec<String>;
+            // TODO INPUT SELECTED FOLDERS TO THIS VECTOR like this -> "folder/".to_string(), "file.txt.to_string()" MUST USE .to_string() bc IF I INPUT JUST "example" IT IS &str NOT STRING
+            selected = vec!["testing".to_string(), "asd".to_string()]; // PLACEHOLDER TODO REMOVE WHEN IMPLEMENTED INPUT
+
+            clone_selected(instance_type, current_instance_name, trimmed_name, selected).await;
+        }
     }
 
 }
-
-
-//FOR SERVER
-async fn server_clone() {
-
-    let current_instance = String::from("SELECT ME THE CURRENT SERVER NAME HERE"); // NAME MUST BE FOLDER NAME
-
-    let mut new_instance_name = String::new();
-    // GET USER INPUT and input the name for the new server
-    let trimmed_name = String::from(new_instance_name.trim());
-
-    let instance_type:String = String::from("server");
-
-    if Path::new(get_launcher_dir().unwrap().as_path()).join("QuantumLauncher").join("servers").join(&new_instance_name).is_dir() == true {
-        println!("Directory already exists! Try a different name.")
-    }
-    else {
-        all_clone_instance(instance_type, current_instance, trimmed_name).await;
-        println!("Cloned profile successfully")
-    }
-
-}
-
