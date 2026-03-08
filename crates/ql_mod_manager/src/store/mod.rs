@@ -2,8 +2,8 @@ use std::{collections::HashSet, fmt::Display, path::PathBuf, sync::mpsc::Sender,
 
 use chrono::DateTime;
 use ql_core::{
-    json::VersionDetails, GenericProgress, InstanceSelection, IntoIoError, Loader, ModId,
-    StoreBackendType,
+    do_jobs, json::VersionDetails, pt, GenericProgress, InstanceSelection, IntoIoError, Loader,
+    ModId, StoreBackendType,
 };
 
 mod add_file;
@@ -49,29 +49,69 @@ pub trait Backend {
     /// Gets the description of a mod based on its id.
     /// Returns the id and description `String`.
     ///
-    /// This supports both Markdown and HTML.
+    /// This may use Markdown, HTML, or a mix of both.
     async fn get_description(id: &str) -> Result<(ModId, String), ModError>;
+    /// Gets the latest compatible mod version, based on provided Minecraft version and mod loader.
+    ///
+    /// Useful for update checking.
+    ///
+    /// Returns the release date and version name (eg: `v2.0.1`).
     async fn get_latest_version_date(
         id: &str,
         version: &str,
         loader: Loader,
     ) -> Result<(DateTime<chrono::FixedOffset>, String), ModError>;
-
+    /// Downloads a single mod to the `instance`.
+    ///
+    /// Optionally takes in a `sender` to use if it's a modpack.
     async fn download(
         id: &str,
         instance: &InstanceSelection,
         sender: Option<Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError>;
-
+    /// Downloads multiple mods to the `instance`.
+    ///
+    /// Uses efficient batched APIs and concurrent downloading when possible,
+    /// so more efficient than [`Backend::download`] in a loop.
     async fn download_bulk(
         ids: &[String],
         instance: &InstanceSelection,
         ignore_incompatible: bool,
-        set_manually_installed: bool,
+        _set_manually_installed: bool,
         sender: Option<&Sender<GenericProgress>>,
-    ) -> Result<HashSet<CurseforgeNotAllowed>, ModError>;
+    ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
+        // Fallback implementation
+        let mut not_allowed = HashSet::new();
+        for id in ids {
+            // We don't do this concurrently as there's likely a lock on the index
+            match Self::download(id, instance, sender.cloned()).await {
+                Ok(n) => not_allowed.extend(n),
+                Err(ModError::NoCompatibleVersionFound(name)) if ignore_incompatible => {
+                    pt!("No compatible version found for mod {name} {id}, skipping...");
+                    continue;
+                }
+                Err(err) => return Err(err),
+            }
+        }
+        Ok(not_allowed)
+    }
+
+    /// Gets metadata about a mod, such as its title, description, icon, download count, etc.
+    async fn get_info(id: &str) -> Result<SearchMod, ModError>;
+    /// Gets metadata about multiple mods in bulk, such as their title, description, icon, download count, etc.
+    ///
+    /// Uses efficient batched APIs and concurrent fetching when possible,
+    /// so more efficient than [`Backend::get_info`] in a loop.
+    async fn get_info_bulk(ids: &[String]) -> Result<Vec<SearchMod>, ModError> {
+        // Fallback implementation (concurrent)
+        do_jobs(ids.iter().map(|n| Self::get_info(n))).await
+    }
 }
 
+/// Gets the description of a mod based on its id.
+/// Returns the id and description `String`.
+///
+/// This may use Markdown, HTML, or a mix of both.
 pub async fn get_description(id: ModId) -> Result<(ModId, String), ModError> {
     match &id {
         ModId::Modrinth(n) => ModrinthBackend::get_description(n).await,
@@ -91,6 +131,9 @@ pub async fn search(
     }
 }
 
+/// Downloads a single mod to the `instance`.
+///
+/// Optionally takes in a `sender` to use if it's a modpack.
 pub async fn download_mod(
     id: &ModId,
     instance: &InstanceSelection,
@@ -102,6 +145,10 @@ pub async fn download_mod(
     }
 }
 
+/// Downloads multiple mods to the `instance`.
+///
+/// Uses efficient batched APIs and concurrent downloading when possible,
+/// so more efficient than [`download_mod`] in a loop.
 pub async fn download_mods_bulk(
     ids: Vec<ModId>,
     instance: InstanceSelection,
@@ -137,6 +184,11 @@ pub async fn download_mods_bulk(
     Ok(not_allowed)
 }
 
+/// Gets the latest compatible mod version, based on provided Minecraft version and mod loader.
+///
+/// Useful for update checking.
+///
+/// Returns the release date and version name (eg: `v2.0.1`).
 pub async fn get_latest_version_date(
     loader: Loader,
     mod_id: &ModId,
@@ -148,6 +200,42 @@ pub async fn get_latest_version_date(
             CurseforgeBackend::get_latest_version_date(n, version, loader).await?
         }
     })
+}
+
+/// Gets metadata about a mod, such as its title, description, icon, download count, etc.
+pub async fn get_info(id: &ModId) -> Result<SearchMod, ModError> {
+    match id {
+        ModId::Modrinth(n) => ModrinthBackend::get_info(n).await,
+        ModId::Curseforge(n) => CurseforgeBackend::get_info(n).await,
+    }
+}
+
+/// Gets metadata about multiple mods in bulk, such as their title, description, icon, download count, etc.
+///
+/// Uses efficient batched APIs and concurrent fetching when possible,
+/// so more efficient than [`get_info`] in a loop.
+pub async fn get_info_bulk(ids: Vec<ModId>) -> Result<Vec<SearchMod>, ModError> {
+    let (modrinth, other): (Vec<ModId>, Vec<ModId>) = ids.into_iter().partition(|n| match n {
+        ModId::Modrinth(_) => true,
+        ModId::Curseforge(_) => false,
+    });
+
+    let modrinth: Vec<String> = modrinth
+        .into_iter()
+        .map(|n| n.get_internal_id().to_owned())
+        .collect();
+
+    let curseforge: Vec<String> = other
+        .into_iter()
+        .map(|n| n.get_internal_id().to_owned())
+        .collect();
+
+    let mut results = Vec::new();
+
+    results.extend(ModrinthBackend::get_info_bulk(&modrinth).await?);
+    results.extend(CurseforgeBackend::get_info_bulk(&curseforge).await?);
+
+    Ok(results)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -270,7 +358,8 @@ pub struct SearchMod {
     pub internal_name: String,
     pub project_type: String,
     pub id: String,
-    pub icon_url: String,
+    pub icon_url: Option<String>,
+    pub backend: StoreBackendType,
 }
 
 impl SearchMod {

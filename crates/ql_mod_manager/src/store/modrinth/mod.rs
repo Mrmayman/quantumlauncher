@@ -44,6 +44,7 @@ impl Backend for ModrinthBackend {
                     project_type: entry.project_type,
                     id: entry.project_id,
                     icon_url: entry.icon_url,
+                    backend: StoreBackendType::Modrinth,
                 })
                 .collect(),
             start_time: instant,
@@ -170,5 +171,36 @@ impl Backend for ModrinthBackend {
         }
 
         Ok(HashSet::new())
+    }
+
+    async fn get_info(id: &str) -> Result<SearchMod, ModError> {
+        let info = ProjectInfo::download(id).await?;
+        Ok(SearchMod {
+            title: info.title,
+            description: info.description,
+            downloads: info.downloads,
+            internal_name: info.slug,
+            project_type: info.project_type,
+            id: info.id,
+            icon_url: info.icon_url,
+            backend: StoreBackendType::Modrinth,
+        })
+    }
+
+    async fn get_info_bulk(ids: &[String]) -> Result<Vec<SearchMod>, ModError> {
+        let infos = ProjectInfo::download_bulk(ids).await?;
+        Ok(infos
+            .into_iter()
+            .map(|info| SearchMod {
+                title: info.title,
+                description: info.description,
+                downloads: info.downloads,
+                internal_name: info.slug,
+                project_type: info.project_type,
+                id: info.id,
+                icon_url: info.icon_url,
+                backend: StoreBackendType::Modrinth,
+            })
+            .collect())
     }
 }

@@ -1,7 +1,7 @@
 use frostmark::MarkWidget;
 use iced::{
     widget::{self, column, row},
-    Length,
+    Alignment, Length,
 };
 use ql_core::{Loader, ModId, StoreBackendType};
 use ql_mod_manager::store::{QueryType, SearchMod};
@@ -217,12 +217,7 @@ impl MenuModsDownload {
             action_button,
             widget::button(
                 row!(
-                    images.view(
-                        &hit.icon_url,
-                        Some(32.0),
-                        Some(32.0),
-                        column!(widget::text("...")).into()
-                    ),
+                    images.view(hit.icon_url.as_deref(), Some(32.0), Some(32.0)),
                     column!(
                         icons::download_s(20),
                         widget::text(Self::format_downloads(hit.downloads)).size(12),
@@ -282,7 +277,7 @@ impl MenuModsDownload {
         let markdown_description = if let Some(desc) = &self.description {
             column!(MarkWidget::new(desc)
                 .on_clicking_link(Message::CoreOpenLink)
-                .on_drawing_image(|img| { images.view(img.url, img.width, img.height, "".into()) })
+                .on_drawing_image(|img| { images.view(Some(img.url), img.width, img.height) })
                 .on_updating_state(|n| InstallModsMessage::TickDesc(n).into())
                 .font(FONT_DEFAULT)
                 .font_mono(FONT_MONO))
@@ -316,12 +311,19 @@ impl MenuModsDownload {
                         .on_press(Message::CoreCopyText(hit.id.clone())),
                 ]
                 .spacing(5),
-                row!(
-                    images.view(&hit.icon_url, Some(32.0), Some(32.0), "".into()),
+                row![
+                    images.view(hit.icon_url.as_deref(), Some(32.0), Some(32.0)),
                     widget::text(&hit.title)
                         .shaping(widget::text::Shaping::Advanced)
-                        .size(24)
-                )
+                        .size(24),
+                    column![
+                        icons::download_s(14),
+                        widget::text(Self::format_downloads(hit.downloads)).size(12),
+                    ]
+                    .align_x(Alignment::Center)
+                    .spacing(5),
+                ]
+                .align_y(Alignment::Center)
                 .spacing(10),
                 widget::text(&hit.description)
                     .shaping(widget::text::Shaping::Advanced)

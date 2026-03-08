@@ -63,7 +63,7 @@ pub struct Search {
 pub struct Entry {
     pub title: String,
     pub project_id: String,
-    pub icon_url: String,
+    pub icon_url: Option<String>,
     pub description: String,
     pub downloads: usize,
     pub slug: String,
