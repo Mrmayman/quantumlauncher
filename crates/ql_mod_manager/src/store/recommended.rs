@@ -117,6 +117,7 @@ impl RecommendedMod {
     }
 }
 
+// Credit to Void98 (https://github.com/void90user) for many of these
 pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
     RecommendedMod {
         id: "AANobbMI",
@@ -170,7 +171,7 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         id: "aC3cM3Vq",
         name: "Mouse Tweaks",
         description: "Improves inventory controls",
-        category: "Untility",
+        category: "Utility",
         enabled_by_default: true,
         backend: StoreBackendType::Modrinth,
     },
@@ -182,6 +183,8 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         enabled_by_default: true,
         backend: StoreBackendType::Modrinth,
     },
+
+    // Optional Extras
     RecommendedMod {
         id: "YL57xq9U",
         name: "Iris Shaders",
@@ -195,6 +198,14 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         name: "Continuity",
         description: "Adds connected textures",
         category: "Visual",
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "kzwxhsjp",
+        name: "Accurate Block Placement Reborn",
+        description: "Makes placing blocks more accurate (note: some servers don't allow this)",
+        category: "Utility",
         enabled_by_default: false,
         backend: StoreBackendType::Modrinth,
     },
@@ -305,7 +316,7 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
     RecommendedMod {
         id: "VSNURh3q",
         name: "Concurrent Chunk Management Engine (C2ME)",
-        description: "Improves the chunk performance",
+        description: "Improves the chunk performance (EXPERIMENTAL)",
         category: "Optimization",
         enabled_by_default: false,
         backend: StoreBackendType::Modrinth,
@@ -443,12 +454,12 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
 
 // Recommended Mod template
 /*
-    RecommendedMod {
-        id: "",
-        name: "",
-        description: "",
-        category: "",
-        enabled_by_default: false,
-        backend: StoreBackendType::Modrinth,
-    },
- */
+   RecommendedMod {
+       id: "",
+       name: "",
+       description: "",
+       category: "",
+       enabled_by_default: false,
+       backend: StoreBackendType::Modrinth,
+   },
+*/
