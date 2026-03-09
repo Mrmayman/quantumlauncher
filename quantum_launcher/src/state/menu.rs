@@ -570,6 +570,10 @@ pub struct MenuExportInstance {
     pub entries: Option<Vec<(DirItem, bool)>>,
     pub progress: Option<ProgressBar<GenericProgress>>,
 }
+pub struct MenuCloneInstance {
+    pub entries: Option<Vec<(DirItem, bool)>>,
+    pub progress: Option<ProgressBar<GenericProgress>>,
+}
 
 pub struct MenuLoginAlternate {
     pub username: String,
@@ -618,6 +622,7 @@ pub enum State {
     ImportModpack(ProgressBar<GenericProgress>),
     CurseforgeManualDownload(MenuCurseforgeManualDownload),
     ExportInstance(MenuExportInstance),
+    CloneInstance(MenuCloneInstance),
 
     Error {
         error: String,

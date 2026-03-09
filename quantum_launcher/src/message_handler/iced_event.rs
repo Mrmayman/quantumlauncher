@@ -1,7 +1,7 @@
 use crate::message_update::MSG_RESIZE;
 use crate::state::{
     AutoSaveKind, CreateInstanceMessage, LaunchTab, Launcher, LauncherSettingsMessage,
-    LauncherSettingsTab, MainMenuMessage, ManageModsMessage, MenuCreateInstance,
+    LauncherSettingsTab, MainMenuMessage, ManageModsMessage, MenuCloneInstance, MenuCreateInstance,
     MenuCreateInstanceChoosing, MenuEditMods, MenuEditPresets, MenuExportInstance,
     MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLauncherSettings,
     MenuLauncherUpdate, MenuLoginAlternate, MenuLoginMS, MenuRecommendedMods, MenuWelcome, Message,
@@ -323,6 +323,7 @@ impl Launcher {
             | State::LoginMS(MenuLoginMS { .. })
             | State::AccountLogin
             | State::ExportInstance(MenuExportInstance { progress: None, .. })
+            | State::CloneInstance(MenuCloneInstance { progress: None, .. })
             | State::LoginAlternate(MenuLoginAlternate {
                 is_loading: false, ..
             })
@@ -378,6 +379,7 @@ impl Launcher {
             }
             State::InstallPaper(_)
             | State::ExportInstance(_)
+            | State::CloneInstance(_)
             | State::InstallForge(_)
             | State::InstallJava
             | State::InstallOptifine(_)

@@ -153,6 +153,7 @@ impl Launcher {
             | State::LoginAlternate(_)
             | State::AccountLogin
             | State::ExportInstance(_)
+            | State::CloneInstance(_)
             | State::ConfirmAction { .. }
             | State::ChangeLog
             | State::Welcome(_)

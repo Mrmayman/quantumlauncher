@@ -1,6 +1,6 @@
 use iced::{futures::executor::block_on, Task};
 use ql_core::{err, file_utils::DirItem, info, InstanceSelection, IntoIoError, IntoStringError};
-use std::fmt::Write;
+use std::{collections::HashSet, fmt::Write};
 use tokio::io::AsyncWriteExt;
 
 #[allow(unused)]
@@ -9,8 +9,8 @@ use owo_colors::OwoColorize;
 use crate::{
     state::{
         AutoSaveKind, CustomJarState, GameProcess, LaunchTab, Launcher, LauncherSettingsMessage,
-        ManageModsMessage, MenuExportInstance, MenuLaunch, MenuLicense, MenuWelcome, Message,
-        ProgressBar, State,
+        ManageModsMessage, MenuCloneInstance, MenuExportInstance, MenuLaunch, MenuLicense,
+        MenuWelcome, Message, ProgressBar, State,
     },
     stylesheet::styles::LauncherThemeLightness,
 };
@@ -286,7 +286,8 @@ impl Launcher {
                     |n| Message::ExportInstanceLoaded(n.strerr()),
                 );
             }
-            Message::ExportInstanceLoaded(res) => {
+
+            Message::ExportInstanceLoaded(res) | Message::CloneInstanceLoaded(res) => {
                 let mut entries: Vec<(DirItem, bool)> = match res {
                     Ok(n) => n
                         .into_iter()
@@ -318,6 +319,8 @@ impl Launcher {
                     a.is_file.cmp(&b.is_file).then_with(|| a.name.cmp(&b.name))
                 });
                 if let State::ExportInstance(menu) = &mut self.state {
+                    menu.entries = Some(entries);
+                } else if let State::CloneInstance(menu) = &mut self.state {
                     menu.entries = Some(entries);
                 }
             }
@@ -367,6 +370,62 @@ impl Launcher {
                     }
                 }
                 Err(err) => self.set_error(err),
+            },
+            Message::CloneInstanceOpen => {
+                self.state = State::CloneInstance(MenuCloneInstance {
+                    entries: None,
+                    progress: None,
+                });
+                return Task::perform(
+                    ql_core::file_utils::read_filenames_from_dir(
+                        self.selected_instance
+                            .clone()
+                            .unwrap()
+                            .get_dot_minecraft_path(),
+                    ),
+                    |n| Message::CloneInstanceLoaded(n.strerr()),
+                );
+            }
+            Message::CloneInstanceToggleItem(idx, t) => {
+                if let State::CloneInstance(MenuCloneInstance {
+                    entries: Some(entries),
+                    ..
+                }) = &mut self.state
+                {
+                    if let Some((_, b)) = entries.get_mut(idx) {
+                        *b = t;
+                    }
+                }
+            }
+
+            Message::CloneInstanceStart => {
+                if let State::CloneInstance(MenuCloneInstance { entries, progress }) =
+                    &mut self.state
+                {
+                    if let Some(entries) = entries {
+                        let (_, recv) = std::sync::mpsc::channel();
+                        *progress = Some(ProgressBar::with_recv(recv));
+
+                        let selection: HashSet<String> = entries
+                            .iter()
+                            .filter_map(|(n, b)| (b).then_some(n.name.clone()))
+                            .collect();
+
+                        return Task::perform(
+                            ql_instances::clone_instance(
+                                self.selected_instance.clone().unwrap(),
+                                selection,
+                            ),
+                            |e| Message::CloneInstanceFinished(e.strerr()),
+                        );
+                    }
+                }
+            }
+            Message::CloneInstanceFinished(res) => match res {
+                Ok(_) => {
+                    return self.go_to_main_menu_with_message(Some("Instance has been copied!"))
+                }
+                Err(e) => self.set_error(e),
             },
             Message::LicenseOpen => {
                 self.go_to_licenses_menu();
