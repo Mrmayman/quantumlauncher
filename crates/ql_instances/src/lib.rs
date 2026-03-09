@@ -57,7 +57,7 @@ mod json_profiles;
 mod launcher_update_detector;
 
 pub use download::{create_instance, repeat_stage, DownloadError};
-pub use instance::{launch::launch, list_versions::list_versions, notes};
+pub use instance::{cloning::clone_instance, launch::launch, list_versions::list_versions, notes};
 pub use launcher_update_detector::{
     check_for_launcher_updates, install_launcher_update, UpdateCheckInfo, UpdateError,
 };

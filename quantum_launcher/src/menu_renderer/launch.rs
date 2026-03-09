@@ -125,6 +125,8 @@ impl Launcher {
                         column![
                             ctx_button(icons::file_zip_s(CTXI_SIZE), "Export Instance")
                                 .on_press(Message::ExportInstanceOpen),
+                            ctx_button(icons::file_zip_s(CTXI_SIZE), "Clone Instance")
+                                .on_press(Message::CloneInstanceOpen),
                             ctx_button(icons::file_gear_s(CTXI_SIZE), "Create Shortcut")
                                 .on_press(ShortcutMessage::Open.into()),
                         ]

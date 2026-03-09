@@ -455,6 +455,13 @@ pub enum Message {
     ExportInstanceFinished(Res<Vec<u8>>),
     ExportInstanceLoaded(Res<Vec<DirItem>>),
 
+    #[allow(unused)]
+    CloneInstanceOpen,
+    CloneInstanceToggleItem(usize, bool),
+    CloneInstanceStart,
+    CloneInstanceFinished(Res<()>),
+    CloneInstanceLoaded(Res<Vec<DirItem>>),
+
     CoreCopyError,
     CoreCopyLog,
     CoreOpenLink(String),
