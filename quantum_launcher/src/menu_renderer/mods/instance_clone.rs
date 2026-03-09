@@ -3,14 +3,15 @@ use iced::{widget, Length};
 use crate::{
     icons,
     menu_renderer::{back_button, back_to_launch_screen, button_with_icon, Element},
-    state::{MenuExportInstance, Message},
+    state::{MenuCloneInstance, Message},
 };
 
-impl MenuExportInstance {
+impl MenuCloneInstance {
     pub fn view(&'_ self, tick_timer: usize) -> Element<'_> {
         widget::column![
             back_button().on_press(back_to_launch_screen(None, None)),
-            "Select the contents of the \".minecraft\" folder you want to keep",
+            "Select the contents of the instance you want to clone",
+            "NOTE: Jarmods and other things will be copied outside of the scope of this selection menu.",
             widget::scrollable(if let Some(entries) = &self.entries {
                 widget::column(entries.iter().enumerate().map(|(i, (entry, enabled))| {
                     let name = if entry.is_file {
@@ -19,7 +20,7 @@ impl MenuExportInstance {
                         format!("{}/", entry.name)
                     };
                     widget::checkbox(name, *enabled)
-                        .on_toggle(move |t| Message::ExportInstanceToggleItem(i, t))
+                        .on_toggle(move |t| Message::CloneInstanceToggleItem(i, t))
                         .into()
                 }))
                 .padding(5)
@@ -29,20 +30,8 @@ impl MenuExportInstance {
             })
             .width(Length::Fill)
             .height(Length::Fill),
-            widget::column![
-                widget::text("Format:").size(12),
-                widget::row![
-                    widget::pick_list(["QuantumLauncher"], Some("QuantumLauncher"), |_| {
-                        Message::Nothing
-                    })
-                    .text_line_height(1.68),
-                    button_with_icon(icons::floppydisk(), "Export", 16)
-                        .on_press(Message::ExportInstanceStart),
-                ]
-                .spacing(5)
-                .wrap()
-            ]
-            .spacing(2),
+            button_with_icon(icons::floppydisk(), "Clone", 16)
+                .on_press(Message::CloneInstanceStart),
         ]
         .padding(10)
         .spacing(10)
