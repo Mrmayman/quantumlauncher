@@ -11,6 +11,7 @@ impl MenuCloneInstance {
         widget::column![
             back_button().on_press(back_to_launch_screen(None, None)),
             "Select the contents of the instance you want to clone",
+            "NOTE: Jarmods and other things will be copied outside of the scope of this selection menu.",
             widget::scrollable(if let Some(entries) = &self.entries {
                 widget::column(entries.iter().enumerate().map(|(i, (entry, enabled))| {
                     let name = if entry.is_file {
