@@ -1,39 +1,7 @@
-use ql_core::{InstanceSelection, LAUNCHER_DIR};
+use ql_core::{file_utils, InstanceSelection};
 use std::collections::HashSet;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use thiserror::Error;
-use walkdir::WalkDir;
-
-async fn clone_selected(
-    instance_name: &str,
-    new_instance_name: String,
-    selection: HashSet<String>,
-) {
-    let from = Path::new(LAUNCHER_DIR.as_path())
-        .join("instances")
-        .join(instance_name);
-    let to = Path::new(LAUNCHER_DIR.as_path())
-        .join("instances")
-        .join(new_instance_name);
-
-    for entry in WalkDir::new(&from) {
-        let entry = entry.unwrap();
-        let name = entry.file_name().to_string_lossy();
-
-        if selection.contains(&name.to_string()) {
-            let relative_path = entry.path().strip_prefix(&from).unwrap();
-            let target = to.join(relative_path);
-
-            if entry.file_type().is_dir() {
-                fs::create_dir_all(&target).unwrap();
-            } else {
-                fs::create_dir_all(target.parent().unwrap()).unwrap();
-                fs::copy(entry.path(), &target).unwrap();
-            }
-        }
-    }
-}
 
 const PKG_ERR_PREFIX: &str = "while cloning instance:\n";
 #[derive(Debug, Error)]
@@ -44,20 +12,26 @@ pub enum InstanceCloneError {
 
 pub async fn clone_instance(
     instance: InstanceSelection,
-    selection: HashSet<String>,
+    exceptions: HashSet<String>,
 ) -> Result<(), InstanceCloneError> {
     let current_instance_name = instance.get_name();
     let new_instance_name = format!("{current_instance_name} (copy)");
 
-    let possible_dir = Path::new(LAUNCHER_DIR.as_path())
-        .join("instances")
-        .join(&new_instance_name);
+    let current_instance = instance.get_instance_path();
+    let new_instance = current_instance.parent().unwrap().join(&new_instance_name);
 
-    if possible_dir.is_dir() {
-        return Err(InstanceCloneError::DirectoryExists(possible_dir));
-    } else {
-        clone_selected(current_instance_name, new_instance_name, selection).await;
+    if new_instance.is_dir() {
+        return Err(InstanceCloneError::DirectoryExists(new_instance));
     }
+
+    let exceptions: Vec<PathBuf> = exceptions
+        .iter()
+        .map(|n| current_instance.join(n))
+        .collect();
+
+    file_utils::copy_dir_recursive_ext(&current_instance, &new_instance, &exceptions)
+        .await
+        .unwrap();
 
     Ok(())
 }

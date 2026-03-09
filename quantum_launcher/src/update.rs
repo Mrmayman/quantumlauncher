@@ -1,6 +1,6 @@
 use iced::{futures::executor::block_on, Task};
 use ql_core::{err, file_utils::DirItem, info, InstanceSelection, IntoIoError, IntoStringError};
-use std::{collections::HashSet, fmt::Write};
+use std::fmt::Write;
 use tokio::io::AsyncWriteExt;
 
 #[allow(unused)]
@@ -406,15 +406,15 @@ impl Launcher {
                         let (_, recv) = std::sync::mpsc::channel();
                         *progress = Some(ProgressBar::with_recv(recv));
 
-                        let selection: HashSet<String> = entries
+                        let exceptions = entries
                             .iter()
-                            .filter_map(|(n, b)| (b).then_some(n.name.clone()))
+                            .filter_map(|(n, b)| (!b).then_some(format!(".minecraft/{}", n.name)))
                             .collect();
 
                         return Task::perform(
                             ql_instances::clone_instance(
                                 self.selected_instance.clone().unwrap(),
-                                selection,
+                                exceptions,
                             ),
                             |e| Message::CloneInstanceFinished(e.strerr()),
                         );
