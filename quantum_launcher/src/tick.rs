@@ -13,9 +13,9 @@ use ql_mod_manager::store::{ModConfig, ModIndex};
 
 use crate::state::{
     AutoSaveKind, EditInstanceMessage, GameProcess, InstallModsMessage, InstanceLog, LaunchTab,
-    Launcher, LogState, ManageJarModsMessage, MenuCloneInstance, MenuCreateInstance, MenuEditMods,
-    MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuLaunch, MenuLoginMS,
-    MenuModsDownload, MenuRecommendedMods, Message, ModListEntry, State,
+    Launcher, LogState, ManageJarModsMessage, MenuCreateInstance, MenuEditMods, MenuExportInstance,
+    MenuInstallFabric, MenuInstallOptifine, MenuLaunch, MenuLoginMS, MenuModsDownload,
+    MenuRecommendedMods, Message, ModListEntry, State,
 };
 
 impl Launcher {
@@ -144,10 +144,6 @@ impl Launcher {
             | State::ExportInstance(MenuExportInstance {
                 progress: Some(progress),
                 ..
-            })
-            | State::CloneInstance(MenuCloneInstance {
-                progress: Some(progress),
-                ..
             }) => {
                 progress.tick();
             }
@@ -157,7 +153,6 @@ impl Launcher {
             | State::LoginAlternate(_)
             | State::AccountLogin
             | State::ExportInstance(_)
-            | State::CloneInstance(_)
             | State::ConfirmAction { .. }
             | State::ChangeLog
             | State::Welcome(_)

@@ -15,6 +15,7 @@ mod create_instance;
 mod edit_instance;
 mod launch;
 mod manage_mods;
+mod package;
 mod presets;
 mod recommended;
 

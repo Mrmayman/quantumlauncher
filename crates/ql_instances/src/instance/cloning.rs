@@ -21,8 +21,9 @@ impl From<IoError> for InstanceCloneError {
 pub async fn clone_instance(
     instance: InstanceSelection,
     exceptions: HashSet<String>,
-) -> Result<(), InstanceCloneError> {
+) -> Result<InstanceSelection, InstanceCloneError> {
     let current_instance_name = instance.get_name();
+    let current_instance_type = instance.is_server();
     let new_instance_name = format!("{current_instance_name} (copy)");
 
     let current_instance = instance.get_instance_path();
@@ -39,5 +40,8 @@ pub async fn clone_instance(
 
     file_utils::copy_dir_recursive_ext(&current_instance, &new_instance, &exceptions).await?;
 
-    Ok(())
+    Ok(InstanceSelection::new(
+        &new_instance_name,
+        current_instance_type,
+    ))
 }

@@ -570,10 +570,8 @@ pub struct MenuCurseforgeManualDownload {
 pub struct MenuExportInstance {
     pub entries: Option<Vec<(DirItem, bool)>>,
     pub progress: Option<ProgressBar<GenericProgress>>,
-}
-pub struct MenuCloneInstance {
-    pub entries: Option<Vec<(DirItem, bool)>>,
-    pub progress: Option<ProgressBar<GenericProgress>>,
+    /// Whether the instance is being exported, or cloned
+    pub is_exporting: bool,
 }
 
 pub struct MenuLoginAlternate {
@@ -622,8 +620,8 @@ pub enum State {
     EditJarMods(MenuEditJarMods),
     ImportModpack(ProgressBar<GenericProgress>),
     CurseforgeManualDownload(MenuCurseforgeManualDownload),
+    /// Exporting or cloning an instance
     ExportInstance(MenuExportInstance),
-    CloneInstance(MenuCloneInstance),
 
     Error {
         error: String,

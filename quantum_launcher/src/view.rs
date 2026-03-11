@@ -155,7 +155,6 @@ impl Launcher {
 
             State::LoginAlternate(menu) => menu.view(self.tick_timer),
             State::ExportInstance(menu) => menu.view(self.tick_timer),
-            State::CloneInstance(menu) => menu.view(self.tick_timer),
 
             State::LoginMS(menu) => menu.view(),
             State::CurseforgeManualDownload(menu) => menu.view(),

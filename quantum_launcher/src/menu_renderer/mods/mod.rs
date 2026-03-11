@@ -1,6 +1,5 @@
 mod export_mods;
 mod install_loader;
-mod instance_clone;
 mod instance_package;
 mod jarmods;
 mod mods_manage;
