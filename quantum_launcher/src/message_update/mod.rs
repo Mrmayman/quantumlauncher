@@ -552,7 +552,11 @@ impl Launcher {
                 self.confirm_clear_java_installs();
             }
             LauncherSettingsMessage::ClearJavaInstallsConfirm => {
-                return Task::perform(ql_instances::delete_java_installs(), |()| Message::Nothing);
+                return Task::perform(ql_instances::delete_java_installs(), |()| {
+                    Message::LauncherSettings(LauncherSettingsMessage::ChangeTab(
+                        state::LauncherSettingsTab::Internal,
+                    ))
+                });
             }
             LauncherSettingsMessage::ChangeTab(tab) => {
                 self.go_to_launcher_settings();
