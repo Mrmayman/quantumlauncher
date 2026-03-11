@@ -474,6 +474,22 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         enabled_by_default: false,
         backend: StoreBackendType::Modrinth,
     },
+    RecommendedMod {
+        id: "cJlZ132G",
+        name: "Chat Plus",
+        description: "A mod that adds just about everything you can need to chat",
+        category: Category::Utility,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "DFqQfIBR",
+        name: "CraftPresence",
+        description: "Completely Customize the way others see you play in Discord! (Discord Rich presence)",
+        category: Category::Utility,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
 
 ];
 
@@ -483,7 +499,7 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
        id: "",
        name: "",
        description: "",
-       category: "",
+       category: Category::,
        enabled_by_default: false,
        backend: StoreBackendType::Modrinth,
    },
