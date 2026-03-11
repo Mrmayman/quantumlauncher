@@ -1,4 +1,4 @@
-use ql_core::{file_utils, InstanceSelection};
+use ql_core::{file_utils, InstanceSelection, IoError};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -6,8 +6,16 @@ use thiserror::Error;
 const PKG_ERR_PREFIX: &str = "while cloning instance:\n";
 #[derive(Debug, Error)]
 pub enum InstanceCloneError {
+    #[error("{PKG_ERR_PREFIX}failed to execute recursive directory clone wrapper: {0:?}")]
+    Io(IoError),
     #[error("{PKG_ERR_PREFIX}directory already exists: {0:?}")]
     DirectoryExists(PathBuf),
+}
+
+impl From<IoError> for InstanceCloneError {
+    fn from(e: IoError) -> Self {
+        Self::Io(e)
+    }
 }
 
 pub async fn clone_instance(
@@ -29,9 +37,7 @@ pub async fn clone_instance(
         .map(|n| current_instance.join(n))
         .collect();
 
-    file_utils::copy_dir_recursive_ext(&current_instance, &new_instance, &exceptions)
-        .await
-        .unwrap();
+    file_utils::copy_dir_recursive_ext(&current_instance, &new_instance, &exceptions).await?;
 
     Ok(())
 }
