@@ -213,6 +213,7 @@ pub enum RecommendedModMessage {
     Open,
     ModCheckResult(Res<Vec<RecommendedMod>>),
     Toggle(usize, bool),
+    ToggleFilter(ql_mod_manager::store::recommended::Category, bool),
     Download,
     DownloadEnd(Res<HashSet<CurseforgeNotAllowed>>),
 }
@@ -397,6 +398,18 @@ pub enum ShortcutMessage {
 }
 
 #[derive(Debug, Clone)]
+pub enum PackageInstanceMessage {
+    ToggleItem(usize, bool),
+    Start,
+    ListLoaded(Res<Vec<DirItem>>),
+
+    ExportOpen,
+    CloneOpen,
+    ExportFinished(Res<Vec<u8>>),
+    CloneFinished(Res<InstanceSelection>),
+}
+
+#[derive(Debug, Clone)]
 pub enum Message {
     Nothing,
     Error(String),
@@ -425,6 +438,8 @@ pub enum Message {
     RecommendedMods(RecommendedModMessage),
     MainMenu(MainMenuMessage),
     SidebarMessage(SidebarMessage),
+    #[allow(unused)]
+    Package(PackageInstanceMessage),
 
     MScreenOpen {
         message: Option<String>,
@@ -446,13 +461,6 @@ pub enum Message {
     UninstallLoaderConfirm(Box<Message>, Loader),
     UninstallLoaderStart,
     UninstallLoaderEnd(Res),
-
-    #[allow(unused)]
-    ExportInstanceOpen,
-    ExportInstanceToggleItem(usize, bool),
-    ExportInstanceStart,
-    ExportInstanceFinished(Res<Vec<u8>>),
-    ExportInstanceLoaded(Res<Vec<DirItem>>),
 
     CoreCopyError,
     CoreCopyLog,
@@ -519,3 +527,4 @@ from_m!(Notes, NotesMessage);
 from_m!(GameLog, GameLogMessage);
 from_m!(Window, WindowMessage);
 from_m!(Shortcut, ShortcutMessage);
+from_m!(Package, PackageInstanceMessage);

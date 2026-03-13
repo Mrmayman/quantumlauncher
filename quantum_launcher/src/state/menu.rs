@@ -549,6 +549,7 @@ pub enum MenuRecommendedMods {
     },
     Loaded {
         mods: Vec<(bool, RecommendedMod)>,
+        filters: HashSet<ql_mod_manager::store::recommended::Category>,
         config: InstanceConfigJson,
     },
     InstallALoader,
@@ -569,6 +570,8 @@ pub struct MenuCurseforgeManualDownload {
 pub struct MenuExportInstance {
     pub entries: Option<Vec<(DirItem, bool)>>,
     pub progress: Option<ProgressBar<GenericProgress>>,
+    /// Whether the instance is being exported, or cloned
+    pub is_exporting: bool,
 }
 
 pub struct MenuLoginAlternate {
@@ -617,6 +620,7 @@ pub enum State {
     EditJarMods(MenuEditJarMods),
     ImportModpack(ProgressBar<GenericProgress>),
     CurseforgeManualDownload(MenuCurseforgeManualDownload),
+    /// Exporting or cloning an instance
     ExportInstance(MenuExportInstance),
 
     Error {

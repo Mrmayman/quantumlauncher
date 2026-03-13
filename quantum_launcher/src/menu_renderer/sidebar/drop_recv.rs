@@ -26,7 +26,7 @@ pub fn drag_drop_receiver(
             SDragTo::Before,
             is_hovered && matches!(offset, SDragTo::Before),
             selection
-        ),]
+        )]
         .push_maybe(bottom_drop_box(
             node,
             is_hovered && matches!(offset, SDragTo::After | SDragTo::Inside),

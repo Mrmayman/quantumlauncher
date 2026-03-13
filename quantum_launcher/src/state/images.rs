@@ -54,13 +54,10 @@ impl ImageState {
         }
     }
 
-    pub fn view<'a>(
-        &self,
-        url: &str,
-        w: Option<f32>,
-        h: Option<f32>,
-        fallback: Element<'a>,
-    ) -> Element<'a> {
+    pub fn view<'a>(&self, url: Option<&str>, w: Option<f32>, h: Option<f32>) -> Element<'a> {
+        let Some(url) = url else {
+            return widget::Column::new().into();
+        };
         if let Some(handle) = self.bitmap.get(url) {
             let mut e = widget::image(handle.clone()).content_fit(iced::ContentFit::ScaleDown);
             if let Some(s) = w {
@@ -82,7 +79,7 @@ impl ImageState {
         } else {
             let mut to_load = self.to_load.lock().unwrap();
             to_load.insert(url.to_owned());
-            fallback
+            widget::Column::new().into()
         }
     }
 

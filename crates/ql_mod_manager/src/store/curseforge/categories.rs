@@ -24,15 +24,18 @@ pub struct Category {
 pub static CATEGORIES: LazyLock<Mutex<Option<Categories>>> = LazyLock::new(|| Mutex::new(None));
 
 pub async fn get_categories() -> Result<Categories, ModError> {
-    // Can't just lock it once because of async thread safety issues
-    let is_none = CATEGORIES.lock().unwrap().is_none();
-    if is_none {
-        let mc_id = get_mc_id().await?;
-        let params = HashMap::from([("gameId", mc_id.to_string())]);
-        let categories = send_request("categories", &params).await?;
-        let categories: Categories = serde_json::from_str(&categories).json(categories)?;
-
-        *CATEGORIES.lock().unwrap() = Some(categories);
+    {
+        let categories = CATEGORIES.lock().unwrap().clone();
+        if let Some(categories) = categories {
+            return Ok(categories);
+        }
     }
-    Ok(CATEGORIES.lock().unwrap().clone().unwrap())
+
+    let mc_id = get_mc_id().await?;
+    let params = HashMap::from([("gameId", mc_id.to_string())]);
+    let categories = send_request("categories", &params).await?;
+    let categories: Categories = serde_json::from_str(&categories).json(categories)?;
+
+    *CATEGORIES.lock().unwrap() = Some(categories.clone());
+    Ok(categories)
 }
