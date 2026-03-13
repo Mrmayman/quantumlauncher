@@ -504,7 +504,7 @@ impl widget::toggler::Catalog for LauncherTheme {
                 widget::toggler::Status::Active { is_toggled: true }
                 | widget::toggler::Status::Hovered { is_toggled: true } => Color::SecondDark,
                 widget::toggler::Status::Active { is_toggled: false }
-                | widget::toggler::Status::Disabled { .. } => Color::ExtraDark,
+                | widget::toggler::Status::Disabled => Color::ExtraDark,
             }),
             background_border_width: BORDER_WIDTH,
             background_border_color: self.get(match status {
@@ -512,14 +512,14 @@ impl widget::toggler::Catalog for LauncherTheme {
                 | widget::toggler::Status::Hovered { is_toggled: false } => Color::Mid,
                 widget::toggler::Status::Active { is_toggled: false } => Color::SecondDark,
                 widget::toggler::Status::Hovered { is_toggled: true } => Color::SecondLight,
-                widget::toggler::Status::Disabled { .. } => Color::Dark,
+                widget::toggler::Status::Disabled => Color::Dark,
             }),
             foreground: self.get(match status {
                 widget::toggler::Status::Active { is_toggled: true } => Color::SecondLight,
                 widget::toggler::Status::Active { is_toggled: false } => Color::SecondDark,
                 widget::toggler::Status::Hovered { is_toggled: true } => Color::Light,
                 widget::toggler::Status::Hovered { is_toggled: false } => Color::Mid,
-                widget::toggler::Status::Disabled { .. } => Color::SecondDark,
+                widget::toggler::Status::Disabled => Color::SecondDark,
             }),
             foreground_border_width: BORDER_WIDTH,
             foreground_border_color: self.get(Color::Mid),

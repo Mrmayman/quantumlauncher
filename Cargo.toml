@@ -10,7 +10,7 @@ members = [
     "tests",
     # Utility Libraries
     "crates/ql_java_handler",
-    "crates/ezshortcut",
+    "crates/ezshortcut", "crates/ql_auth",
 ]
 default-members = ["quantum_launcher"]
 resolver = "2"

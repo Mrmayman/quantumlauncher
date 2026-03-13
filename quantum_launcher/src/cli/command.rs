@@ -1,10 +1,10 @@
 use owo_colors::{OwoColorize, Style};
+use ql_auth::AccountType;
 use ql_core::{
     eeprintln, err, info,
     json::{InstanceConfigJson, VersionDetails},
     InstanceSelection, IntoStringError, ListEntry, Loader, OptifineUniqueVersion, LAUNCHER_DIR,
 };
-use ql_instances::auth::{self, AccountType};
 use ql_mod_manager::loaders::LoaderInstallResult;
 use std::{path::PathBuf, process::exit};
 
@@ -244,7 +244,7 @@ async fn refresh_account(
     username: &String,
     use_account: bool,
     show_progress: bool,
-) -> Result<Option<auth::AccountData>, Box<dyn std::error::Error>> {
+) -> Result<Option<ql_auth::AccountData>, Box<dyn std::error::Error>> {
     Ok(if use_account {
         let config = LauncherConfig::load_s()?;
         let Some((real_name, account)) = config.accounts.as_ref().and_then(|accounts| {
@@ -272,9 +272,9 @@ async fn refresh_account(
                 } else {
                     AccountType::LittleSkin
                 };
-                let refresh_token = auth::read_refresh_token(real_name, account_type)?;
+                let refresh_token = ql_auth::read_refresh_token(real_name, account_type)?;
                 Some(
-                    auth::yggdrasil::login_refresh(
+                    ql_auth::yggdrasil::login_refresh(
                         real_name.to_owned(),
                         refresh_token,
                         account_type,
@@ -283,8 +283,8 @@ async fn refresh_account(
                 )
             }
             _ => {
-                let refresh_token = auth::read_refresh_token(real_name, AccountType::Microsoft)?;
-                Some(auth::ms::login_refresh(real_name.clone(), refresh_token, None).await?)
+                let refresh_token = ql_auth::read_refresh_token(real_name, AccountType::Microsoft)?;
+                Some(ql_auth::ms::login_refresh(real_name.clone(), refresh_token, None).await?)
             }
         }
     } else {

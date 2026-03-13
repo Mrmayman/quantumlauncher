@@ -1,5 +1,5 @@
 use iced::{widget, Alignment};
-use ql_instances::auth::AccountType;
+use ql_auth::AccountType;
 
 use crate::{
     config::LauncherConfig,

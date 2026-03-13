@@ -40,7 +40,7 @@ pub enum GameLaunchError {
     JarMod(#[from] JarModError),
 
     #[error("{GAME_ERR_PREFIX}{0}")]
-    MsAuth(#[from] crate::auth::ms::Error),
+    MsAuth(#[from] ql_auth::ms::Error),
     #[error("{GAME_ERR_PREFIX}Microsoft account token was not loaded\n\nTry logging out of your account and logging back in")]
     InvalidToken,
 

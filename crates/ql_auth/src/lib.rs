@@ -1,11 +1,15 @@
-use ql_core::{err, IntoStringError};
 use std::fmt::Display;
 
 mod alt;
 pub mod authlib;
+pub mod encrypted_store;
 pub mod ms;
+pub mod token_store;
 pub mod yggdrasil;
 pub use authlib::get_authlib_injector;
+pub use token_store::{
+    logout, logout_from, read_refresh_token, read_refresh_token_from, TokenStorageMethod,
+};
 
 #[derive(Debug, Clone)]
 pub struct AccountData {
@@ -94,15 +98,20 @@ impl AccountType {
     fn get_keyring_entry(self, username: &str) -> Result<keyring::Entry, KeyringError> {
         Ok(keyring::Entry::new(
             "QuantumLauncher",
-            &format!(
-                "{username}{}",
-                match self {
-                    AccountType::Microsoft => "",
-                    AccountType::ElyBy => "#elyby",
-                    AccountType::LittleSkin => "#littleskin",
-                }
-            ),
+            &self.create_storage_key(username),
         )?)
+    }
+
+    #[must_use]
+    pub fn create_storage_key(self, username: &str) -> String {
+        format!(
+            "{username}{}",
+            match self {
+                AccountType::Microsoft => "",
+                AccountType::ElyBy => "#elyby",
+                AccountType::LittleSkin => "#littleskin",
+            }
+        )
     }
 
     #[must_use]
@@ -174,21 +183,4 @@ Now after this, in the sidebar, right click it and click "Set as Default""#
             _ => write!(f, "{}", self.0),
         }
     }
-}
-
-pub fn read_refresh_token(
-    username: &str,
-    account_type: AccountType,
-) -> Result<String, KeyringError> {
-    let entry = account_type.get_keyring_entry(username)?;
-    let refresh_token = entry.get_password()?;
-    Ok(refresh_token)
-}
-
-pub fn logout(username: &str, account_type: AccountType) -> Result<(), String> {
-    let entry = account_type.get_keyring_entry(username).strerr()?;
-    if let Err(err) = entry.delete_credential() {
-        err!("Couldn't remove {account_type} account credential (Username: {username}):\n{err}");
-    }
-    Ok(())
 }

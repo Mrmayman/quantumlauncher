@@ -7,6 +7,10 @@ use crate::{
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
 use iced::widget::{self, scrollable::AbsoluteOffset};
+use ql_auth::{
+    ms::{AuthCodeResponse, AuthTokenResponse},
+    AccountData, AccountType, TokenStorageMethod,
+};
 use ql_core::{
     file_utils::DirItem,
     jarmod::JarMods,
@@ -14,13 +18,7 @@ use ql_core::{
     read_log::Diagnostic,
     InstanceSelection, LaunchedProcess, ListEntry, Loader, ModId, StoreBackendType,
 };
-use ql_instances::{
-    auth::{
-        ms::{AuthCodeResponse, AuthTokenResponse},
-        AccountData, AccountType,
-    },
-    UpdateCheckInfo,
-};
+use ql_instances::UpdateCheckInfo;
 use ql_mod_manager::{
     loaders::{fabric, paper::PaperVersion},
     store::{CurseforgeNotAllowed, ImageResult, ModIndex, QueryType, RecommendedMod, SearchResult},
@@ -252,7 +250,7 @@ pub enum AccountMessage {
     AltOtpInput(String),
     AltShowPassword(bool),
     AltLogin,
-    AltLoginResponse(Res<ql_instances::auth::yggdrasil::Account>),
+    AltLoginResponse(Res<ql_auth::yggdrasil::Account>),
 
     LittleSkinOauthButtonClicked,
     LittleSkinDeviceCodeReady {
@@ -338,6 +336,16 @@ impl ListMessage {
 }
 
 #[derive(Debug, Clone)]
+pub enum TokenPasswordMessage {
+    PasswordChanged(String),
+    ConfirmPasswordChanged(String),
+    ToggleShowPassword(bool),
+    Submit,
+    SubmitDone(crate::state::Res),
+    Skip,
+}
+
+#[derive(Debug, Clone)]
 pub enum NotesMessage {
     Loaded(Res<String>),
     OpenEdit,
@@ -397,6 +405,16 @@ pub enum ShortcutMessage {
 }
 
 #[derive(Debug, Clone)]
+pub enum TokenStoreMessage {
+    TokenEnsureLoaded,
+    TokenStorageChanged(TokenStorageMethod),
+    SetupEncryptedStore,
+    UnlockEncryptedStore,
+    DeleteEncryptedStore,
+    DeleteEncryptedStoreConfirm,
+}
+
+#[derive(Debug, Clone)]
 pub enum Message {
     Nothing,
     Error(String),
@@ -425,6 +443,7 @@ pub enum Message {
     RecommendedMods(RecommendedModMessage),
     MainMenu(MainMenuMessage),
     SidebarMessage(SidebarMessage),
+    TokenStore(TokenStoreMessage),
 
     MScreenOpen {
         message: Option<String>,
@@ -488,6 +507,8 @@ pub enum Message {
     LicenseOpen,
     LicenseChangeTab(LicenseTab),
     LicenseAction(widget::text_editor::Action),
+
+    TokenPassword(TokenPasswordMessage),
 }
 
 macro_rules! from_m {
@@ -519,3 +540,5 @@ from_m!(Notes, NotesMessage);
 from_m!(GameLog, GameLogMessage);
 from_m!(Window, WindowMessage);
 from_m!(Shortcut, ShortcutMessage);
+from_m!(TokenPassword, TokenPasswordMessage);
+from_m!(TokenStore, TokenStoreMessage);

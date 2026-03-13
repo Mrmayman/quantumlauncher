@@ -7,12 +7,12 @@ use std::{
 
 use iced::Task;
 use notify::Watcher;
+use ql_auth::{encrypted_store, ms::CLIENT_ID, AccountData, AccountType, TokenStorageMethod};
 use ql_core::{
     err, file_utils, read_log::LogLine, GenericProgress, InstanceSelection, IntoIoError,
     IntoStringError, IoError, JsonFileError, LaunchedProcess, Progress, LAUNCHER_DIR,
     LAUNCHER_VERSION_NAME,
 };
-use ql_instances::auth::{ms::CLIENT_ID, AccountData, AccountType};
 use tokio::process::ChildStdin;
 
 use crate::{
@@ -143,11 +143,23 @@ impl Launcher {
 
         let launch = State::Launch(launch);
 
-        // The version field was added in 0.3
-        let version = config.version.as_deref().unwrap_or("0.3.0");
+        let (accounts, accounts_dropdown, account_selected) = load_accounts(&mut config);
+
+        let version = config.version.as_deref().unwrap_or("0.3.0"); // field added in 0.3
 
         let state = if is_new_user {
             State::Welcome(MenuWelcome::P1InitialScreen)
+        } else if config.c_token_storage() == TokenStorageMethod::EncryptedFile
+            && encrypted_store::file_exists()
+            && !encrypted_store::is_unlocked()
+        {
+            State::TokenPasswordPrompt(MenuTokenPassword {
+                password: String::new(),
+                confirm_password: None,
+                show_password: false,
+                error: None,
+                is_loading: false,
+            })
         } else if version == LAUNCHER_VERSION_NAME {
             launch
         } else {
@@ -158,7 +170,8 @@ impl Launcher {
             State::ChangeLog
         };
 
-        let (accounts, accounts_dropdown, account_selected) = load_accounts(&mut config);
+        // Set global storage method from config
+        ql_auth::token_store::set_storage_method(config.c_token_storage());
 
         let persistent = config.c_persistent();
 
@@ -298,9 +311,43 @@ impl Launcher {
     }
 }
 
-fn load_accounts(
+/// Re-load only the encrypted-file accounts after the user unlocks the store.
+/// Returns `(accounts_map, dropdown_entries)` to merge into the launcher state.
+pub fn reload_encrypted_accounts(
+    config: &mut LauncherConfig,
+) -> (HashMap<String, AccountData>, Vec<String>) {
+    let mut accounts = HashMap::new();
+    let mut dropdown_entries = Vec::new();
+    let mut accounts_to_remove = Vec::new();
+
+    for (username, account) in config.accounts.iter_mut().flatten() {
+        if account.c_token_storage() != TokenStorageMethod::EncryptedFile {
+            continue;
+        }
+        load_account(
+            &mut accounts,
+            &mut dropdown_entries,
+            &mut accounts_to_remove,
+            username,
+            account,
+        );
+    }
+
+    if let Some(acc) = &mut config.accounts {
+        for rem in accounts_to_remove {
+            acc.remove(&rem);
+        }
+    }
+
+    (accounts, dropdown_entries)
+}
+
+pub fn load_accounts(
     config: &mut LauncherConfig,
 ) -> (HashMap<String, AccountData>, Vec<String>, String) {
+    // Set global storage method from config before loading accounts
+    ql_auth::token_store::set_storage_method(config.c_token_storage());
+
     let mut accounts = HashMap::new();
 
     let mut accounts_dropdown = vec![OFFLINE_ACCOUNT_NAME.to_owned(), NEW_ACCOUNT_NAME.to_owned()];
@@ -323,12 +370,15 @@ fn load_accounts(
         }
     }
 
-    let selected_account = config.account_selected.clone().unwrap_or(
-        accounts_dropdown
-            .first()
-            .cloned()
-            .unwrap_or_else(|| OFFLINE_ACCOUNT_NAME.to_owned()),
-    );
+    let selected_account = config
+        .c_account_selected()
+        .map(str::to_owned)
+        .unwrap_or_else(|| {
+            accounts_dropdown
+                .first()
+                .cloned()
+                .unwrap_or_else(|| OFFLINE_ACCOUNT_NAME.to_owned())
+        });
     (accounts, accounts_dropdown, selected_account)
 }
 
@@ -343,6 +393,7 @@ fn load_account(
         account_type: AccountType,
         username: &str,
         keyring_identifier: Option<&str>,
+        method: TokenStorageMethod,
     ) -> Result<String, String> {
         let keyring_username = if let Some(keyring_id) = keyring_identifier {
             keyring_id
@@ -356,40 +407,42 @@ fn load_account(
                 AccountType::Microsoft => username,
             }
         };
-        ql_instances::auth::read_refresh_token(keyring_username, account_type).strerr()
+        ql_auth::read_refresh_token_from(keyring_username, account_type, method)
+            .map_err(|e| e.to_string())
     }
 
-    let (account_type, refresh_token) =
+    let per_account_method = account.c_token_storage();
+    let current_method = ql_auth::token_store::get_storage_method();
+
+    // Only show accounts that belong to the currently active storage backend.
+    // Keyring accounts are hidden in file mode and vice versa.
+    if per_account_method != current_method {
+        return;
+    }
+    // If this account uses the encrypted store and it's locked, skip it
+    if per_account_method == TokenStorageMethod::EncryptedFile
+        && !ql_auth::encrypted_store::is_unlocked()
+    {
+        return;
+    }
+
+    let account_type =
         if account.account_type.as_deref() == Some("ElyBy") || username.ends_with(" (elyby)") {
-            (
-                AccountType::ElyBy,
-                get_refresh_token_for_account_type(
-                    AccountType::ElyBy,
-                    username,
-                    account.keyring_identifier.as_deref(),
-                ),
-            )
+            AccountType::ElyBy
         } else if account.account_type.as_deref() == Some("LittleSkin")
             || username.ends_with(" (littleskin)")
         {
-            (
-                AccountType::LittleSkin,
-                get_refresh_token_for_account_type(
-                    AccountType::LittleSkin,
-                    username,
-                    account.keyring_identifier.as_deref(),
-                ),
-            )
+            AccountType::LittleSkin
         } else {
-            (
-                AccountType::Microsoft,
-                get_refresh_token_for_account_type(
-                    AccountType::Microsoft,
-                    username,
-                    account.keyring_identifier.as_deref(),
-                ),
-            )
+            AccountType::Microsoft
         };
+
+    let refresh_token = get_refresh_token_for_account_type(
+        account_type,
+        username,
+        account.keyring_identifier.as_deref(),
+        per_account_method,
+    );
 
     let keyring_username = if let Some(keyring_id) = &account.keyring_identifier {
         keyring_id.clone()

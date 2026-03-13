@@ -1,6 +1,7 @@
 use std::sync::LazyLock;
 
 use iced::{widget, Alignment, Length};
+use ql_auth::{encrypted_store, TokenStorageMethod};
 use ql_core::{LAUNCHER_DIR, WEBSITE};
 
 use super::{
@@ -9,6 +10,7 @@ use super::{
 };
 use crate::menu_renderer::edit_instance::{args_split_by_space, get_args_list, resolution_dialog};
 use crate::menu_renderer::{back_to_launch_screen, checkered_list, sidebar, tsubtitle};
+use crate::state::TokenStoreMessage;
 use crate::{
     config::LauncherConfig,
     icons,
@@ -261,6 +263,7 @@ impl LauncherSettingsTab {
             .padding(16)
             .into(),
             LauncherSettingsTab::About => view_about_tab(),
+            LauncherSettingsTab::Security => view_security_tab(config),
         }
     }
 }
@@ -335,4 +338,90 @@ Every new user motivates me to keep working on this :)"
     .padding(16)
     .spacing(SETTINGS_SPACING)
     .into()
+}
+
+fn view_security_tab(config: &LauncherConfig) -> Element<'_> {
+    let current_method = config.c_token_storage();
+    let file_exists = encrypted_store::file_exists();
+    let is_unlocked = encrypted_store::is_unlocked();
+
+    let method_label = widget::text("Account Token Storage:").size(14);
+
+    let keyring_btn = widget::button(if current_method == TokenStorageMethod::Keyring {
+        "● System Keyring"
+    } else {
+        "  System Keyring"
+    })
+    .on_press_maybe(
+        (current_method != TokenStorageMethod::Keyring)
+            .then_some(TokenStoreMessage::TokenStorageChanged(TokenStorageMethod::Keyring).into()),
+    );
+
+    let encrypted_btn = widget::button(if current_method == TokenStorageMethod::EncryptedFile {
+        "● Encrypted File"
+    } else {
+        "  Encrypted File"
+    })
+    .on_press_maybe(
+        (current_method != TokenStorageMethod::EncryptedFile).then_some(
+            TokenStoreMessage::TokenStorageChanged(TokenStorageMethod::EncryptedFile).into(),
+        ),
+    );
+
+    let mut col = widget::column![
+        widget::text("Security").size(20),
+        widget::horizontal_rule(1),
+        method_label,
+        widget::row![keyring_btn, encrypted_btn].spacing(8),
+        widget::text("Encrypted File stores tokens in an AES-256-GCM encrypted file\nthat can be moved to other machines.")
+            .size(12),
+        widget::horizontal_rule(1),
+    ]
+    .spacing(8)
+    .padding(16);
+
+    if current_method == TokenStorageMethod::EncryptedFile || file_exists {
+        if file_exists {
+            let status_text = if is_unlocked {
+                "Status: Unlocked"
+            } else {
+                "Status: Locked"
+            };
+            col = col.push(widget::text(status_text).size(12));
+
+            if !is_unlocked {
+                col = col.push(
+                    widget::button("Unlock Store")
+                        .on_press(TokenStoreMessage::UnlockEncryptedStore.into()),
+                );
+            }
+
+            col = col.push(
+                widget::row![
+                    button_with_icon(icons::bin(), "Delete Store", 14)
+                        .on_press(TokenStoreMessage::DeleteEncryptedStore.into()),
+                    widget::text("Deletes the encrypted file and removes all associated accounts.")
+                        .size(12),
+                ]
+                .spacing(8)
+                .align_y(Alignment::Center),
+            );
+        } else {
+            col = col.push(
+                widget::column![
+                    widget::text("No encrypted store exists yet.").size(12),
+                    widget::button("Create Encrypted Store")
+                        .on_press(TokenStoreMessage::SetupEncryptedStore.into()),
+                ]
+                .spacing(6),
+            );
+        }
+
+        col = col.push(
+            button_with_icon(icons::folder(), "Open Launcher Folder", 14)
+                .on_press(Message::CoreOpenPath(LAUNCHER_DIR.clone())),
+        );
+    }
+
+    col.into()
 }

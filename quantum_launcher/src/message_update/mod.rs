@@ -5,18 +5,11 @@ use iced::futures::executor::block_on;
 use iced::widget::text_editor;
 use iced::{widget::scrollable::AbsoluteOffset, Task};
 use ql_core::{err, InstanceSelection, IntoStringError, Loader, ModId, OptifineUniqueVersion};
+
 use ql_mod_manager::{
     loaders,
     store::{get_description, QueryType},
 };
-
-mod accounts;
-mod create_instance;
-mod edit_instance;
-mod launch;
-mod manage_mods;
-mod presets;
-mod recommended;
 
 use crate::config::UiWindowDecorations;
 use crate::state::{GameLogMessage, InstanceNotes, MenuLaunch, ModOperation, NotesMessage};
@@ -30,7 +23,15 @@ use crate::{
     },
 };
 
+mod accounts;
+mod create_instance;
+mod edit_instance;
+mod launch;
+mod manage_mods;
+mod presets;
+mod recommended;
 mod shortcuts;
+mod token;
 
 pub const MSG_RESIZE: &str = "Resize your window to apply the changes.";
 

@@ -3,10 +3,155 @@ use iced::{widget, Alignment, Length};
 use crate::{
     icons,
     menu_renderer::tsubtitle,
-    state::{AccountMessage, MenuLoginAlternate, MenuLoginMS, Message, NEW_ACCOUNT_NAME},
+    state::{
+        AccountMessage, MenuLoginAlternate, MenuLoginMS, MenuTokenPassword, Message,
+        TokenPasswordMessage, NEW_ACCOUNT_NAME,
+    },
+    stylesheet::styles::LauncherTheme,
 };
 
 use super::{back_button, button_with_icon, center_x, Element};
+
+impl MenuTokenPassword {
+    pub fn view(&self, tick_timer: usize) -> Element<'_> {
+        let input_padding = iced::Padding {
+            top: 8.0,
+            bottom: 8.0,
+            right: 12.0,
+            left: 12.0,
+        };
+
+        let is_create = self.confirm_password.is_some();
+
+        let title = if is_create {
+            "Create Encrypted Token Store"
+        } else {
+            "Unlock Encrypted Token Store"
+        };
+
+        let description = if is_create {
+            "Set a password to protect your account tokens.\nThis encrypted file can be copied to other machines."
+        } else {
+            "Enter your password to unlock the encrypted account store."
+        };
+
+        let submit_on_enter: Message = TokenPasswordMessage::Submit.into();
+
+        let password_input = widget::text_input("Password...", &self.password)
+            .padding(input_padding)
+            .width(320)
+            .on_input(|n| TokenPasswordMessage::PasswordChanged(n).into())
+            .on_submit(submit_on_enter);
+        let password_input = if self.password.is_empty() || self.show_password {
+            password_input
+        } else {
+            password_input.font(iced::Font::with_name("Password Asterisks"))
+        };
+
+        let show_toggle = widget::checkbox("Show Password", self.show_password)
+            .size(12)
+            .text_size(12)
+            .on_toggle(|t| TokenPasswordMessage::ToggleShowPassword(t).into());
+
+        let is_loading = self.is_loading;
+        let submit_label = if is_create { "Create" } else { "Unlock" };
+        let submit_btn: Element = if is_loading {
+            let dots = ".".repeat((tick_timer % 3) + 1);
+            widget::button(
+                widget::row![icons::gear(), widget::text!(" Loading{dots}").size(14)]
+                    .align_y(Alignment::Center),
+            )
+            .padding([7, 16])
+            .into()
+        } else {
+            widget::button(
+                widget::row![icons::checkmark(), widget::text(submit_label).size(14)]
+                    .align_y(Alignment::Center)
+                    .spacing(6),
+            )
+            .on_press(TokenPasswordMessage::Submit.into())
+            .padding([7, 16])
+            .into()
+        };
+
+        let skip_btn: Element = widget::button(
+            widget::row![icons::close(), widget::text("Skip").size(14)]
+                .align_y(Alignment::Center)
+                .spacing(6),
+        )
+        .on_press(TokenPasswordMessage::Skip.into())
+        .padding([7, 16])
+        .into();
+
+        // Card
+        let mut card = widget::column![
+            widget::text(title).size(22),
+            widget::horizontal_rule(1),
+            widget::text(description).size(12).style(tsubtitle),
+            widget::Space::with_height(4),
+            widget::row![
+                widget::text("Password:").size(13),
+                widget::horizontal_space(),
+                show_toggle,
+            ]
+            .align_y(Alignment::Center),
+            password_input,
+        ]
+        .spacing(8)
+        .width(340);
+
+        if let Some(confirm) = &self.confirm_password {
+            let confirm_input = widget::text_input("Confirm Password...", confirm)
+                .padding(input_padding)
+                .width(320)
+                .on_input(|n| TokenPasswordMessage::ConfirmPasswordChanged(n).into())
+                .on_submit(TokenPasswordMessage::Submit.into());
+            let confirm_input = if confirm.is_empty() || self.show_password {
+                confirm_input
+            } else {
+                confirm_input.font(iced::Font::with_name("Password Asterisks"))
+            };
+            card = card
+                .push(widget::text("Confirm Password:").size(13))
+                .push(confirm_input);
+        }
+
+        if let Some(err) = &self.error {
+            card = card.push(
+                widget::text(err.as_str())
+                    .size(12)
+                    .style(|t: &_| tsubtitle(t)),
+            );
+        }
+
+        card = card.push(widget::Space::with_height(4)).push(
+            widget::row![submit_btn, skip_btn]
+                .spacing(10)
+                .align_y(Alignment::Center),
+        );
+
+        let card_container = widget::container(card.padding(24)).style(|t: &LauncherTheme| {
+            t.style_container_round_box(
+                crate::stylesheet::styles::BORDER_WIDTH,
+                crate::stylesheet::color::Color::Dark,
+                crate::stylesheet::styles::BORDER_RADIUS,
+            )
+        });
+
+        widget::column![
+            widget::vertical_space(),
+            widget::row![
+                widget::horizontal_space(),
+                card_container,
+                widget::horizontal_space(),
+            ],
+            widget::vertical_space(),
+        ]
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+    }
+}
 
 impl MenuLoginAlternate {
     pub fn view(&'_ self, tick_timer: usize) -> Element<'_> {

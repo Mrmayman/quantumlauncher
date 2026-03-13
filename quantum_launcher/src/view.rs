@@ -7,7 +7,7 @@ use crate::{
         button_with_icon, changelog, tooltip, view_account_login, view_confirm, view_error,
         view_log_upload_result, Element, FONT_MONO,
     },
-    state::{Launcher, Message, State, WindowMessage},
+    state::{Launcher, Message, State, TokenStoreMessage, WindowMessage},
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
     DEBUG_LOG_BUTTON_HEIGHT,
 };
@@ -122,11 +122,15 @@ impl Launcher {
             State::LauncherSettings(menu) => menu.view(&self.config),
             State::InstallPaper(menu) => menu.view(self.tick_timer),
             State::ChangeLog => {
-                let back_msg = Message::MScreenOpen {
-                    message: None,
-                    clear_selection: true,
-                    is_server: None,
-                };
+                let back_msg = Message::Multiple(vec![
+                    Message::MScreenOpen {
+                        message: None,
+                        clear_selection: true,
+                        is_server: None,
+                    },
+                    // If using local token storage, make sure it's loaded
+                    TokenStoreMessage::TokenEnsureLoaded.into(),
+                ]);
                 widget::scrollable(
                     widget::column!(
                         button_with_icon(icons::back(), "Skip", 16).on_press(back_msg.clone()),
@@ -165,6 +169,7 @@ impl Launcher {
             State::InstallOptifine(menu) => menu.view(),
             State::ManagePresets(menu) => menu.view(),
             State::RecommendedMods(menu) => menu.view(),
+            State::TokenPasswordPrompt(menu) => menu.view(self.tick_timer),
         };
 
         widget::mouse_area(if let State::Launch(_) = &self.state {

@@ -2,8 +2,8 @@ use iced::{
     widget::{self, column, row, tooltip::Position},
     Alignment, Length,
 };
+use ql_auth::AccountType;
 use ql_core::{Progress, WEBSITE};
-use ql_instances::auth::AccountType;
 
 use crate::stylesheet::styles::{LauncherThemeLightness, BORDER_RADIUS, BORDER_WIDTH};
 use crate::{

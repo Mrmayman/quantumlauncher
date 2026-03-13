@@ -1,5 +1,5 @@
-use crate::auth::AccountData;
 use error::GameLaunchError;
+use ql_auth::AccountData;
 use ql_core::{
     err, info, GenericProgress, InstanceSelection, LaunchedProcess, REDACT_SENSITIVE_INFO,
 };
