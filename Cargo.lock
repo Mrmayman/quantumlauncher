@@ -1535,6 +1535,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "filthy-rich"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6805782c05da88368b751400006c9e485bbae21ebb6f72f8d9a0eaff6e86d7a6"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4126,12 +4139,14 @@ name = "quantum_launcher"
 version = "0.5.1"
 dependencies = [
  "cfg-if",
+ "chrono",
  "clap",
  "constcat",
  "dark-light",
  "dirs",
  "embed-resource",
  "ezshortcut",
+ "filthy-rich",
  "frostmark",
  "iced",
  "notify",
@@ -5554,6 +5569,7 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
+ "parking_lot 0.12.5",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",
@@ -5955,6 +5971,7 @@ version = "1.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a68d3c8f01c0cfa54a75291d83601161799e4a89a39e0929f4b0354d88757a37"
 dependencies = [
+ "getrandom 0.4.2",
  "js-sys",
  "serde_core",
  "wasm-bindgen",
