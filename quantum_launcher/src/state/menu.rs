@@ -96,7 +96,6 @@ pub struct LogState {
 /// The home screen of the launcher.
 pub struct MenuLaunch {
     pub message: String,
-    pub login_progress: Option<ProgressBar<GenericProgress>>,
     pub tab: LaunchTab,
     pub edit_instance: Option<MenuEditInstance>,
     pub notes: Option<InstanceNotes>,
@@ -132,7 +131,6 @@ impl MenuLaunch {
             message,
             tab: LaunchTab::default(),
             edit_instance: None,
-            login_progress: None,
             sidebar_scrolled: 100.0,
             is_viewing_server: false,
             sidebar_grid_state,
@@ -406,6 +404,26 @@ impl MenuInstallFabric {
     }
 }
 
+pub enum MenuEditLwjgl {
+    Loading {
+        _handle: iced::task::Handle,
+        initial_version: Option<String>,
+    },
+    Loaded {
+        versions: ql_core::json::LwjglVersionList,
+        selected_version: String,
+        initial_version: Option<String>,
+        is_applying: bool,
+        mismatch_confirm: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum ApplyLwjglResult {
+    Saved,
+    NeedsConfirmation(String),
+}
+
 pub enum MenuInstallPaper {
     Loading {
         _handle: iced::task::Handle,
@@ -615,6 +633,7 @@ pub enum State {
     EditMods(MenuEditMods),
     ExportMods(MenuExportMods),
     EditJarMods(MenuEditJarMods),
+    EditLwjgl(MenuEditLwjgl),
     ImportModpack(ProgressBar<GenericProgress>),
     CurseforgeManualDownload(MenuCurseforgeManualDownload),
     ExportInstance(MenuExportInstance),
