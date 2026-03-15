@@ -146,6 +146,7 @@ async fn add_to_index(
                     .collect(),
                 dependencies: HashSet::new(),
                 dependents: HashSet::new(),
+                project_type: "mod".to_owned(),
             },
         );
     }

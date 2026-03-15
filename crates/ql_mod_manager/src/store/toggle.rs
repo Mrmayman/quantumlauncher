@@ -31,10 +31,22 @@ pub async fn toggle_mods_local(
 pub async fn toggle_mods(id: Vec<String>, instance: InstanceSelection) -> Result<(), ModError> {
     let mut index = ModIndex::load(&instance).await?;
 
-    let mods_dir = instance.get_dot_minecraft_path().join("mods");
+    let dot_mc_dir = instance.get_dot_minecraft_path();
+    let mods_dir = dot_mc_dir.join("mods");
 
     for id in id {
         if let Some(info) = index.mods.get_mut(&id) {
+            // Only allow toggling mods, not resource packs/shaders/etc.
+            if info.project_type != "mod" {
+                err!(
+                    "Cannot toggle {}: {} is not a mod (type: {})",
+                    info.name,
+                    info.project_type,
+                    info.project_type
+                );
+                continue;
+            }
+
             for file in &info.files {
                 let enabled_path = mods_dir.join(&file.filename);
                 let disabled_path = mods_dir.join(format!("{}.disabled", file.filename));

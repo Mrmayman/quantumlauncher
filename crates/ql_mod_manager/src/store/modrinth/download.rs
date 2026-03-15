@@ -276,11 +276,10 @@ impl ModDownloader {
             installed_version: download_version.version_number.clone(),
             version_release_time: download_version.date_published.clone(),
             project_source: StoreBackendType::Modrinth,
+            project_type: project_type.to_modrinth_str().to_owned(),
         };
 
-        if let QueryType::Mods = project_type {
-            self.index.mods.insert(project_info.id.clone(), config);
-        }
+        self.index.mods.insert(project_info.id.clone(), config);
     }
 }
 

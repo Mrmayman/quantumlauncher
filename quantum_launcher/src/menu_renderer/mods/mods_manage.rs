@@ -7,7 +7,7 @@ use crate::menu_renderer::{
     tsubtitle,
 };
 use crate::message_handler::ForgeKind;
-use crate::state::{ImageState, InstallPaperMessage, MenuEditModsModal};
+use crate::state::{ContentFilter, ImageState, InstallPaperMessage, MenuEditModsModal};
 use crate::stylesheet::widgets::StyleButton;
 use crate::{
     icons,
@@ -103,6 +103,44 @@ impl MenuEditMods {
                 ),
             )
             .into()
+        } else if let Some(MenuEditModsModal::FolderMenu) = &self.modal {
+            let folder_menu = widget::column![
+                ctx_button(icons::folder_s(CTXI_SIZE), "Open Mods Folder").on_press_with(|| {
+                    Message::CoreOpenPath(selected_instance.get_dot_minecraft_path().join("mods"))
+                }),
+                ctx_button(icons::folder_s(CTXI_SIZE), "Open Resource Packs Folder").on_press_with(
+                    || Message::CoreOpenPath(
+                        selected_instance
+                            .get_dot_minecraft_path()
+                            .join("resourcepacks")
+                    )
+                ),
+                ctx_button(icons::folder_s(CTXI_SIZE), "Open Shader Packs Folder").on_press_with(
+                    || Message::CoreOpenPath(
+                        selected_instance
+                            .get_dot_minecraft_path()
+                            .join("shaderpacks")
+                    )
+                ),
+                ctx_button(icons::folder_s(CTXI_SIZE), "Open Data Packs Folder").on_press_with(
+                    || Message::CoreOpenPath(
+                        selected_instance.get_dot_minecraft_path().join("datapacks")
+                    )
+                ),
+            ]
+            .spacing(4);
+
+            widget::stack!(
+                menu_main,
+                widget::row![
+                    widget::Space::with_width(30),
+                    widget::column![
+                        widget::Space::with_height(40),
+                        ctxbox(folder_menu).width(220)
+                    ]
+                ]
+            )
+            .into()
         } else {
             menu_main.into()
         }
@@ -121,12 +159,12 @@ impl MenuEditMods {
                         None
                     )),
                     tooltip(
-                        button_with_icon(icons::folder_s(14), "Open", 14).on_press_with(|| {
-                            Message::CoreOpenPath(
-                                selected_instance.get_dot_minecraft_path().join("mods"),
-                            )
-                        }),
-                        widget::text("Open Mods Folder").size(12),
+                        button_with_icon(icons::folder_s(14), "Open", 14).on_press(
+                            Message::ManageMods(ManageModsMessage::SetModal(Some(
+                                MenuEditModsModal::FolderMenu,
+                            ))),
+                        ),
+                        widget::text("Open Folders").size(12),
                         Position::Bottom
                     )
                 ]
@@ -388,8 +426,9 @@ impl MenuEditMods {
 
                             subbutton_with_icon(icons::bin_s(12), "Delete")
                             .on_press_maybe((!self.selected_mods.is_empty()).then_some(ManageModsMessage::DeleteSelected.into())),
+                            // Toggle button - only enabled when all selected items are mods
                             subbutton_with_icon(icons::toggleoff_s(12), "Toggle")
-                            .on_press_maybe((!self.selected_mods.is_empty()).then_some(ManageModsMessage::ToggleSelected.into())),
+                            .on_press_maybe(self.can_toggle_selection().then_some(ManageModsMessage::ToggleSelected.into())),
                             subbutton_with_icon(icons::deselectall_s(12), if matches!(self.selected_state, SelectedState::All) {
                                 "Unselect All"
                             } else {
@@ -400,13 +439,49 @@ impl MenuEditMods {
                         .spacing(5)
                         .wrap()
                     )
+                    // Content filter row
+                    .push(
+                        widget::row(
+                            [ContentFilter::All, ContentFilter::Mods, ContentFilter::ResourcePacks, ContentFilter::Shaders, ContentFilter::DataPacks]
+                                .into_iter()
+                                .map(|filter| {
+                                    let is_selected = self.content_filter == filter;
+                                    widget::button(widget::text(filter.label()).size(11))
+                                        .style(move |t: &LauncherTheme, s| {
+                                            t.style_button(s, if is_selected {
+                                                StyleButton::Round
+                                            } else {
+                                                StyleButton::RoundDark
+                                            })
+                                        })
+                                        .on_press(Message::ManageMods(ManageModsMessage::SetContentFilter(filter)))
+                                        .into()
+                                })
+                        )
+                        .spacing(3)
+                        .wrap()
+                    )
                     .push(
                         if self.selected_mods.is_empty() {
-                            widget::text("Select some mods to perform actions on them")
+                            widget::text("Select some content to perform actions on them")
                         } else {
-                            widget::text!("{} mods selected", self.selected_mods.len())
-                        }.size(12).style(|t: &LauncherTheme| t.style_text(Color::Mid))
+                            widget::text!("{} items selected", self.selected_mods.len())
+                        }
+                        .size(12)
+                        .style(|t: &LauncherTheme| t.style_text(Color::Mid))
                     )
+                    .push_maybe((!self.selected_mods.is_empty() && !self.can_toggle_selection()).then_some(
+                        widget::row![
+                            icons::warn_s(12),
+                            widget::text(
+                                "Only mods can be disabled. Resource packs, shaders, and data packs are not toggleable."
+                            )
+                            .size(12)
+                            .style(|t: &LauncherTheme| t.style_text(Color::SecondLight))
+                        ]
+                        .spacing(6)
+                        .align_y(Alignment::Center)
+                    ))
                     .push_maybe(self.search.as_ref().map(|search|
                         widget::text_input("Search...", search).size(14).on_input(|msg|
                             ManageModsMessage::SetSearch(Some(msg)).into()
@@ -422,6 +497,19 @@ impl MenuEditMods {
         .into()
     }
 
+    /// Check if all selected items can be toggled (i.e., are mods)
+    fn can_toggle_selection(&self) -> bool {
+        if self.selected_mods.is_empty() {
+            return false;
+        }
+        self.selected_mods.iter().all(|selected| {
+            self.sorted_mods_list
+                .iter()
+                .find(|entry| selected == *entry)
+                .map_or(false, |entry| entry.can_toggle())
+        })
+    }
+
     fn get_mod_list_contents<'a>(
         &'a self,
         size: iced::Size,
@@ -431,6 +519,11 @@ impl MenuEditMods {
             self.sorted_mods_list
                 .iter()
                 .filter(|n| {
+                    // Filter by content type
+                    if !self.content_filter.matches(n.project_type()) {
+                        return false;
+                    }
+                    // Filter by search query
                     let Some(search) = &self.search else {
                         return true;
                     };
@@ -486,13 +579,24 @@ impl MenuEditMods {
                         no_icon
                     };
 
+                    let can_toggle = entry.can_toggle();
+                    let toggle: Element = if can_toggle {
+                        widget::toggler(is_enabled)
+                            .on_toggle(move |_| ManageModsMessage::ToggleOne(id.clone()).into())
+                            .size(14)
+                            .into()
+                    } else {
+                        tooltip(
+                            widget::toggler(is_enabled).size(14),
+                            "Only mods can be disabled",
+                            Position::FollowCursor,
+                        )
+                        .into()
+                    };
+
                     let checkbox = select_box(
                         widget::row![
-                            widget::toggler(is_enabled)
-                                .on_toggle(move |_| {
-                                    ManageModsMessage::ToggleOne(id.clone()).into()
-                                })
-                                .size(14),
+                            toggle,
                             image,
                             widget::Space::with_width(1),
                             widget::text(&config.name)
