@@ -69,7 +69,10 @@ impl Launcher {
                     let instance = self.selected_instance.clone().unwrap();
 
                     return Task::perform(
-                        ql_mod_manager::store::download_mods_bulk(ids, instance, Some(sender)),
+                        async move {
+                            ql_mod_manager::store::download_mods_bulk(ids, instance, Some(&sender))
+                                .await
+                        },
                         |n| RecommendedModMessage::DownloadEnd(n.strerr()).into(),
                     );
                 }

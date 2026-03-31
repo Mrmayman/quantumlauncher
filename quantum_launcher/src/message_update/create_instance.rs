@@ -138,11 +138,7 @@ impl Launcher {
                 } else {
                     self.selected_instance = None;
                     self.set_error(
-                        r#"the file you imported isn't a valid QuantumLauncher/MultiMC instance.
-
-    If you meant to import a Modrinth/Curseforge/Preset pack,
-    create a instance with the matching version,
-    then go to "Mods->Add File""#,
+                        "the file you imported isn't a valid QuantumLauncher/MultiMC instance or modpack",
                     );
                 }
             }

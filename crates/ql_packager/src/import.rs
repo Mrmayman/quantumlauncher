@@ -1,6 +1,7 @@
 use ql_core::{
     GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, ListEntry, Progress,
-    file_utils, info,
+    file_utils::{self, exists},
+    info,
     json::{InstanceConfigJson, VersionDetails},
     pt,
 };
@@ -66,10 +67,11 @@ pub async fn import_instance(
     file_utils::extract_zip_archive(std::io::BufReader::new(zip_file), temp_dir, true).await?;
 
     let try_ql = temp_dir.join("quantum-config.json");
+    let try_qmp = temp_dir.join("index.json");
     let try_mmc = temp_dir.join("mmc-pack.json");
 
-    let out = if let Ok(instance_info) = fs::read_to_string(&try_ql).await {
-        Some((
+    if let Ok(instance_info) = fs::read_to_string(&try_ql).await {
+        Ok(Some((
             import_quantumlauncher(
                 download_assets,
                 temp_dir,
@@ -78,24 +80,91 @@ pub async fn import_instance(
             )
             .await?,
             CurseforgeNotAllowed::new(),
-        ))
+        )))
     } else if let Ok(mmc_pack) = fs::read_to_string(&try_mmc).await {
-        Some((
+        Ok(Some((
             crate::multimc::import(download_assets, temp_dir, &mmc_pack, sender.map(Arc::new))
                 .await?,
             CurseforgeNotAllowed::new(),
-        ))
+        )))
+    } else if exists(&try_qmp).await {
+        import_qmp(&zip_path, download_assets, sender.map(Arc::new)).await
     } else {
         // Try modpack fallback
         let zip_bytes = tokio::fs::read(&zip_path).await.path(&zip_path)?;
-        if let Some(peek_info) = modpack::peek(&zip_bytes)? {
-            Some(import_modpack(download_assets, peek_info, zip_path, sender.map(Arc::new)).await?)
+        Ok(if let Some(peek_info) = modpack::peek(&zip_bytes)? {
+            Some(import_modpack(download_assets, peek_info, &zip_path, sender.map(Arc::new)).await?)
         } else {
             None
-        }
-    };
+        })
+    }
+}
 
-    Ok(out)
+async fn import_qmp(
+    zip_path: &PathBuf,
+    download_assets: bool,
+    sender: Option<Arc<Sender<GenericProgress>>>,
+) -> Result<Option<(InstanceSelection, CurseforgeNotAllowed)>, InstancePackageError> {
+    let zip_bytes = tokio::fs::read(zip_path).await.path(zip_path)?;
+
+    let peek_info = ql_mod_manager::Preset::load(
+        InstanceSelection::Instance(qmp_instance_selection(zip_path)),
+        &zip_bytes,
+        false, // Just peek, don't install
+    )
+    .await?;
+
+    // Create the instance
+    let instance = InstanceSelection::new(&peek_info.instance_name, peek_info.is_server);
+    let instance = create_instance_qmp(
+        download_assets,
+        &sender,
+        ListEntry::with_kind(peek_info.game_version.clone(), "release"),
+        &instance,
+        zip_path,
+    )
+    .await?;
+
+    // Install the loader
+    ql_mod_manager::loaders::install_specified_loader(
+        instance.clone(),
+        peek_info.mod_type,
+        sender.clone(),
+        None,
+    )
+    .await
+    .map_err(InstancePackageError::Loader)?;
+
+    // Import the preset
+    let out = ql_mod_manager::Preset::load(
+        instance.clone(),
+        &zip_bytes,
+        true, // Actually install this time
+    )
+    .await?;
+
+    let not_allowed = ql_mod_manager::store::download_mods_bulk(
+        out.to_install,
+        instance.clone(),
+        sender.as_deref(),
+    )
+    .await?;
+
+    Ok(Some((instance, not_allowed)))
+}
+
+fn qmp_instance_selection(zip_path: &Path) -> String {
+    zip_path
+        .file_stem()
+        .and_then(|n| n.to_str())
+        .map(|n| n.to_owned())
+        .unwrap_or(format!(
+            "imported-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+        ))
 }
 
 #[deprecated = "TODO: Rewrite this"]
@@ -122,25 +191,8 @@ async fn import_quantumlauncher(
     pt!("Exceptions : {:?} ", instance_info.exceptions);
     let version = ListEntry::with_kind(version_json.id.clone(), &version_json.r#type);
 
-    let (d_send, d_recv) = std::sync::mpsc::channel();
-    if let Some(sender) = sender.clone() {
-        std::thread::spawn(move || {
-            pipe_progress(d_recv, &sender);
-        });
-    }
-
-    if instance_info.is_server {
-        ql_servers::create_server(instance_info.instance_name, version, Some(&d_send)).await?;
-    } else {
-        ql_instances::create_instance(
-            instance_info.instance_name,
-            version,
-            Some(d_send),
-            download_assets,
-        )
-        .await?;
-    }
-
+    let instance =
+        create_instance_qmp(download_assets, &sender, version, &instance, temp_dir).await?;
     let instance_path = instance.get_instance_path();
 
     ql_mod_manager::loaders::install_specified_loader(
@@ -166,10 +218,51 @@ async fn import_quantumlauncher(
     Ok(instance)
 }
 
+async fn create_instance_qmp(
+    download_assets: bool,
+    sender: &Option<Arc<Sender<GenericProgress>>>,
+    version: ListEntry,
+    instance: &InstanceSelection,
+    zip_path: &Path,
+) -> Result<InstanceSelection, InstancePackageError> {
+    let (d_send, d_recv) = std::sync::mpsc::channel();
+    if let Some(sender) = sender.clone() {
+        std::thread::spawn(move || {
+            pipe_progress(d_recv, &sender);
+        });
+    }
+
+    let name = instance.get_name().to_owned();
+
+    let r = if instance.is_server() {
+        ql_servers::create_server(name, version.clone(), Some(&d_send))
+            .await
+            .map_err(InstancePackageError::from)
+    } else {
+        ql_instances::create_instance(name, version.clone(), Some(d_send.clone()), download_assets)
+            .await
+            .map_err(InstancePackageError::from)
+    };
+
+    if r.as_ref().is_err_and(|n| n.already_exists()) {
+        // Use different name
+        let name = qmp_instance_selection(zip_path);
+        if instance.is_server() {
+            ql_servers::create_server(name.clone(), version, Some(&d_send)).await?;
+        } else {
+            ql_instances::create_instance(name.clone(), version, Some(d_send), download_assets)
+                .await?;
+        }
+        Ok(InstanceSelection::new(&name, instance.is_server()))
+    } else {
+        Ok(instance.clone())
+    }
+}
+
 async fn import_modpack(
     download_assets: bool,
     peek_info: ql_mod_manager::store::modpack::PeekInfo,
-    zip_path: PathBuf,
+    zip_path: &Path,
     sender: Option<Arc<Sender<GenericProgress>>>,
 ) -> Result<(InstanceSelection, CurseforgeNotAllowed), InstancePackageError> {
     info!("Importing modpack as instance...");
@@ -188,8 +281,8 @@ async fn import_modpack(
     let instance = InstanceSelection::new(&instance_name, false);
 
     pt!("Name: {} ", instance_name);
-    pt!("Version : {}", peek_info.game_version);
-    pt!("Loader : {:?}", peek_info.loader);
+    pt!("Version: {}", peek_info.game_version);
+    pt!("Loader: {:?}", peek_info.loader);
 
     let version = ListEntry::with_kind(peek_info.game_version.clone(), "release");
 
@@ -204,14 +297,6 @@ async fn import_modpack(
     ql_instances::create_instance(instance_name, version, Some(d_send), download_assets).await?;
 
     // Install the loader
-    if let Some(sender) = &sender {
-        _ = sender.send(GenericProgress {
-            done: 2,
-            total: OUT_OF,
-            message: Some("Installing loader...".to_owned()),
-            has_finished: false,
-        });
-    }
     ql_mod_manager::loaders::install_specified_loader(
         instance.clone(),
         peek_info.loader,
@@ -223,16 +308,7 @@ async fn import_modpack(
 
     // Install the modpack
     pt!("Installing modpack");
-    if let Some(sender) = &sender {
-        _ = sender.send(GenericProgress {
-            done: 3,
-            total: OUT_OF,
-            message: Some("Installing modpack...".to_owned()),
-            has_finished: false,
-        });
-    }
-
-    let zip_bytes = tokio::fs::read(&zip_path).await.path(&zip_path)?;
+    let zip_bytes = tokio::fs::read(&zip_path).await.path(zip_path)?;
     let (_, not_allowed) = modpack::install(
         &zip_bytes,
         instance.clone(),

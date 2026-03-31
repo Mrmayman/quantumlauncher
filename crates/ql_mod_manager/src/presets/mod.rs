@@ -19,41 +19,42 @@ use crate::store::{ModConfig, ModError, ModIndex};
 #[must_use]
 #[derive(Debug, Clone, Default)]
 pub struct PresetOutput {
+    pub instance_name: String,
+    pub is_server: bool,
+
     pub local_files: Vec<String>,
     pub to_install: Vec<ModId>,
     pub is_regular_modpack: bool,
+
+    pub game_version: String,
+    pub mod_type: Loader,
 }
 
-/// A "Mod Preset"
+/// A mod preset: a bundle of mods and their configuration.
 ///
-/// # What are mod presets?
-/// Mod presets are essentially "bundles" or "packs"
-/// of mods. Think modpacks, but with a different, probably
-/// better format.
+/// Similar to a modpack, but stored in a better **QuantumLauncher-specific** format.
 ///
-/// They include
-/// - Installed mods (both from store and from outside)
-/// - Mod configuration
+/// ## Contents
+/// - Installed mods (store + external)
+/// - Mod configuration files
 ///
-/// # How to use this?
-/// See the [`Preset::generate`] and [`Preset::load`],
+/// ## Usage
+/// - [`Preset::generate`] to create
+/// - [`Preset::load`] with `apply: true` to load
+/// - [`Preset::load`] with `apply: false` to peek at the contents without installing
 ///
-/// # Format
-/// Mod presets consist of a `.qmp` file
-/// (it's actually a zip, can be any extension you want).
+/// ## Format
+/// A preset is a `.qmp` file (zip archive) containing:
+/// - `index.json`: serialized [`Preset`] metadata
+/// - Top-level `.jar` files for external (non-store) mods
+/// - `config/` directory, extracted to `.minecraft/config/`
 ///
-/// Inside this zip file, there will be:
-/// - An `index.json` file, essentially a `serde::Serialize`d
-///   version of [`Preset`] (the main struct through which
-///   this API is used).
-/// - `.jar` files in the root of the zip (at the top level),
-///   for any local, sideloaded mods from outside the mod store.
-///   **Note: mods installed through the mod store shouldn't be saved
-///   here, but rather their details should be entered in the `index.json`
-/// - All configuration files in a `config/` folder. This will be extracted
-///   to the `.minecraft/config/` folder
+/// Store-installed mods are referenced in `index.json`, not bundled.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Preset {
+    pub instance_name: Option<String>,
+    pub is_server: Option<bool>,
+
     pub launcher_version: String,
     pub minecraft_version: String,
     pub instance_type: Loader,
@@ -116,6 +117,8 @@ impl Preset {
         }
 
         let this = Self {
+            instance_name: Some(instance.get_name().to_owned()),
+            is_server: Some(instance.is_server()),
             instance_type,
             launcher_version: LAUNCHER_VERSION_NAME.to_owned(),
             minecraft_version,
@@ -187,7 +190,9 @@ impl Preset {
 
         let mut zip = zip::ZipArchive::new(Cursor::new(&file)).map_err(ModError::Zip)?;
 
-        let version_json = VersionDetails::load(&instance).await?;
+        let version_json = VersionDetails::load(&instance).await.ok();
+        let instance_type = get_instance_type(&instance).await.ok();
+
         let mut local_files = Vec::new();
 
         let index: Self = {
@@ -195,9 +200,15 @@ impl Preset {
                 // Else this ain't a QMP file!
                 // Install as regular modpack
                 return Ok(PresetOutput {
+                    instance_name: instance.get_name().to_owned(),
+                    is_server: instance.is_server(),
                     local_files: Vec::new(),
                     to_install: Vec::new(),
                     is_regular_modpack: true,
+                    game_version: version_json
+                        .map(|n| n.get_id().to_owned())
+                        .unwrap_or_default(),
+                    mod_type: instance_type.unwrap_or(Loader::Vanilla),
                 });
             };
             let buf = std::io::read_to_string(&mut index)
@@ -205,10 +216,9 @@ impl Preset {
             serde_json::from_str(&buf).json(buf)?
         };
 
-        let instance_type = get_instance_type(&instance).await?;
         // Only sideload mods if the version is the same
-        let should_sideload = index.minecraft_version == version_json.get_id()
-            && index.instance_type == instance_type;
+        let should_sideload = version_json.is_some_and(|n| n.get_id() == index.minecraft_version)
+            && instance_type.is_some_and(|n| n == index.instance_type);
 
         for i in 0..zip.len() {
             let mut file = zip.by_index(i).map_err(ModError::Zip)?;
@@ -262,9 +272,15 @@ impl Preset {
             .collect();
 
         Ok(PresetOutput {
+            instance_name: index
+                .instance_name
+                .unwrap_or_else(|| instance.get_name().to_owned()),
+            is_server: index.is_server.unwrap_or(instance.is_server()),
             local_files,
             to_install,
             is_regular_modpack: false,
+            game_version: index.minecraft_version,
+            mod_type: index.instance_type,
         })
     }
 }

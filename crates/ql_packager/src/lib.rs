@@ -1,7 +1,10 @@
 use std::{collections::HashSet, path::PathBuf};
 
 use ql_core::{IoError, JsonError, RequestError, impl_3_errs_jri};
-use ql_mod_manager::{loaders::{fabric::FabricInstallError, forge::ForgeInstallError}, store::modpack::PackError};
+use ql_mod_manager::{
+    loaders::{fabric::FabricInstallError, forge::ForgeInstallError},
+    store::{ModError, modpack::PackError},
+};
 use ql_servers::ServerError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -40,6 +43,8 @@ pub enum InstancePackageError {
     Loader(String),
     #[error("{PKG_ERR_PREFIX}{0}")]
     Modpack(#[from] PackError),
+    #[error("{PKG_ERR_PREFIX}{0}")]
+    Mod(#[from] ModError),
 
     #[error("{PKG_ERR_PREFIX}{0}")]
     Forge(#[from] ForgeInstallError),
@@ -59,6 +64,16 @@ pub enum InstancePackageError {
 }
 
 impl_3_errs_jri!(InstancePackageError, Json, Request, Io);
+
+impl InstancePackageError {
+    pub fn already_exists(&self) -> bool {
+        matches!(
+            self,
+            Self::Download(DownloadError::InstanceAlreadyExists(_))
+                | Self::Server(ServerError::ServerAlreadyExists)
+        )
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct InstanceInfo {

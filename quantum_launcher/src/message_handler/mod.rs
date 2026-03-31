@@ -501,11 +501,14 @@ impl Launcher {
                 }
                 let instance_name = self.selected_instance.clone().unwrap();
                 Task::perform(
-                    ql_mod_manager::store::download_mods_bulk(
-                        mods.to_install,
-                        instance_name,
-                        Some(sender),
-                    ),
+                    async move {
+                        ql_mod_manager::store::download_mods_bulk(
+                            mods.to_install,
+                            instance_name,
+                            Some(&sender),
+                        )
+                        .await
+                    },
                     |n| EditPresetsMessage::LoadComplete(n.strerr()).into(),
                 )
             }

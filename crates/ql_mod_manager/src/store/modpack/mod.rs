@@ -63,14 +63,10 @@ pub async fn install(
             // if there's no `index.json`
             let out = Box::pin(Preset::load(instance.clone(), file, true)).await?;
 
-            return Box::pin(download_mods_bulk(
-                out.to_install,
-                instance,
-                sender.cloned(),
-            ))
-            .await
-            .map(|n| (true, n))
-            .map_err(|n| n.into());
+            return Box::pin(download_mods_bulk(out.to_install, instance, sender))
+                .await
+                .map(|n| (true, n))
+                .map_err(|n| n.into());
         }
         return Err(PackError::NoBackendFound);
     }

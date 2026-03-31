@@ -24,7 +24,8 @@ pub async fn apply_updates(
 
     // It's as simple as that!
     delete_mods(updates.clone(), selected_instance.clone()).await?;
-    let not_allowed = download_mods_bulk(updates, selected_instance.clone(), progress).await?;
+    let not_allowed =
+        download_mods_bulk(updates, selected_instance.clone(), progress.as_ref()).await?;
 
     // Ensure disabled mods stay disabled
     toggle_mods(disabled_mods, selected_instance).await?;
