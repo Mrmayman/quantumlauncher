@@ -14,7 +14,7 @@ use ql_core::{
 use serde::{Deserialize, Serialize};
 use zip::ZipWriter;
 
-use crate::store::{ModConfig, ModError, ModIndex, install_modpack};
+use crate::store::{ModConfig, ModError, ModIndex, modpack};
 
 #[must_use]
 #[derive(Debug, Clone, Default)]
@@ -194,7 +194,7 @@ impl Preset {
             let Ok(mut index) = zip.by_name("index.json") else {
                 // Else this ain't a QMP file!
                 // Install as regular modpack
-                return match install_modpack(file.clone(), instance.clone(), None)
+                return match modpack::install(file.clone(), instance.clone(), None)
                     .await
                     .map_err(Box::new)?
                 {

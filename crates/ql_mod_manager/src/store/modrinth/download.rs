@@ -11,8 +11,9 @@ use ql_core::{
 };
 
 use crate::store::{
-    DirStructure, ModError, QueryType, install_modpack,
+    DirStructure, ModError, QueryType,
     local_json::{ModConfig, ModIndex},
+    modpack,
     modrinth::versions::ModVersion,
 };
 
@@ -233,7 +234,7 @@ impl ModDownloader {
     ) -> Result<(), ModError> {
         if let QueryType::ModPacks = project_type {
             let bytes = file_utils::download_file_to_bytes(&file.url, true).await?;
-            let incompatible = install_modpack(bytes, self.instance.clone(), self.sender.as_ref())
+            let incompatible = modpack::install(bytes, self.instance.clone(), self.sender.as_ref())
                 .await
                 .map_err(Box::new)?;
             debug_assert!(

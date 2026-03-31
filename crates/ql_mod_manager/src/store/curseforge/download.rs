@@ -12,8 +12,7 @@ use crate::{
     rate_limiter::lock,
     store::{
         CurseforgeNotAllowed, DirStructure, ModConfig, ModError, ModFile, ModIndex, QueryType,
-        curseforge::{ModQuery, get_query_type},
-        install_modpack,
+        curseforge::{ModQuery, get_query_type}, modpack,
     },
 };
 
@@ -130,7 +129,7 @@ impl<'a> ModDownloader<'a> {
                 let bytes = file_utils::download_file_to_bytes(&url, true).await?;
                 self.index.save(&self.instance).await?;
                 if let Some(not_allowed_new) =
-                    install_modpack(bytes, self.instance.clone(), self.sender)
+                    modpack::install(bytes, self.instance.clone(), self.sender)
                         .await
                         .map_err(Box::new)?
                 {

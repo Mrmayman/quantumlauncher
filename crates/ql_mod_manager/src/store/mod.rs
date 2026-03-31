@@ -5,6 +5,7 @@ use ql_core::{
     GenericProgress, InstanceSelection, IntoIoError, Loader, ModId, StoreBackendType, do_jobs,
     json::VersionDetails, pt,
 };
+use crate::store::modpack::PackError;
 
 mod add_file;
 mod curseforge;
@@ -12,7 +13,7 @@ mod delete;
 mod error;
 mod image;
 mod local_json;
-mod modpack;
+pub mod modpack;
 mod modrinth;
 mod recommended;
 mod toggle;
@@ -24,7 +25,6 @@ pub use delete::delete_mods;
 pub use error::{GameExpectation, ModError};
 pub use image::{ImageResult, download_image};
 pub use local_json::{ModConfig, ModFile, ModIndex};
-pub use modpack::{PackError, install_modpack};
 pub use modrinth::ModrinthBackend;
 pub use recommended::{RECOMMENDED_MODS, RecommendedMod};
 pub use toggle::{flip_filename, toggle_mods, toggle_mods_local};

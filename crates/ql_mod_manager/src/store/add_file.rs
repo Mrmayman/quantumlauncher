@@ -56,7 +56,7 @@ pub async fn add_files(
             "zip" | "mrpack" => {
                 let file = tokio::fs::read(&path).await.path(&path)?;
                 if let Some(not_allowed_new) =
-                    modpack::install_modpack(file, instance.clone(), progress.as_ref()).await?
+                    modpack::install(file, instance.clone(), progress.as_ref()).await?
                 {
                     not_allowed.extend(not_allowed_new);
                 }

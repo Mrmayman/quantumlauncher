@@ -26,23 +26,18 @@ use super::CurseforgeNotAllowed;
 /// (`.qmp` mod presets). Those are QuantumLauncher-only,
 /// but these are found across the internet.
 ///
-/// This function supports both Curseforge and Modrinth modpacks,
-/// it doesn't matter which one you put in.
+/// Not to be confused with [`crate::Preset`] (QuantumLauncher-only `.qmp` presets).
 ///
 /// # Arguments
-/// - `file: Vec<u8>`: The bytes of the modpack file.
-/// - `instance: InstanceSelection`: The selected instance you want to download this pack to.
-/// - `sender: Option<&Sender<GenericProgress>>`: Supply a [`Sender`] if you want
-///   to see the progress of installation. Leave `None` if otherwise.
+/// - `file`: Modpack file bytes.
+/// - `instance`: Target instance.
+/// - `sender`: Optional progress notifier.
 ///
 /// # Returns
-/// - `Ok(Some(HashSet<CurseforgeNotAllowed))` - The list of mods that
-///   Curseforge blocked the launcher from automatically downloading. The user must
-///   manually download these from the browser and import them. May be empty
-///   if none present, or if it's a modrinth pack.
-/// - `Ok(None)` - This isn't a modpack.
-/// - `Err` - Any error that occurred.
-pub async fn install_modpack(
+/// - `Ok(Some(...))`: Mods blocked by Curseforge (must download manually).
+/// - `Ok(None)`: Not a recognized modpack.
+/// - `Err`: Installation error.
+pub async fn install(
     file: Vec<u8>,
     instance: InstanceSelection,
     sender: Option<&Sender<GenericProgress>>,
