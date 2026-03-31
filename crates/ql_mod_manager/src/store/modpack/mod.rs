@@ -5,7 +5,7 @@ use std::{
 };
 
 use ql_core::{
-    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, err, info,
+    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, Loader, err, info,
     json::{InstanceConfigJson, VersionDetails},
     pt,
 };
@@ -20,11 +20,15 @@ use crate::{Preset, store::download_mods_bulk};
 
 use super::CurseforgeNotAllowed;
 
-/// Installs a modpack file.
-///
-/// Not to be confused with [`crate::Preset`]
-/// (`.qmp` mod presets). Those are QuantumLauncher-only,
-/// but these are found across the internet.
+#[derive(Debug, Clone)]
+pub struct PeekInfo {
+    pub name: String,
+    pub game_version: String,
+    pub loader: Loader,
+    pub recommended_ram_mb: Option<usize>,
+}
+
+/// Installs a modpack file (Curseforge or Modrinth) to the instance.
 ///
 /// Not to be confused with [`crate::Preset`] (QuantumLauncher-only `.qmp` presets).
 ///
@@ -147,6 +151,80 @@ pub async fn install(
     pt!("Done!");
 
     Ok(Some(not_allowed))
+}
+
+/// Extracts metadata (name, version, loader) from a modpack file.
+///
+/// # Arguments
+/// - `file`: Modpack file bytes.
+///
+/// # Returns
+/// - `Ok(Some(PeekInfo))`: Modpack metadata.
+/// - `Ok(None)`: Not a recognized modpack.
+/// - `Err`: Parse or read error.
+pub fn peek(file: Vec<u8>) -> Result<Option<PeekInfo>, PackError> {
+    let mut zip = zip::ZipArchive::new(Cursor::new(file.as_slice()))?;
+
+    let index_json_modrinth: Option<modrinth::PackIndex> =
+        read_json_from_zip(&mut zip, "modrinth.index.json")?;
+    let index_json_curseforge: Option<curseforge::PackIndex> =
+        read_json_from_zip(&mut zip, "manifest.json")?;
+
+    if let Some(index) = index_json_modrinth {
+        // Handle Modrinth modpack
+        let Some(game_version) = index.dependencies.get("minecraft").cloned() else {
+            return Ok(None);
+        };
+
+        let loader = index
+            .dependencies
+            .keys()
+            .filter(|k| *k != "minecraft")
+            .filter_map(|k| match k.as_str() {
+                "forge" => Some(Loader::Forge),
+                "neoforge" => Some(Loader::Neoforge),
+                "fabric-loader" => Some(Loader::Fabric),
+                "quilt-loader" => Some(Loader::Quilt),
+                _ => None,
+            })
+            .next()
+            .unwrap_or(Loader::Vanilla);
+
+        Ok(Some(PeekInfo {
+            name: index.name,
+            game_version,
+            loader,
+            recommended_ram_mb: None,
+        }))
+    } else if let Some(index) = index_json_curseforge {
+        // Handle Curseforge modpack
+        let game_version = index.minecraft.version;
+
+        let loader = index
+            .minecraft
+            .modLoaders
+            .first()
+            .and_then(|l| {
+                let loader_id = l.id.split('-').next().unwrap_or(&l.id);
+                match loader_id {
+                    "forge" => Some(Loader::Forge),
+                    "neoforge" => Some(Loader::Neoforge),
+                    "fabric" => Some(Loader::Fabric),
+                    "quilt" => Some(Loader::Quilt),
+                    _ => None,
+                }
+            })
+            .ok_or(PackError::NoLoadersSpecified)?;
+
+        Ok(Some(PeekInfo {
+            name: index.name,
+            game_version,
+            loader,
+            recommended_ram_mb: index.minecraft.recommendedRam,
+        }))
+    } else {
+        Ok(None)
+    }
 }
 
 fn read_json_from_zip<T: serde::de::DeserializeOwned>(

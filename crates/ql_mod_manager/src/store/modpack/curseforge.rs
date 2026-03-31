@@ -31,8 +31,7 @@ pub struct PackIndex {
 pub struct PackMinecraft {
     pub version: String,
     pub modLoaders: Vec<PackLoader>,
-    // No one asked for your recommendation bro:
-    // pub recommendedRam: usize
+    pub recommendedRam: Option<usize>,
 }
 
 #[derive(Deserialize)]

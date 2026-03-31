@@ -17,6 +17,8 @@ use crate::InstanceInfo;
 
 use super::InstancePackageError;
 
+use ql_mod_manager::store::modpack;
+
 pub const OUT_OF: usize = 4;
 
 /// Imports a Minecraft instance from a `.zip` file exported by the launcher.
@@ -82,7 +84,22 @@ pub async fn import_instance(
                 .await?,
         )
     } else {
-        None
+        // Try modpack fallback
+        let zip_bytes = tokio::fs::read(&zip_path).await.path(&zip_path)?;
+        if let Some(peek_info) = modpack::peek(zip_bytes)? {
+            Some(
+                import_modpack(
+                    download_assets,
+                    temp_dir,
+                    peek_info,
+                    zip_path,
+                    sender.map(Arc::new),
+                )
+                .await?,
+            )
+        } else {
+            None
+        }
     };
 
     fs::remove_dir_all(&temp_dir).await.path(temp_dir)?;
@@ -154,6 +171,96 @@ async fn import_quantumlauncher(
     }
     file_utils::copy_dir_recursive(temp_dir, &instance_path).await?;
     info!("Finished importing QuantumLauncher instance");
+    Ok(instance)
+}
+
+async fn import_modpack(
+    download_assets: bool,
+    temp_dir: &Path,
+    peek_info: ql_mod_manager::store::modpack::PeekInfo,
+    zip_path: PathBuf,
+    sender: Option<Arc<Sender<GenericProgress>>>,
+) -> Result<InstanceSelection, InstancePackageError> {
+    info!("Importing modpack as instance...");
+
+    // Generate instance name from modpack metadata first, then fallback to zip filename
+    let instance_name = if !peek_info.name.is_empty() {
+        peek_info.name.clone()
+    } else {
+        zip_path
+            .file_stem()
+            .and_then(|n| n.to_str())
+            .unwrap_or("imported-modpack")
+            .to_string()
+    };
+
+    let instance = InstanceSelection::new(&instance_name, false);
+
+    pt!("Name: {} ", instance_name);
+    pt!("Version : {}", peek_info.game_version);
+    pt!("Loader : {:?}", peek_info.loader);
+
+    let version = ListEntry::with_kind(peek_info.game_version.clone(), "release");
+
+    let (d_send, d_recv) = std::sync::mpsc::channel();
+    if let Some(sender) = sender.clone() {
+        std::thread::spawn(move || {
+            pipe_progress(d_recv, &sender);
+        });
+    }
+
+    ql_instances::create_instance(
+        instance_name,
+        version,
+        Some(d_send),
+        download_assets,
+    )
+    .await?;
+
+    let instance_path = instance.get_instance_path();
+
+    // Install the loader
+    ql_mod_manager::loaders::install_specified_loader(
+        instance.clone(),
+        peek_info.loader,
+        sender.clone(),
+        None,
+    )
+    .await
+    .map_err(InstancePackageError::Loader)?;
+
+    // Install the modpack
+    pt!("Installing modpack");
+    if let Some(sender) = &sender {
+        _ = sender.send(GenericProgress {
+            done: 2,
+            total: OUT_OF,
+            message: Some("Installing modpack...".to_owned()),
+            has_finished: false,
+        });
+    }
+
+    let zip_bytes = std::fs::read(&zip_path).path(&zip_path)?;
+    modpack::install(zip_bytes, instance.clone(), sender.as_ref().map(|s| s.as_ref())).await?;
+
+    pt!("Copying packaged files");
+    if let Some(sender) = &sender {
+        _ = sender.send(GenericProgress {
+            done: 3,
+            total: OUT_OF,
+            message: Some("Copying files...".to_owned()),
+            has_finished: false,
+        });
+    }
+    file_utils::copy_dir_recursive(temp_dir, &instance_path).await?;
+
+    if let Some(ram) = peek_info.recommended_ram_mb {
+        let mut config = InstanceConfigJson::read(&instance).await?;
+        config.ram_in_mb = ram;
+        config.save(&instance).await?;
+    }
+
+    info!("Finished importing modpack instance");
     Ok(instance)
 }
 

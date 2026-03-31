@@ -1,7 +1,7 @@
 use std::{collections::HashSet, path::PathBuf};
 
 use ql_core::{IoError, JsonError, RequestError, impl_3_errs_jri};
-use ql_mod_manager::loaders::{fabric::FabricInstallError, forge::ForgeInstallError};
+use ql_mod_manager::{loaders::{fabric::FabricInstallError, forge::ForgeInstallError}, store::modpack::PackError};
 use ql_servers::ServerError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -38,6 +38,8 @@ pub enum InstancePackageError {
     Server(#[from] ServerError),
     #[error("{PKG_ERR_PREFIX}while installing packaged loader:\n{0}")]
     Loader(String),
+    #[error("{PKG_ERR_PREFIX}{0}")]
+    Modpack(#[from] PackError),
 
     #[error("{PKG_ERR_PREFIX}{0}")]
     Forge(#[from] ForgeInstallError),
@@ -46,7 +48,6 @@ pub enum InstancePackageError {
 
     #[error("{PKG_ERR_PREFIX}while dealing with zip:\n{0}")]
     Zip(#[from] zip::result::ZipError),
-
     #[error("{PKG_ERR_PREFIX}while creating temporary directory:\n{0}")]
     TempDir(std::io::Error),
     #[error("{PKG_ERR_PREFIX}while adding to zip:\n{0}")]
