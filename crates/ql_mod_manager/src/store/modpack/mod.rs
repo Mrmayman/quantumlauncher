@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     io::{Cursor, Read},
     sync::mpsc::Sender,
 };
@@ -38,15 +37,16 @@ pub struct PeekInfo {
 /// - `sender`: Optional progress notifier.
 ///
 /// # Returns
-/// - `Ok(Some(...))`: Mods blocked by Curseforge (must download manually).
-/// - `Ok(None)`: Not a recognized modpack.
+/// - `Ok(bool, CurseForgeNotAllowed)`:
+///     1) Whether the modpack was recognized and is valid.
+///     2) Mods blocked by Curseforge (must download manually).
 /// - `Err`: Installation error.
 pub async fn install(
-    file: Vec<u8>,
+    file: &[u8],
     instance: InstanceSelection,
     sender: Option<&Sender<GenericProgress>>,
-) -> Result<Option<HashSet<CurseforgeNotAllowed>>, PackError> {
-    let mut zip = zip::ZipArchive::new(Cursor::new(file.as_slice()))?;
+) -> Result<(bool, CurseforgeNotAllowed), PackError> {
+    let mut zip = zip::ZipArchive::new(Cursor::new(file))?;
 
     info!("Installing modpack");
 
@@ -69,7 +69,7 @@ pub async fn install(
                 sender.cloned(),
             ))
             .await
-            .map(|n| if n.is_empty() { None } else { Some(n) })
+            .map(|n| (true, n))
             .map_err(|n| n.into());
         }
         return Err(PackError::NoBackendFound);
@@ -93,11 +93,11 @@ pub async fn install(
         is_valid = true;
         curseforge::install(&instance, &config, &json, &index, sender).await?
     } else {
-        HashSet::new()
+        CurseforgeNotAllowed::new()
     };
 
     if !is_valid {
-        return Ok(None);
+        return Ok((false, CurseforgeNotAllowed::new()));
     }
 
     let len = zip.len();
@@ -150,7 +150,7 @@ pub async fn install(
 
     pt!("Done!");
 
-    Ok(Some(not_allowed))
+    Ok((true, not_allowed))
 }
 
 /// Extracts metadata (name, version, loader) from a modpack file.
@@ -162,8 +162,8 @@ pub async fn install(
 /// - `Ok(Some(PeekInfo))`: Modpack metadata.
 /// - `Ok(None)`: Not a recognized modpack.
 /// - `Err`: Parse or read error.
-pub fn peek(file: Vec<u8>) -> Result<Option<PeekInfo>, PackError> {
-    let mut zip = zip::ZipArchive::new(Cursor::new(file.as_slice()))?;
+pub fn peek(file: &[u8]) -> Result<Option<PeekInfo>, PackError> {
+    let mut zip = zip::ZipArchive::new(Cursor::new(file))?;
 
     let index_json_modrinth: Option<modrinth::PackIndex> =
         read_json_from_zip(&mut zip, "modrinth.index.json")?;

@@ -17,7 +17,7 @@ use crate::InstanceInfo;
 
 use super::InstancePackageError;
 
-use ql_mod_manager::store::modpack;
+use ql_mod_manager::store::{CurseforgeNotAllowed, modpack};
 
 pub const OUT_OF: usize = 4;
 
@@ -49,7 +49,7 @@ pub async fn import_instance(
     zip_path: PathBuf,
     download_assets: bool,
     sender: Option<Sender<GenericProgress>>,
-) -> Result<Option<InstanceSelection>, InstancePackageError> {
+) -> Result<Option<(InstanceSelection, CurseforgeNotAllowed)>, InstancePackageError> {
     let temp_dir_obj = tempfile::TempDir::new().map_err(InstancePackageError::TempDir)?;
     let temp_dir = temp_dir_obj.path();
 
@@ -68,8 +68,8 @@ pub async fn import_instance(
     let try_ql = temp_dir.join("quantum-config.json");
     let try_mmc = temp_dir.join("mmc-pack.json");
 
-    let instance = if let Ok(instance_info) = fs::read_to_string(&try_ql).await {
-        Some(
+    let out = if let Ok(instance_info) = fs::read_to_string(&try_ql).await {
+        Some((
             import_quantumlauncher(
                 download_assets,
                 temp_dir,
@@ -77,36 +77,28 @@ pub async fn import_instance(
                 sender.map(Arc::new),
             )
             .await?,
-        )
+            CurseforgeNotAllowed::new(),
+        ))
     } else if let Ok(mmc_pack) = fs::read_to_string(&try_mmc).await {
-        Some(
+        Some((
             crate::multimc::import(download_assets, temp_dir, &mmc_pack, sender.map(Arc::new))
                 .await?,
-        )
+            CurseforgeNotAllowed::new(),
+        ))
     } else {
         // Try modpack fallback
         let zip_bytes = tokio::fs::read(&zip_path).await.path(&zip_path)?;
-        if let Some(peek_info) = modpack::peek(zip_bytes)? {
-            Some(
-                import_modpack(
-                    download_assets,
-                    temp_dir,
-                    peek_info,
-                    zip_path,
-                    sender.map(Arc::new),
-                )
-                .await?,
-            )
+        if let Some(peek_info) = modpack::peek(&zip_bytes)? {
+            Some(import_modpack(download_assets, peek_info, zip_path, sender.map(Arc::new)).await?)
         } else {
             None
         }
     };
 
-    fs::remove_dir_all(&temp_dir).await.path(temp_dir)?;
-
-    Ok(instance)
+    Ok(out)
 }
 
+#[deprecated = "TODO: Rewrite this"]
 async fn import_quantumlauncher(
     download_assets: bool,
     temp_dir: &Path,
@@ -176,11 +168,10 @@ async fn import_quantumlauncher(
 
 async fn import_modpack(
     download_assets: bool,
-    temp_dir: &Path,
     peek_info: ql_mod_manager::store::modpack::PeekInfo,
     zip_path: PathBuf,
     sender: Option<Arc<Sender<GenericProgress>>>,
-) -> Result<InstanceSelection, InstancePackageError> {
+) -> Result<(InstanceSelection, CurseforgeNotAllowed), InstancePackageError> {
     info!("Importing modpack as instance...");
 
     // Generate instance name from modpack metadata first, then fallback to zip filename
@@ -209,17 +200,18 @@ async fn import_modpack(
         });
     }
 
-    ql_instances::create_instance(
-        instance_name,
-        version,
-        Some(d_send),
-        download_assets,
-    )
-    .await?;
-
-    let instance_path = instance.get_instance_path();
+    // Create the instance
+    ql_instances::create_instance(instance_name, version, Some(d_send), download_assets).await?;
 
     // Install the loader
+    if let Some(sender) = &sender {
+        _ = sender.send(GenericProgress {
+            done: 2,
+            total: OUT_OF,
+            message: Some("Installing loader...".to_owned()),
+            has_finished: false,
+        });
+    }
     ql_mod_manager::loaders::install_specified_loader(
         instance.clone(),
         peek_info.loader,
@@ -233,26 +225,20 @@ async fn import_modpack(
     pt!("Installing modpack");
     if let Some(sender) = &sender {
         _ = sender.send(GenericProgress {
-            done: 2,
+            done: 3,
             total: OUT_OF,
             message: Some("Installing modpack...".to_owned()),
             has_finished: false,
         });
     }
 
-    let zip_bytes = std::fs::read(&zip_path).path(&zip_path)?;
-    modpack::install(zip_bytes, instance.clone(), sender.as_ref().map(|s| s.as_ref())).await?;
-
-    pt!("Copying packaged files");
-    if let Some(sender) = &sender {
-        _ = sender.send(GenericProgress {
-            done: 3,
-            total: OUT_OF,
-            message: Some("Copying files...".to_owned()),
-            has_finished: false,
-        });
-    }
-    file_utils::copy_dir_recursive(temp_dir, &instance_path).await?;
+    let zip_bytes = tokio::fs::read(&zip_path).await.path(&zip_path)?;
+    let (_, not_allowed) = modpack::install(
+        &zip_bytes,
+        instance.clone(),
+        sender.as_ref().map(|s| s.as_ref()),
+    )
+    .await?;
 
     if let Some(ram) = peek_info.recommended_ram_mb {
         let mut config = InstanceConfigJson::read(&instance).await?;
@@ -261,7 +247,7 @@ async fn import_modpack(
     }
 
     info!("Finished importing modpack instance");
-    Ok(instance)
+    Ok((instance, not_allowed))
 }
 
 pub fn pipe_progress<T: Progress>(rec: Receiver<T>, snd: &Sender<GenericProgress>) {

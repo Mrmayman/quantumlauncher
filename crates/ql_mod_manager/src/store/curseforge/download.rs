@@ -11,8 +11,10 @@ use ql_core::{
 use crate::{
     rate_limiter::lock,
     store::{
-        CurseforgeNotAllowed, DirStructure, ModConfig, ModError, ModFile, ModIndex, QueryType,
-        curseforge::{ModQuery, get_query_type}, modpack,
+        CurseforgeNotAllowed, CurseforgeNotAllowedEntry, DirStructure, ModConfig, ModError,
+        ModFile, ModIndex, QueryType,
+        curseforge::{ModQuery, get_query_type},
+        modpack,
     },
 };
 
@@ -27,7 +29,7 @@ pub struct ModDownloader<'a> {
     dirs: DirStructure,
 
     pub query_cache: HashMap<String, Mod>,
-    pub not_allowed: HashSet<CurseforgeNotAllowed>,
+    pub not_allowed: CurseforgeNotAllowed,
     pub already_installed: HashSet<String>,
     pub sender: Option<&'a Sender<GenericProgress>>,
 
@@ -55,7 +57,7 @@ impl<'a> ModDownloader<'a> {
             query_cache: HashMap::new(),
             instance,
             sender,
-            not_allowed: HashSet::new(),
+            not_allowed: CurseforgeNotAllowed::new(),
         })
     }
 
@@ -110,7 +112,7 @@ impl<'a> ModDownloader<'a> {
             )
             .await?;
         let Some(url) = file_query.data.downloadUrl.clone() else {
-            self.not_allowed.insert(CurseforgeNotAllowed {
+            self.not_allowed.insert(CurseforgeNotAllowedEntry {
                 name: response.name.clone(),
                 slug: response.slug.clone(),
                 filename: file_query.data.fileName.clone(),
@@ -128,15 +130,15 @@ impl<'a> ModDownloader<'a> {
             QueryType::ModPacks => {
                 let bytes = file_utils::download_file_to_bytes(&url, true).await?;
                 self.index.save(&self.instance).await?;
-                if let Some(not_allowed_new) =
-                    modpack::install(bytes, self.instance.clone(), self.sender)
+                let (valid, not_allowed_new) =
+                    modpack::install(&bytes, self.instance.clone(), self.sender)
                         .await
-                        .map_err(Box::new)?
-                {
-                    self.not_allowed.extend(not_allowed_new);
-                } else {
+                        .map_err(Box::new)?;
+                if !valid {
                     err!("Invalid modpack downloaded from curseforge! Corrupted?");
                 }
+
+                self.not_allowed.extend(not_allowed_new);
                 self.index = ModIndex::load(&self.instance).await?;
                 return Ok(());
             }

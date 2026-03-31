@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::mpsc::Sender, time::Instant};
+use std::{sync::mpsc::Sender, time::Instant};
 
 use chrono::DateTime;
 use download::version_sort;
@@ -103,7 +103,7 @@ impl Backend for ModrinthBackend {
         id: &str,
         instance: &InstanceSelection,
         sender: Option<Sender<GenericProgress>>,
-    ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
+    ) -> Result<CurseforgeNotAllowed, ModError> {
         let _guard = lock().await;
 
         let mut downloader = download::ModDownloader::new(instance, sender).await?;
@@ -113,7 +113,7 @@ impl Backend for ModrinthBackend {
 
         pt!("Finished");
 
-        Ok(HashSet::new())
+        Ok(CurseforgeNotAllowed::new())
     }
 
     async fn download_bulk(
@@ -122,7 +122,7 @@ impl Backend for ModrinthBackend {
         ignore_incompatible: bool,
         set_manually_installed: bool,
         sender: Option<&Sender<GenericProgress>>,
-    ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
+    ) -> Result<CurseforgeNotAllowed, ModError> {
         let _guard = lock().await;
 
         let mut downloader = download::ModDownloader::new(instance, None).await?;
@@ -170,7 +170,7 @@ impl Backend for ModrinthBackend {
             _ = sender.send(GenericProgress::finished());
         }
 
-        Ok(HashSet::new())
+        Ok(CurseforgeNotAllowed::new())
     }
 
     async fn get_info(id: &str) -> Result<SearchMod, ModError> {

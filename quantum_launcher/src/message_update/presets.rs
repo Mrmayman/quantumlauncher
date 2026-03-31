@@ -2,10 +2,7 @@ use iced::Task;
 use ql_core::{IntoIoError, IntoStringError, SelectedMod};
 use std::collections::HashSet;
 
-use crate::state::{
-    EditPresetsMessage, Launcher, MenuCurseforgeManualDownload, MenuEditPresets, Message,
-    SelectedState, State,
-};
+use crate::state::{EditPresetsMessage, Launcher, MenuEditPresets, Message, SelectedState, State};
 
 macro_rules! iflet_manage_preset {
     ($self:ident, $($field:ident),+, { $($code:tt)* }) => {
@@ -77,11 +74,7 @@ impl Launcher {
                     if not_allowed.is_empty() {
                         self.go_to_edit_mods_menu()
                     } else {
-                        self.state =
-                            State::CurseforgeManualDownload(MenuCurseforgeManualDownload {
-                                not_allowed,
-                                delete_mods: true,
-                            });
+                        self.state = State::curseforge_manual_download(not_allowed);
                         Task::none()
                     }
                 }) {

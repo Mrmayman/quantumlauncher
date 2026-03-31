@@ -128,18 +128,23 @@ impl Launcher {
                 }
             }
             CreateInstanceMessage::ImportResult(Ok(instance)) => {
-                let is_valid_modpack = instance.is_some();
-                self.selected_instance = instance;
-                if is_valid_modpack {
-                    return self.go_to_main_menu_with_message(None::<String>);
-                }
-                self.set_error(
-                    r#"the file you imported isn't a valid QuantumLauncher/MultiMC instance.
+                if let Some((instance, not_allowed)) = instance {
+                    self.selected_instance = Some(instance);
+                    if not_allowed.is_empty() {
+                        return self.go_to_main_menu_with_message(None::<String>);
+                    } else {
+                        self.state = State::curseforge_manual_download(not_allowed);
+                    }
+                } else {
+                    self.selected_instance = None;
+                    self.set_error(
+                        r#"the file you imported isn't a valid QuantumLauncher/MultiMC instance.
 
-If you meant to import a Modrinth/Curseforge/Preset pack,
-create a instance with the matching version,
-then go to "Mods->Add File""#,
-                );
+    If you meant to import a Modrinth/Curseforge/Preset pack,
+    create a instance with the matching version,
+    then go to "Mods->Add File""#,
+                    );
+                }
             }
         }
         Task::none()

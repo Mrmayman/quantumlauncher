@@ -234,12 +234,14 @@ impl ModDownloader {
     ) -> Result<(), ModError> {
         if let QueryType::ModPacks = project_type {
             let bytes = file_utils::download_file_to_bytes(&file.url, true).await?;
-            let incompatible = modpack::install(bytes, self.instance.clone(), self.sender.as_ref())
-                .await
-                .map_err(Box::new)?;
+            let (valid, incompatible) =
+                modpack::install(&bytes, self.instance.clone(), self.sender.as_ref())
+                    .await
+                    .map_err(Box::new)?;
+            debug_assert!(valid, "invalid modpack downloaded from modrinth store!");
             debug_assert!(
-                incompatible.is_some(),
-                "invalid modpack downloaded from modrinth store!"
+                incompatible.is_empty(),
+                "modrinth can't have curseforge-blocked mods"
             );
             return Ok(());
         }

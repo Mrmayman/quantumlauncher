@@ -566,7 +566,7 @@ pub enum MenuWelcome {
 }
 
 pub struct MenuCurseforgeManualDownload {
-    pub not_allowed: HashSet<CurseforgeNotAllowed>,
+    pub not_allowed: CurseforgeNotAllowed,
     pub delete_mods: bool,
 }
 
@@ -664,6 +664,15 @@ pub enum State {
     CreateShortcut(MenuShortcut),
 
     License(MenuLicense),
+}
+
+impl State {
+    pub fn curseforge_manual_download(not_allowed: CurseforgeNotAllowed) -> Self {
+        Self::CurseforgeManualDownload(MenuCurseforgeManualDownload {
+            not_allowed,
+            delete_mods: true,
+        })
+    }
 }
 
 pub struct MenuShortcut {

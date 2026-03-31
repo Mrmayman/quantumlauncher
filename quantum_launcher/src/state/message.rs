@@ -66,7 +66,7 @@ pub enum CreateInstanceMessage {
 
     #[allow(unused)]
     Import,
-    ImportResult(Res<Option<InstanceSelection>>),
+    ImportResult(Res<Option<(InstanceSelection, CurseforgeNotAllowed)>>),
 }
 
 #[derive(Debug, Clone)]
@@ -126,12 +126,15 @@ pub enum ManageModsMessage {
     UpdateCheckResult(Res<Vec<(ModId, String)>>),
     UpdateCheckToggle(usize, bool),
     UpdatePerform,
-    UpdatePerformDone(Res),
+    UpdatePerformDone(Res<CurseforgeNotAllowed>),
 
     /// Add a mod, preset or modpack to the current instance.
     /// The field represents whether to delete the file after importing it.
     AddFile(bool),
-    AddFileDone(Res<HashSet<CurseforgeNotAllowed>>),
+    /// Add a mod (only `.jar` files).
+    /// The field represents whether to delete the file after importing it.
+    AddFileOnlyJar(bool),
+    AddFileDone(Res<CurseforgeNotAllowed>),
 
     SelectAll,
     SetModal(Option<MenuEditModsModal>),
@@ -174,7 +177,7 @@ pub enum InstallModsMessage {
     BackToMainScreen,
     LoadData(Res<(ModId, String)>),
     Download(usize),
-    DownloadComplete(Res<(ModId, HashSet<CurseforgeNotAllowed>)>),
+    DownloadComplete(Res<(ModId, CurseforgeNotAllowed)>),
     IndexUpdated(Res<ModIndex>),
     Scrolled(widget::scrollable::Viewport),
     InstallModpack(ModId),
@@ -202,7 +205,7 @@ pub enum EditPresetsMessage {
     SelectAll,
     BuildYourOwn,
     BuildYourOwnEnd(Res<Vec<u8>>),
-    LoadComplete(Res<HashSet<CurseforgeNotAllowed>>),
+    LoadComplete(Res<CurseforgeNotAllowed>),
 }
 
 #[derive(Debug, Clone)]
@@ -211,7 +214,7 @@ pub enum RecommendedModMessage {
     ModCheckResult(Res<Vec<RecommendedMod>>),
     Toggle(usize, bool),
     Download,
-    DownloadEnd(Res<HashSet<CurseforgeNotAllowed>>),
+    DownloadEnd(Res<CurseforgeNotAllowed>),
 }
 
 #[derive(Debug, Clone)]

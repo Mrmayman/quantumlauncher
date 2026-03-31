@@ -8,8 +8,7 @@ use std::{collections::HashSet, path::PathBuf};
 
 use crate::state::{
     AutoSaveKind, ExportModsMessage, Launcher, ManageJarModsMessage, ManageModsMessage,
-    MenuCurseforgeManualDownload, MenuEditJarMods, MenuEditMods, MenuEditModsModal, Message,
-    ProgressBar, SelectedState, State,
+    MenuEditJarMods, MenuEditMods, MenuEditModsModal, Message, ProgressBar, SelectedState, State,
 };
 
 impl Launcher {
@@ -70,14 +69,14 @@ impl Launcher {
                 return menu.scroll_fix();
             }
             ManageModsMessage::AddFile(delete_file) => {
-                return self.add_file_select(delete_file);
+                return self.add_file_select(delete_file, false);
+            }
+            ManageModsMessage::AddFileOnlyJar(delete_file) => {
+                return self.add_file_select(delete_file, true);
             }
             ManageModsMessage::AddFileDone(Ok(not_allowed)) => {
                 if !not_allowed.is_empty() {
-                    self.state = State::CurseforgeManualDownload(MenuCurseforgeManualDownload {
-                        not_allowed,
-                        delete_mods: true,
-                    });
+                    self.state = State::curseforge_manual_download(not_allowed);
                 }
                 return self.go_to_edit_mods_menu();
             }
@@ -151,11 +150,12 @@ impl Launcher {
 
             ManageModsMessage::ToggleFinished(Ok(())) => self.update_mod_index(),
             ManageModsMessage::UpdatePerform => return self.update_mods(),
-            ManageModsMessage::UpdatePerformDone(Ok(())) => {
+            ManageModsMessage::UpdatePerformDone(Ok(not_allowed)) => {
                 self.update_mod_index();
                 if let State::EditMods(menu) = &mut self.state {
                     menu.available_updates.clear();
                 }
+                if !not_allowed.is_empty() {}
             }
             ManageModsMessage::UpdateCheckResult(updates) => {
                 if let State::EditMods(menu) = &mut self.state {
@@ -350,14 +350,25 @@ impl Launcher {
         Task::batch([toggle_downloaded, toggle_local])
     }
 
-    fn add_file_select(&mut self, delete_file: bool) -> Task<Message> {
-        let Some(paths) = rfd::FileDialog::new()
-            .add_filter("Mod/Modpack", &["jar", "zip", "mrpack", "qmp"])
+    fn add_file_select(&mut self, delete_file: bool, only_jar: bool) -> Task<Message> {
+        let Some(mut paths) = rfd::FileDialog::new()
+            .add_filter(
+                "Mod/Modpack",
+                if only_jar {
+                    &["jar"]
+                } else {
+                    &["jar", "zip", "mrpack", "qmp"]
+                },
+            )
             .set_title("Add Mod, Modpack or Preset")
             .pick_files()
         else {
             return Task::none();
         };
+
+        if only_jar {
+            paths.retain(|n| n.extension().is_some_and(|n| n.eq_ignore_ascii_case("jar")));
+        }
 
         let (sender, receiver) = std::sync::mpsc::channel();
         self.state = State::ImportModpack(ProgressBar::with_recv(receiver));

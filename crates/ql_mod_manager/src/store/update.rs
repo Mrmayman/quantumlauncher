@@ -3,7 +3,7 @@ use std::sync::mpsc::Sender;
 use chrono::DateTime;
 use ql_core::{GenericProgress, InstanceSelection, Loader, do_jobs, info, json::VersionDetails};
 
-use crate::store::{get_latest_version_date, toggle_mods};
+use crate::store::{CurseforgeNotAllowed, get_latest_version_date, toggle_mods};
 
 use super::{ModError, ModId, ModIndex, delete_mods, download_mods_bulk};
 
@@ -11,7 +11,7 @@ pub async fn apply_updates(
     selected_instance: InstanceSelection,
     updates: Vec<ModId>,
     progress: Option<Sender<GenericProgress>>,
-) -> Result<(), ModError> {
+) -> Result<CurseforgeNotAllowed, ModError> {
     let disabled_mods: Vec<_> = {
         let mod_index = ModIndex::load(&selected_instance).await?;
         updates
@@ -24,12 +24,12 @@ pub async fn apply_updates(
 
     // It's as simple as that!
     delete_mods(updates.clone(), selected_instance.clone()).await?;
-    download_mods_bulk(updates, selected_instance.clone(), progress).await?;
+    let not_allowed = download_mods_bulk(updates, selected_instance.clone(), progress).await?;
 
     // Ensure disabled mods stay disabled
     toggle_mods(disabled_mods, selected_instance).await?;
 
-    Ok(())
+    Ok(not_allowed)
 }
 
 pub async fn check_for_updates(

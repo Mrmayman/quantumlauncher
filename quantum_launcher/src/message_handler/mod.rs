@@ -481,10 +481,17 @@ impl Launcher {
         };
         match tokio::runtime::Handle::current().block_on(ql_mod_manager::Preset::load(
             self.selected_instance.clone().unwrap(),
-            file,
+            &file,
             true,
         )) {
             Ok(mods) => {
+                if mods.is_regular_modpack {
+                    return self.load_modpack_from_path(path.to_owned());
+                }
+                if mods.to_install.is_empty() {
+                    return Task::none();
+                }
+
                 let (sender, receiver) = std::sync::mpsc::channel();
                 if let State::EditMods(_) = &self.state {
                     self.go_to_edit_presets_menu();

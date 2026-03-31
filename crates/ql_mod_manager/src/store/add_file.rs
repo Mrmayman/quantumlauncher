@@ -1,4 +1,4 @@
-use std::{collections::HashSet, ffi::OsStr, path::PathBuf, sync::mpsc::Sender};
+use std::{ffi::OsStr, path::PathBuf, sync::mpsc::Sender};
 
 use ql_core::{GenericProgress, InstanceSelection, IntoIoError, err, pt};
 
@@ -13,10 +13,10 @@ pub async fn add_files(
     instance: InstanceSelection,
     paths: Vec<PathBuf>,
     progress: Option<Sender<GenericProgress>>,
-) -> Result<HashSet<CurseforgeNotAllowed>, PackError> {
+) -> Result<CurseforgeNotAllowed, PackError> {
     let mods_dir = instance.get_dot_minecraft_path().join("mods");
 
-    let mut not_allowed = HashSet::new();
+    let mut not_allowed = CurseforgeNotAllowed::new();
 
     send_progress(progress.as_ref(), &GenericProgress::default());
 
@@ -55,17 +55,23 @@ pub async fn add_files(
             }
             "zip" | "mrpack" => {
                 let file = tokio::fs::read(&path).await.path(&path)?;
-                if let Some(not_allowed_new) =
-                    modpack::install(file, instance.clone(), progress.as_ref()).await?
-                {
-                    not_allowed.extend(not_allowed_new);
-                }
+                let (_, not_allowed_new) =
+                    modpack::install(&file, instance.clone(), progress.as_ref()).await?;
+                not_allowed.extend(not_allowed_new);
             }
             "qmp" => {
                 let file = tokio::fs::read(&path).await.path(&path)?;
-                let out = presets::Preset::load(instance.clone(), file, true).await?;
+                let out = presets::Preset::load(instance.clone(), &file, true).await?;
                 if !out.to_install.is_empty() {
-                    download_mods_bulk(out.to_install, instance.clone(), progress.clone()).await?;
+                    let not_allowed_new =
+                        download_mods_bulk(out.to_install, instance.clone(), progress.clone())
+                            .await?;
+                    not_allowed.extend(not_allowed_new);
+                }
+                if out.is_regular_modpack {
+                    let (_, not_allowed_new) =
+                        modpack::install(&file, instance.clone(), progress.as_ref()).await?;
+                    not_allowed.extend(not_allowed_new);
                 }
             }
             extension => {

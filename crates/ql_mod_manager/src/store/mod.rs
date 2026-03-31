@@ -1,11 +1,11 @@
 use std::{collections::HashSet, fmt::Display, path::PathBuf, sync::mpsc::Sender, time::Instant};
 
+use crate::store::modpack::PackError;
 use chrono::DateTime;
 use ql_core::{
     GenericProgress, InstanceSelection, IntoIoError, Loader, ModId, StoreBackendType, do_jobs,
     json::VersionDetails, pt,
 };
-use crate::store::modpack::PackError;
 
 mod add_file;
 mod curseforge;
@@ -66,7 +66,7 @@ pub trait Backend {
         id: &str,
         instance: &InstanceSelection,
         sender: Option<Sender<GenericProgress>>,
-    ) -> Result<HashSet<CurseforgeNotAllowed>, ModError>;
+    ) -> Result<CurseforgeNotAllowed, ModError>;
     /// Downloads multiple mods to the `instance`.
     ///
     /// Uses efficient batched APIs and concurrent downloading when possible,
@@ -77,9 +77,9 @@ pub trait Backend {
         ignore_incompatible: bool,
         _set_manually_installed: bool,
         sender: Option<&Sender<GenericProgress>>,
-    ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
+    ) -> Result<CurseforgeNotAllowed, ModError> {
         // Fallback implementation
-        let mut not_allowed = HashSet::new();
+        let mut not_allowed = CurseforgeNotAllowed::new();
         for id in ids {
             // We don't do this concurrently as there's likely a lock on the index
             match Self::download(id, instance, sender.cloned()).await {
@@ -135,7 +135,7 @@ pub async fn download_mod(
     id: &ModId,
     instance: &InstanceSelection,
     sender: Option<Sender<GenericProgress>>,
-) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
+) -> Result<CurseforgeNotAllowed, ModError> {
     match id {
         ModId::Modrinth(n) => ModrinthBackend::download(n, instance, sender).await,
         ModId::Curseforge(n) => CurseforgeBackend::download(n, instance, sender).await,
@@ -150,7 +150,7 @@ pub async fn download_mods_bulk(
     ids: Vec<ModId>,
     instance: InstanceSelection,
     sender: Option<Sender<GenericProgress>>,
-) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
+) -> Result<CurseforgeNotAllowed, ModError> {
     let (modrinth, other): (Vec<ModId>, Vec<ModId>) = ids.into_iter().partition(|n| match n {
         ModId::Modrinth(_) => true,
         ModId::Curseforge(_) => false,
@@ -435,10 +435,39 @@ impl DirStructure {
 
 #[must_use]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct CurseforgeNotAllowed {
+pub struct CurseforgeNotAllowedEntry {
     pub name: String,
     pub slug: String,
     pub filename: String,
     pub project_type: String,
     pub file_id: usize,
+}
+
+// I did it this ugly way so that
+// the `must_use` could prevent ugly mistakes (it actually did).
+
+#[must_use = "download these mods too! if you ignore them, game crashes will occur"]
+#[derive(Debug, Clone, Default)]
+pub struct CurseforgeNotAllowed {
+    pub inner: HashSet<CurseforgeNotAllowedEntry>,
+}
+
+impl CurseforgeNotAllowed {
+    pub fn new() -> Self {
+        Self {
+            inner: HashSet::new(),
+        }
+    }
+
+    pub fn extend(&mut self, other: CurseforgeNotAllowed) {
+        self.inner.extend(other.inner);
+    }
+
+    pub fn insert(&mut self, entry: CurseforgeNotAllowedEntry) {
+        self.inner.insert(entry);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
 }

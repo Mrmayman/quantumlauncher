@@ -3,8 +3,7 @@ use ql_core::{InstanceSelection, IntoStringError, JsonFileError, ModId, json::In
 use ql_mod_manager::store::{RECOMMENDED_MODS, RecommendedMod};
 
 use crate::state::{
-    Launcher, MenuCurseforgeManualDownload, MenuRecommendedMods, Message, ProgressBar,
-    RecommendedModMessage, State,
+    Launcher, MenuRecommendedMods, Message, ProgressBar, RecommendedModMessage, State,
 };
 
 impl Launcher {
@@ -80,10 +79,7 @@ impl Launcher {
                     if not_allowed.is_empty() {
                         return self.go_to_edit_mods_menu();
                     }
-                    self.state = State::CurseforgeManualDownload(MenuCurseforgeManualDownload {
-                        not_allowed,
-                        delete_mods: true,
-                    });
+                    self.state = State::curseforge_manual_download(not_allowed);
                 }
                 Err(err) => self.set_error(err),
             },

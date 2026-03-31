@@ -14,13 +14,14 @@ use ql_core::{
 use serde::{Deserialize, Serialize};
 use zip::ZipWriter;
 
-use crate::store::{ModConfig, ModError, ModIndex, modpack};
+use crate::store::{ModConfig, ModError, ModIndex};
 
 #[must_use]
 #[derive(Debug, Clone, Default)]
 pub struct PresetOutput {
     pub local_files: Vec<String>,
     pub to_install: Vec<ModId>,
+    pub is_regular_modpack: bool,
 }
 
 /// A "Mod Preset"
@@ -154,8 +155,7 @@ impl Preset {
     /// # Arguments
     /// - `instance: InstanceSelection`:
     ///   The instance to which the preset will be installed.
-    /// - `zip: Vec<u8>`:
-    ///   The `.qmp` file in binary form. Must be read from
+    /// - `zip`: Bytes of the `.qmp` file in binary form. Must be read from
     ///   disk earlier.
     /// - `apply: bool`: Whether to actually install
     ///   the preset or **just preview it**
@@ -177,7 +177,7 @@ impl Preset {
     /// - And many other things I probably forgot
     pub async fn load(
         instance: InstanceSelection,
-        file: Vec<u8>,
+        file: &[u8],
         apply: bool,
     ) -> Result<PresetOutput, ModError> {
         info!("Importing mod preset");
@@ -194,22 +194,11 @@ impl Preset {
             let Ok(mut index) = zip.by_name("index.json") else {
                 // Else this ain't a QMP file!
                 // Install as regular modpack
-                return match modpack::install(file.clone(), instance.clone(), None)
-                    .await
-                    .map_err(Box::new)?
-                {
-                    Some(n) => {
-                        if !n.is_empty() {
-                            let incompatible =
-                                n.iter().map(|n| n.name.as_str()).collect::<Vec<_>>();
-                            err!(
-                                "Curseforge has blocked downloading these mods: {incompatible:?}\n\nPlease install them manually"
-                            );
-                        }
-                        Ok(PresetOutput::default())
-                    }
-                    None => Err(ModError::NotValidPack),
-                };
+                return Ok(PresetOutput {
+                    local_files: Vec::new(),
+                    to_install: Vec::new(),
+                    is_regular_modpack: true,
+                });
             };
             let buf = std::io::read_to_string(&mut index)
                 .map_err(|n| ModError::ZipIoError(n, "index.json".to_owned()))?;
@@ -275,6 +264,7 @@ impl Preset {
         Ok(PresetOutput {
             local_files,
             to_install,
+            is_regular_modpack: false,
         })
     }
 }
