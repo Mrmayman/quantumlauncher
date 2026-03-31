@@ -33,15 +33,16 @@ struct Cli {
     #[arg(long)]
     #[arg(help = "Enable experimental server manager (create, delete and host local servers)")]
     enable_server_manager: bool,
-    #[arg(long)]
-    #[arg(help = "Enable experimental MultiMC import feature (in create instance screen)")]
-    enable_mmc_import: bool,
     #[arg(short, long)]
     #[arg(help = "Operate on servers, not instances")]
     #[arg(hide = true)]
     server: bool,
     #[arg(long)]
     dir: Option<PathBuf>,
+
+    #[arg(long, hide = true)]
+    #[deprecated = "moved out of experimental"]
+    enable_mmc_import: bool,
 }
 
 #[derive(Subcommand)]
@@ -121,7 +122,6 @@ Supported loaders: Fabric, Forge, Quilt, NeoForge, Paper, OptiFine
 }
 
 pub static EXPERIMENTAL_SERVERS: LazyLock<RwLock<bool>> = LazyLock::new(|| RwLock::new(false));
-pub static EXPERIMENTAL_MMC_IMPORT: LazyLock<RwLock<bool>> = LazyLock::new(|| RwLock::new(false));
 
 fn long_about() -> String {
     format!(
@@ -205,7 +205,6 @@ pub fn start_cli(is_dir_err: bool, launcher_dir: &mut Option<PathBuf>) {
     let cli = Cli::parse();
     *REDACT_SENSITIVE_INFO.lock().unwrap() = !cli.no_redact_info;
     *EXPERIMENTAL_SERVERS.write().unwrap() = cli.enable_server_manager;
-    *EXPERIMENTAL_MMC_IMPORT.write().unwrap() = cli.enable_mmc_import;
 
     if let Some(p) = &cli.dir {
         *launcher_dir = Some(p.clone());

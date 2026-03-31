@@ -7,7 +7,6 @@ use iced::{
 use ql_core::ListEntryKind;
 
 use crate::{
-    cli::EXPERIMENTAL_MMC_IMPORT,
     icons,
     menu_renderer::{
         Element, button_with_icon, ctxbox, dots, launch::import_description, offset, shortcut_ctrl,
@@ -228,25 +227,22 @@ impl MenuCreateInstanceChoosing {
             ])
         }).spacing(12);
 
-        let mmc_import = EXPERIMENTAL_MMC_IMPORT.read().unwrap();
-
         let menu = column![
             main_part,
             widget::vertical_space(),
-            widget::Row::new()
-                .push_maybe(
-                    mmc_import.then_some(tooltip(
-                        widget::button(import_description())
-                            .padding([4, 8])
-                            .on_press(CreateInstanceMessage::Import.into()),
-                        widget::text("Import Instance... (VERY EXPERIMENTAL right now)").size(14),
-                        Position::Top
-                    ))
-                )
-                .push(widget::horizontal_space())
-                .push(get_create_button(already_exists))
-                .align_y(Alignment::End)
-                .spacing(5)
+            row![
+                tooltip(
+                    widget::button(import_description())
+                        .padding([4, 8])
+                        .on_press(CreateInstanceMessage::Import.into()),
+                    widget::text("Import Instance... (VERY EXPERIMENTAL right now)").size(14),
+                    Position::Top
+                ),
+                widget::horizontal_space(),
+                get_create_button(already_exists)
+            ]
+            .align_y(Alignment::End)
+            .spacing(5)
         ]
         .spacing(10)
         .padding(16);
