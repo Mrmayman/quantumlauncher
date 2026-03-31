@@ -30,26 +30,25 @@ pub struct PresetOutput {
     pub mod_type: Loader,
 }
 
-/// A mod preset: a bundle of mods and their configuration.
+/// A mod preset: bundle of mods and their configuration.
 ///
-/// Similar to a modpack, but stored in a better **QuantumLauncher-specific** format.
+/// Similar to a modpack, but stored in a more efficient and flexible
+/// **QuantumLauncher-specific format**.
 ///
 /// ## Contents
 /// - Installed mods (store + external)
 /// - Mod configuration files
 ///
 /// ## Usage
-/// - [`Preset::generate`] to create
-/// - [`Preset::load`] with `apply: true` to load
-/// - [`Preset::load`] with `apply: false` to peek at the contents without installing
+/// - [`Preset::generate`] - create from instance
+/// - [`Preset::load`] with `apply: true` - install preset
+/// - [`Preset::load`] with `apply: false` - preview without installing
 ///
 /// ## Format
-/// A preset is a `.qmp` file (zip archive) containing:
+/// `.qmp` zip file containing:
 /// - `index.json`: serialized [`Preset`] metadata
-/// - Top-level `.jar` files for external (non-store) mods
-/// - `config/` directory, extracted to `.minecraft/config/`
-///
-/// Store-installed mods are referenced in `index.json`, not bundled.
+/// - Top-level `.jar` files for external mods
+/// - `config/` directory (extracted to `.minecraft/config/`)
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Preset {
     pub instance_name: Option<String>,
@@ -64,24 +63,16 @@ pub struct Preset {
 }
 
 impl Preset {
-    /// Generates a "Mod Preset" from the mods
-    /// installed in the `instance`.
+    /// Generates a `.qmp` preset from instance mods.
     ///
-    /// This packages the contents of
-    /// `.minecraft/mods` and optionally `.minecraft/config`
-    /// into a `.qmp` file (a specialized ZIP file).
+    /// Packages `.minecraft/mods` and optionally `.minecraft/config` into a preset.
     ///
-    /// You have to manually provide which of the
-    /// instance's mods you want through the `selected_mods`
-    /// argument. You *can't* leave it empty, or nothing
-    /// will generate.
+    /// # Arguments
+    /// - `instance`: target instance
+    /// - `selected_mods`: mods to include (if empty, no mods will be included!)
+    /// - `include_config`: whether to include `config/` directory
     ///
-    /// If `include_config` is true, the `config/` directory
-    /// will be included in the preset.
-    ///
-    /// This returns a `Result` of `Vec<u8>`, containing
-    /// the bytes of the final `.qmp` file that you can save
-    /// anywhere you want.
+    /// Returns bytes of the generated `.qmp` file.
     pub async fn generate(
         instance: InstanceSelection,
         selected_mods: HashSet<SelectedMod>,
@@ -151,33 +142,19 @@ impl Preset {
         Ok(file)
     }
 
-    /// Installs a `.qmp` file as a "Mod Preset".
-    ///
-    /// See the module documentation for what a preset is.
+    /// Installs or previews a `.qmp` preset file.
     ///
     /// # Arguments
-    /// - `instance: InstanceSelection`:
-    ///   The instance to which the preset will be installed.
-    /// - `zip`: Bytes of the `.qmp` file in binary form. Must be read from
-    ///   disk earlier.
-    /// - `apply: bool`: Whether to actually install
-    ///   the preset or **just preview it**
+    /// - `instance`: target instance
+    /// - `file`: `.qmp` file bytes
+    /// - `apply`: whether to install or just preview
     ///
-    /// Returns a `Vec<String>` of mod id's to be installed
-    /// to "complete" the installation. You pass this to
-    /// [`crate::store::download_mods_bulk`]
+    /// Returns mod IDs for installation with [`crate::store::download_mods_bulk`].
     ///
     /// # Errors
-    /// - The provided `zip` is not a valid `.zip` file.
-    /// - `index.json` in the zip file isn't valid JSON
-    /// - User lacks permission to access `QuantumLauncher/` folder
-    /// - instance directory is outside the launcher directory (escape attack)
-    /// ---
-    /// `details.json` and `config.json` (in instance dir):
-    /// - couldn't be loaded from disk
-    /// - couldn't be parsed into valid JSON
-    /// ---
-    /// - And many other things I probably forgot
+    /// - Invalid zip file or JSON
+    /// - Permission or path access issues
+    /// - Instance configuration errors
     pub async fn load(
         instance: InstanceSelection,
         file: &[u8],
