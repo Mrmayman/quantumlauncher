@@ -14,6 +14,14 @@ A simple, powerful, cross platform Minecraft launcher.
 
 ![Quantum Launcher running RL Craft modpack](https://github.com/Mrmayman/quantumlauncher/raw/main/quantum_launcher.png)
 
+Now with copilot!
+
+![](https://github.com/Mrmayman/quantumlauncher/raw/agentic-ai/qlc1.png)
+
+![](https://github.com/Mrmayman/quantumlauncher/raw/agentic-ai/qlc2.png)
+
+![](https://github.com/Mrmayman/quantumlauncher/raw/agentic-ai/qlc3.png)
+
 # Features
 
 | | |
