@@ -399,6 +399,8 @@ pub enum ShortcutMessage {
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    CopilotChangePage(usize),
+
     Nothing,
     Error(String),
     Multiple(Vec<Message>),

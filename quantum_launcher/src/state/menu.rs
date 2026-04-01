@@ -103,6 +103,8 @@ pub struct MenuLaunch {
     pub log_state: Option<LogState>,
     pub modal: Option<LaunchModal>,
 
+    pub copilot_page: usize,
+
     pub sidebar_scroll_total: f32,
     pub sidebar_scroll_offset: f32,
     pub sidebar_scroll_bounds: Option<Rectangle>,
@@ -145,6 +147,7 @@ impl MenuLaunch {
             sidebar_split,
             notes: None,
             modal: None,
+            copilot_page: 0,
         }
     }
 

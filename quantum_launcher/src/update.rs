@@ -20,6 +20,12 @@ use crate::{
 impl Launcher {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::CopilotChangePage(p) => {
+                if let State::Launch(m) = &mut self.state {
+                    m.copilot_page = p;
+                }
+            }
+
             Message::Nothing | Message::CoreCleanComplete(Ok(())) => {}
             Message::Error(err) => self.set_error(err),
             Message::Multiple(msgs) => {

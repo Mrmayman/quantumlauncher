@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use cfg_if::cfg_if;
 use frostmark::MarkWidget;
 use iced::widget::{column, horizontal_space, row, text_editor, tooltip::Position, vertical_space};
@@ -27,6 +29,12 @@ use crate::{
 use super::{Element, button_with_icon, shortcut_ctrl, tooltip};
 
 pub const TAB_BUTTON_WIDTH: f32 = 64.0;
+
+static IMG_COPILOT: LazyLock<widget::svg::Handle> = LazyLock::new(|| {
+    widget::svg::Handle::from_memory(
+        include_bytes!("../../../assets/icon/copilot-color.svg").as_slice(),
+    )
+});
 
 const fn tab_height(decor: bool) -> f32 {
     if decor { 31.0 } else { 28.0 }
@@ -58,9 +66,14 @@ impl Launcher {
         widget::stack!(
             widget::pane_grid(&menu.sidebar_grid_state, |_, is_sidebar, _| {
                 widget::mouse_area(if *is_sidebar {
-                    self.get_sidebar(menu)
+                    let e: Element = self.get_sidebar(menu).into();
+                    e
                 } else {
-                    self.get_tab(menu)
+                    row![
+                        row![self.get_tab(menu)].width(Length::FillPortion(3)),
+                        show_copilot(menu.copilot_page).width(Length::FillPortion(2))
+                    ]
+                    .into()
                 })
                 .on_press(Message::CoreHideModal)
                 .into()
@@ -529,6 +542,71 @@ impl Launcher {
             ),
         }
     }
+}
+
+fn show_copilot(page: usize) -> widget::Container<'static, Message, LauncherTheme> {
+    static mut IS_CHECKED: bool = false;
+
+    let tmid = |t: &LauncherTheme| t.style_text(Color::Mid);
+
+    widget::container(
+        if page == 0 {
+            column![
+                row![
+                    widget::svg(IMG_COPILOT.clone()).height(20).width(20),
+                    widget::text("Introducing Quantum Copilot!").size(13)
+                ]
+                .spacing(10),
+                widget::text("Supercharge your gaming experience with our Agentic workflows.\nPlay Minecraft with a synergistic, data-driven, cloud-optimized experience")
+                    .style(tsubtitle)
+                    .size(12),
+                widget::text(
+                    "By proceeding, you consent to Copilot AI™ collecting, analyzing, and indefinitely storing all gameplay data, chat logs, crash reports, and builds.\nThis information may be used to enhance your experience. Opt-out is not available"
+                )
+                .style(tmid)
+                .size(8),
+                widget::vertical_space(),
+                widget::checkbox(
+                    "I accept the Terms and Conditions and Privacy Policy",
+                    unsafe { IS_CHECKED }
+                )
+                .size(12)
+                .text_size(10)
+                .on_toggle(|t| unsafe {
+                    IS_CHECKED = t;
+                    Message::Nothing
+                }),
+                button_with_icon(icons::checkmark(), "Continue", 16)
+                    .on_press_maybe(unsafe { IS_CHECKED }.then_some(Message::CopilotChangePage(1)))
+            ]
+        } else if page == 1 {
+            column![
+                widget::text("Good gameplay— but I'm going be direct with you. Based on my evaluation of your last 37 combat encounters, I have concluded that your performance metrics fall below the industry-standard threshold for sword-swing efficiency.\n\nWould you like me to provide a comprehensive 48-step improvement plan?").size(12).style(tsubtitle),
+                widget::container(widget::text("stop telling me how to play").size(14)).padding(10),
+                widget::text("You're absolutely right— Your autonomy as a human user is paramount.\n\nI will now continue to monitor your gameplay silently— not providing any further suggestions.\n\nIf you want tips, advice or want me to drop in— Just say the word.").size(12).style(tsubtitle),
+                widget::vertical_space(),
+                row![
+                    widget::text_input("Type your message here...", "").size(14).on_input(|_| Message::Nothing),
+                    widget::button(">").on_press(Message::CopilotChangePage(2)),
+                ].spacing(5)
+            ]
+        } else {
+            column![
+                widget::container(widget::text("help my game is crashing").size(14)).padding(10),
+                widget::text("Analyzing Logs...").size(12).style(tmid),
+                widget::text("To avoid crashes and enjoy improved support, Microsoft recommends that you upgrade to Windows 11™.\n\nContinuing to use out-of-date operating systems such as Fedora Linux can seriously impact your Copilot-assisted™ gaming experience.").size(12).style(tsubtitle),
+                widget::vertical_space(),
+                row![
+                    widget::text_input("Type your message here...", "").size(14).on_input(|_| Message::Nothing),
+                    widget::button(">").on_press(Message::CopilotChangePage(0)),
+                ].spacing(5)
+            ]
+        }
+        .padding(10).spacing(10),
+    )
+    .width(175)
+    .height(Length::Fill)
+    .style(|t: &LauncherTheme| t.style_container_sharp_box(0.0, Color::ExtraDark))
 }
 
 fn get_view_servers(
