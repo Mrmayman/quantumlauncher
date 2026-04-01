@@ -107,7 +107,7 @@ async fn import_qmp(
 ) -> Result<Option<(InstanceSelection, CurseforgeNotAllowed)>, InstancePackageError> {
     let zip_bytes = tokio::fs::read(zip_path).await.path(zip_path)?;
 
-    let peek_info = ql_mod_manager::Preset::load(
+    let peek_info = ql_mod_manager::presets::load(
         InstanceSelection::Instance(qmp_instance_selection(zip_path)),
         &zip_bytes,
         false, // Just peek, don't install
@@ -136,7 +136,7 @@ async fn import_qmp(
     .map_err(InstancePackageError::Loader)?;
 
     // Import the preset
-    let out = ql_mod_manager::Preset::load(
+    let out = ql_mod_manager::presets::load(
         instance.clone(),
         &zip_bytes,
         true, // Actually install this time

@@ -479,7 +479,7 @@ impl Launcher {
                 return Task::none();
             }
         };
-        match tokio::runtime::Handle::current().block_on(ql_mod_manager::Preset::load(
+        match tokio::runtime::Handle::current().block_on(ql_mod_manager::presets::load(
             self.selected_instance.clone().unwrap(),
             &file,
             true,

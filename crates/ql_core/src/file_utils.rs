@@ -429,7 +429,7 @@ pub async fn read_filenames_from_dir<P: AsRef<Path>>(dir: P) -> Result<Vec<DirIt
     Ok(filenames)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct DirItem {
     pub name: String,
     pub is_file: bool,

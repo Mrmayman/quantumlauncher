@@ -15,7 +15,7 @@ mod modrinth;
 
 pub use error::PackError;
 
-use crate::{Preset, store::download_mods_bulk};
+use crate::{presets, store::download_mods_bulk};
 
 use super::CurseforgeNotAllowed;
 
@@ -61,7 +61,7 @@ pub async fn install(
 
             // Recursion: Won't happen as this function is only called by [`Preset::load`]
             // if there's no `index.json`
-            let out = Box::pin(Preset::load(instance.clone(), file, true)).await?;
+            let out = Box::pin(presets::load(instance.clone(), file, true)).await?;
 
             return Box::pin(download_mods_bulk(out.to_install, instance, sender))
                 .await

@@ -61,7 +61,7 @@ pub async fn add_files(
             }
             "qmp" => {
                 let file = tokio::fs::read(&path).await.path(&path)?;
-                let out = presets::Preset::load(instance.clone(), &file, true).await?;
+                let out = presets::load(instance.clone(), &file, true).await?;
                 if !out.to_install.is_empty() {
                     let not_allowed_new =
                         download_mods_bulk(out.to_install, instance.clone(), progress.as_ref())
