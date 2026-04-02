@@ -376,7 +376,7 @@ pub async fn copy_dir_recursive_ext(
         tokio::fs::copy(src, dst).await.path(src)?;
         return Ok(());
     }
-    if !dst.exists() {
+    if !exists(dst).await {
         tokio::fs::create_dir_all(dst).await.path(dst)?;
     }
 
@@ -406,7 +406,7 @@ pub async fn copy_dir_recursive_ext(
 /// that has broken encoding (not UTF-8 or ASCII).
 pub async fn read_filenames_from_dir<P: AsRef<Path>>(dir: P) -> Result<Vec<DirItem>, IoError> {
     let dir: &Path = dir.as_ref();
-    if !dir.exists() {
+    if !exists(dir).await {
         tokio::fs::create_dir_all(dir).await.path(dir)?;
         return Ok(Vec::new());
     }

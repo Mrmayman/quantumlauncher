@@ -12,13 +12,16 @@ use super::{get_mc_id, send_request};
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct Categories {
-    pub data: Vec<Category>,
+    pub data: Vec<CfCategory>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
-pub struct Category {
+#[serde(rename_all = "camelCase")]
+pub struct CfCategory {
     pub id: i32,
+    pub name: String,
     pub slug: String,
+    pub parent_category_id: Option<i32>,
 }
 
 pub static CATEGORIES: LazyLock<Mutex<Option<Categories>>> = LazyLock::new(|| Mutex::new(None));

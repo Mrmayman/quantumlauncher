@@ -5,12 +5,12 @@ use std::{
 
 use owo_colors::OwoColorize;
 use ql_core::{
-    InstanceSelection, IntoIoError, IntoJsonError, Loader, ModId, info, json::VersionDetails, pt,
+    InstanceSelection, IntoIoError, IntoJsonError, Loader, info, json::VersionDetails, pt,
 };
 
 use crate::{
     presets::{PresetJson, get_instance_type},
-    store::ModError,
+    store::{ModError, ModId},
 };
 
 #[must_use]
@@ -118,7 +118,7 @@ pub async fn load(
     let to_install = index
         .entries_downloaded
         .into_iter()
-        .filter_map(|(k, n)| n.manually_installed.then_some(ModId::from_index_str(&k)))
+        .filter_map(|(k, n)| n.manually_installed.then_some(k))
         .collect();
 
     Ok(PresetOutput {

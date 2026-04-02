@@ -370,7 +370,8 @@ impl Launcher {
             )
             | State::InstallPaper(
                 MenuInstallPaper::Loading { .. } | MenuInstallPaper::Loaded { .. },
-            ) => {
+            )
+            | State::ModDescription(_) => {
                 ret_to_mods = true;
             }
             State::ModsDownload(menu) if menu.opened_mod.is_some() => {

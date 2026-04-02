@@ -5,7 +5,9 @@ use crate::{
 };
 use ql_core::{
     CLASSPATH_SEPARATOR, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError,
-    JsonFileError, LAUNCHER_DIR, Loader, err, file_utils, info,
+    JsonFileError, LAUNCHER_DIR, Loader, err,
+    file_utils::{self, exists},
+    info,
     json::{
         FabricJSON, GlobalSettings, InstanceConfigJson, JsonOptifine, V_1_5_2, V_1_12_2,
         V_PAULSCODE_LAST, V_PRECLASSIC_LAST, VersionDetails, forge, version::Library,
@@ -201,7 +203,7 @@ impl GameLauncher {
         let old_assets_path_v1 = self.instance_dir.join("assets");
         let assets_path = launcher_dir.join("assets/dir");
 
-        if old_assets_path_v2.exists() {
+        if exists(&old_assets_path_v2).await {
             info!("Migrating old assets to new path...");
             file_utils::copy_dir_recursive(&old_assets_path_v2, &assets_path).await?;
             tokio::fs::remove_dir_all(&old_assets_path_v2)
@@ -209,11 +211,11 @@ impl GameLauncher {
                 .path(old_assets_path_v2)?;
         }
 
-        if old_assets_path_v1.exists() {
+        if exists(&old_assets_path_v1).await {
             migrate_to_new_assets_path(&old_assets_path_v1, &assets_path).await?;
         }
 
-        let assets_path_fixed = if assets_path.exists() {
+        let assets_path_fixed = if exists(&assets_path).await {
             assets_path
         } else {
             launcher_dir.join("assets/null")
@@ -716,7 +718,7 @@ impl GameLauncher {
             .join("libraries")
             .join(artifact.get_path());
 
-        if !library_path.exists() {
+        if !exists(&library_path).await {
             pt!("library {library_path:?} not found! Downloading...");
             if let Err(err) = downloader.download_library(library, Some(&artifact)).await {
                 err!("Couldn't download library! Skipping...\n{err}");
@@ -790,7 +792,7 @@ impl GameLauncher {
     pub async fn cleanup_junk_files(&self) -> Result<(), GameLaunchError> {
         let forge_dir = self.instance_dir.join("forge");
 
-        if forge_dir.exists() {
+        if exists(&forge_dir).await {
             delete_junk_file(&forge_dir, "ClientInstaller.class").await?;
             delete_junk_file(&forge_dir, "ClientInstaller.java").await?;
             delete_junk_file(&forge_dir, "ForgeInstaller.class").await?;
@@ -893,7 +895,7 @@ async fn get_instance_dir(instance_name: &str) -> Result<PathBuf, GameLaunchErro
         .path(&instances_folder_dir)?;
 
     let instance_dir = instances_folder_dir.join(instance_name);
-    if !instance_dir.exists() {
+    if !exists(&instance_dir).await {
         return Err(GameLaunchError::InstanceNotFound(instance_name.to_owned()));
     }
     Ok(instance_dir)
@@ -901,7 +903,7 @@ async fn get_instance_dir(instance_name: &str) -> Result<PathBuf, GameLaunchErro
 
 async fn delete_junk_file(forge_dir: &Path, path: &str) -> Result<(), GameLaunchError> {
     let path = forge_dir.join(path);
-    if path.exists() {
+    if exists(&path).await {
         tokio::fs::remove_file(&path).await.path(path)?;
     }
     Ok(())

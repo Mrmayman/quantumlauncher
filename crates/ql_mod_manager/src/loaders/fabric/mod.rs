@@ -5,7 +5,9 @@ use std::{
 
 use ql_core::{
     GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, LAUNCHER_DIR, Loader, do_jobs,
-    download, info,
+    download,
+    file_utils::exists,
+    info,
     json::{FabricJSON, V_1_12_2, VersionDetails, instance_config::ModTypeInfo},
     pt,
 };
@@ -264,7 +266,7 @@ async fn get_fabric_json(
 async fn migrate_index_file(instance_dir: &Path) -> Result<(), FabricInstallError> {
     let old_index_dir = instance_dir.join(".minecraft/mods/index.json");
     let new_index_dir = instance_dir.join(".minecraft/mod_index.json");
-    if old_index_dir.exists() {
+    if exists(&old_index_dir).await {
         let index = tokio::fs::read_to_string(&old_index_dir)
             .await
             .path(&old_index_dir)?;

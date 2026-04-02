@@ -1,6 +1,6 @@
 use iced::{Task, futures::executor::block_on};
-use ql_core::{InstanceSelection, IntoStringError, JsonFileError, ModId, json::InstanceConfigJson};
-use ql_mod_manager::store::{RECOMMENDED_MODS, RecommendedMod};
+use ql_core::{InstanceSelection, IntoStringError, JsonFileError, json::InstanceConfigJson};
+use ql_mod_manager::store::{ModId, RECOMMENDED_MODS, RecommendedMod};
 
 use crate::state::{
     Launcher, MenuRecommendedMods, Message, ProgressBar, RecommendedModMessage, State,

@@ -8,7 +8,7 @@ use crate::json_profiles::ProfileJson;
 use ql_core::{
     DownloadFileError, DownloadProgress, IntoIoError, IntoJsonError, IoError, JsonError, ListEntry,
     RequestError, do_jobs, download,
-    file_utils::{self, LAUNCHER_DIR},
+    file_utils::{self, LAUNCHER_DIR, exists},
     impl_3_errs_jri, info,
     json::{
         AssetIndex, InstanceConfigJson, Manifest, VersionDetails, instance_config::VersionInfo,
@@ -354,7 +354,7 @@ impl GameDownloader {
             .path(&instances_dir)?;
 
         let current_instance_dir = instances_dir.join(instance_name);
-        if current_instance_dir.exists() {
+        if exists(&current_instance_dir).await {
             return Ok(None);
         }
         tokio::fs::create_dir_all(&current_instance_dir)

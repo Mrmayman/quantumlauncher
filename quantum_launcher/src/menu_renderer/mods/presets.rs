@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use iced::{Length, widget};
-use ql_core::SelectedMod;
+use ql_mod_manager::store::SelectedMod;
 
 use crate::{
     icons,

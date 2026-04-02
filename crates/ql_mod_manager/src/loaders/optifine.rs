@@ -8,7 +8,8 @@ use std::{
 
 use ql_core::{
     CLASSPATH_SEPARATOR, GenericProgress, InstanceSelection, IntoIoError, IoError, JsonError,
-    LAUNCHER_DIR, Loader, OptifineUniqueVersion, Progress, RequestError, download, file_utils,
+    LAUNCHER_DIR, Loader, OptifineUniqueVersion, Progress, RequestError, download,
+    file_utils::{self, exists},
     impl_3_errs_jri, info, jarmod,
     json::{
         InstanceConfigJson, VersionDetails, instance_config::ModTypeInfo, optifine::JsonOptifine,
@@ -91,7 +92,10 @@ pub async fn install(
     java_progress_sender: Option<Sender<GenericProgress>>,
     optifine_unique_version: Option<OptifineUniqueVersion>,
 ) -> Result<(), OptifineError> {
-    if !path_to_installer.exists() || !path_to_installer.is_file() {
+    if !tokio::fs::metadata(&path_to_installer)
+        .await
+        .is_ok_and(|n| n.is_file())
+    {
         return Err(OptifineError::InstallerDoesNotExist);
     }
 
@@ -278,7 +282,7 @@ async fn download_libraries(
             });
         }
 
-        if jar_path.exists() {
+        if exists(&jar_path).await {
             continue;
         }
         download(&url).path(&jar_path).await?;

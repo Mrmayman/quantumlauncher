@@ -3,7 +3,7 @@ use std::path::Path;
 use frostmark::MarkState;
 use iced::{Task, futures::executor::block_on, widget::text_editor};
 use ql_core::{IntoStringError, Loader, OptifineUniqueVersion, err};
-use ql_mod_manager::loaders;
+use ql_mod_manager::{loaders, store};
 
 mod accounts;
 mod create_instance;
@@ -15,7 +15,10 @@ mod presets;
 mod recommended;
 
 use crate::config::UiWindowDecorations;
-use crate::state::{GameLogMessage, InstanceNotes, MenuLaunch, NotesMessage};
+use crate::state::{
+    GameLogMessage, InstanceNotes, MenuLaunch, MenuModDescription, ModDescriptionMessage,
+    NotesMessage,
+};
 use crate::{
     config::UiSettings,
     state::{
@@ -437,7 +440,9 @@ impl Launcher {
                         |n| Message::InstallPaper(InstallPaperMessage::VersionsLoaded(n.strerr())),
                     )
                     .abortable();
-                    self.state = State::InstallPaper(MenuInstallPaper::Loading { _handle: handle });
+                    self.state = State::InstallPaper(MenuInstallPaper::Loading {
+                        _handle: handle.abort_on_drop(),
+                    });
                     return task;
                 }
             }
@@ -613,6 +618,51 @@ impl Launcher {
                     };
                 }
             },
+        }
+        Task::none()
+    }
+
+    pub fn update_mod_description(&mut self, msg: ModDescriptionMessage) -> Task<Message> {
+        match msg {
+            ModDescriptionMessage::Open(mod_id) => {
+                // Load metadata/details
+                let id = mod_id.clone();
+                let (load_details, h1) =
+                    Task::perform(async move { store::get_info(&id).await }, |res| {
+                        ModDescriptionMessage::LoadedDetails(res.strerr()).into()
+                    })
+                    .abortable();
+
+                // Load long description (HTML/Markdown)
+                let id = mod_id.clone();
+                let (load_description, h2) =
+                    Task::perform(async move { store::get_description(id).await }, |res| {
+                        ModDescriptionMessage::LoadedDescription(res.map(|n| n.1).strerr()).into()
+                    })
+                    .abortable();
+
+                self.state = State::ModDescription(MenuModDescription {
+                    description: Ok(None),
+                    details: None,
+                    mod_id,
+                    _handle: [h1.abort_on_drop(), h2.abort_on_drop()],
+                });
+
+                return Task::batch([load_details, load_description]);
+            }
+            ModDescriptionMessage::LoadedDetails(details) => match details {
+                Ok(details) => {
+                    if let State::ModDescription(menu) = &mut self.state {
+                        menu.details = Some(details);
+                    }
+                }
+                Err(err) => self.set_error(err),
+            },
+            ModDescriptionMessage::LoadedDescription(desc) => {
+                if let State::ModDescription(menu) = &mut self.state {
+                    menu.description = desc.map(|n| Some(MarkState::with_html_and_markdown(&n)));
+                }
+            }
         }
         Task::none()
     }

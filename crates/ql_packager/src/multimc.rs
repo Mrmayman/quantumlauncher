@@ -8,7 +8,9 @@ use std::{
 use crate::{InstancePackageError, import::OUT_OF, import::pipe_progress};
 use ql_core::{
     GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, LAUNCHER_DIR, ListEntry,
-    Loader, do_jobs, download, err, file_utils, info,
+    Loader, do_jobs, download, err,
+    file_utils::{self, exists},
+    info,
     jarmod::{JarMod, JarMods},
     json::{
         FabricJSON, InstanceConfigJson, Manifest, V_1_12_2, V_OFFICIAL_FABRIC_SUPPORT,
@@ -126,11 +128,7 @@ pub async fn import(
 }
 
 async fn setup_details(instance: &InstanceSelection) -> Result<(), InstancePackageError> {
-    if instance
-        .get_instance_path()
-        .join("patches/org.lwjgl.json")
-        .exists()
-    {
+    if exists(&instance.get_instance_path().join("patches/org.lwjgl.json")).await {
         let mut details = VersionDetails::load(instance).await?;
         details.libraries.retain(|lib| {
             if let Some(name) = &lib.name {

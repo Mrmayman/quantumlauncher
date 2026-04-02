@@ -1,7 +1,9 @@
 use chrono::DateTime;
 use ql_core::{
     CLASSPATH_SEPARATOR, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError,
-    Loader, REGEX_SNAPSHOT, download, file_utils, info,
+    Loader, REGEX_SNAPSHOT, download,
+    file_utils::{self, exists},
+    info,
     json::{VersionDetails, instance_config::ModTypeInfo},
     no_window, pt,
 };
@@ -141,7 +143,7 @@ async fn download_libraries(
         classpath.push(CLASSPATH_SEPARATOR);
 
         let file_path = libraries_path.join(&path);
-        if file_path.exists() {
+        if exists(&file_path).await {
             continue;
         }
 
@@ -277,7 +279,7 @@ async fn delete(dir: &Path, path: &str) -> Result<(), IoError> {
     if delete_path == dir || path.trim().is_empty() {
         return Ok(());
     }
-    if delete_path.exists() {
+    if exists(&delete_path).await {
         fs::remove_file(&delete_path).await.path(delete_path)?;
     }
     Ok(())

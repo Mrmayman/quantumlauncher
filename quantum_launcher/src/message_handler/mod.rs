@@ -14,6 +14,7 @@ use crate::{
 use iced::Task;
 use iced::futures::executor::block_on;
 use iced::widget::scrollable::AbsoluteOffset;
+use ql_core::file_utils::exists;
 use ql_core::json::VersionDetails;
 use ql_core::json::instance_config::ModTypeInfo;
 use ql_core::read_log::{Diagnostic, ReadError};
@@ -704,10 +705,10 @@ async fn copy_optifine_over(instance: &InstanceSelection) -> Result<(), String> 
     let installer_path = instance_dir.join("optifine/OptiFine.jar");
     let mods_dir = instance_dir.join(".minecraft/mods");
 
-    if !installer_path.exists() {
+    if !exists(&installer_path).await {
         return Ok(());
     }
-    if !mods_dir.exists() {
+    if !exists(&mods_dir).await {
         tokio::fs::create_dir_all(&mods_dir)
             .await
             .path(&mods_dir)

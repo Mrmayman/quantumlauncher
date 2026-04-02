@@ -1,9 +1,8 @@
 use iced::{Task, widget};
 use iced::{futures::executor::block_on, keyboard::Modifiers};
-use ql_core::{
-    InstanceSelection, IntoIoError, IntoStringError, ModId, SelectedMod, err, jarmod::JarMods,
-};
-use ql_mod_manager::store::ModIndex;
+use ql_core::file_utils::exists;
+use ql_core::{InstanceSelection, IntoIoError, IntoStringError, err, jarmod::JarMods};
+use ql_mod_manager::store::{ModId, ModIndex, SelectedMod};
 use std::{collections::HashSet, path::PathBuf};
 
 use crate::state::{
@@ -31,7 +30,7 @@ impl Launcher {
                 )
                 .abortable();
                 if let State::EditMods(menu) = &mut self.state {
-                    menu.update_check_handle = Some(handle);
+                    menu.update_check_handle = Some(handle.abort_on_drop());
                     menu.modal = None;
                 }
                 return task;
@@ -165,11 +164,7 @@ impl Launcher {
                             menu.available_updates = updates
                                 .into_iter()
                                 .map(|(id, title)| {
-                                    let enabled = menu
-                                        .mods
-                                        .mods
-                                        .get(&id.get_index_str())
-                                        .is_none_or(|n| n.enabled);
+                                    let enabled = menu.mods.mods.get(&id).is_none_or(|n| n.enabled);
                                     (id, title, enabled)
                                 })
                                 .collect();
@@ -207,7 +202,7 @@ impl Launcher {
                                         .manually_installed
                                         .then_some(SelectedMod::Downloaded {
                                             name: mod_info.name.clone(),
-                                            id: ModId::from_index_str(id),
+                                            id: id.clone(),
                                         })
                                 })
                                 .chain(menu.locally_installed_mods.iter().map(|n| {
@@ -236,7 +231,7 @@ impl Launcher {
                                         .manually_installed
                                         .then_some(SelectedMod::Downloaded {
                                             name: mod_info.name.clone(),
-                                            id: ModId::from_index_str(id),
+                                            id: id.clone(),
                                         })
                                 })
                                 .chain(menu.locally_installed_mods.iter().map(|n| {
@@ -288,7 +283,6 @@ impl Launcher {
             }
             ManageModsMessage::ToggleOne(id) => {
                 let instance_name = self.selected_instance.clone().unwrap();
-                let id = id.get_index_str();
                 if let State::EditMods(menu) = &mut self.state {
                     if let Some(m) = menu.mods.mods.get_mut(&id) {
                         m.enabled = !m.enabled;
@@ -314,8 +308,6 @@ impl Launcher {
         for m in &ids_downloaded {
             if let Some(m) = menu.mods.mods.get_mut(m) {
                 m.enabled = !m.enabled;
-            } else {
-                println!("not found {m}");
             }
         }
 
@@ -720,7 +712,7 @@ impl Launcher {
 }
 
 async fn delete_file_wrapper(path: PathBuf) -> Result<(), String> {
-    if !path.exists() {
+    if !exists(&path).await {
         return Ok(());
     }
     tokio::fs::remove_file(&path).await.path(path).strerr()

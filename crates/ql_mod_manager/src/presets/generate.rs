@@ -5,14 +5,14 @@ use std::{
 };
 
 use ql_core::{
-    InstanceSelection, IntoIoError, IntoJsonError, LAUNCHER_VERSION_NAME, ModId, SelectedMod, err,
-    file_utils::DirItem, info, json::VersionDetails,
+    InstanceSelection, IntoIoError, IntoJsonError, LAUNCHER_VERSION_NAME, err, file_utils::DirItem,
+    info, json::VersionDetails,
 };
 use zip::ZipWriter;
 
 use crate::{
     presets::{PresetJson, get_instance_type},
-    store::{ModConfig, ModError, ModIndex},
+    store::{ModConfig, ModError, ModId, ModIndex, SelectedMod},
 };
 
 /// Generates a `.qmp` preset from instance mods.
@@ -100,20 +100,19 @@ async fn get_minecraft_version(instance_name: &InstanceSelection) -> Result<Stri
 }
 
 fn add_downloaded_mod_to_entries(
-    entries_modrinth: &mut HashMap<String, ModConfig>,
+    entries_modrinth: &mut HashMap<ModId, ModConfig>,
     index: &ModIndex,
     id: &ModId,
 ) {
-    let id_str = id.get_index_str();
-    let Some(config) = index.mods.get(&id_str) else {
-        err!("Could not find id {id:?} ({id_str}) in index!");
+    let Some(config) = index.mods.get(id) else {
+        err!("Could not find id {id:?} in index!");
         return;
     };
 
-    entries_modrinth.insert(id_str, config.clone());
+    entries_modrinth.insert(id.clone(), config.clone());
 
     for dep in &config.dependencies {
-        add_downloaded_mod_to_entries(entries_modrinth, index, &ModId::from_index_str(dep));
+        add_downloaded_mod_to_entries(entries_modrinth, index, &dep);
     }
 }
 

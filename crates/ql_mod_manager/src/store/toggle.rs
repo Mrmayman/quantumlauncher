@@ -2,7 +2,7 @@ use std::path::Path;
 
 use ql_core::{InstanceSelection, IoError, err};
 
-use crate::store::ModIndex;
+use crate::store::{ModId, ModIndex};
 
 use super::ModError;
 
@@ -28,12 +28,12 @@ pub async fn toggle_mods_local(
     Ok(())
 }
 
-pub async fn toggle_mods(id: Vec<String>, instance: InstanceSelection) -> Result<(), ModError> {
+pub async fn toggle_mods(ids: Vec<ModId>, instance: InstanceSelection) -> Result<(), ModError> {
     let mut index = ModIndex::load(&instance).await?;
 
     let mods_dir = instance.get_dot_minecraft_path().join("mods");
 
-    for id in id {
+    for id in ids {
         if let Some(info) = index.mods.get_mut(&id) {
             for file in &info.files {
                 let enabled_path = mods_dir.join(&file.filename);

@@ -2,7 +2,9 @@ use error::Is404NotFound;
 use owo_colors::OwoColorize;
 use ql_core::{
     CLASSPATH_SEPARATOR, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError,
-    Loader, Progress, do_jobs, download, err, file_utils, info,
+    Loader, Progress, do_jobs, download, err,
+    file_utils::{self, exists},
+    info,
     json::{
         VersionDetails,
         forge::{JsonDetails, JsonDetailsLibrary, JsonInstallProfile, JsonVersions},
@@ -48,7 +50,7 @@ struct ForgeInstaller {
 impl ForgeInstaller {
     pub async fn delete(&self, path: &str) -> Result<(), IoError> {
         let delete_path = self.forge_dir.join(path);
-        if delete_path.exists() {
+        if exists(&delete_path).await {
             fs::remove_file(&delete_path).await.path(delete_path)?;
         }
         Ok(())
@@ -353,7 +355,7 @@ impl ForgeInstaller {
             .path(&lib_dir_path)?;
 
         let dest = lib_dir_path.join(&file);
-        if !dest.exists() {
+        if !exists(&dest).await {
             let result = download(&url).path(&dest).await;
             if result.is_not_found() {
                 err!("Error 404 not found. Skipping...");

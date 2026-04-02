@@ -66,7 +66,7 @@ pub async fn install(
             return Box::pin(download_mods_bulk(out.to_install, instance, sender))
                 .await
                 .map(|n| (true, n))
-                .map_err(|n| n.into());
+                .map_err(PackError::Mod);
         }
         return Err(PackError::NoBackendFound);
     }

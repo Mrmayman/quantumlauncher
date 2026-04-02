@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::path::Path;
 
+use ql_core::file_utils::exists;
 use ql_core::{
     IntoIoError, IntoJsonError, IoError, JsonError, LAUNCHER_DIR, Loader, RequestError, file_utils,
     info,
@@ -16,7 +17,7 @@ use crate::loaders::change_instance_type;
 /// Moves a directory from `old_path` to `new_path`.
 /// If `new_path` exists, it will be deleted before the move.
 async fn move_dir(old_path: &Path, new_path: &Path) -> Result<(), IoError> {
-    if new_path.exists() {
+    if exists(&new_path).await {
         tokio::fs::remove_dir_all(new_path).await.path(new_path)?;
     }
     file_utils::copy_dir_recursive(old_path, new_path).await?;

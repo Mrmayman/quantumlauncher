@@ -1,25 +1,23 @@
-use iced::widget::tooltip::Position;
-use iced::{Alignment, Length, widget};
-use ql_core::{InstanceSelection, Loader, SelectedMod};
-
-use crate::menu_renderer::{
-    CTXI_SIZE, FONT_MONO, ctx_button, ctxbox, dots, offset, select_box, subbutton_with_icon,
-    tsubtitle,
-};
-use crate::message_handler::ForgeKind;
-use crate::state::{ImageState, InstallPaperMessage, MenuEditModsModal};
-use crate::stylesheet::widgets::StyleButton;
 use crate::{
     icons,
-    menu_renderer::{Element, back_button, back_to_launch_screen, button_with_icon, tooltip},
+    menu_renderer::{
+        CTXI_SIZE, Element, FONT_MONO, back_button, back_to_launch_screen, barthin,
+        button_with_icon, ctx_button, ctxbox, dots, offset, select_box, subbutton_with_icon,
+        tooltip, tsubtitle,
+    },
+    message_handler::ForgeKind,
     state::{
-        EditPresetsMessage, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage,
-        ManageJarModsMessage, ManageModsMessage, MenuEditMods, Message, ModListEntry,
+        EditPresetsMessage, ImageState, InstallFabricMessage, InstallModsMessage,
+        InstallOptifineMessage, InstallPaperMessage, ManageJarModsMessage, ManageModsMessage,
+        MenuEditMods, MenuEditModsModal, Message, ModDescriptionMessage, ModListEntry,
         SelectedState,
     },
-    stylesheet::{color::Color, styles::LauncherTheme},
+    stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
-use ql_core::json::InstanceConfigJson;
+use iced::widget::tooltip::Position;
+use iced::{Alignment, Length, widget};
+use ql_core::{InstanceSelection, Loader, json::InstanceConfigJson};
+use ql_mod_manager::store::SelectedMod;
 
 pub const MODS_SIDEBAR_WIDTH: u16 = 190;
 
@@ -59,8 +57,7 @@ impl MenuEditMods {
                     .on_press(ManageModsMessage::ExportMenuOpen.into()),
                 ctx_button(icons::file_zip_s(CTXI_SIZE), "Export QMP Preset")
                     .on_press(EditPresetsMessage::Open.into()),
-                widget::horizontal_rule(1)
-                    .style(|t: &LauncherTheme| t.style_rule(Color::SecondDark, 1)),
+                widget::horizontal_rule(1).style(barthin),
                 ctx_button(icons::download_s(CTXI_SIZE), "See recommended mods").on_press(
                     Message::RecommendedMods(crate::state::RecommendedModMessage::Open)
                 ),
@@ -83,17 +80,7 @@ impl MenuEditMods {
                             ctx_button(icons::bin_s(CTXI_SIZE), "Delete")
                                 .on_press(ManageModsMessage::DeleteSelected.into()),
                             ctx_button(icons::file_info_s(CTXI_SIZE), "Mod Details")
-                                .on_press_maybe(self.mods.mods.get(&id.get_index_str()).map(
-                                    |info| {
-                                        Message::Multiple(vec![
-                                            InstallModsMessage::Open.into(),
-                                            InstallModsMessage::ChangeBackend(id.get_backend())
-                                                .into(),
-                                            InstallModsMessage::SearchInput(info.name.clone())
-                                                .into(),
-                                        ])
-                                    }
-                                )),
+                                .on_press_with(|| ModDescriptionMessage::Open(id.clone()).into()),
                         ]
                         .spacing(4)
                     )
@@ -170,7 +157,7 @@ impl MenuEditMods {
                             let title = self
                                 .mods
                                 .mods
-                                .get(&id.get_index_str())
+                                .get(id)
                                 .map(|n| n.name.clone())
                                 .unwrap_or_default();
 

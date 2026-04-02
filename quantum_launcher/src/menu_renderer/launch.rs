@@ -386,6 +386,7 @@ impl Launcher {
             widget::horizontal_rule(1).style(|t: &LauncherTheme| t.style_rule(Color::Dark, 1)),
             self.get_accounts_bar(menu),
         ]
+        .padding(iced::Padding::default().right(3.0))
         .spacing(5)
         .width(Length::Fill);
 

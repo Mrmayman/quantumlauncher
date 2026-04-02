@@ -1,5 +1,5 @@
 use iced::{Length, widget};
-use ql_core::{ModId, SelectedMod};
+use ql_mod_manager::store::{ModId, SelectedMod};
 
 use crate::{
     icons,

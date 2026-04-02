@@ -148,7 +148,7 @@ pub async fn get_java_binary(
     let java_dir = LAUNCHER_DIR.join("java_installs").join(version.to_string());
     let is_incomplete_install = exists(java_dir.join("install.lock")).await;
 
-    if !java_dir.exists() || is_incomplete_install {
+    if !exists(&java_dir).await || is_incomplete_install {
         info!("Installing Java: {version}");
         install_java(version, java_install_progress_sender).await?;
     }
@@ -426,7 +426,7 @@ at: {path:?}
 pub async fn delete_java_installs() {
     info!("Clearing Java installs");
     let java_installs = LAUNCHER_DIR.join("java_installs");
-    if !java_installs.exists() {
+    if !exists(&java_installs).await {
         return;
     }
     if let Err(err) = tokio::fs::remove_dir_all(&java_installs).await {

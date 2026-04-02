@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use ql_core::{
-    InstanceSelection, IntoIoError, IntoJsonError, IoError, LAUNCHER_DIR, Loader, err, info,
-    json::FabricJSON,
+    InstanceSelection, IntoIoError, IntoJsonError, IoError, LAUNCHER_DIR, Loader, err,
+    file_utils::exists, info, json::FabricJSON,
 };
 
 use crate::loaders::change_instance_type;
@@ -11,7 +11,7 @@ use super::error::FabricInstallError;
 
 async fn delete(server_dir: &Path, name: &str) -> Result<(), IoError> {
     let path = server_dir.join(name);
-    if path.exists() {
+    if exists(&path).await {
         tokio::fs::remove_file(&path).await.path(&path)?;
     }
 
@@ -27,7 +27,7 @@ async fn uninstall_server(server_name: String) -> Result<(), FabricInstallError>
     delete(&server_dir, "fabric-server-launcher.properties").await?;
 
     let json_path = server_dir.join("fabric.json");
-    if json_path.exists() {
+    if exists(&json_path).await {
         let json = tokio::fs::read_to_string(&json_path)
             .await
             .path(&json_path)?;
@@ -39,7 +39,7 @@ async fn uninstall_server(server_name: String) -> Result<(), FabricInstallError>
         if libraries_dir.is_dir() {
             for library in &json.libraries {
                 let library_path = libraries_dir.join(library.get_path());
-                if library_path.exists() {
+                if exists(&library_path).await {
                     tokio::fs::remove_file(&library_path)
                         .await
                         .path(&library_path)?;
@@ -60,7 +60,7 @@ async fn uninstall_client(instance_name: String) -> Result<(), FabricInstallErro
     let libraries_dir = instance_dir.join("libraries");
 
     let fabric_json_path = instance_dir.join("fabric.json");
-    if fabric_json_path.exists() {
+    if exists(&fabric_json_path).await {
         let fabric_json = tokio::fs::read_to_string(&fabric_json_path)
             .await
             .path(&fabric_json_path)?;
@@ -73,7 +73,7 @@ async fn uninstall_client(instance_name: String) -> Result<(), FabricInstallErro
 
             for library in &libraries {
                 let library_path = libraries_dir.join(library.get_path());
-                if library_path.exists() {
+                if exists(&library_path).await {
                     if let Err(err) = tokio::fs::remove_file(&library_path)
                         .await
                         .path(library_path)

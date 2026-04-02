@@ -2,16 +2,18 @@ use std::{sync::mpsc::Sender, time::Instant};
 
 use chrono::DateTime;
 use download::version_sort;
+use indexmap::IndexMap;
 use info::ProjectInfo;
-use ql_core::{GenericProgress, InstanceSelection, Loader, ModId, pt};
+use ql_core::{GenericProgress, InstanceSelection, Loader, download, pt};
+use serde::Deserialize;
 use versions::ModVersion;
 
 use crate::{
     rate_limiter::{RATE_LIMITER, lock},
-    store::{SearchMod, StoreBackendType},
+    store::{Category, ModId, SearchMod, StoreBackendType, types::GalleryItem},
 };
 
-use super::{Backend, CurseforgeNotAllowed, ModError, Query, QueryType, SearchResult};
+use super::{Backend, CurseforgeNotAllowed, ModError, Query, SearchResult};
 
 mod download;
 mod info;
@@ -21,15 +23,11 @@ mod versions;
 pub struct ModrinthBackend;
 
 impl Backend for ModrinthBackend {
-    async fn search(
-        query: Query,
-        offset: usize,
-        query_type: QueryType,
-    ) -> Result<SearchResult, ModError> {
+    async fn search(query: Query, offset: usize) -> Result<SearchResult, ModError> {
         RATE_LIMITER.lock().await;
         let instant = Instant::now();
 
-        let res = search::do_request(&query, offset, query_type).await?;
+        let res = search::do_request(&query, offset).await?;
         let reached_end = res.hits.len() < res.limit;
 
         let res = SearchResult {
@@ -45,6 +43,16 @@ impl Backend for ModrinthBackend {
                     id: entry.project_id,
                     icon_url: entry.icon_url,
                     backend: StoreBackendType::Modrinth,
+                    gallery: entry
+                        .gallery
+                        .into_iter()
+                        .map(|url| GalleryItem {
+                            url,
+                            title: None,
+                            description: None,
+                        })
+                        .collect(),
+                    urls: Vec::new(),
                 })
                 .collect(),
             start_time: instant,
@@ -157,7 +165,7 @@ impl Backend for ModrinthBackend {
             result?;
 
             if set_manually_installed {
-                if let Some(config) = downloader.index.mods.get_mut(id) {
+                if let Some(config) = downloader.index.mods.get_mut(&ModId::Modrinth(id.clone())) {
                     config.manually_installed = true;
                 }
             }
@@ -173,9 +181,63 @@ impl Backend for ModrinthBackend {
         Ok(CurseforgeNotAllowed::new())
     }
 
+    async fn get_categories(kind: super::QueryType) -> Result<Vec<Category>, ModError> {
+        #[derive(Deserialize, Clone)]
+        struct MCategory {
+            name: String,
+            project_type: String,
+            header: String,
+        }
+
+        static CACHE: tokio::sync::OnceCell<Vec<MCategory>> = tokio::sync::OnceCell::const_new();
+
+        let mcategories = CACHE
+            .get_or_try_init(|| async {
+                download("https://api.modrinth.com/v2/tag/category")
+                    .json()
+                    .await
+            })
+            .await?;
+        let kind_str = kind.to_modrinth_str();
+
+        let mut map: IndexMap<String, Vec<Category>> = IndexMap::new();
+        for cat in mcategories.iter().filter(|n| n.project_type == kind_str) {
+            let category = Category {
+                name: slug_to_nice_name(&cat.name),
+                slug: cat.name.clone(),
+                children: Vec::new(),
+                internal_id: None,
+                is_usable: true,
+            };
+            match map.get_mut(&cat.header) {
+                Some(n) => n.push(category),
+                None => {
+                    map.insert(cat.header.clone(), vec![category]);
+                }
+            }
+        }
+
+        Ok(if map.len() == 1 {
+            map.into_iter().next().expect("len should be equal to 1").1
+        } else {
+            map.into_iter()
+                .map(|(header, children)| Category {
+                    name: slug_to_nice_name(&header),
+                    slug: header,
+                    children,
+                    internal_id: None,
+                    is_usable: false,
+                })
+                .collect()
+        })
+    }
+
     async fn get_info(id: &str) -> Result<SearchMod, ModError> {
-        let info = ProjectInfo::download(id).await?;
+        let mut info = ProjectInfo::download(id).await?;
+        info.gallery.sort_by(|a, b| a.ordering.cmp(&b.ordering));
+
         Ok(SearchMod {
+            urls: info.build_urls(),
             title: info.title,
             description: info.description,
             downloads: info.downloads,
@@ -184,6 +246,7 @@ impl Backend for ModrinthBackend {
             id: info.id,
             icon_url: info.icon_url,
             backend: StoreBackendType::Modrinth,
+            gallery: info.gallery.into_iter().map(GalleryItem::from).collect(),
         })
     }
 
@@ -191,16 +254,34 @@ impl Backend for ModrinthBackend {
         let infos = ProjectInfo::download_bulk(ids).await?;
         Ok(infos
             .into_iter()
-            .map(|info| SearchMod {
-                title: info.title,
-                description: info.description,
-                downloads: info.downloads,
-                internal_name: info.slug,
-                project_type: info.project_type,
-                id: info.id,
-                icon_url: info.icon_url,
-                backend: StoreBackendType::Modrinth,
+            .map(|mut info| {
+                info.gallery.sort_by(|a, b| a.ordering.cmp(&b.ordering));
+                SearchMod {
+                    urls: info.build_urls(),
+                    title: info.title,
+                    description: info.description,
+                    downloads: info.downloads,
+                    internal_name: info.slug,
+                    project_type: info.project_type,
+                    id: info.id,
+                    icon_url: info.icon_url,
+                    backend: StoreBackendType::Modrinth,
+                    gallery: info.gallery.into_iter().map(GalleryItem::from).collect(),
+                }
             })
             .collect())
     }
+}
+
+pub fn slug_to_nice_name(slug: &str) -> String {
+    slug.split('-')
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }

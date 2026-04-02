@@ -16,7 +16,7 @@ pub async fn apply_updates(
         let mod_index = ModIndex::load(&selected_instance).await?;
         updates
             .iter()
-            .filter_map(|n| mod_index.mods.get_key_value(&n.get_index_str()))
+            .filter_map(|n| mod_index.mods.get_key_value(n))
             .filter(|n| !n.1.enabled)
             .map(|n| n.0.clone())
             .collect()
@@ -51,9 +51,7 @@ pub async fn check_for_updates(
         index
             .mods
             .into_iter()
-            .map(|(id, installed_mod)| async move {
-                let mod_id = ModId::from_index_str(&id);
-
+            .map(|(mod_id, installed_mod)| async move {
                 let (download_version_time, download_version) =
                     get_latest_version_date(loader, &mod_id, version).await?;
 

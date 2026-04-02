@@ -60,15 +60,11 @@ pub enum LogType {
 
 impl Display for LogType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                LogType::Info => "[info]",
-                LogType::Error => "[error]",
-                LogType::Point => "-",
-            }
-        )
+        f.write_str(match self {
+            LogType::Info => "[info]",
+            LogType::Error => "[error]",
+            LogType::Point => "-",
+        })
     }
 }
 

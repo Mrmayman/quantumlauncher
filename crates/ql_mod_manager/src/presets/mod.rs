@@ -25,7 +25,7 @@ use ql_core::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::store::{ModConfig, ModError};
+use crate::store::{ModConfig, ModError, ModId};
 
 mod generate;
 pub use generate::generate;
@@ -86,7 +86,7 @@ struct PresetJson {
     minecraft_version: String,
     instance_type: Loader,
     #[serde(rename = "entries_modrinth")]
-    entries_downloaded: HashMap<String, ModConfig>,
+    entries_downloaded: HashMap<ModId, ModConfig>,
     entries_local: Vec<String>,
 }
 

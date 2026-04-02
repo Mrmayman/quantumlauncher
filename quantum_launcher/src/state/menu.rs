@@ -18,16 +18,22 @@ use iced::{
     widget::{self, scrollable::AbsoluteOffset},
 };
 use ql_core::{
-    DownloadProgress, GenericProgress, InstanceSelection, IntoStringError, ListEntry, ModId,
-    OptifineUniqueVersion, SelectedMod, StoreBackendType,
+    DownloadProgress, GenericProgress, InstanceSelection, IntoStringError, ListEntry,
+    OptifineUniqueVersion,
     file_utils::DirItem,
     jarmod::JarMods,
     json::{InstanceConfigJson, VersionDetails, instance_config::MainClassMode},
 };
-use ql_mod_manager::loaders::paper::PaperVersion;
+use ql_mod_manager::{
+    loaders::paper::PaperVersion,
+    store::{Category, SearchMod},
+};
 use ql_mod_manager::{
     loaders::{self, forge::ForgeInstallProgress, optifine::OptifineInstallProgress},
-    store::{CurseforgeNotAllowed, ModConfig, ModIndex, QueryType, RecommendedMod, SearchResult},
+    store::{
+        CurseforgeNotAllowed, ModConfig, ModId, ModIndex, QueryType, RecommendedMod, SearchResult,
+        SelectedMod, StoreBackendType,
+    },
 };
 
 use crate::state::ImageState;
@@ -44,15 +50,11 @@ pub enum LaunchTab {
 
 impl std::fmt::Display for LaunchTab {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                LaunchTab::Buttons => "Play",
-                LaunchTab::Log => "Logs",
-                LaunchTab::Edit => "Edit",
-            }
-        )
+        f.write_str(match self {
+            LaunchTab::Buttons => "Play",
+            LaunchTab::Log => "Logs",
+            LaunchTab::Edit => "Edit",
+        })
     }
 }
 
@@ -304,13 +306,13 @@ impl MenuEditMods {
     /// - The filenames of local mods
     ///
     /// ...respectively, from the mods selected in the mod menu.
-    pub fn get_kinds_of_ids(&self) -> (Vec<String>, Vec<String>) {
+    pub fn get_kinds_of_ids(&self) -> (Vec<ModId>, Vec<String>) {
         let ids_downloaded = self
             .selected_mods
             .iter()
             .filter_map(|s_mod| {
                 if let SelectedMod::Downloaded { id, .. } = s_mod {
-                    Some(id.get_index_str())
+                    Some(id.clone())
                 } else {
                     None
                 }
@@ -443,6 +445,7 @@ pub struct MenuModsDownload {
     pub query: String,
     pub results: Option<SearchResult>,
     pub description: Option<MarkState>,
+    pub categories: ModCategoryState,
 
     pub mod_descriptions: HashMap<ModId, String>,
     pub mods_download_in_progress: HashMap<ModId, (String, ModOperation)>,
@@ -456,6 +459,7 @@ pub struct MenuModsDownload {
 
     pub backend: StoreBackendType,
     pub query_type: QueryType,
+    pub force_open_source: bool,
 
     /// This is for the loading of continuation of the search,
     /// i.e. when you scroll down and more stuff appears
@@ -490,6 +494,41 @@ impl MenuModsDownload {
     }
 }
 
+pub struct ModCategoryState {
+    pub categories: Result<Vec<Category>, String>,
+    pub selected: HashSet<String>,
+    /// Whether to search for mods containing *all*
+    /// the categories, instead of just any of them.
+    ///
+    /// Only works in modrinth, no effect on curseforge
+    pub use_all: bool,
+}
+
+impl Default for ModCategoryState {
+    fn default() -> Self {
+        Self {
+            categories: Ok(Vec::new()),
+            selected: HashSet::new(),
+            use_all: true,
+        }
+    }
+}
+
+impl ModCategoryState {
+    pub fn reset(&mut self) {
+        self.categories = Ok(Vec::new());
+        self.selected.clear();
+    }
+
+    pub fn toggle(&mut self, slug: &str) {
+        if self.selected.contains(slug) {
+            self.selected.remove(slug);
+        } else {
+            self.selected.insert(slug.to_string());
+        }
+    }
+}
+
 pub struct MenuLauncherSettings {
     pub temp_scale: f64,
     pub selected_tab: LauncherSettingsTab,
@@ -505,15 +544,11 @@ pub enum LauncherSettingsTab {
 
 impl std::fmt::Display for LauncherSettingsTab {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                LauncherSettingsTab::UserInterface => "Appearance",
-                LauncherSettingsTab::Internal => "Game",
-                LauncherSettingsTab::About => "About",
-            }
-        )
+        f.write_str(match self {
+            LauncherSettingsTab::UserInterface => "Appearance",
+            LauncherSettingsTab::Internal => "Game",
+            LauncherSettingsTab::About => "About",
+        })
     }
 }
 
@@ -606,6 +641,13 @@ pub struct MenuLoginMS {
     pub _cancel_handle: iced::task::Handle,
 }
 
+pub struct MenuModDescription {
+    pub description: Result<Option<MarkState>, String>,
+    pub details: Option<SearchMod>,
+    pub mod_id: ModId,
+    pub _handle: [iced::task::Handle; 2],
+}
+
 /// The enum that represents which menu is opened currently.
 pub enum State {
     /// Default home screen
@@ -654,6 +696,7 @@ pub enum State {
     InstallJava,
 
     ModsDownload(MenuModsDownload),
+    ModDescription(MenuModDescription),
     LauncherSettings(MenuLauncherSettings),
     ManagePresets(MenuEditPresets),
     RecommendedMods(MenuRecommendedMods),

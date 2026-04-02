@@ -1,15 +1,11 @@
 use std::collections::BTreeMap;
 
-use ql_core::{IntoJsonError, JsonDownloadError};
+use ql_core::IntoJsonError;
 use serde::Deserialize;
 
-use crate::store::{Query, QueryType};
+use crate::store::{ModError, Query, QueryType};
 
-pub async fn do_request(
-    query: &Query,
-    offset: usize,
-    query_type: QueryType,
-) -> Result<Search, JsonDownloadError> {
+pub async fn do_request(query: &Query, offset: usize) -> Result<Search, ModError> {
     const SEARCH_URL: &str = "https://api.modrinth.com/v2/search";
 
     let mut params = BTreeMap::from([
@@ -22,16 +18,32 @@ pub async fn do_request(
     }
 
     let mut filters = vec![
-        vec![format!("project_type:{}", query_type.to_modrinth_str())],
+        vec![format!("project_type:{}", query.kind.to_modrinth_str())],
         vec![format!("versions:{}", query.version)],
     ];
 
-    if let QueryType::Mods | QueryType::ModPacks = query_type {
+    if let QueryType::Mods | QueryType::ModPacks = query.kind {
         if !query.loader.is_vanilla() {
             filters.push(vec![format!(
                 "categories:'{}'",
                 query.loader.to_modrinth_str()
             )]);
+        }
+    }
+    if query.open_source {
+        filters.push(vec!["open_source:true".to_owned()]);
+    }
+    if !query.categories.is_empty() {
+        let iter = query
+            .categories
+            .iter()
+            .map(|c| format!("categories:{}", c.slug));
+        if query.categories_use_all {
+            // Each element has their own vec![]
+            filters.extend(iter.map(|n| vec![n]));
+        } else {
+            // All in single vec![] inside filters
+            filters.push(iter.collect());
         }
     }
 
@@ -46,7 +58,25 @@ pub async fn do_request(
         .text()
         .await?;
 
-    let json: Search = serde_json::from_str(&text).json(text)?;
+    let json: Search = match serde_json::from_str(&text) {
+        Ok(json) => json,
+        Err(e) => {
+            #[derive(Deserialize)]
+            struct Error {
+                error: String,
+                description: String,
+            }
+
+            if let Ok(error) = serde_json::from_str::<Error>(&text) {
+                return Err(ModError::ApiError {
+                    error_id: error.error,
+                    description: error.description,
+                });
+            }
+
+            return Err(e).json(text).map_err(ModError::Json);
+        }
+    };
 
     Ok(json)
 }
@@ -79,9 +109,10 @@ pub struct Entry {
     // pub license: String,
     // pub client_side: String,
     // pub server_side: String,
-    // pub gallery: Vec<String>,
     // pub featured_gallery: Option<String>,
     // pub color: Option<usize>,
     // pub thread_id: Option<String>,
     // pub monetization_status: Option<String>,
+    #[serde(default)]
+    pub gallery: Vec<String>, // URLs
 }

@@ -1,5 +1,6 @@
 use iced::Task;
-use ql_core::{IntoIoError, IntoStringError, SelectedMod};
+use ql_core::{IntoIoError, IntoStringError};
+use ql_mod_manager::store::SelectedMod;
 use std::collections::HashSet;
 
 use crate::state::{EditPresetsMessage, Launcher, MenuEditPresets, Message, SelectedState, State};

@@ -4,7 +4,7 @@ use std::{
 };
 
 use ql_core::{
-    GenericProgress, InstanceSelection, IntoIoError, Loader, StoreBackendType, do_jobs, download,
+    GenericProgress, InstanceSelection, IntoIoError, Loader, do_jobs, download,
     json::{InstanceConfigJson, VersionDetails},
     pt,
 };
@@ -12,8 +12,8 @@ use serde::Deserialize;
 use tokio::sync::Mutex;
 
 use crate::store::{
-    CurseforgeNotAllowed, CurseforgeNotAllowedEntry, DirStructure, ModConfig, ModFile, ModIndex,
-    QueryType,
+    CurseforgeNotAllowed, CurseforgeNotAllowedEntry, DirStructure, ModConfig, ModFile, ModId,
+    ModIndex, QueryType, StoreBackendType,
     curseforge::{self, CFSearchResult, CurseforgeFileQuery, ModQuery, get_query_type},
 };
 
@@ -70,7 +70,7 @@ impl PackFile {
         };
 
         let query = CurseforgeFileQuery::load(&self.projectID, self.fileID as i32).await?;
-        let query_type = get_query_type(mod_info.classId).await?;
+        let query_type = get_query_type(mod_info.class_id).await?;
         let Some(url) = query.data.downloadUrl.clone() else {
             self.add_to_not_allowed(not_allowed, mod_info, query, query_type)
                 .await;
@@ -119,6 +119,7 @@ async fn add_to_index(
     url: String,
 ) {
     let mut index = index.lock().await;
+    let project_id = ModId::Curseforge(project_id);
     if !index.mods.contains_key(&project_id) {
         index.mods.insert(
             project_id.clone(),

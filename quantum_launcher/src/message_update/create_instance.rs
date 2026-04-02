@@ -78,6 +78,8 @@ impl Launcher {
                     }
                 });
             }
+
+            // Filters dropdown
             CreateInstanceMessage::ContextMenuToggle => iflet!(self, show_category_dropdown; {
                 *show_category_dropdown = !*show_category_dropdown;
             }),
@@ -95,6 +97,7 @@ impl Launcher {
                     .c_persistent().create_instance_filters = Some(selected_categories.clone());
                 self.autosave.remove(&AutoSaveKind::LauncherConfig);
             }),
+
             CreateInstanceMessage::NameInput(name) => iflet!(self, instance_name; {
                 *instance_name = name;
             }),

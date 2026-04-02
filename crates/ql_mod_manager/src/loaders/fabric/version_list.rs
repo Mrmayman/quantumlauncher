@@ -65,19 +65,15 @@ impl BackendType {
 
 impl Display for BackendType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                BackendType::Fabric => "Fabric",
-                BackendType::Quilt => "Quilt",
-                BackendType::LegacyFabric => "Fabric (Legacy)",
-                BackendType::OrnitheMCFabric => "Fabric (OrnitheMC)",
-                BackendType::OrnitheMCQuilt => "Quilt (OrnitheMC)",
-                BackendType::CursedLegacy => "Fabric (Cursed Legacy)",
-                BackendType::Babric => "Fabric (Babric)",
-            }
-        )
+        f.write_str(match self {
+            BackendType::Fabric => "Fabric",
+            BackendType::Quilt => "Quilt",
+            BackendType::LegacyFabric => "Fabric (Legacy)",
+            BackendType::OrnitheMCFabric => "Fabric (OrnitheMC)",
+            BackendType::OrnitheMCQuilt => "Quilt (OrnitheMC)",
+            BackendType::CursedLegacy => "Fabric (Cursed Legacy)",
+            BackendType::Babric => "Fabric (Babric)",
+        })
     }
 }
 

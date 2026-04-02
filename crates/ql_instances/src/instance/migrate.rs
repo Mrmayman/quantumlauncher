@@ -4,8 +4,8 @@ use std::{
 };
 
 use ql_core::{
-    CLASSPATH_SEPARATOR, IntoIoError, LAUNCHER_DIR, LAUNCHER_VERSION, LAUNCHER_VERSION_NAME, info,
-    json::version::LibraryDownloads,
+    CLASSPATH_SEPARATOR, IntoIoError, LAUNCHER_DIR, LAUNCHER_VERSION, LAUNCHER_VERSION_NAME,
+    file_utils::exists, info, json::version::LibraryDownloads,
 };
 
 use crate::download::GameDownloader;
@@ -41,7 +41,7 @@ impl GameLauncher {
     /// before the version value gets overwritten.
     async fn migrate_get_version(&self) -> Result<semver::Version, GameLaunchError> {
         let launcher_version_path = self.instance_dir.join("launcher_version.txt");
-        let mut version = if launcher_version_path.exists() {
+        let mut version = if exists(&launcher_version_path).await {
             tokio::fs::read_to_string(&launcher_version_path)
                 .await
                 .path(&launcher_version_path)?
@@ -80,7 +80,7 @@ impl GameLauncher {
         let v0_4_0 = ver(0, 4, 0);
 
         let c_path = self.instance_dir.join("forge/classpath.txt");
-        if !c_path.exists() {
+        if !exists(&c_path).await {
             return Ok(()); // Forge isn't installed
         }
 

@@ -48,8 +48,8 @@ impl Manifest {
         const ARM64: &str = "https://raw.githubusercontent.com/theofficialgman/piston-meta-arm64/refs/heads/main/mc/game/version_manifest_v2.json";
         const ARM32: &str = "https://raw.githubusercontent.com/theofficialgman/piston-meta-arm32/refs/heads/main/mc/game/version_manifest_v2.json";
 
-        const LAST_BETTERJSONS: &str = "26.1-snapshot-1";
-        const LAST_BETTERJSONS_ALT: &str = "26.1-snap1";
+        const LAST_BETTERJSONS: &str = "26w14a";
+        const LAST_BETTERJSONS_ALT: &str = "26.1.1";
 
         // An out-of-date but curated manifest
         const OLDER_VERSIONS_JSON: &str =
@@ -73,15 +73,18 @@ impl Manifest {
             serde_json::from_str(&older_manifest).json(older_manifest)?;
         let newer_manifest: Self = serde_json::from_str(&newer_manifest).json(newer_manifest)?;
 
+        // Remember, if you're trying to go through this in your head,
+        // versions are stored in reverse order of release date (newest first)
+
         // Removes newer versions from out-of-date manifest
         // if it ever gets updated, to not mess up the list.
-        older_manifest.versions = exclude_versions_after(&older_manifest.versions, |n| {
+        older_manifest.versions = take_versions_older_than(&older_manifest.versions, |n| {
             n.id == LAST_BETTERJSONS || n.id == LAST_BETTERJSONS_ALT
         });
         // Add newer versions (that lack fixes/polish) to the manifest
         older_manifest.versions.splice(
             0..0,
-            include_versions_after(&newer_manifest.versions, |n| {
+            take_versions_newer_than(&newer_manifest.versions, |n| {
                 n.id == LAST_BETTERJSONS || n.id == LAST_BETTERJSONS_ALT
             }),
         );
@@ -182,7 +185,7 @@ impl Version {
     }
 }
 
-fn exclude_versions_after<T, F>(vec: &[T], predicate: F) -> Vec<T>
+fn take_versions_older_than<T, F>(vec: &[T], predicate: F) -> Vec<T>
 where
     T: Clone,
     F: FnMut(&T) -> bool,
@@ -194,7 +197,7 @@ where
     }
 }
 
-fn include_versions_after<T, F>(vec: &[T], predicate: F) -> Vec<T>
+fn take_versions_newer_than<T, F>(vec: &[T], predicate: F) -> Vec<T>
 where
     T: Clone,
     F: FnMut(&T) -> bool,

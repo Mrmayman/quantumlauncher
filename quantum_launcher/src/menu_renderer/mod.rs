@@ -216,6 +216,10 @@ fn tsubtitle(t: &LauncherTheme) -> widget::text::Style {
     t.style_text(Color::SecondLight)
 }
 
+fn barthin(t: &LauncherTheme) -> widget::rule::Style {
+    t.style_rule(Color::SecondDark, 1)
+}
+
 fn sidebar<'a>(
     id: &'static str,
     header: Option<Element<'a>>,

@@ -1,8 +1,8 @@
 use crate::{
     rate_limiter::lock,
-    store::{ModError, ModIndex},
+    store::{ModError, ModId, ModIndex},
 };
-use ql_core::{InstanceSelection, IoError, ModId, err, info, pt};
+use ql_core::{InstanceSelection, IoError, err, info, pt};
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
@@ -59,7 +59,7 @@ pub async fn delete_mods(
                     mod_info.dependents.remove(&dependent);
                 }
             } else {
-                err!("Dependent {id} does not exist");
+                err!("Dependent {id:?} does not exist");
             }
         }
 
@@ -68,7 +68,7 @@ pub async fn delete_mods(
         for (mod_id, mod_info) in &index.mods {
             if !mod_info.manually_installed && mod_info.dependents.is_empty() {
                 pt!("Deleting dependency: {}", mod_info.name);
-                orphaned_mods.insert(ModId::from_index_str(mod_id));
+                orphaned_mods.insert(mod_id.clone());
             }
         }
 
@@ -88,7 +88,7 @@ pub async fn delete_mods(
 }
 
 async fn delete_mod(index: &mut ModIndex, id: &ModId, mods_dir: &Path) -> Result<(), ModError> {
-    if let Some(mod_info) = index.mods.remove(&id.get_index_str()) {
+    if let Some(mod_info) = index.mods.remove(id) {
         for file in &mod_info.files {
             if mod_info.enabled {
                 delete_file(mods_dir, &file.filename).await?;

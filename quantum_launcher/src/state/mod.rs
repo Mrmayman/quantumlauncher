@@ -9,7 +9,8 @@ use iced::Task;
 use notify::Watcher;
 use ql_core::{
     GenericProgress, InstanceSelection, IntoIoError, IntoStringError, IoError, JsonFileError,
-    LAUNCHER_DIR, LAUNCHER_VERSION_NAME, LaunchedProcess, Progress, err, file_utils,
+    LAUNCHER_DIR, LAUNCHER_VERSION_NAME, LaunchedProcess, Progress, err,
+    file_utils::{self, exists},
     read_log::LogLine,
 };
 use ql_instances::auth::{AccountData, AccountType, ms::CLIENT_ID};
@@ -392,7 +393,7 @@ pub async fn get_entries(is_server: bool) -> Res<(Vec<String>, bool)> {
     } else {
         "instances"
     });
-    if !dir_path.exists() {
+    if !exists(&dir_path).await {
         tokio::fs::create_dir_all(&dir_path)
             .await
             .path(&dir_path)
