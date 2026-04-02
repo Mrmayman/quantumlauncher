@@ -192,6 +192,7 @@ pub struct MenuEditInstance {
     pub arg_split_by_space: bool,
 }
 
+#[derive(Clone, Copy)]
 pub enum SelectedState {
     All,
     Some,
@@ -570,15 +571,18 @@ impl LauncherSettingsTab {
     }
 }
 
-pub struct MenuEditPresets {
-    pub selected_mods: HashSet<SelectedMod>,
-    pub selected_state: SelectedState,
-    pub is_building: bool,
-    pub include_config: bool,
+pub enum MenuEditPresets {
+    Loading(&'static str),
+    Installing(ProgressBar<GenericProgress>),
+    Selecting {
+        selected_mods: HashSet<SelectedMod>,
+        selected_state: SelectedState,
+        sorted_mods_list: Vec<ModListEntry>,
+        mc_dir_entries: HashSet<DirItem>,
 
-    pub progress: Option<ProgressBar<GenericProgress>>,
-    pub sorted_mods_list: Vec<ModListEntry>,
-    pub drag_and_drop_hovered: bool,
+        include_config: bool,
+        drag_and_drop_hovered: bool,
+    },
 }
 
 pub enum MenuRecommendedMods {

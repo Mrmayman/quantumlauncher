@@ -7,7 +7,7 @@ use crate::state::{EditPresetsMessage, Launcher, MenuEditPresets, Message, Selec
 
 macro_rules! iflet_manage_preset {
     ($self:ident, $($field:ident),+, { $($code:tt)* }) => {
-        if let State::ManagePresets(MenuEditPresets {
+        if let State::ManagePresets(MenuEditPresets::Selecting {
             $($field,)* ..
         }) = &mut $self.state
         {
@@ -19,7 +19,7 @@ macro_rules! iflet_manage_preset {
 impl Launcher {
     pub fn update_edit_presets(&mut self, message: EditPresetsMessage) -> Task<Message> {
         match message {
-            EditPresetsMessage::Open => self.go_to_edit_presets_menu(),
+            EditPresetsMessage::Open => return self.go_to_edit_presets_menu(),
             EditPresetsMessage::ToggleCheckbox((name, id), enable) => {
                 iflet_manage_preset!(self, selected_mods, selected_state, {
                     if enable {
@@ -48,29 +48,38 @@ impl Launcher {
                     *include_config = enable;
                 });
             }
-            EditPresetsMessage::BuildYourOwn => {
-                iflet_manage_preset!(self, selected_mods, is_building, include_config, {
-                    *is_building = true;
+            EditPresetsMessage::LoadedDir(res) => match res {
+                Ok(dir) => iflet_manage_preset!(self, mc_dir_entries, {
+                    *mc_dir_entries = dir;
+                }),
+                Err(err) => self.set_error(err),
+            },
+            EditPresetsMessage::Generate => {
+                iflet_manage_preset!(self, selected_mods, include_config, mc_dir_entries, {
                     let selected_instance = self.selected_instance.clone().unwrap();
                     let selected_mods = selected_mods.clone();
                     let include_config = *include_config;
+                    let dir = mc_dir_entries.clone();
+
+                    self.state =
+                        State::ManagePresets(MenuEditPresets::Loading("Building Preset..."));
+
                     return Task::perform(
                         ql_mod_manager::presets::generate(
                             selected_instance,
                             selected_mods,
+                            dir,
                             include_config,
                         ),
-                        |n| EditPresetsMessage::BuildYourOwnEnd(n.strerr()).into(),
+                        |n| EditPresetsMessage::GenerateEnd(n.strerr()).into(),
                     );
                 });
             }
-            EditPresetsMessage::BuildYourOwnEnd(result) => {
-                match result.map(|n| self.build_end(n)) {
-                    Ok(task) => return task,
-                    Err(err) => self.set_error(err),
-                }
-            }
-            EditPresetsMessage::LoadComplete(result) => {
+            EditPresetsMessage::GenerateEnd(result) => match result.map(|n| self.build_end(n)) {
+                Ok(task) => return task,
+                Err(err) => self.set_error(err),
+            },
+            EditPresetsMessage::ImportComplete(result) => {
                 match result.map(|not_allowed| {
                     if not_allowed.is_empty() {
                         self.go_to_edit_mods_menu()
@@ -88,7 +97,7 @@ impl Launcher {
     }
 
     fn preset_select_all(&mut self) {
-        if let State::ManagePresets(MenuEditPresets {
+        if let State::ManagePresets(MenuEditPresets::Selecting {
             selected_mods,
             selected_state,
             sorted_mods_list,
@@ -115,9 +124,9 @@ impl Launcher {
         }
     }
 
-    pub fn go_to_edit_presets_menu(&mut self) {
+    pub fn go_to_edit_presets_menu(&mut self) -> Task<Message> {
         let State::EditMods(menu) = &self.state else {
-            return;
+            return Task::none();
         };
 
         let selected_mods = menu
@@ -126,17 +135,22 @@ impl Launcher {
             .filter_map(|n| n.is_manually_installed().then_some(n.clone().into()))
             .collect::<HashSet<_>>();
 
-        let menu = MenuEditPresets {
+        let menu = MenuEditPresets::Selecting {
             selected_mods,
             selected_state: SelectedState::All,
-            is_building: false,
             include_config: true,
-            progress: None,
             sorted_mods_list: menu.sorted_mods_list.clone(),
             drag_and_drop_hovered: false,
+            mc_dir_entries: HashSet::new(),
         };
 
         self.state = State::ManagePresets(menu);
+
+        let instance = self.selected_instance.clone().unwrap();
+        Task::perform(
+            async move { ql_mod_manager::presets::get_mc_dir_contents(&instance).await },
+            |n| EditPresetsMessage::LoadedDir(n.strerr()).into(),
+        )
     }
 
     fn build_end(&mut self, preset: Vec<u8>) -> Task<Message> {

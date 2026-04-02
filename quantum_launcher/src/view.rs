@@ -137,6 +137,7 @@ impl Launcher {
             State::CreateShortcut(menu) => menu.view(&self.accounts_dropdown),
             State::LoginAlternate(menu) => menu.view(self.tick_timer),
             State::ExportInstance(menu) => menu.view(self.tick_timer),
+            State::ManagePresets(menu) => menu.view(&self.images),
 
             State::LoginMS(menu) => menu.view(),
             State::CurseforgeManualDownload(menu) => menu.view(),
@@ -146,7 +147,6 @@ impl Launcher {
             #[cfg(feature = "auto_update")]
             State::UpdateFound(menu) => menu.view(),
             State::InstallOptifine(menu) => menu.view(),
-            State::ManagePresets(menu) => menu.view(),
             State::RecommendedMods(menu) => menu.view(),
         };
 

@@ -11,13 +11,13 @@ use ql_core::{
 };
 use ql_mod_manager::store::{ModConfig, ModId, ModIndex};
 
-use crate::config::SIDEBAR_WIDTH;
 use crate::state::{
     AutoSaveKind, EditInstanceMessage, GameProcess, InstallModsMessage, InstanceLog, LaunchModal,
     LaunchTab, Launcher, LogState, ManageJarModsMessage, MenuCreateInstance, MenuEditMods,
     MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuLaunch, MenuLoginMS,
     MenuModsDownload, MenuRecommendedMods, Message, ModListEntry, State,
 };
+use crate::{config::SIDEBAR_WIDTH, state::MenuEditPresets};
 
 impl Launcher {
     pub fn tick(&mut self) -> Task<Message> {
@@ -142,22 +142,14 @@ impl Launcher {
                     }
                 }
             },
-            State::ManagePresets(menu) => {
-                if let Some(progress) = &mut menu.progress {
-                    progress.tick();
-                }
-            }
-            State::RecommendedMods(menu) => {
-                if let MenuRecommendedMods::Loading { progress, .. } = menu {
-                    progress.tick();
-                }
-            }
             State::AccountLoginProgress(progress)
             | State::ImportModpack(progress)
             | State::ExportInstance(MenuExportInstance {
                 progress: Some(progress),
                 ..
-            }) => {
+            })
+            | State::ManagePresets(MenuEditPresets::Installing(progress))
+            | State::RecommendedMods(MenuRecommendedMods::Loading { progress, .. }) => {
                 progress.tick();
             }
 
@@ -177,6 +169,8 @@ impl Launcher {
             | State::InstallPaper(_)
             | State::CreateShortcut(_)
             | State::ModDescription(_)
+            | State::ManagePresets(_)
+            | State::RecommendedMods(_)
             | State::ExportMods(_) => {}
         }
 

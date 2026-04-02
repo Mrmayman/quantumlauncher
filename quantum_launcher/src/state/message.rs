@@ -209,13 +209,17 @@ pub enum InstallOptifineMessage {
 #[derive(Debug, Clone)]
 pub enum EditPresetsMessage {
     Open,
+
     ToggleCheckbox((String, ModId), bool),
     ToggleCheckboxLocal(String, bool),
     ToggleIncludeConfig(bool),
     SelectAll,
-    BuildYourOwn,
-    BuildYourOwnEnd(Res<Vec<u8>>),
-    LoadComplete(Res<CurseforgeNotAllowed>),
+
+    LoadedDir(Res<HashSet<DirItem>>),
+
+    Generate,
+    GenerateEnd(Res<Vec<u8>>),
+    ImportComplete(Res<CurseforgeNotAllowed>),
 }
 
 #[derive(Debug, Clone)]

@@ -358,11 +358,7 @@ impl Launcher {
             )
             | State::EditJarMods(_)
             | State::ExportMods(_)
-            | State::ManagePresets(MenuEditPresets {
-                is_building: false,
-                progress: None,
-                ..
-            })
+            | State::ManagePresets(MenuEditPresets::Selecting { .. })
             | State::RecommendedMods(
                 MenuRecommendedMods::Loaded { .. }
                 | MenuRecommendedMods::InstallALoader

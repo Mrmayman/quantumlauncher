@@ -18,10 +18,13 @@
 //! - Top-level `.jar` files for external mods
 //! - `config/` directory (extracted to `.minecraft/config/`)
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    io::ErrorKind,
+};
 
 use ql_core::{
-    InstanceSelection, IntoIoError, Loader, file_utils::DirItem, json::InstanceConfigJson,
+    InstanceSelection, IntoIoError, IoError, Loader, file_utils::DirItem, json::InstanceConfigJson,
 };
 use serde::{Deserialize, Serialize};
 
@@ -38,9 +41,11 @@ const HARD_EXCEPTIONS: &[&str] = &[
     "versions",
     "usercache.json",
     "libraries",
+    "resources",
+    // Mods
     "config",
     "mods",
-    "resources",
+    "mod_index.json",
 ];
 /// Cached/unnecessary files that can be skipped to save space
 pub const SOFT_EXCEPTIONS: &[&str] = &[
@@ -97,19 +102,33 @@ async fn get_instance_type(instance_name: &InstanceSelection) -> Result<Loader, 
 
 pub async fn get_mc_dir_contents(
     instance: &InstanceSelection,
-) -> Result<HashSet<DirItem>, ModError> {
+) -> Result<HashSet<DirItem>, IoError> {
+    async fn get_contents_inner(
+        dotmc_dir: std::path::PathBuf,
+        contents: &mut HashSet<DirItem>,
+    ) -> Result<(), IoError> {
+        let mut dir = tokio::fs::read_dir(&dotmc_dir).await.path(&dotmc_dir)?;
+        Ok(
+            while let Some(entry) = dir.next_entry().await.path(&dotmc_dir)? {
+                if HARD_EXCEPTIONS.iter().any(|n| &entry.file_name() == n) {
+                    continue;
+                }
+                contents.insert(DirItem {
+                    name: entry.file_name().to_string_lossy().to_string(),
+                    is_file: entry.file_type().await.is_ok_and(|n| !n.is_dir()),
+                });
+            },
+        )
+    }
+
     let dotmc_dir = instance.get_dot_minecraft_path();
     let mut contents = HashSet::new();
 
-    let mut dir = tokio::fs::read_dir(&dotmc_dir).await.path(&dotmc_dir)?;
-    while let Some(entry) = dir.next_entry().await.path(&dotmc_dir)? {
-        if HARD_EXCEPTIONS.iter().any(|n| &entry.file_name() == n) {
-            continue;
+    let res = get_contents_inner(dotmc_dir, &mut contents).await;
+    if let Err(IoError::Io { error, .. }) = &res {
+        if error.kind() != ErrorKind::NotFound {
+            res?;
         }
-        contents.insert(DirItem {
-            name: entry.file_name().to_string_lossy().to_string(),
-            is_file: entry.file_type().await.is_ok_and(|n| !n.is_dir()),
-        });
     }
 
     Ok(contents)

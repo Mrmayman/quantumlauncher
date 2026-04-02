@@ -1,7 +1,7 @@
 use crate::config::SIDEBAR_WIDTH;
 use crate::state::{
     AutoSaveKind, GameProcess, LaunchTab, LogState, MenuCreateInstance, MenuCreateInstanceChoosing,
-    MenuInstallOptifine,
+    MenuEditPresets, MenuInstallOptifine,
 };
 use crate::tick::sort_dependencies;
 use crate::{
@@ -495,10 +495,9 @@ impl Launcher {
 
                 let (sender, receiver) = std::sync::mpsc::channel();
                 if let State::EditMods(_) = &self.state {
-                    self.go_to_edit_presets_menu();
-                }
-                if let State::ManagePresets(menu) = &mut self.state {
-                    menu.progress = Some(ProgressBar::with_recv(receiver));
+                    self.state = State::ManagePresets(MenuEditPresets::Installing(
+                        ProgressBar::with_recv(receiver),
+                    ));
                 }
                 let instance_name = self.selected_instance.clone().unwrap();
                 Task::perform(
@@ -510,7 +509,7 @@ impl Launcher {
                         )
                         .await
                     },
-                    |n| EditPresetsMessage::LoadComplete(n.strerr()).into(),
+                    |n| EditPresetsMessage::ImportComplete(n.strerr()).into(),
                 )
             }
             Err(err) => {
@@ -523,8 +522,12 @@ impl Launcher {
     fn set_drag_and_drop_hover(&mut self, is_hovered: bool) {
         if let State::EditMods(menu) = &mut self.state {
             menu.drag_and_drop_hovered = is_hovered;
-        } else if let State::ManagePresets(menu) = &mut self.state {
-            menu.drag_and_drop_hovered = is_hovered;
+        } else if let State::ManagePresets(MenuEditPresets::Selecting {
+            drag_and_drop_hovered,
+            ..
+        }) = &mut self.state
+        {
+            *drag_and_drop_hovered = is_hovered;
         } else if let State::EditJarMods(menu) = &mut self.state {
             menu.drag_and_drop_hovered = is_hovered;
         } else if let State::InstallOptifine(MenuInstallOptifine::Choosing {
