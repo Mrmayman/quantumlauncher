@@ -211,12 +211,15 @@ pub enum InstallOptifineMessage {
 pub enum EditPresetsMessage {
     Open,
 
-    ToggleCheckbox((String, ModId), bool),
-    ToggleCheckboxLocal(String, bool),
-    ToggleIncludeConfig(bool),
-    SelectAll,
+    ModToggle((String, ModId), bool),
+    ModToggleLocal(String, bool),
+    ModSelectAll,
+    ModIncludeConfig(bool),
 
-    LoadedDir(Res<HashSet<DirItem>>),
+    DirToggle(String, bool),
+    DirSelectAll,
+
+    LoadedDir(Res<Vec<DirItem>>),
 
     Generate,
     GenerateEnd(Res<Vec<u8>>),

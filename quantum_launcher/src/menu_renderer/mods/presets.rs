@@ -4,6 +4,7 @@ use iced::{
     Alignment, Length,
     widget::{self, column, row},
 };
+use ql_core::file_utils::DirItem;
 use ql_mod_manager::store::SelectedMod;
 
 use crate::{
@@ -33,36 +34,76 @@ impl MenuEditPresets {
             .spacing(10)
             .into(),
             MenuEditPresets::Selecting {
-                selected_mods,
-                selected_state,
-                sorted_mods_list,
+                mods_selected,
+                mods_selected_state,
+                mods_entries,
                 mc_dir_entries,
+                mc_dir_selected,
+                mc_dir_selected_state,
                 include_config,
                 drag_and_drop_hovered,
             } => {
+                const HEIGHT: f32 = 35.0;
+                let list_mods = column![
+                    row![
+                        widget::text("Mods").size(14),
+                        select_all_button(*mods_selected_state)
+                            .on_press(EditPresetsMessage::ModSelectAll.into()),
+                        widget::checkbox(
+                            "Include mod settings/configuration (config folder)",
+                            *include_config
+                        )
+                        .size(12)
+                        .text_size(10)
+                        .spacing(4)
+                        .on_toggle(|t| EditPresetsMessage::ModIncludeConfig(t).into()),
+                    ]
+                    .spacing(8)
+                    .padding([5, 8])
+                    .height(HEIGHT)
+                    .align_y(Alignment::Center),
+                    widget::horizontal_rule(1).style(barthin),
+                    entry_list(mods_entries, |entry| get_mod_entry(
+                        mods_selected,
+                        images,
+                        entry
+                    )),
+                ]
+                .width(Length::Fill);
+
+                let list_dir = column![
+                    row![
+                        widget::text(".minecraft folder").size(14),
+                        select_all_button(*mc_dir_selected_state)
+                            .on_press(EditPresetsMessage::DirSelectAll.into()),
+                    ]
+                    .spacing(10)
+                    .padding([5, 10])
+                    .height(HEIGHT)
+                    .align_y(Alignment::Center),
+                    widget::horizontal_rule(1).style(barthin),
+                    entry_list(mc_dir_entries, |entry| get_dir_entry(
+                        mc_dir_selected,
+                        entry
+                    )),
+                ]
+                .width(Length::Fill);
+
                 let p_main = column![
                     top_bar(),
                     widget::horizontal_rule(1).style(barthin),
                     column![
+                        widget::text(
+                            "Share your instance and mods setup with others through a single file!"
+                        )
+                        .size(12)
+                        .style(tsubtitle),
                         get_format_selector(),
-                        widget::horizontal_rule(1).style(barthin),
-                        row![
-                            widget::text("Mods"),
-                            select_all_button(*selected_state),
-                            widget::horizontal_space(),
-                            widget::checkbox(
-                                "Include mod settings/configuration\n(config folder)",
-                                *include_config
-                            )
-                            .text_size(12)
-                            .on_toggle(|t| EditPresetsMessage::ToggleIncludeConfig(t).into()),
-                        ]
-                        .spacing(10)
-                        .align_y(Alignment::Center)
                     ]
-                    .spacing(10)
+                    .spacing(5)
                     .padding(10),
-                    Self::get_mods_list(sorted_mods_list, selected_mods, images),
+                    widget::horizontal_rule(1).style(barthin),
+                    row![list_mods, widget::vertical_rule(2), list_dir]
                 ];
 
                 if *drag_and_drop_hovered {
@@ -79,40 +120,48 @@ impl MenuEditPresets {
             }
         }
     }
+}
 
-    fn get_mods_list<'a>(
-        sorted_mods_list: &'a [ModListEntry],
-        selected_mods: &'a HashSet<SelectedMod>,
-        images: &'a ImageState,
-    ) -> Element<'a> {
-        widget::responsive(|size| {
-            widget::scrollable(
-                widget::column(
-                    sorted_mods_list
-                        .chunks((size.width / 250.0).floor().max(1.0) as usize)
-                        .map(|chunk| {
-                            column![
-                                widget::row(chunk.iter().map(|entry| {
-                                    get_mod_entry(selected_mods, images, entry)
-                                    // widget::container("").width(250).into()
-                                }))
-                                .spacing(10)
-                                .width(Length::Fill),
-                                widget::horizontal_rule(1).style(barthin)
-                            ]
-                            .spacing(5)
-                            .into()
-                        }),
-                )
-                .padding(20)
-                .spacing(5),
+fn entry_list<'a, T>(
+    entries: &'a [T],
+    draw: impl Fn(&'a T) -> Element<'a> + 'a,
+) -> widget::Responsive<'a, Message, LauncherTheme> {
+    widget::responsive(move |size| {
+        widget::scrollable(
+            widget::column(
+                entries
+                    .chunks((size.width / 225.0).floor().max(1.0) as usize)
+                    .map(|chunk| {
+                        column![
+                            widget::row(chunk.iter().map(|entry| {
+                                widget::stack!(
+                                    row![draw(entry), widget::Space::with_width(5)],
+                                    row![
+                                        widget::horizontal_space(),
+                                        widget::vertical_rule(1).style(barthin),
+                                        widget::Space::with_width(1),
+                                    ]
+                                )
+                                .into()
+                                // widget::container("").width(250).into()
+                            }))
+                            .spacing(10)
+                            .width(Length::Fill)
+                            .align_y(Alignment::Center),
+                            widget::horizontal_rule(1).style(barthin)
+                        ]
+                        .spacing(5)
+                        .into()
+                    }),
             )
-            .style(|t: &LauncherTheme, s| t.style_scrollable_flat_extra_dark(s))
-            .height(Length::Fill)
-            .into()
-        })
+            .padding(10)
+            .spacing(5),
+        )
+        .style(|t: &LauncherTheme, s| t.style_scrollable_flat_extra_dark(s))
+        .height(Length::Fill)
         .into()
-    }
+    })
+    .into()
 }
 
 fn select_all_button(
@@ -124,9 +173,9 @@ fn select_all_button(
         } else {
             "Select All"
         })
-        .size(14),
+        .size(10),
     )
-    .on_press(EditPresetsMessage::SelectAll.into())
+    .padding([3, 10])
 }
 
 fn get_format_selector() -> Element<'static> {
@@ -164,14 +213,53 @@ fn top_bar() -> widget::Container<'static, Message, LauncherTheme> {
             ]
             .spacing(10)
             .align_y(Alignment::Center),
-            widget::text("Share your instance and mods setup with others through a single file!")
-                .size(14)
-                .style(tsubtitle),
         ]
         .spacing(5),
     )
     .style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark))
     .padding([5, 10])
+}
+
+fn get_dir_entry<'a>(selected: &HashSet<String>, entry: &'a DirItem) -> Element<'a> {
+    let is_checked = selected.contains(&entry.name);
+
+    let checked_color = if is_checked {
+        Color::Light
+    } else {
+        Color::SecondLight
+    };
+
+    let toggle = |t| EditPresetsMessage::DirToggle(entry.name.clone(), t).into();
+
+    widget::mouse_area(
+        row![
+            widget::checkbox("", is_checked)
+                .size(14)
+                .text_size(1)
+                .spacing(0)
+                .on_toggle(toggle)
+                .style(move |t: &LauncherTheme, s| t.style_checkbox(s, Some(checked_color))),
+            if entry.is_file {
+                icons::file_s(12)
+            } else {
+                icons::folder_s(12)
+            }
+            .style(|t: &LauncherTheme| t.style_text(if entry.is_file {
+                Color::SecondLight
+            } else {
+                Color::Light
+            })),
+            widget::text(&entry.name)
+                .font(FONT_MONO)
+                .size(14)
+                .style(move |t: &LauncherTheme| t.style_text(checked_color)),
+        ]
+        .spacing(10)
+        .align_y(Alignment::Center)
+        .width(Length::Fill),
+    )
+    .on_press(toggle(!is_checked))
+    .into()
 }
 
 fn get_mod_entry<'a>(
@@ -204,7 +292,7 @@ fn get_mod_entry<'a>(
             const ICON_SIZE: f32 = 20.0;
 
             let toggle =
-                |t| EditPresetsMessage::ToggleCheckbox((config.name.clone(), id.clone()), t).into();
+                |t| EditPresetsMessage::ModToggle((config.name.clone(), id.clone()), t).into();
             widget::mouse_area(
                 row![
                     widget::checkbox("", is_checked)
@@ -228,7 +316,7 @@ fn get_mod_entry<'a>(
             .size(14)
             .text_size(14)
             .style(move |t: &LauncherTheme, s| t.style_checkbox(s, Some(checked_color)))
-            .on_toggle(|t| EditPresetsMessage::ToggleCheckboxLocal(file_name.clone(), t).into())
+            .on_toggle(|t| EditPresetsMessage::ModToggleLocal(file_name.clone(), t).into())
             .width(Length::Fill)
             .into(),
     }

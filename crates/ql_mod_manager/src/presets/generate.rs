@@ -28,7 +28,7 @@ use crate::{
 pub async fn generate(
     instance: InstanceSelection,
     selected_mods: HashSet<SelectedMod>,
-    dotmc_entries: HashSet<DirItem>,
+    dotmc_entries: Vec<DirItem>,
     include_config: bool,
 ) -> Result<Vec<u8>, ModError> {
     let dotmc_dir = instance.get_dot_minecraft_path();

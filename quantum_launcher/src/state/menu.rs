@@ -200,6 +200,18 @@ pub enum SelectedState {
     None,
 }
 
+impl SelectedState {
+    pub fn compute(sel_len: usize, entries_len: usize) -> Self {
+        if sel_len == 0 {
+            SelectedState::None
+        } else if sel_len == entries_len {
+            SelectedState::All
+        } else {
+            SelectedState::Some
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum ModListEntry {
     Downloaded { id: ModId, config: Box<ModConfig> },
@@ -607,10 +619,13 @@ pub enum MenuEditPresets {
     Loading(&'static str),
     Installing(ProgressBar<GenericProgress>),
     Selecting {
-        selected_mods: HashSet<SelectedMod>,
-        selected_state: SelectedState,
-        sorted_mods_list: Vec<ModListEntry>,
-        mc_dir_entries: HashSet<DirItem>,
+        mods_entries: Vec<ModListEntry>,
+        mods_selected: HashSet<SelectedMod>,
+        mods_selected_state: SelectedState,
+
+        mc_dir_entries: Vec<DirItem>,
+        mc_dir_selected: HashSet<String>,
+        mc_dir_selected_state: SelectedState,
 
         include_config: bool,
         drag_and_drop_hovered: bool,

@@ -18,10 +18,7 @@
 //! - Top-level `.jar` files for external mods
 //! - `config/` directory (extracted to `.minecraft/config/`)
 
-use std::{
-    collections::{HashMap, HashSet},
-    io::ErrorKind,
-};
+use std::{cmp::Ordering, collections::HashMap, io::ErrorKind};
 
 use ql_core::{
     InstanceSelection, IntoIoError, IoError, Loader, file_utils::DirItem, json::InstanceConfigJson,
@@ -49,7 +46,6 @@ const HARD_EXCEPTIONS: &[&str] = &[
 ];
 /// Cached/unnecessary files that can be skipped to save space
 pub const SOFT_EXCEPTIONS: &[&str] = &[
-    ".fabric",
     "logs",
     "crash-reports",
     "downloads",
@@ -57,6 +53,9 @@ pub const SOFT_EXCEPTIONS: &[&str] = &[
     "realms_persistence.json",
     "debug",
     ".cache",
+    // Fabric
+    ".fabric",
+    "data",
     // Common mods...
     "authlib-injector.log",
     "easy_npc",
@@ -100,29 +99,42 @@ async fn get_instance_type(instance_name: &InstanceSelection) -> Result<Loader, 
     Ok(config.mod_type)
 }
 
-pub async fn get_mc_dir_contents(
-    instance: &InstanceSelection,
-) -> Result<HashSet<DirItem>, IoError> {
+pub async fn get_mc_dir_contents(instance: &InstanceSelection) -> Result<Vec<DirItem>, IoError> {
     async fn get_contents_inner(
         dotmc_dir: std::path::PathBuf,
-        contents: &mut HashSet<DirItem>,
+        contents: &mut Vec<DirItem>,
     ) -> Result<(), IoError> {
         let mut dir = tokio::fs::read_dir(&dotmc_dir).await.path(&dotmc_dir)?;
-        Ok(
-            while let Some(entry) = dir.next_entry().await.path(&dotmc_dir)? {
-                if HARD_EXCEPTIONS.iter().any(|n| &entry.file_name() == n) {
-                    continue;
-                }
-                contents.insert(DirItem {
-                    name: entry.file_name().to_string_lossy().to_string(),
-                    is_file: entry.file_type().await.is_ok_and(|n| !n.is_dir()),
-                });
-            },
-        )
+
+        while let Some(entry) = dir.next_entry().await.path(&dotmc_dir)? {
+            if HARD_EXCEPTIONS.iter().any(|n| &entry.file_name() == n) {
+                continue;
+            }
+            let is_file = entry.file_type().await.is_ok_and(|n| !n.is_dir());
+            let name = entry.file_name().to_string_lossy().to_string();
+            contents.push(DirItem { name, is_file });
+        }
+
+        contents.sort_unstable_by(|a, b| {
+            match (
+                SOFT_EXCEPTIONS.contains(&a.name.as_str()),
+                SOFT_EXCEPTIONS.contains(&b.name.as_str()),
+            ) {
+                (true, false) => Ordering::Greater,
+                (false, true) => Ordering::Less,
+                _ => match (a.is_file, b.is_file) {
+                    (true, false) => Ordering::Greater,
+                    (false, true) => Ordering::Less,
+                    _ => a.name.cmp(&b.name),
+                },
+            }
+        });
+
+        Ok(())
     }
 
     let dotmc_dir = instance.get_dot_minecraft_path();
-    let mut contents = HashSet::new();
+    let mut contents = Vec::new();
 
     let res = get_contents_inner(dotmc_dir, &mut contents).await;
     if let Err(IoError::Io { error, .. }) = &res {

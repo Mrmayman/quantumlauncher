@@ -1,6 +1,6 @@
 use iced::Task;
 use ql_core::{IntoIoError, IntoStringError};
-use ql_mod_manager::store::SelectedMod;
+use ql_mod_manager::{presets::SOFT_EXCEPTIONS, store::SelectedMod};
 use std::collections::HashSet;
 
 use crate::state::{
@@ -22,44 +22,77 @@ impl Launcher {
     pub fn update_edit_presets(&mut self, message: EditPresetsMessage) -> Task<Message> {
         match message {
             EditPresetsMessage::Open => return self.go_to_edit_presets_menu(),
-            EditPresetsMessage::ToggleCheckbox((name, id), enable) => {
-                iflet_manage_preset!(self, selected_mods, selected_state, {
+            EditPresetsMessage::ModToggle((name, id), enable) => {
+                iflet_manage_preset!(self, mods_selected, mods_selected_state, {
                     if enable {
-                        selected_mods.insert(SelectedMod::Downloaded { name, id });
+                        mods_selected.insert(SelectedMod::Downloaded { name, id });
                     } else {
-                        selected_mods.remove(&SelectedMod::Downloaded { name, id });
+                        mods_selected.remove(&SelectedMod::Downloaded { name, id });
                     }
-                    *selected_state = SelectedState::Some;
+                    *mods_selected_state = SelectedState::Some;
                 });
             }
-            EditPresetsMessage::ToggleCheckboxLocal(file_name, enable) => {
-                iflet_manage_preset!(self, selected_mods, selected_state, {
+            EditPresetsMessage::ModToggleLocal(file_name, enable) => {
+                iflet_manage_preset!(self, mods_entries, mods_selected, mods_selected_state, {
                     if enable {
-                        selected_mods.insert(SelectedMod::Local { file_name });
+                        mods_selected.insert(SelectedMod::Local { file_name });
                     } else {
-                        selected_mods.remove(&SelectedMod::Local { file_name });
+                        mods_selected.remove(&SelectedMod::Local { file_name });
                     }
-                    *selected_state = SelectedState::Some;
+                    *mods_selected_state =
+                        SelectedState::compute(mods_selected.len(), mods_entries.len());
                 });
             }
-            EditPresetsMessage::SelectAll => {
-                self.preset_select_all();
+            EditPresetsMessage::DirToggle(name, enable) => {
+                iflet_manage_preset!(
+                    self,
+                    mc_dir_entries,
+                    mc_dir_selected,
+                    mc_dir_selected_state,
+                    {
+                        if enable {
+                            mc_dir_selected.insert(name);
+                        } else {
+                            mc_dir_selected.remove(&name);
+                        }
+                        *mc_dir_selected_state =
+                            SelectedState::compute(mc_dir_selected.len(), mc_dir_entries.len());
+                    }
+                );
             }
-            EditPresetsMessage::ToggleIncludeConfig(enable) => {
+            EditPresetsMessage::DirSelectAll => self.preset_dir_select_all(),
+            EditPresetsMessage::ModSelectAll => self.preset_mod_select_all(),
+
+            EditPresetsMessage::ModIncludeConfig(enable) => {
                 iflet_manage_preset!(self, include_config, {
                     *include_config = enable;
                 });
             }
             EditPresetsMessage::LoadedDir(res) => match res {
-                Ok(dir) => iflet_manage_preset!(self, mc_dir_entries, {
-                    *mc_dir_entries = dir;
-                }),
+                Ok(dir) => {
+                    iflet_manage_preset!(
+                        self,
+                        mc_dir_entries,
+                        mc_dir_selected,
+                        mc_dir_selected_state,
+                        {
+                            *mc_dir_selected = dir
+                                .iter()
+                                .filter(|n| !SOFT_EXCEPTIONS.contains(&n.name.as_str()))
+                                .map(|n| n.name.clone())
+                                .collect();
+                            *mc_dir_entries = dir;
+                            *mc_dir_selected_state =
+                                SelectedState::compute(mc_dir_selected.len(), mc_dir_entries.len());
+                        }
+                    )
+                }
                 Err(err) => self.set_error(err),
             },
             EditPresetsMessage::Generate => {
-                iflet_manage_preset!(self, selected_mods, include_config, mc_dir_entries, {
+                iflet_manage_preset!(self, mods_selected, include_config, mc_dir_entries, {
                     let selected_instance = self.selected_instance.clone().unwrap();
-                    let selected_mods = selected_mods.clone();
+                    let mods_selected = mods_selected.clone();
                     let include_config = *include_config;
                     let dir = mc_dir_entries.clone();
 
@@ -69,7 +102,7 @@ impl Launcher {
                     return Task::perform(
                         ql_mod_manager::presets::generate(
                             selected_instance,
-                            selected_mods,
+                            mods_selected,
                             dir,
                             include_config,
                         ),
@@ -98,21 +131,21 @@ impl Launcher {
         Task::none()
     }
 
-    fn preset_select_all(&mut self) {
+    fn preset_mod_select_all(&mut self) {
         if let State::ManagePresets(MenuEditPresets::Selecting {
-            selected_mods,
-            selected_state,
-            sorted_mods_list,
+            mods_selected,
+            mods_selected_state,
+            mods_entries: mods_sorted_list,
             ..
         }) = &mut self.state
         {
-            match selected_state {
+            match mods_selected_state {
                 SelectedState::All => {
-                    selected_mods.clear();
-                    *selected_state = SelectedState::None;
+                    mods_selected.clear();
+                    *mods_selected_state = SelectedState::None;
                 }
                 SelectedState::Some | SelectedState::None => {
-                    *selected_mods = sorted_mods_list
+                    *mods_selected = mods_sorted_list
                         .iter()
                         .filter_map(|mod_info| {
                             mod_info
@@ -120,7 +153,28 @@ impl Launcher {
                                 .then_some(mod_info.clone().into())
                         })
                         .collect();
-                    *selected_state = SelectedState::All;
+                    *mods_selected_state = SelectedState::All;
+                }
+            }
+        }
+    }
+
+    fn preset_dir_select_all(&mut self) {
+        if let State::ManagePresets(MenuEditPresets::Selecting {
+            mc_dir_selected,
+            mc_dir_selected_state,
+            mc_dir_entries,
+            ..
+        }) = &mut self.state
+        {
+            match mc_dir_selected_state {
+                SelectedState::All => {
+                    mc_dir_selected.clear();
+                    *mc_dir_selected_state = SelectedState::None;
+                }
+                SelectedState::Some | SelectedState::None => {
+                    *mc_dir_selected = mc_dir_entries.iter().map(|n| n.name.clone()).collect();
+                    *mc_dir_selected_state = SelectedState::All;
                 }
             }
         }
@@ -131,19 +185,21 @@ impl Launcher {
             return Task::none();
         };
 
-        let selected_mods = menu
+        let mods_selected = menu
             .sorted_mods_list
             .iter()
             .filter_map(|n| n.is_manually_installed().then_some(n.clone().into()))
             .collect::<HashSet<_>>();
 
         let menu = MenuEditPresets::Selecting {
-            selected_mods,
-            selected_state: SelectedState::All,
+            mods_selected,
+            mods_selected_state: SelectedState::All,
             include_config: true,
-            sorted_mods_list: menu.sorted_mods_list.clone(),
+            mods_entries: menu.sorted_mods_list.clone(),
             drag_and_drop_hovered: false,
-            mc_dir_entries: HashSet::new(),
+            mc_dir_entries: Vec::new(),
+            mc_dir_selected: HashSet::new(),
+            mc_dir_selected_state: SelectedState::None,
         };
 
         self.state = State::ManagePresets(menu);

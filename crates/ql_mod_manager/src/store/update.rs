@@ -19,6 +19,7 @@ pub struct ChangelogFile {
 }
 
 #[derive(Debug, Clone)]
+#[must_use]
 pub struct ModUpdateOutput {
     pub changelog_file: Option<ChangelogFile>,
     pub not_allowed: CurseforgeNotAllowed,
