@@ -60,6 +60,11 @@ impl Launcher {
                 self.config.username = username;
                 self.autosave.remove(&AutoSaveKind::LauncherConfig);
             }
+            MainMenuMessage::SetInfoMessage(msg) => {
+                if let State::Launch(menu) = &mut self.state {
+                    menu.message = msg;
+                }
+            }
         }
         Task::none()
     }

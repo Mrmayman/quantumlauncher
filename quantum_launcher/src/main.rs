@@ -102,7 +102,8 @@ impl Launcher {
 
         let get_entries_command = Task::perform(get_entries(false), Message::CoreListLoaded);
         let mut launcher =
-            Launcher::load_new(None, is_new_user, config).unwrap_or_else(Launcher::with_error);
+            Launcher::load_new(is_new_user, config).unwrap_or_else(Launcher::with_error);
+        // let mut launcher = Launcher::with_error("test");
 
         let load_notes_command = if let (Some(instance), State::Launch(menu)) =
             (launcher.selected_instance.clone(), &mut launcher.state)

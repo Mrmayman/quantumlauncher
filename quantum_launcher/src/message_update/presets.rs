@@ -3,7 +3,9 @@ use ql_core::{IntoIoError, IntoStringError};
 use ql_mod_manager::store::SelectedMod;
 use std::collections::HashSet;
 
-use crate::state::{EditPresetsMessage, Launcher, MenuEditPresets, Message, SelectedState, State};
+use crate::state::{
+    EditPresetsMessage, InfoMessage, Launcher, MenuEditPresets, Message, SelectedState, State,
+};
 
 macro_rules! iflet_manage_preset {
     ($self:ident, $($field:ident),+, { $($code:tt)* }) => {
@@ -82,7 +84,7 @@ impl Launcher {
             EditPresetsMessage::ImportComplete(result) => {
                 match result.map(|not_allowed| {
                     if not_allowed.is_empty() {
-                        self.go_to_edit_mods_menu()
+                        self.go_to_edit_mods_menu(Some(InfoMessage::success("Imported mod preset")))
                     } else {
                         self.state = State::curseforge_manual_download(not_allowed);
                         Task::none()
@@ -163,7 +165,7 @@ impl Launcher {
             if let Err(err) = std::fs::write(&path, preset).path(&path) {
                 self.set_error(err);
             }
-            self.go_to_edit_mods_menu()
+            self.go_to_edit_mods_menu(Some(InfoMessage::success("Created Preset")))
         } else {
             Task::none()
         }

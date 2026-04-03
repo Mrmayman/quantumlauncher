@@ -367,7 +367,7 @@ impl Backend for CurseforgeBackend {
 
         let download_version_time = DateTime::parse_from_rfc3339(&file_query.data.fileDate)?;
 
-        Ok((download_version_time, response.data.name))
+        Ok((download_version_time, file_query.data.displayName))
     }
 
     async fn download(

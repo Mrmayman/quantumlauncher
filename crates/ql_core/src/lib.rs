@@ -46,7 +46,7 @@ mod progress;
 pub mod read_log;
 pub mod request;
 mod structs;
-mod urlcache;
+pub mod urlcache;
 
 pub use crate::json::InstanceConfigJson;
 pub use constants::*;
@@ -59,7 +59,6 @@ pub use print::{LOGGER, LogType, LoggingState, logger_finish};
 pub use progress::{DownloadProgress, GenericProgress, Progress};
 pub use request::download;
 pub use structs::{JavaVersion, Loader};
-pub use urlcache::url_cache_get;
 
 pub const LAUNCHER_VERSION_NAME: &str = "0.5.1";
 

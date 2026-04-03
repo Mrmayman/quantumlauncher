@@ -3,7 +3,7 @@ use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
 use crate::{
     config::sidebar::{FolderId, SDragLocation, SidebarSelection},
     message_handler::ForgeKind,
-    state::{LaunchModal, MenuEditModsModal},
+    state::{InfoMessage, LaunchModal, MenuEditModsModal},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
 use iced::widget::{self, scrollable::AbsoluteOffset};
@@ -21,8 +21,8 @@ use ql_instances::auth::{
 use ql_mod_manager::{
     loaders::{fabric, paper::PaperVersion},
     store::{
-        Category, CurseforgeNotAllowed, ImageResult, ModId, ModIndex, QueryType, RecommendedMod,
-        SearchMod, SearchResult, StoreBackendType,
+        Category, CurseforgeNotAllowed, ModId, ModIndex, ModUpdateOutput, QueryType,
+        RecommendedMod, SearchMod, SearchResult, StoreBackendType,
     },
 };
 
@@ -129,7 +129,8 @@ pub enum ManageModsMessage {
     UpdateCheckResult(Res<Vec<(ModId, String)>>),
     UpdateCheckToggle(usize, bool),
     UpdatePerform,
-    UpdatePerformDone(Res<CurseforgeNotAllowed>),
+    UpdatePerformDone(Res<(ModUpdateOutput, bool)>),
+    SetInfoMessage(Option<InfoMessage>),
 
     /// Add a mod, preset or modpack to the current instance.
     /// The field represents whether to delete the file after importing it.
@@ -298,6 +299,7 @@ pub enum LauncherSettingsMessage {
     ToggleAntialiasing(bool),
     ToggleWindowSize(bool),
     ToggleInstanceRemembering(bool),
+    ToggleModUpdateChangelog(bool),
     #[allow(unused)]
     ToggleWindowDecorations(bool),
 
@@ -394,6 +396,7 @@ pub enum MainMenuMessage {
     Modal(Option<LaunchModal>),
     InstanceSelected(InstanceSelection),
     UsernameSet(String),
+    SetInfoMessage(Option<InfoMessage>),
 }
 
 #[derive(Debug, Clone)]
@@ -453,7 +456,7 @@ pub enum Message {
     ModDescription(ModDescriptionMessage),
 
     MScreenOpen {
-        message: Option<String>,
+        message: Option<InfoMessage>,
         clear_selection: bool,
         is_server: Option<bool>,
     },
@@ -495,7 +498,7 @@ pub enum Message {
     CoreTryQuit,
     CoreHideModal,
 
-    CoreImageDownloaded(Res<ImageResult>),
+    CoreImageDownloaded(Res<ql_mod_manager::store::image::Output>),
 
     CoreLogToggle,
     CoreLogScroll(isize),

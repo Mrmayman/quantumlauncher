@@ -6,35 +6,21 @@ use ql_mod_manager::store::{ModId, ModIndex, SelectedMod};
 use std::{collections::HashSet, path::PathBuf};
 
 use crate::state::{
-    AutoSaveKind, ExportModsMessage, Launcher, ManageJarModsMessage, ManageModsMessage,
-    MenuEditJarMods, MenuEditMods, MenuEditModsModal, Message, ProgressBar, SelectedState, State,
+    AutoSaveKind, ExportModsMessage, InfoMessage, InfoMessageKind, Launcher, ManageJarModsMessage,
+    ManageModsMessage, MenuEditJarMods, MenuEditMods, MenuEditModsModal, Message, ProgressBar,
+    SelectedState, State,
 };
 
 impl Launcher {
     pub fn update_manage_mods(&mut self, msg: ManageModsMessage) -> Task<Message> {
         match msg {
-            ManageModsMessage::Open => return self.go_to_edit_mods_menu(),
+            ManageModsMessage::Open => return self.go_to_edit_mods_menu(None),
 
             ManageModsMessage::AddFileDone(Err(err))
             | ManageModsMessage::DeleteFinished(Err(err))
             | ManageModsMessage::LocalDeleteFinished(Err(err))
             | ManageModsMessage::ToggleFinished(Err(err))
             | ManageModsMessage::UpdatePerformDone(Err(err)) => self.set_error(err),
-
-            ManageModsMessage::UpdateCheck => {
-                let (task, handle) = Task::perform(
-                    ql_mod_manager::store::check_for_updates(
-                        self.selected_instance.clone().unwrap(),
-                    ),
-                    |n| ManageModsMessage::UpdateCheckResult(n.strerr()).into(),
-                )
-                .abortable();
-                if let State::EditMods(menu) = &mut self.state {
-                    menu.update_check_handle = Some(handle.abort_on_drop());
-                    menu.modal = None;
-                }
-                return task;
-            }
 
             ManageModsMessage::ListScrolled(offset) => {
                 if let State::EditMods(menu) = &mut self.state {
@@ -77,7 +63,7 @@ impl Launcher {
                 if !not_allowed.is_empty() {
                     self.state = State::curseforge_manual_download(not_allowed);
                 }
-                return self.go_to_edit_mods_menu();
+                return self.go_to_edit_mods_menu(None);
             }
             ManageModsMessage::DeleteSelected => {
                 if let State::EditMods(menu) = &mut self.state {
@@ -148,19 +134,54 @@ impl Launcher {
             ManageModsMessage::ToggleSelected => return self.manage_mods_toggle_selected(),
 
             ManageModsMessage::ToggleFinished(Ok(())) => self.update_mod_index(),
+
             ManageModsMessage::UpdatePerform => return self.update_mods(),
-            ManageModsMessage::UpdatePerformDone(Ok(not_allowed)) => {
+            ManageModsMessage::UpdatePerformDone(Ok((output, should_write_changelog))) => {
+                if !output.not_allowed.is_empty() {
+                    self.state = State::curseforge_manual_download(output.not_allowed);
+                    return Task::none();
+                }
                 self.update_mod_index();
                 if let State::EditMods(menu) = &mut self.state {
                     menu.available_updates.clear();
+                    menu.info_message = if let Some(file) = output.changelog_file {
+                        Some(InfoMessage {
+                            text: format!("{} written to disk", file.filename),
+                            kind: InfoMessageKind::AtPath(file.path),
+                        })
+                    } else {
+                        should_write_changelog
+                            .then(|| InfoMessage::error("Changelog was not written to disk"))
+                    };
                 }
-                if !not_allowed.is_empty() {}
+            }
+
+            ManageModsMessage::UpdateCheck => {
+                let (task, handle) = Task::perform(
+                    ql_mod_manager::store::check_for_updates(
+                        self.selected_instance.clone().unwrap(),
+                    ),
+                    |n| ManageModsMessage::UpdateCheckResult(n.strerr()).into(),
+                )
+                .abortable();
+                if let State::EditMods(menu) = &mut self.state {
+                    menu.update_check_handle = Some(handle.abort_on_drop());
+                    menu.modal = None;
+                }
+                return task;
             }
             ManageModsMessage::UpdateCheckResult(updates) => {
                 if let State::EditMods(menu) = &mut self.state {
                     menu.update_check_handle = None;
                     match updates {
                         Ok(updates) => {
+                            if updates.is_empty() {
+                                menu.info_message = Some(InfoMessage {
+                                    text: "No updates found".to_owned(),
+                                    kind: InfoMessageKind::Success,
+                                })
+                            }
+
                             menu.available_updates = updates
                                 .into_iter()
                                 .map(|(id, title)| {
@@ -183,6 +204,11 @@ impl Launcher {
                     if let Some((_, _, b)) = available_updates.get_mut(idx) {
                         *b = t;
                     }
+                }
+            }
+            ManageModsMessage::SetInfoMessage(message) => {
+                if let State::EditMods(menu) = &mut self.state {
+                    menu.info_message = message;
                 }
             }
             ManageModsMessage::SelectAll => {

@@ -1,5 +1,5 @@
 use iced::{Task, futures::executor::block_on};
-use ql_core::{InstanceSelection, IntoIoError, IntoStringError, err, file_utils::DirItem, info};
+use ql_core::{IntoIoError, IntoStringError, err, file_utils::DirItem, info};
 use std::fmt::Write;
 use tokio::io::AsyncWriteExt;
 
@@ -10,9 +10,9 @@ use owo_colors::OwoColorize;
 use crate::launcher_update::UpdateCheckInfo;
 use crate::{
     state::{
-        AutoSaveKind, CustomJarState, GameProcess, LaunchTab, Launcher, LauncherSettingsMessage,
-        ManageModsMessage, MenuExportInstance, MenuLaunch, MenuLicense, MenuWelcome, Message,
-        ProgressBar, State,
+        AutoSaveKind, CustomJarState, GameProcess, InfoMessage, LaunchTab, Launcher,
+        LauncherSettingsMessage, ManageModsMessage, MenuExportInstance, MenuLaunch, MenuLicense,
+        MenuWelcome, Message, ProgressBar, State,
     },
     stylesheet::styles::LauncherThemeLightness,
 };
@@ -87,12 +87,7 @@ impl Launcher {
                 clear_selection,
                 is_server,
             } => {
-                let is_server = is_server
-                    .or(self
-                        .selected_instance
-                        .as_ref()
-                        .map(InstanceSelection::is_server))
-                    .unwrap_or_default();
+                let is_server = is_server.unwrap_or(self.server_selected());
                 if clear_selection {
                     self.unselect_instance();
                 }
@@ -173,8 +168,11 @@ impl Launcher {
             Message::InstallForge(kind) => {
                 return self.install_forge(kind);
             }
-            Message::InstallForgeEnd(Ok(())) | Message::UninstallLoaderEnd(Ok(())) => {
-                return self.go_to_edit_mods_menu();
+            Message::InstallForgeEnd(Ok(())) => {
+                return self.go_to_edit_mods_menu(Some(InfoMessage::success("Installed Forge")));
+            }
+            Message::UninstallLoaderEnd(Ok(())) => {
+                return self.go_to_edit_mods_menu(Some(InfoMessage::success("Uninstalled loader")));
             }
             Message::LaunchGameExited(Ok((status, instance, diagnostic))) => {
                 self.set_game_exited(status, &instance, diagnostic);
@@ -365,7 +363,7 @@ impl Launcher {
                         if let Err(err) = std::fs::write(&path, bytes).path(path) {
                             self.set_error(err);
                         } else {
-                            return self.go_to_main_menu_with_message(None::<String>);
+                            return self.go_to_main_menu(None);
                         }
                     }
                 }
@@ -450,7 +448,7 @@ impl Launcher {
     pub fn load_edit_instance(&mut self, new_tab: Option<LaunchTab>) {
         if let State::Launch(_) = &self.state {
         } else {
-            _ = self.go_to_main_menu_with_message(None::<String>);
+            _ = self.go_to_main_menu(None);
         }
 
         if let State::Launch(MenuLaunch {

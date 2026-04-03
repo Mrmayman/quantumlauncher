@@ -17,7 +17,7 @@ use crate::state::{
     MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuLaunch, MenuLoginMS,
     MenuModsDownload, MenuRecommendedMods, Message, ModListEntry, State,
 };
-use crate::{config::SIDEBAR_WIDTH, state::MenuEditPresets};
+use crate::{config::SIDEBAR_WIDTH, state::InfoMessage, state::MenuEditPresets};
 
 impl Launcher {
     pub fn tick(&mut self) -> Task<Message> {
@@ -106,7 +106,7 @@ impl Launcher {
                 };
                 if has_finished {
                     self.java_recv = None;
-                    return self.go_to_main_menu_with_message(Some("Installed Java"));
+                    return self.go_to_main_menu(Some(InfoMessage::success("Installed Java")));
                 }
             }
             State::ModsDownload(_) => {

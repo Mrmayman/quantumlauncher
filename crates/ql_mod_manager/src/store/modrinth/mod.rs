@@ -104,7 +104,7 @@ impl Backend for ModrinthBackend {
 
         let download_version_time = DateTime::parse_from_rfc3339(&download_version.date_published)?;
 
-        Ok((download_version_time, download_version.name))
+        Ok((download_version_time, download_version.version_number))
     }
 
     async fn download(

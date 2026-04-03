@@ -1,6 +1,6 @@
 use crate::message_update::MSG_RESIZE;
 use crate::state::{
-    AutoSaveKind, CreateInstanceMessage, LaunchTab, Launcher, LauncherSettingsMessage,
+    AutoSaveKind, CreateInstanceMessage, InfoMessage, LaunchTab, Launcher, LauncherSettingsMessage,
     LauncherSettingsTab, MainMenuMessage, ManageModsMessage, MenuCreateInstance,
     MenuCreateInstanceChoosing, MenuEditMods, MenuEditPresets, MenuExportInstance,
     MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLauncherSettings,
@@ -223,7 +223,9 @@ impl Launcher {
                     MenuWelcome::P2Theme => MenuWelcome::P3Auth,
                     MenuWelcome::P3Auth => {
                         return Task::done(Message::MScreenOpen {
-                            message: Some("Install Minecraft by clicking \"+ New\"".to_owned()),
+                            message: Some(InfoMessage::success(
+                                "Install Minecraft by clicking \"+ New\"",
+                            )),
                             clear_selection: true,
                             is_server: Some(false),
                         });
@@ -400,10 +402,10 @@ impl Launcher {
 
         if affect {
             if ret_to_main_screen {
-                return (true, self.go_to_main_menu_with_message(None::<String>));
+                return (true, self.go_to_main_menu(None));
             }
             if ret_to_mods {
-                return (true, self.go_to_edit_mods_menu());
+                return (true, self.go_to_edit_mods_menu(None));
             }
             if ret_to_mod_store {
                 if let State::ModsDownload(menu) = &mut self.state {

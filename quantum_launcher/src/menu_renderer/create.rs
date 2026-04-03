@@ -9,8 +9,8 @@ use ql_core::ListEntryKind;
 use crate::{
     icons,
     menu_renderer::{
-        Element, button_with_icon, ctxbox, dots, launch::import_description, offset, shortcut_ctrl,
-        sidebar_button, tooltip, tsubtitle,
+        Element, back_to_launch_screen, button_with_icon, ctxbox, dots, launch::import_description,
+        offset, shortcut_ctrl, sidebar_button, tooltip, tsubtitle,
     },
     state::{CreateInstanceMessage, MenuCreateInstance, MenuCreateInstanceChoosing, Message},
     stylesheet::{
@@ -132,11 +132,7 @@ impl MenuCreateInstanceChoosing {
             button_with_icon(icons::back_s(12), "Back", 13)
                 .padding(pb)
                 .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::RoundDark))
-                .on_press(Message::MScreenOpen {
-                    message: None,
-                    clear_selection: false,
-                    is_server: Some(self.is_server),
-                }),
+                .on_press(back_to_launch_screen(None, Some(self.is_server))),
             button_with_icon(
                 icons::filter_s(12),
                 if hidden { "Filters" } else { "Filters •" },

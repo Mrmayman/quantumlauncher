@@ -5,15 +5,18 @@ use iced::{
 use ql_core::Progress;
 use ql_instances::auth::AccountType;
 
-use crate::stylesheet::styles::{BORDER_RADIUS, BORDER_WIDTH, LauncherThemeLightness};
 use crate::{
     config::LauncherConfig,
     icons,
     state::{
-        AccountMessage, InstallModsMessage, LauncherSettingsMessage, LicenseTab, ManageModsMessage,
-        MenuCurseforgeManualDownload, MenuLicense, Message, ProgressBar,
+        AccountMessage, InfoMessageKind, InstallModsMessage, LauncherSettingsMessage, LicenseTab,
+        ManageModsMessage, MenuCurseforgeManualDownload, MenuLicense, Message, ProgressBar,
     },
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
+};
+use crate::{
+    state::InfoMessage,
+    stylesheet::styles::{BORDER_RADIUS, BORDER_WIDTH, LauncherThemeLightness},
 };
 
 mod create;
@@ -58,6 +61,51 @@ fn ctx_button<'a>(
     .width(Length::Fill)
     .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::FlatDark))
     .padding(2)
+}
+
+fn view_info_message(
+    message: &InfoMessage,
+    close: Message,
+) -> widget::Container<'_, Message, LauncherTheme> {
+    let (icon, color) = match &message.kind {
+        InfoMessageKind::Success | InfoMessageKind::AtPath(_) => {
+            (icons::checkmark(), Color::SecondLight)
+        }
+        InfoMessageKind::Error => (icons::qm(), Color::Mid),
+    };
+
+    widget::container(
+        row![
+            icon.style(move |t: &LauncherTheme| t.style_text(color))
+                .size(12),
+            widget::text(&message.text).size(12).style(tsubtitle),
+            widget::horizontal_space(),
+        ]
+        .push_maybe(if let InfoMessageKind::AtPath(path) = &message.kind {
+            Some(
+                button_with_icon(icons::folder_s(10), "Open", 12)
+                    .padding([2, 8])
+                    .on_press_with(|| Message::CoreOpenPath(path.clone())),
+            )
+        } else {
+            None
+        })
+        .push(
+            widget::button(
+                icons::close()
+                    .style(|t: &LauncherTheme| t.style_text(Color::Mid))
+                    .size(12),
+            )
+            .padding(0)
+            .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::FlatExtraDark))
+            .on_press(close),
+        )
+        .spacing(12)
+        .align_y(Alignment::Center),
+    )
+    .width(Length::Fill)
+    .padding([7, 10])
+    .style(|t: &LauncherTheme| t.style_container_sharp_box(0.0, Color::ExtraDark))
 }
 
 pub fn checkered_list<'a, Item: Into<Element<'a>>>(
@@ -272,13 +320,7 @@ impl crate::state::MenuLauncherUpdate {
                 button_with_icon(icons::download(), "Download", 16)
                     .on_press(Message::UpdateDownloadStart))
             )
-            .push(back_button().on_press(
-                Message::MScreenOpen {
-                    message: None,
-                    clear_selection: false,
-                    is_server: None
-                }
-            ))
+            .push(back_button().on_press(back_to_launch_screen(None, None)))
             .push(button_with_icon(icons::globe(), "Open Website", 16)
                 .on_press(Message::CoreOpenLink(ql_core::WEBSITE.to_owned())))
             .spacing(5).wrap(),
@@ -332,7 +374,7 @@ pub fn get_mode_selector(config: &LauncherConfig) -> Element<'static> {
     .into()
 }
 
-fn back_to_launch_screen(is_server: Option<bool>, message: Option<String>) -> Message {
+pub fn back_to_launch_screen(message: Option<InfoMessage>, is_server: Option<bool>) -> Message {
     Message::MScreenOpen {
         message,
         clear_selection: false,
@@ -491,7 +533,7 @@ pub fn view_error(error: &'_ str) -> Element<'_> {
 
 pub fn view_log_upload_result(url: &'_ str, is_server: bool) -> Element<'_> {
     column![
-        back_button().on_press(back_to_launch_screen(Some(is_server), None)),
+        back_button().on_press(back_to_launch_screen(None, Some(is_server))),
         column![
             widget::vertical_space(),
             widget::text(format!(

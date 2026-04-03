@@ -24,4 +24,5 @@ thiserror.workspace = true
 
 chrono.workspace = true
 regex.workspace = true
+image.workspace = true
 indexmap = "2"

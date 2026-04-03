@@ -120,7 +120,6 @@ pub struct GameProcess {
 
 impl Launcher {
     pub fn load_new(
-        message: Option<String>,
         is_new_user: bool,
         config: Result<LauncherConfig, JsonFileError>,
     ) -> Result<Self, JsonFileError> {
@@ -135,14 +134,8 @@ impl Launcher {
         let theme = config.c_theme();
         let (window_width, window_height) = config.c_window_size();
 
-        let mut launch = if let Some(message) = message {
-            MenuLaunch::with_message(message)
-        } else {
-            MenuLaunch::default()
-        };
-
+        let mut launch = MenuLaunch::default();
         launch.resize_sidebar(SIDEBAR_WIDTH);
-
         let launch = State::Launch(launch);
 
         // The version field was added in 0.3
@@ -278,11 +271,8 @@ impl Launcher {
         self.state = State::Error { error }
     }
 
-    pub fn go_to_launch_screen<T: Display>(&mut self, message: Option<T>) -> Task<Message> {
-        let mut menu_launch = match message {
-            Some(message) => MenuLaunch::with_message(message.to_string()),
-            None => MenuLaunch::default(),
-        };
+    pub fn go_to_launch_screen(&mut self, message: Option<InfoMessage>) -> Task<Message> {
+        let mut menu_launch = MenuLaunch::new(message);
         menu_launch.resize_sidebar(SIDEBAR_WIDTH);
         self.state = State::Launch(menu_launch);
 

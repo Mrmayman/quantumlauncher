@@ -10,6 +10,7 @@ use ql_instances::auth::{self, AccountType};
 
 use crate::{
     config::ConfigAccount,
+    menu_renderer::back_to_launch_screen,
     state::{
         AccountMessage, AutoSaveKind, Launcher, LittleSkinOauth, MenuLoginAlternate, MenuLoginMS,
         Message, NEW_ACCOUNT_NAME, OFFLINE_ACCOUNT_NAME, ProgressBar, State,
@@ -51,11 +52,7 @@ impl Launcher {
                     msg1: format!("log out of your account: {}", self.account_selected),
                     msg2: "You can always log in later".to_owned(),
                     yes: AccountMessage::LogoutConfirm.into(),
-                    no: Message::MScreenOpen {
-                        message: None,
-                        clear_selection: false,
-                        is_server: None,
-                    },
+                    no: back_to_launch_screen(None, None),
                 }
             }
             AccountMessage::LittleSkinDeviceCodeReady {
@@ -125,7 +122,7 @@ impl Launcher {
                     .unwrap_or_else(|| OFFLINE_ACCOUNT_NAME.to_owned());
                 self.account_selected = selected_account;
 
-                return self.go_to_launch_screen(Option::<String>::None);
+                return self.go_to_launch_screen(None);
             }
             AccountMessage::RefreshComplete(Ok(data)) => {
                 self.accounts.insert(data.get_username_modified(), data);
@@ -133,7 +130,7 @@ impl Launcher {
                 let account_data = self.get_selected_account_data();
 
                 return Task::batch([
-                    self.go_to_launch_screen::<String>(None),
+                    self.go_to_launch_screen(None),
                     self.launch_game(account_data),
                 ]);
             }
@@ -291,13 +288,13 @@ impl Launcher {
     fn account_response_3(&mut self, data: AccountData) -> Task<Message> {
         self.autosave.remove(&AutoSaveKind::LauncherConfig);
         if data.username == OFFLINE_ACCOUNT_NAME || data.username == NEW_ACCOUNT_NAME {
-            return self.go_to_launch_screen::<String>(None);
+            return self.go_to_launch_screen(None);
         }
         let username = data.get_username_modified();
 
         if self.accounts_dropdown.contains(&username) {
             // Account already logged in
-            return self.go_to_launch_screen::<String>(None);
+            return self.go_to_launch_screen(None);
         }
         self.accounts_dropdown.insert(0, username.clone());
 
@@ -307,7 +304,7 @@ impl Launcher {
         self.account_selected.clone_from(&username);
         self.accounts.insert(username.clone(), data);
 
-        self.go_to_launch_screen::<String>(None)
+        self.go_to_launch_screen(None)
     }
 
     fn account_response_2(&mut self, token: auth::ms::AuthTokenResponse) -> Task<Message> {

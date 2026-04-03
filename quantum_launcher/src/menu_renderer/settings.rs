@@ -109,7 +109,7 @@ impl MenuLauncherSettings {
                             .then_some(ui_scale_apply)
                     )
                     .align_y(Alignment::Center).width(SETTING_WIDTH),
-                widget::slider(0.5..=2.0, self.temp_scale, |n| Message::LauncherSettings(
+                widget::slider(0.5..=3.0, self.temp_scale, |n| Message::LauncherSettings(
                     LauncherSettingsMessage::UiScale(n)
                 ))
                 .step(0.1),
@@ -140,6 +140,19 @@ impl MenuLauncherSettings {
                 widget::Space::with_height(5),
                 widget::checkbox("Remember last selected instance", config.persistent.clone().unwrap_or_default().selected_remembered)
                     .on_toggle(|n| LauncherSettingsMessage::ToggleInstanceRemembering(n).into()),
+                widget::Space::with_height(5),
+                widget::checkbox(
+                    "Write changelog after mod updates",
+                    config
+                        .persistent
+                        .clone()
+                        .unwrap_or_default()
+                        .write_mod_update_changelog,
+                )
+                .on_toggle(|n| LauncherSettingsMessage::ToggleModUpdateChangelog(n).into()),
+                widget::text("Writes mod update changes to .minecraft/changelogs")
+                    .size(12)
+                    .style(tsubtitle),
             ]
             .spacing(5)
             .into(),

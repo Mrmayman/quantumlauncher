@@ -17,10 +17,17 @@ TODO: Add screenshots
   - MultiMC/PrismLauncher (experimental)
   - Modrinth/Curseforge modpacks
   - Official Minecraft Launcher, TL Legacy, TLauncher, GDLauncher, ATLauncher (TODO)
-- You can also export instances to:
+- Export instances to:
   - QuantumLauncher instance format (experimental)
   - MultiMC/PrismLauncher (TODO)
   - Modrinth/Curseforge modpacks (TODO)
+
+# UX
+
+- You can now automatically create changelogs after updating mods,
+  showing which versions changed.
+- Added success notification messages for common tasks like installing/uninstalling mod loaders,
+  importing/exporting presets, etc.
 
 # Fixes
 

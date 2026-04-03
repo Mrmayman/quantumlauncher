@@ -450,6 +450,9 @@ pub struct PersistentSettings {
     pub selected_server: Option<String>,
     pub selected_remembered: bool,
 
+    #[serde(default = "default_true")]
+    pub write_mod_update_changelog: bool,
+
     /// Remembers version filters (eg: snapshot, release, etc) in Create Instance
     pub create_instance_filters: Option<HashSet<ListEntryKind>>,
 
@@ -463,10 +466,15 @@ impl Default for PersistentSettings {
             selected_instance: None,
             selected_server: None,
             selected_remembered: true,
+            write_mod_update_changelog: true,
             create_instance_filters: None,
             _extra: HashMap::new(),
         }
     }
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl PersistentSettings {
