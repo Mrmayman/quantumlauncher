@@ -122,9 +122,7 @@ impl MenuModsDownload {
                 .mods
                 .values()
                 .any(|n| n.name == hit.title && n.project_source != backend);
-        let is_downloading = self
-            .mods_download_in_progress
-            .contains_key(&ModId::from_pair(&hit.id, backend));
+        let is_downloading = self.mods_download_in_progress.contains_key(&hit.get_id());
 
         let action_button: Element = action_button(i, hit, is_installed, is_downloading);
 
@@ -171,7 +169,6 @@ impl MenuModsDownload {
         // If a specific mod was selected, show the mod description page
         view_project_description(
             Ok::<_, &str>(&self.description),
-            self.backend,
             InstallModsMessage::BackToMainScreen,
             hit,
             images,

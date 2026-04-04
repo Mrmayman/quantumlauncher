@@ -315,8 +315,8 @@ impl Backend for CurseforgeBackend {
                     title: n.name,
                     description: n.summary,
                     downloads: n.download_count,
-                    internal_name: n.slug,
-                    id: n.id.to_string(),
+                    slug: n.slug,
+                    internal_id: n.id.to_string(),
                     project_type: query_type_str.to_owned(),
                     icon_url: n.logo.map(|n| n.url),
                     backend: StoreBackendType::Curseforge,
@@ -483,8 +483,8 @@ impl Backend for CurseforgeBackend {
             title: query.data.name,
             description: query.data.summary,
             downloads: query.data.download_count,
-            internal_name: query.data.slug,
-            id: query.data.id.to_string(),
+            slug: query.data.slug,
+            internal_id: query.data.id.to_string(),
             project_type: get_query_type(query.data.class_id)
                 .await
                 .unwrap_or(QueryType::Mods)
@@ -510,8 +510,8 @@ impl Backend for CurseforgeBackend {
                 title: query.name,
                 description: query.summary,
                 downloads: query.download_count,
-                internal_name: query.slug,
-                id: query.id.to_string(),
+                slug: query.slug,
+                internal_id: query.id.to_string(),
                 project_type: get_query_type(query.class_id)
                     .await
                     .unwrap_or(QueryType::Mods)

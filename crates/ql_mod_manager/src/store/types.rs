@@ -204,12 +204,13 @@ pub struct SearchMod {
     pub title: String,
     pub description: String,
     pub downloads: usize,
-    pub internal_name: String,
-    pub project_type: String,
-    pub id: String,
-    pub icon_url: Option<String>,
+
+    pub slug: String,
+    pub project_type: String, // used for building page URL
+    pub internal_id: String,
     pub backend: StoreBackendType,
 
+    pub icon_url: Option<String>,
     pub gallery: Vec<GalleryItem>,
     pub urls: Vec<(UrlKind, String)>,
 }
@@ -217,7 +218,20 @@ pub struct SearchMod {
 impl SearchMod {
     #[must_use]
     pub fn get_id(&self) -> ModId {
-        ModId::from_pair(&self.id, self.backend)
+        ModId::from_pair(&self.internal_id, self.backend)
+    }
+
+    #[must_use]
+    pub fn get_page_url(&self) -> String {
+        format!(
+            "{base}{ty}/{slug}",
+            base = match self.backend {
+                StoreBackendType::Modrinth => "https://modrinth.com/",
+                StoreBackendType::Curseforge => "https://www.curseforge.com/minecraft/",
+            },
+            ty = self.project_type,
+            slug = self.slug
+        )
     }
 }
 

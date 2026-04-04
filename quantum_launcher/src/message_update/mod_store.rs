@@ -264,7 +264,7 @@ impl Launcher {
                     return Task::none();
                 };
 
-                let mod_id = ModId::from_pair(&hit.id, results.backend);
+                let mod_id = hit.get_id();
                 mods_download_in_progress
                     .insert(mod_id.clone(), (hit.title.clone(), ModOperation::Deleting));
                 let selected_instance = self.instance().clone();
@@ -341,14 +341,9 @@ impl Launcher {
             return Task::none();
         };
 
-        menu.mods_download_in_progress.insert(
-            ModId::from_pair(&hit.id, results.backend),
-            (hit.title.clone(), ModOperation::Downloading),
-        );
-
-        let project_id = hit.id.clone();
-        let backend = menu.backend;
-        let id = ModId::from_pair(&project_id, backend);
+        menu.mods_download_in_progress
+            .insert(hit.get_id(), (hit.title.clone(), ModOperation::Downloading));
+        let id = hit.get_id();
 
         if let QueryType::ModPacks = menu.query_type {
             self.state = State::ConfirmAction {
