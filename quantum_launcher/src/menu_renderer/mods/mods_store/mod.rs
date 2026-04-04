@@ -8,9 +8,9 @@ use ql_mod_manager::store::{ModId, QueryType, SearchMod, StoreBackendType};
 use crate::{
     icons,
     menu_renderer::{
-        Element, barthin, mods::description::view_project_description, tooltip, tsubtitle,
+        Column, Element, barthin, mods::description::view_project_description, tooltip, tsubtitle,
     },
-    state::{ImageState, InstallModsMessage, MenuModsDownload, Message},
+    state::{ImageState, InstallModsMessage, MenuModsDownload},
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
 
@@ -33,11 +33,7 @@ impl MenuModsDownload {
         .into()
     }
 
-    fn mods_display<'a>(
-        &'a self,
-        images: &'a ImageState,
-        tick_timer: usize,
-    ) -> widget::Column<'a, Message, LauncherTheme> {
+    fn mods_display<'a>(&'a self, images: &'a ImageState, tick_timer: usize) -> Column<'a> {
         let mods_list = self.get_mods_list(images, tick_timer);
 
         self.mods_view_warnings().push(
@@ -53,7 +49,7 @@ impl MenuModsDownload {
         )
     }
 
-    fn mods_view_warnings(&self) -> widget::Column<'static, Message, LauncherTheme> {
+    fn mods_view_warnings(&self) -> Column<'static> {
         // WARN: various mod-related stuff
         widget::Column::new()
             .push_maybe(
@@ -91,11 +87,7 @@ impl MenuModsDownload {
             )
     }
 
-    fn get_mods_list<'a>(
-        &'a self,
-        images: &'a ImageState,
-        tick_timer: usize,
-    ) -> widget::Column<'a, Message, LauncherTheme> {
+    fn get_mods_list<'a>(&'a self, images: &'a ImageState, tick_timer: usize) -> Column<'a> {
         if let Some(results) = self.results.as_ref() {
             if results.mods.is_empty() {
                 column!["No results found."].padding(10)

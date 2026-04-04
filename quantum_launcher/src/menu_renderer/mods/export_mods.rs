@@ -3,7 +3,7 @@ use ql_mod_manager::store::{ModId, SelectedMod};
 
 use crate::{
     icons,
-    menu_renderer::{Element, back_button, tsubtitle, underline},
+    menu_renderer::{Column, Element, back_button, tsubtitle, underline},
     state::{ExportModsMessage, ManageModsMessage, MenuExportMods, Message},
     stylesheet::{
         color::Color,
@@ -42,7 +42,7 @@ impl MenuExportMods {
         .into()
     }
 
-    fn get_controls<'a>() -> widget::Column<'a, Message, LauncherTheme> {
+    fn get_controls<'a>() -> Column<'a> {
         widget::column![
             widget::text("Choose export format:").size(20),
             widget::row![
@@ -104,7 +104,7 @@ impl MenuExportMods {
         .spacing(5)
     }
 
-    fn get_top_section(&self) -> widget::Column<'_, Message, LauncherTheme> {
+    fn get_top_section(&self) -> Column<'_> {
         let len = self.selected_mods.len();
 
         widget::column![

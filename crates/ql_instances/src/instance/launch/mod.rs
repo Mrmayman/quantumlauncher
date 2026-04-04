@@ -104,11 +104,6 @@ pub async fn launch(
         err!("No ID found!");
     }
 
-    if game_launcher.config.close_on_start.unwrap_or(false) {
-        ql_core::logger_finish();
-        std::process::exit(0);
-    }
-
     Ok(LaunchedProcess {
         child: Arc::new(Mutex::new(child)),
         instance: InstanceSelection::Instance(instance_name),

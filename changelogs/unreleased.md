@@ -16,6 +16,10 @@ TODO: Add screenshots
   showing which versions changed.
 - Added success notification messages for common tasks like installing/uninstalling mod loaders,
   importing/exporting presets, etc.
+- You can now choose to minimize the launcher after a game opens (new), or close it, or do nothing.
+  - Configured in launcher settings (instead of per-instance settings).
+- Added option to minimize launcher on game open
+- Improved design of Launcher Settings page
 
 # Fixes
 
@@ -25,3 +29,4 @@ TODO: Add screenshots
   and vice versa
 - Fixed mods installed through Curseforge modpacks internally being
   stored as Modrinth mods
+- Fixed Java binary not being found on Linux ARM

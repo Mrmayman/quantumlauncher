@@ -148,9 +148,6 @@ fn setup_config(ini: &Ini, instance_recipe: &InstanceRecipe, config: &mut Instan
     if instance_recipe.force_vanilla_launch {
         config.main_class_override = Some("net.minecraft.client.Minecraft".to_owned());
     }
-    if let Ok("true") = general_get(ini, "CloseAfterLaunch") {
-        config.close_on_start = Some(true);
-    }
     // TODO: `LaunchMaximized: bool`
 
     if let Ok(win_height) = general_get(ini, "MinecraftWinHeight") {

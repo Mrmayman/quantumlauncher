@@ -63,9 +63,9 @@ pub struct InstanceConfigJson {
     /// Whether this is a server, not a client
     pub is_server: Option<bool>,
 
-    /// Close launcher after client starts (default: `false`).
-    /// Enable to reduce taskbar icons; leaving it open has negligible impact.
+    /// Close launcher after client starts, **deprecated**
     // Since: v0.4
+    #[deprecated(since = "0.5.2", note = "Use launcher-wide settings instead")]
     pub close_on_start: Option<bool>,
     // Since: v0.4.2
     pub global_settings: Option<GlobalSettings>,

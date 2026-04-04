@@ -570,7 +570,7 @@ pub struct MenuLauncherSettings {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LauncherSettingsTab {
     UserInterface,
-    Internal,
+    Game,
     About,
 }
 
@@ -578,26 +578,26 @@ impl std::fmt::Display for LauncherSettingsTab {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             LauncherSettingsTab::UserInterface => "Appearance",
-            LauncherSettingsTab::Internal => "Game",
+            LauncherSettingsTab::Game => "Game",
             LauncherSettingsTab::About => "About",
         })
     }
 }
 
 impl LauncherSettingsTab {
-    pub const ALL: &'static [Self] = &[Self::UserInterface, Self::Internal, Self::About];
+    pub const ALL: &'static [Self] = &[Self::UserInterface, Self::Game, Self::About];
 
     pub const fn next(self) -> Self {
         match self {
-            Self::UserInterface => Self::Internal,
-            Self::Internal | Self::About => Self::About,
+            Self::UserInterface => Self::Game,
+            Self::Game | Self::About => Self::About,
         }
     }
 
     pub const fn prev(self) -> Self {
         match self {
-            Self::UserInterface | Self::Internal => Self::UserInterface,
-            Self::About => Self::Internal,
+            Self::UserInterface | Self::Game => Self::UserInterface,
+            Self::About => Self::Game,
         }
     }
 }

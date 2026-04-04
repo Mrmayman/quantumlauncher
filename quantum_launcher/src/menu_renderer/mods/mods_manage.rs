@@ -8,7 +8,7 @@ use ql_mod_manager::store::SelectedMod;
 use crate::{
     icons,
     menu_renderer::{
-        CTXI_SIZE, Element, FONT_MONO, back_button, back_to_launch_screen, barthin,
+        CTXI_SIZE, Column, Element, FONT_MONO, back_button, back_to_launch_screen, barthin,
         button_with_icon, ctx_button, ctxbox, dots, offset, select_box, subbutton_with_icon,
         tooltip, tsubtitle, view_info_message,
     },
@@ -154,10 +154,7 @@ impl MenuEditMods {
         .height(Length::Fill)
     }
 
-    fn get_mod_update_pane(
-        &'_ self,
-        tick_timer: usize,
-    ) -> widget::Column<'_, Message, LauncherTheme> {
+    fn get_mod_update_pane(&'_ self, tick_timer: usize) -> Column<'_> {
         if self.update_check_handle.is_some() {
             column![widget::text!("Checking for mod updates{}", dots(tick_timer)).size(12)]
         } else if self.available_updates.is_empty() {

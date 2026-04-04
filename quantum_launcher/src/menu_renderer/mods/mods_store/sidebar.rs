@@ -6,7 +6,7 @@ use ql_mod_manager::store::{Category, QueryType, StoreBackendType};
 
 use crate::{
     icons,
-    menu_renderer::{Element, barthin, button_with_icon, tsubtitle},
+    menu_renderer::{Column, Element, barthin, button_with_icon, tsubtitle},
     state::{
         InstallModsMessage, ManageModsMessage, MenuModsDownload, Message, ModCategoryState,
         ModOperation,
@@ -36,10 +36,7 @@ impl MenuModsDownload {
         .padding([5, 10])
     }
 
-    pub(super) fn get_side_panel(
-        &'_ self,
-        tick_timer: usize,
-    ) -> widget::Column<'_, Message, LauncherTheme> {
+    pub(super) fn get_side_panel(&'_ self, tick_timer: usize) -> Column<'_> {
         column![
             widget::scrollable(
                 column![
@@ -139,12 +136,7 @@ impl MenuModsDownload {
 }
 
 impl ModCategoryState {
-    fn view(
-        &self,
-        backend: StoreBackendType,
-        open_source: bool,
-        tick_timer: usize,
-    ) -> widget::Column<'_, Message, LauncherTheme> {
+    fn view(&self, backend: StoreBackendType, open_source: bool, tick_timer: usize) -> Column<'_> {
         let category_view: Element = match &self.categories {
             Ok(n) if n.is_empty() => {
                 let dots = ".".repeat((tick_timer % 3) + 1);
@@ -186,10 +178,7 @@ impl ModCategoryState {
         .spacing(5)
     }
 
-    fn view_category<'a>(
-        &'a self,
-        category: &'a Category,
-    ) -> widget::Column<'a, Message, LauncherTheme> {
+    fn view_category<'a>(&'a self, category: &'a Category) -> Column<'a> {
         widget::Column::new()
             .push_maybe(category.is_usable.then(|| {
                 widget::checkbox(&category.name, self.selected.contains(&category.slug))

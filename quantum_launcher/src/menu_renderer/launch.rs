@@ -7,8 +7,8 @@ use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
 use crate::cli::{EXPERIMENTAL_MMC_IMPORT, EXPERIMENTAL_SERVERS};
 use crate::menu_renderer::onboarding::x86_warning;
 use crate::menu_renderer::{
-    CTXI_SIZE, FONT_MONO, back_to_launch_screen, barthin, ctx_button, ctxbox, sidebar, tsubtitle,
-    underline, view_info_message,
+    CTXI_SIZE, Column, FONT_MONO, back_to_launch_screen, barthin, ctx_button, ctxbox, sidebar,
+    tsubtitle, underline, view_info_message,
 };
 use crate::state::{
     GameLogMessage, InstanceNotes, LaunchModal, MainMenuMessage, NotesMessage, ShortcutMessage,
@@ -658,7 +658,7 @@ fn render_tab_button(tab: LaunchTab, decor: bool, menu: &'_ MenuLaunch) -> Eleme
     }
 }
 
-fn get_no_logs_message<'a>() -> widget::Column<'a, Message, LauncherTheme> {
+fn get_no_logs_message<'a>() -> Column<'a> {
     const BASE_MESSAGE: &str = "No logs found";
 
     column![widget::text(BASE_MESSAGE).style(|t: &LauncherTheme| t.style_text(Color::Mid))]

@@ -2,6 +2,7 @@ use iced::{Alignment, Length, widget};
 use ql_core::InstanceSelection;
 use ql_mod_manager::loaders::fabric::{self, FabricVersionList, FabricVersionListItem};
 
+use crate::menu_renderer::Column;
 use crate::state::{InstallPaperMessage, MenuInstallPaper};
 use crate::{
     icons,
@@ -220,10 +221,7 @@ impl MenuInstallFabric {
     }
 }
 
-fn version_list<'a>(
-    list: &'a [FabricVersionListItem],
-    selected: &'a str,
-) -> widget::Column<'a, Message, LauncherTheme> {
+fn version_list<'a>(list: &'a [FabricVersionListItem], selected: &'a str) -> Column<'a> {
     let selected = FabricVersionListItem {
         loader: fabric::FabricVersion {
             version: selected.to_owned(),

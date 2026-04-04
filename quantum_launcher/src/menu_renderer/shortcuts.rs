@@ -1,7 +1,7 @@
 use crate::{
     icons,
     menu_renderer::{
-        Element, back_button, back_to_launch_screen, button_with_icon, tooltip, tsubtitle,
+        Column, Element, back_button, back_to_launch_screen, button_with_icon, tooltip, tsubtitle,
     },
     state::{MenuShortcut, Message, OFFLINE_ACCOUNT_NAME, ShortcutMessage},
     stylesheet::styles::LauncherTheme,
@@ -140,10 +140,7 @@ impl MenuShortcut {
         }
     }
 
-    fn get_info_fields<'a>(
-        &'a self,
-        accounts: &'a [String],
-    ) -> widget::Column<'a, Message, LauncherTheme> {
+    fn get_info_fields<'a>(&'a self, accounts: &'a [String]) -> Column<'a> {
         fn ifield<'a>(
             name: &'a str,
             elem: impl Into<Element<'a>>,

@@ -1,7 +1,8 @@
 use crate::{
     icons,
     menu_renderer::{
-        FONT_MONO, button_with_icon, checkered_list, settings::PREFIX_EXPLANATION, tsubtitle,
+        Column, FONT_MONO, button_with_icon, checkered_list, settings::PREFIX_EXPLANATION,
+        tsubtitle,
     },
     state::{
         CustomJarState, EditInstanceMessage, ListMessage, MenuEditInstance, Message, NONE_JAR_NAME,
@@ -45,10 +46,6 @@ impl MenuEditInstance {
                 },
 
                 widget::Column::new()
-                .push_maybe((!selected_instance.is_server()).then_some(column![
-                    widget::checkbox("Close launcher after game opens", self.config.close_on_start.unwrap_or(false))
-                        .on_toggle(|t| EditInstanceMessage::CloseLauncherToggle(t).into()),
-                ].spacing(5)))
                 .push(
                     column![
                         widget::Space::with_height(5),
@@ -69,10 +66,7 @@ impl MenuEditInstance {
         ).style(LauncherTheme::style_scrollable_flat_extra_dark).spacing(1).into()
     }
 
-    fn item_rename(
-        &self,
-        selected_instance: &InstanceSelection,
-    ) -> widget::Column<'_, Message, LauncherTheme> {
+    fn item_rename(&self, selected_instance: &InstanceSelection) -> Column<'_> {
         column![
             row![
                 widget::text(selected_instance.get_name().to_owned())
@@ -122,7 +116,7 @@ impl MenuEditInstance {
         )
     }
 
-    fn item_args(&self) -> widget::Column<'_, Message, LauncherTheme> {
+    fn item_args(&self) -> Column<'_> {
         let current_mode = self.config.global_java_args_enable.unwrap_or(true);
         let prefix_mode = self.config.pre_launch_prefix_mode.unwrap_or_default();
 
@@ -156,10 +150,7 @@ impl MenuEditInstance {
         .width(Length::Fill)
     }
 
-    fn item_args_prefix(
-        &self,
-        prefix_mode: PreLaunchPrefixMode,
-    ) -> widget::Column<'_, Message, LauncherTheme> {
+    fn item_args_prefix(&self, prefix_mode: PreLaunchPrefixMode) -> Column<'_> {
         let checkbox = widget::checkbox("Use global prefix", !prefix_mode.is_disabled())
             .on_toggle(|t| {
                 EditInstanceMessage::PreLaunchPrefixModeChanged(if t {
@@ -212,7 +203,7 @@ impl MenuEditInstance {
         .spacing(7)
     }
 
-    fn item_mem_alloc(&self) -> widget::Column<'_, Message, LauncherTheme> {
+    fn item_mem_alloc(&self) -> Column<'_> {
         // 2 ^ 8 = 256 MB
         const MEM_256_MB_IN_TWOS_EXPONENT: f32 = 8.0;
         // 2 ^ 15 = 32768 MB (32 GB)
@@ -263,7 +254,7 @@ Heavy modpacks / High settings: 4-8 GB+"
         .spacing(5)
     }
 
-    fn item_java_override(&self) -> widget::Column<'_, Message, LauncherTheme> {
+    fn item_java_override(&self) -> Column<'_> {
         fn radio(
             l: &str,
             a: bool,
@@ -339,10 +330,7 @@ Heavy modpacks / High settings: 4-8 GB+"
         .spacing(5)
     }
 
-    fn item_custom_jar<'a>(
-        &'a self,
-        jar_choices: Option<&'a CustomJarState>,
-    ) -> widget::Column<'a, Message, LauncherTheme> {
+    fn item_custom_jar<'a>(&'a self, jar_choices: Option<&'a CustomJarState>) -> Column<'a> {
         let picker: Element = if let Some(choices) = jar_choices {
             widget::pick_list(
                 choices.choices.as_slice(),
@@ -449,7 +437,7 @@ pub fn resolution_dialog<'a>(
     global_settings: Option<&GlobalSettings>,
     width: impl Fn(String) -> Message + 'a,
     height: impl Fn(String) -> Message + 'a,
-) -> widget::Column<'a, Message, LauncherTheme> {
+) -> Column<'a> {
     column![
         "Custom Game Window Size (px):",
         widget::text("(Leave empty for default)\nCommon resolutions: 854x480, 1366x768, 1920x1080, 2560x1440, 3840x2160").size(12).style(tsubtitle),

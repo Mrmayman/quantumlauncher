@@ -1,3 +1,4 @@
+use crate::config::AfterLaunchBehavior;
 use crate::config::SIDEBAR_WIDTH;
 use crate::menu_renderer::back_to_launch_screen;
 use crate::state::{
@@ -143,7 +144,7 @@ impl Launcher {
                     }
                 }
 
-                return Task::perform(
+                let log_task = Task::perform(
                     async move {
                         let result = child.read_logs(censors, Some(sender)).await;
                         let default_output = Ok((ExitStatus::default(), selected_instance, None));
@@ -162,6 +163,21 @@ impl Launcher {
                     },
                     Message::LaunchGameExited,
                 );
+
+                match self.config.c_after_launch_behavior() {
+                    AfterLaunchBehavior::DoNothing => {}
+                    AfterLaunchBehavior::CloseLauncher => {
+                        ql_core::logger_finish();
+                        std::process::exit(0);
+                    }
+                    AfterLaunchBehavior::MinimizeLauncher => {
+                        let minimize_task = iced::window::get_latest()
+                            .and_then(|id| iced::window::minimize(id, true));
+                        return Task::batch([log_task, minimize_task]);
+                    }
+                }
+
+                return log_task;
             }
             Err(err) => self.set_error(err),
         }

@@ -16,7 +16,7 @@ mod recommended;
 
 use crate::config::UiWindowDecorations;
 use crate::state::{
-    GameLogMessage, InfoMessage, InstanceNotes, MenuLaunch, MenuModDescription,
+    AutoSaveKind, GameLogMessage, InfoMessage, InstanceNotes, MenuLaunch, MenuModDescription,
     ModDescriptionMessage, NotesMessage,
 };
 use crate::{
@@ -303,7 +303,7 @@ impl Launcher {
             LauncherSettingsMessage::ClearJavaInstallsConfirm => {
                 return Task::perform(ql_instances::delete_java_installs(), |()| {
                     Message::LauncherSettings(LauncherSettingsMessage::ChangeTab(
-                        state::LauncherSettingsTab::Internal,
+                        state::LauncherSettingsTab::Game,
                     ))
                 });
             }
@@ -329,6 +329,13 @@ impl Launcher {
             }
             LauncherSettingsMessage::ToggleModUpdateChangelog(t) => {
                 self.config.c_persistent().write_mod_update_changelog = t;
+            }
+            LauncherSettingsMessage::AfterLaunchBehaviorChanged(behavior) => {
+                self.config
+                    .ui
+                    .get_or_insert_with(UiSettings::default)
+                    .after_game_opens = behavior;
+                self.autosave.remove(&AutoSaveKind::LauncherConfig);
             }
             LauncherSettingsMessage::DefaultMinecraftWidthChanged(input) => {
                 self.config.c_global().window_width = input.trim().parse::<u32>().ok();
@@ -403,7 +410,7 @@ impl Launcher {
             msg1: "delete auto-installed Java files".to_owned(),
             msg2: "They will get reinstalled automatically as needed".to_owned(),
             yes: LauncherSettingsMessage::ClearJavaInstallsConfirm.into(),
-            no: LauncherSettingsMessage::ChangeTab(state::LauncherSettingsTab::Internal).into(),
+            no: LauncherSettingsMessage::ChangeTab(state::LauncherSettingsTab::Game).into(),
         }
     }
 

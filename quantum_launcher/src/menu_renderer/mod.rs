@@ -34,11 +34,13 @@ pub use onboarding::changelog;
 
 pub const DISCORD: &str = "https://discord.gg/bWqRaSXar5";
 pub const GITHUB: &str = "https://github.com/Mrmayman/quantumlauncher";
+pub const MATRIX: &str = "https://matrix.to/#/#quantumgroup:matrix.org";
 
 pub const FONT_MONO: iced::Font = iced::Font::with_name("JetBrains Mono");
 pub const FONT_DEFAULT: iced::Font = iced::Font::with_name("Inter");
 
 pub type Element<'a> = iced::Element<'a, Message, LauncherTheme>;
+pub type Column<'a> = widget::Column<'a, Message, LauncherTheme>;
 
 const PADDING_NOT_BOTTOM: iced::Padding = iced::Padding {
     top: 10.0,
@@ -110,7 +112,7 @@ fn view_info_message(
 
 pub fn checkered_list<'a, Item: Into<Element<'a>>>(
     children: impl IntoIterator<Item = Item>,
-) -> widget::Column<'a, Message, LauncherTheme> {
+) -> Column<'a> {
     widget::column(children.into_iter().enumerate().map(|(i, e)| {
         widget::container(e)
             .width(Length::Fill)
@@ -383,7 +385,7 @@ pub fn back_to_launch_screen(message: Option<InfoMessage>, is_server: Option<boo
 }
 
 impl<T: Progress> ProgressBar<T> {
-    pub fn view(&'_ self) -> widget::Column<'_, Message, LauncherTheme> {
+    pub fn view(&'_ self) -> Column<'_> {
         let total = T::total();
         column![widget::progress_bar(0.0..=total, self.num)]
             .push_maybe(self.message.as_deref().map(widget::text))

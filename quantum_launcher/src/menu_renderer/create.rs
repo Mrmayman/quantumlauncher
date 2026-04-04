@@ -10,8 +10,8 @@ use crate::{
     cli::EXPERIMENTAL_MMC_IMPORT,
     icons,
     menu_renderer::{
-        Element, back_to_launch_screen, button_with_icon, ctxbox, dots, launch::import_description,
-        offset, shortcut_ctrl, sidebar_button, tooltip, tsubtitle,
+        Column, Element, back_to_launch_screen, button_with_icon, ctxbox, dots,
+        launch::import_description, offset, shortcut_ctrl, sidebar_button, tooltip, tsubtitle,
     },
     state::{CreateInstanceMessage, MenuCreateInstance, MenuCreateInstanceChoosing, Message},
     stylesheet::{
@@ -124,7 +124,7 @@ impl MenuCreateInstanceChoosing {
         .style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark))
     }
 
-    fn get_sidebar_header(&self) -> widget::Column<'_, Message, LauncherTheme> {
+    fn get_sidebar_header(&self) -> Column<'_> {
         let pb = [4, 10];
         let opened_controls = self.show_category_dropdown;
         let hidden = self.selected_categories.len() == ListEntryKind::ALL.len();

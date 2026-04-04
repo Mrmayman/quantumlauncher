@@ -84,7 +84,6 @@ pub enum EditInstanceMessage {
     MemoryChanged(f32),
     MemoryInputChanged(String),
     LoggingToggle(bool),
-    CloseLauncherToggle(bool),
     SetMainClass(Option<MainClassMode>, Option<String>),
 
     JavaArgs(ListMessage),
@@ -293,6 +292,7 @@ pub enum LauncherSettingsMessage {
     ToggleWindowSize(bool),
     ToggleInstanceRemembering(bool),
     ToggleModUpdateChangelog(bool),
+    AfterLaunchBehaviorChanged(crate::config::AfterLaunchBehavior),
     #[allow(unused)]
     ToggleWindowDecorations(bool),
 
