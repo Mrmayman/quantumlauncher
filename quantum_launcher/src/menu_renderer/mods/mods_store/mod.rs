@@ -3,14 +3,15 @@ use iced::{
     widget::{self, column, row},
 };
 use ql_core::Loader;
-use ql_mod_manager::store::{ModId, QueryType, SearchMod, StoreBackendType};
+use ql_mod_manager::store::{ModId, QueryType, SearchMod, SearchSortBy, StoreBackendType};
 
 use crate::{
     icons,
     menu_renderer::{
-        Column, Element, barthin, mods::description::view_project_description, tooltip, tsubtitle,
+        Column, Element, barthin, button_with_icon, mods::description::view_project_description,
+        tooltip, tsubtitle,
     },
-    state::{ImageState, InstallModsMessage, MenuModsDownload},
+    state::{ImageState, InstallModsMessage, ManageModsMessage, MenuModsDownload, Message},
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
 
@@ -33,6 +34,47 @@ impl MenuModsDownload {
         .into()
     }
 
+    fn get_top_bar(&self) -> widget::Container<'_, Message, LauncherTheme> {
+        let s = &self.search;
+
+        widget::container(
+            row![
+                button_with_icon(icons::back_s(12), "Back", 13)
+                    .padding([5, 8])
+                    .on_press_maybe(
+                        self.mods_download_in_progress
+                            .is_empty()
+                            .then_some(ManageModsMessage::Open.into())
+                    ),
+                widget::text_input("Search...", &s.term)
+                    .size(14)
+                    .on_input(|n| InstallModsMessage::SearchInput(n).into()),
+                row![
+                    widget::text("Sort by:").size(14).style(tsubtitle),
+                    widget::pick_list(
+                        SearchSortBy::default_choices(s.backend),
+                        Some(s.sort_by),
+                        |s| InstallModsMessage::ChangeSortBy(s).into()
+                    )
+                    .text_size(12)
+                    .width(130)
+                    .padding([4, 6])
+                ]
+                .push_maybe(
+                    s.backend
+                        .can_sort_ascending()
+                        .then(|| sort_ascending_button(s)),
+                )
+                .spacing(5)
+                .align_y(Alignment::Center)
+            ]
+            .align_y(Alignment::Center)
+            .spacing(10),
+        )
+        .style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark))
+        .padding([5, 10])
+    }
+
     fn mods_display<'a>(&'a self, images: &'a ImageState, tick_timer: usize) -> Column<'a> {
         let mods_list = self.get_mods_list(images, tick_timer);
 
@@ -50,10 +92,11 @@ impl MenuModsDownload {
     }
 
     fn mods_view_warnings(&self) -> Column<'static> {
+        let q = self.search.query_type;
         // WARN: various mod-related stuff
         widget::Column::new()
             .push_maybe(
-                (self.query_type == QueryType::Shaders
+                (q == QueryType::Shaders
                     && self.config.mod_type != Loader::OptiFine
                     // Iris Shaders Mod
                     && !self.mod_index.mods.contains_key(&ModId::Modrinth("YL57xq9U".to_owned())) // Modrinth ID
@@ -67,8 +110,7 @@ impl MenuModsDownload {
                 )
             )
             .push_maybe(
-                (self.query_type == QueryType::Mods
-                    && self.config.mod_type.is_vanilla())
+                (q == QueryType::Mods && self.config.mod_type.is_vanilla())
                 .then_some(
                     widget::container(
                         widget::text(
@@ -76,7 +118,7 @@ impl MenuModsDownload {
                         ).size(12)
                     ).padding(10).width(Length::Fill).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
                 )
-            ).push_maybe((self.query_type == QueryType::Mods && self.version_json.is_legacy_version())
+            ).push_maybe((q == QueryType::Mods && self.version_json.is_legacy_version())
                 .then_some(
                     widget::container(
                         widget::text(
@@ -175,6 +217,26 @@ impl MenuModsDownload {
             tick_timer,
         )
     }
+}
+
+fn sort_ascending_button(
+    s: &crate::state::ModsDownloadSearch,
+) -> widget::Tooltip<'_, Message, LauncherTheme> {
+    tooltip(
+        widget::button(if s.sort_ascending {
+            icons::sort_ascend_s(12)
+        } else {
+            icons::sort_descend_s(12)
+        })
+        .padding([4, 8])
+        .on_press(InstallModsMessage::ChangeSortAscending(!s.sort_ascending).into()),
+        if s.sort_ascending {
+            "Ascending"
+        } else {
+            "Descending"
+        },
+        widget::tooltip::Position::Bottom,
+    )
 }
 
 fn format_downloads(downloads: usize) -> String {

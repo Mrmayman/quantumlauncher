@@ -22,7 +22,7 @@ use ql_mod_manager::{
     loaders::{fabric, paper::PaperVersion},
     store::{
         Category, CurseforgeNotAllowed, ModId, ModIndex, QueryType, RecommendedMod, SearchMod,
-        SearchResult, StoreBackendType,
+        SearchResult, SearchSortBy, StoreBackendType,
     },
 };
 
@@ -193,6 +193,8 @@ pub enum InstallModsMessage {
     ForceOpenSource(bool),
     ChangeBackend(StoreBackendType),
     ChangeQueryType(QueryType),
+    ChangeSortBy(SearchSortBy),
+    ChangeSortAscending(bool),
 }
 
 #[derive(Debug, Clone)]

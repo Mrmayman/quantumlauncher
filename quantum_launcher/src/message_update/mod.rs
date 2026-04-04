@@ -639,17 +639,16 @@ impl Launcher {
 
     pub fn update_mod_description(&mut self, msg: ModDescriptionMessage) -> Task<Message> {
         match msg {
-            ModDescriptionMessage::Open(mod_id) => {
+            ModDescriptionMessage::Open(id) => {
                 // Load metadata/details
-                let id = mod_id.clone();
+                let id2 = id.clone();
                 let (load_details, h1) =
-                    Task::perform(async move { store::get_info(&id).await }, |res| {
+                    Task::perform(async move { store::get_info(&id2).await }, |res| {
                         ModDescriptionMessage::LoadedDetails(res.strerr()).into()
                     })
                     .abortable();
 
                 // Load long description (HTML/Markdown)
-                let id = mod_id.clone();
                 let (load_description, h2) =
                     Task::perform(async move { store::get_description(id).await }, |res| {
                         ModDescriptionMessage::LoadedDescription(res.map(|n| n.1).strerr()).into()
@@ -659,7 +658,6 @@ impl Launcher {
                 self.state = State::ModDescription(MenuModDescription {
                     description: Ok(None),
                     details: None,
-                    mod_id,
                     _handle: [h1.abort_on_drop(), h2.abort_on_drop()],
                 });
 

@@ -6,46 +6,26 @@ use ql_mod_manager::store::{Category, QueryType, StoreBackendType};
 
 use crate::{
     icons,
-    menu_renderer::{Column, Element, barthin, button_with_icon, tsubtitle},
+    menu_renderer::{Column, Element, barthin, tsubtitle},
     state::{
-        InstallModsMessage, ManageModsMessage, MenuModsDownload, Message, ModCategoryState,
-        ModOperation,
+        InstallModsMessage, MenuModsDownload, Message, ModCategoryState, ModOperation,
+        ModsDownloadSearch,
     },
     stylesheet::{color::Color, styles::LauncherTheme},
 };
 
 impl MenuModsDownload {
-    pub(super) fn get_top_bar(&self) -> widget::Container<'_, Message, LauncherTheme> {
-        widget::container(
-            row![
-                button_with_icon(icons::back_s(12), "Back", 13)
-                    .padding([5, 8])
-                    .on_press_maybe(
-                        self.mods_download_in_progress
-                            .is_empty()
-                            .then_some(ManageModsMessage::Open.into())
-                    ),
-                widget::text_input("Search...", &self.query)
-                    .size(14)
-                    .on_input(|n| InstallModsMessage::SearchInput(n).into()),
-            ]
-            .align_y(Alignment::Center)
-            .spacing(10),
-        )
-        .style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark))
-        .padding([5, 10])
-    }
-
     pub(super) fn get_side_panel(&'_ self, tick_timer: usize) -> Column<'_> {
         column![
             widget::scrollable(
                 column![
                     self.get_store_selector(),
+                    widget::horizontal_rule(1).style(barthin),
                     row![icons::download_s(14), widget::text("Type:").size(18)]
                         .align_y(Alignment::Center)
                         .spacing(5),
                     widget::column(QueryType::STORE_QUERIES.iter().map(|n| {
-                        widget::radio(n.to_string(), *n, Some(self.query_type), |v| {
+                        widget::radio(n.to_string(), *n, Some(self.search.query_type), |v| {
                             InstallModsMessage::ChangeQueryType(v).into()
                         })
                         .spacing(5)
@@ -54,8 +34,7 @@ impl MenuModsDownload {
                         .into()
                     })),
                     widget::Space::with_height(5),
-                    self.categories
-                        .view(self.backend, self.force_open_source, tick_timer),
+                    self.search.view_categories(tick_timer),
                 ]
                 .spacing(5)
                 .padding(10),
@@ -70,26 +49,20 @@ impl MenuModsDownload {
         )
     }
 
-    fn get_store_selector(&'_ self) -> widget::Row<'_, Message, LauncherTheme> {
+    fn get_store_selector(&self) -> widget::Row<'static, Message, LauncherTheme> {
+        let radio = |b: StoreBackendType| {
+            widget::radio(b.desc(), b, Some(self.search.backend), |v| {
+                InstallModsMessage::ChangeBackend(v).into()
+            })
+            .text_size(12)
+            .size(12)
+        };
+
         row![
-            widget::text("Store:").size(14).style(tsubtitle),
+            widget::text("Store:").size(14),
             column![
-                widget::radio(
-                    "Modrinth",
-                    StoreBackendType::Modrinth,
-                    Some(self.backend),
-                    |v| InstallModsMessage::ChangeBackend(v).into()
-                )
-                .text_size(10)
-                .size(10),
-                widget::radio(
-                    "CurseForge",
-                    StoreBackendType::Curseforge,
-                    Some(self.backend),
-                    |v| InstallModsMessage::ChangeBackend(v).into()
-                )
-                .text_size(10)
-                .size(10),
+                radio(StoreBackendType::Modrinth),
+                radio(StoreBackendType::Curseforge),
             ],
         ]
         .spacing(10)
@@ -132,6 +105,13 @@ impl MenuModsDownload {
         } else {
             None
         }
+    }
+}
+
+impl ModsDownloadSearch {
+    fn view_categories(&self, tick_timer: usize) -> Column<'_> {
+        self.categories
+            .view(self.backend, self.force_open_source, tick_timer)
     }
 }
 

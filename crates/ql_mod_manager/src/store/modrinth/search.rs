@@ -8,14 +8,18 @@ use crate::store::{ModError, Query, QueryType};
 pub async fn do_request(query: &Query, offset: usize) -> Result<Search, ModError> {
     const SEARCH_URL: &str = "https://api.modrinth.com/v2/search";
 
-    let mut params = BTreeMap::from([
-        ("index", "relevance".to_owned()),
-        ("limit", "100".to_owned()),
-        ("offset", offset.to_string()),
-    ]);
+    let mut params = BTreeMap::from([("limit", "100".to_owned()), ("offset", offset.to_string())]);
     if !query.name.is_empty() {
         params.insert("query", query.name.clone());
     }
+    params.insert(
+        "index",
+        query
+            .sort_by
+            .get_modrinth_id()
+            .ok_or(ModError::SortByNotSupported(query.sort_by))?
+            .to_owned(),
+    );
 
     let mut filters = vec![
         vec![format!("project_type:{}", query.kind.to_modrinth_str())],

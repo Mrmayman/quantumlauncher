@@ -261,17 +261,25 @@ pub struct CurseforgeBackend;
 
 impl Backend for CurseforgeBackend {
     async fn search(query: super::Query, offset: usize) -> Result<SearchResult, ModError> {
-        const TOTAL_DOWNLOADS: &str = "6";
-
         RATE_LIMITER.lock().await;
         let instant = Instant::now();
 
         let mut params = HashMap::from([
             ("gameId", get_mc_id().await?.to_string()),
-            ("sortField", TOTAL_DOWNLOADS.to_owned()),
-            ("sortOrder", "desc".to_owned()),
+            (
+                "sortOrder",
+                if query.sort_ascending { "asc" } else { "desc" }.to_owned(),
+            ),
             ("index", offset.to_string()),
         ]);
+        params.insert(
+            "sortField",
+            query
+                .sort_by
+                .get_curseforge_id()
+                .ok_or(ModError::SortByNotSupported(query.sort_by))?
+                .to_string(),
+        );
 
         if let QueryType::Mods | QueryType::ModPacks = query.kind {
             if !query.loader.is_vanilla() {
