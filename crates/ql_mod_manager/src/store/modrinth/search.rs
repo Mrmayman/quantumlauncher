@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use ql_core::IntoJsonError;
+use ql_core::{IntoJsonError, request::QL_USER_AGENT};
 use serde::Deserialize;
 
 use crate::store::{ModError, Query, QueryType};
@@ -53,6 +53,7 @@ pub async fn do_request(query: &Query, offset: usize) -> Result<Search, ModError
     let text = ql_core::CLIENT
         .get(SEARCH_URL)
         .query(&params)
+        .header("User-Agent", QL_USER_AGENT)
         .send()
         .await?
         .text()

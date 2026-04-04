@@ -6,6 +6,9 @@ use crate::{
     CLIENT, DownloadFileError, IntoIoError, IntoJsonError, JsonDownloadError, RequestError, retry,
 };
 
+pub const QL_USER_AGENT: &str =
+    "Mrmayman/quantumlauncher (https://mrmayman.github.io/quantumlauncher)";
+
 #[must_use]
 pub struct DownloadRequest<'a> {
     url: &'a str,
@@ -28,10 +31,7 @@ impl DownloadRequest<'_> {
         match self.user_agent {
             UserAgentKind::None => {}
             UserAgentKind::Ql => {
-                get = get.header(
-                    "User-Agent",
-                    "Mrmayman/quantumlauncher (https://mrmayman.github.io/quantumlauncher)",
-                );
+                get = get.header("User-Agent", QL_USER_AGENT);
             }
             UserAgentKind::Spoofed => {
                 get = get.header(
