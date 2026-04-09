@@ -5,9 +5,7 @@ use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{
-    InstanceSelection, IntoIoError, IntoJsonError, JsonFileError, OS_NAME, constants::*, err, pt,
-};
+use crate::{Instance, IntoIoError, IntoJsonError, JsonFileError, OS_NAME, constants::*, err, pt};
 
 pub const V_PRECLASSIC_LAST: &str = "2009-05-16T11:48:00+00:00";
 pub const V_OFFICIAL_FABRIC_SUPPORT: &str = "2018-10-24T10:52:16+00:00";
@@ -68,7 +66,7 @@ impl VersionDetails {
     /// # Errors
     /// - `details.json` file couldn't be loaded
     /// - `details.json` couldn't be parsed into valid JSON
-    pub async fn load(instance: &InstanceSelection) -> Result<Self, JsonFileError> {
+    pub async fn load(instance: &Instance) -> Result<Self, JsonFileError> {
         Self::load_from_path(&instance.get_instance_path()).await
     }
 
@@ -90,7 +88,7 @@ impl VersionDetails {
 
     /// Saves the Minecraft instance JSON to disk
     /// to a specific [`InstanceSelection`] (Minecraft installation).
-    pub async fn save(&self, instance: &InstanceSelection) -> Result<(), JsonFileError> {
+    pub async fn save(&self, instance: &Instance) -> Result<(), JsonFileError> {
         self.save_to_dir(&instance.get_instance_path()).await
     }
 
@@ -105,10 +103,7 @@ impl VersionDetails {
         Ok(())
     }
 
-    pub async fn apply_tweaks(
-        &mut self,
-        instance: &InstanceSelection,
-    ) -> Result<(), JsonFileError> {
+    pub async fn apply_tweaks(&mut self, instance: &Instance) -> Result<(), JsonFileError> {
         let patches_path = instance.get_instance_path().join("patches");
         if !patches_path.is_dir() {
             return Ok(());

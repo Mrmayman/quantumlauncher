@@ -1,8 +1,8 @@
 use error::Is404NotFound;
 use owo_colors::OwoColorize;
 use ql_core::{
-    CLASSPATH_SEPARATOR, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError,
-    Loader, Progress, do_jobs, download, err,
+    CLASSPATH_SEPARATOR, GenericProgress, Instance, InstanceKind, IntoIoError, IntoJsonError,
+    IoError, Loader, Progress, do_jobs, download, err,
     file_utils::{self, exists},
     info,
     json::{
@@ -43,7 +43,7 @@ struct ForgeInstaller {
 
     instance_dir: PathBuf,
     forge_dir: PathBuf,
-    is_server: bool,
+    kind: InstanceKind,
     version_json: VersionDetails,
 }
 
@@ -59,7 +59,7 @@ impl ForgeInstaller {
     async fn new(
         forge_version: Option<String>, // example: "11.15.1.2318" for 1.8.9
         f_progress: Option<Sender<ForgeInstallProgress>>,
-        instance: InstanceSelection,
+        instance: Instance,
     ) -> Result<Self, ForgeInstallError> {
         let instance_dir = instance.get_instance_path();
         let forge_dir = if instance.is_server() {
@@ -110,7 +110,7 @@ impl ForgeInstaller {
 
             instance_dir,
             forge_dir,
-            is_server: instance.is_server(),
+            kind: instance.kind,
             version_json,
         })
     }
@@ -212,10 +212,9 @@ impl ForgeInstaller {
         j_progress: Option<&Sender<GenericProgress>>,
         installer_name: &str,
     ) -> Result<(), ForgeInstallError> {
-        let installer = if self.is_server {
-            FORGE_INSTALLER_SERVER
-        } else {
-            FORGE_INSTALLER_CLIENT
+        let installer = match self.kind {
+            InstanceKind::Client => FORGE_INSTALLER_CLIENT,
+            InstanceKind::Server => FORGE_INSTALLER_SERVER,
         };
         let installer_class = self.forge_dir.join("ForgeInstaller.class");
         fs::write(&installer_class, installer)
@@ -262,7 +261,7 @@ impl ForgeInstaller {
     }
 
     async fn run_installer_create_garbage_files(&self) -> Result<(), ForgeInstallError> {
-        if !self.is_server {
+        if matches!(self.kind, InstanceKind::Client) {
             let launcher_profiles_json_path = self.forge_dir.join("launcher_profiles.json");
             fs::write(&launcher_profiles_json_path, "{}")
                 .await
@@ -442,16 +441,16 @@ async fn create_mods_dir(instance_dir: &Path) -> Result<(), ForgeInstallError> {
 
 pub async fn install(
     forge_version: Option<String>, // example: "11.15.1.2318" for 1.8.9
-    instance: InstanceSelection,
+    instance: Instance,
     f_progress: Option<Sender<ForgeInstallProgress>>,
     j_progress: Option<Sender<GenericProgress>>,
 ) -> Result<(), ForgeInstallError> {
-    match instance {
-        InstanceSelection::Instance(name) => {
-            install_client(forge_version, name, f_progress, j_progress).await
+    match instance.kind {
+        InstanceKind::Client => {
+            install_client(forge_version, instance, f_progress, j_progress).await
         }
-        InstanceSelection::Server(name) => {
-            install_server(forge_version, name, j_progress, f_progress).await
+        InstanceKind::Server => {
+            install_server(forge_version, instance, j_progress, f_progress).await
         }
     }
 }
@@ -505,7 +504,7 @@ impl Progress for ForgeInstallProgress {
 
 pub async fn install_client(
     forge_version: Option<String>,
-    instance_name: String,
+    instance: Instance,
     f_progress: Option<Sender<ForgeInstallProgress>>,
     j_progress: Option<Sender<GenericProgress>>,
 ) -> Result<(), ForgeInstallError> {
@@ -514,21 +513,11 @@ pub async fn install_client(
         _ = progress.send(ForgeInstallProgress::P1Start);
     }
 
-    let installer = ForgeInstaller::new(
-        forge_version,
-        f_progress,
-        InstanceSelection::Instance(instance_name.clone()),
-    )
-    .await?;
+    let installer = ForgeInstaller::new(forge_version, f_progress, instance.clone()).await?;
 
     let (installer_file, installer_name, _) = installer.download_forge_installer().await?;
     if installer.version_json.is_legacy_version() && installer.version_json.get_id() != "1.5.2" {
-        ql_core::jarmod::insert(
-            InstanceSelection::Instance(instance_name.clone()),
-            installer_file,
-            "Forge",
-        )
-        .await?;
+        ql_core::jarmod::insert(instance.clone(), installer_file, "Forge").await?;
         return Ok(());
     }
 

@@ -5,7 +5,14 @@ use std::{
 };
 
 use chrono::DateTime;
+<<<<<<< mod-store-improvements
 use ql_core::{GenericProgress, InstanceSelection, download, err, info, json::VersionDetails, pt};
+=======
+use ql_core::{
+    GenericProgress, InstanceConfigJson, Instance, download, err, file_utils, info,
+    json::VersionDetails, pt,
+};
+>>>>>>> main
 
 use crate::store::{
     DirStructure, ModError, ModId, QueryType, StoreBackendType, install_modpack,
@@ -16,7 +23,7 @@ use crate::store::{
 use super::info::ProjectInfo;
 
 pub struct ModDownloader {
-    instance: InstanceSelection,
+    instance: Instance,
     version: String,
     loader: Option<&'static str>,
 
@@ -29,29 +36,68 @@ pub struct ModDownloader {
 
 impl ModDownloader {
     pub async fn new(
-        instance: &InstanceSelection,
+        instance: &Instance,
         sender: Option<Sender<GenericProgress>>,
     ) -> Result<ModDownloader, ModError> {
         let version_json = VersionDetails::load(instance).await?;
-
+        let config = InstanceConfigJson::read(instance).await?;
         let index = ModIndex::load(instance).await?;
-        let loader = instance
-            .get_loader()
-            .await?
+
+        let loader = config
+            .mod_type
             .not_vanilla()
             .map(ql_core::Loader::to_modrinth_str);
-        let currently_installing_mods = HashSet::new();
         Ok(ModDownloader {
             version: version_json.get_id().to_owned(),
             index,
             loader,
-            currently_installing_mods,
+            currently_installing_mods: HashSet::new(),
             info: HashMap::new(),
             instance: instance.clone(),
             sender,
 
             dirs: DirStructure::new(instance, &version_json).await?,
         })
+    }
+
+    pub async fn basic(instance: &Instance) -> Result<ModDownloader, ModError> {
+        let version_json = VersionDetails::load(instance).await?;
+        let config = InstanceConfigJson::read(instance).await?;
+
+        let loader = config
+            .mod_type
+            .not_vanilla()
+            .map(ql_core::Loader::to_modrinth_str);
+
+        Ok(ModDownloader {
+            version: version_json.get_id().to_owned(),
+            index: ModIndex::default(),
+            loader,
+            currently_installing_mods: HashSet::new(),
+            info: HashMap::new(),
+            instance: instance.clone(),
+            sender: None,
+            dirs: DirStructure::new(instance, &version_json).await?,
+        })
+    }
+
+    pub async fn get_download_link(
+        &self,
+        id: &str,
+        query_type: QueryType,
+    ) -> Result<String, ModError> {
+        let download_version = self.get_download_version(id, None, query_type).await?;
+
+        if let Some(file) = download_version
+            .files
+            .iter()
+            .find(|file| file.primary)
+            .or_else(|| download_version.files.first())
+        {
+            Ok(file.url.clone())
+        } else {
+            Err(ModError::NoFilesFound)
+        }
     }
 
     pub async fn download(
@@ -91,7 +137,7 @@ impl ModDownloader {
 
         print_downloading_message(&project_info, dependent);
         let download_version = self
-            .get_download_version(id, project_info.title.clone(), query_type)
+            .get_download_version(id, Some(&project_info.title), query_type)
             .await?;
 
         let mut dependency_list = HashSet::new();
@@ -191,7 +237,7 @@ impl ModDownloader {
     async fn get_download_version(
         &self,
         id: &str,
-        title: String,
+        title: Option<&str>,
         project_type: QueryType,
     ) -> Result<ModVersion, ModError> {
         pt!("Getting download info");
@@ -215,10 +261,13 @@ impl ModDownloader {
         // Sort by date published
         download_versions.sort_by(version_sort);
 
-        let download_version = download_versions
-            .into_iter()
-            .next_back()
-            .ok_or(ModError::NoCompatibleVersionFound(title))?;
+        let download_version =
+            download_versions
+                .into_iter()
+                .next_back()
+                .ok_or(ModError::NoCompatibleVersionFound(
+                    title.map_or_else(|| id.to_owned(), str::to_owned),
+                ))?;
 
         Ok(download_version)
     }

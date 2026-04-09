@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
-use ql_core::InstanceSelection;
+use ql_core::{Instance, InstanceKind};
 use serde::{Deserialize, Serialize};
 
 use crate::config::sidebar::SidebarNode;
@@ -25,22 +25,22 @@ impl PartialEq<SidebarSelection> for SidebarNode {
     }
 }
 
-impl PartialEq<InstanceSelection> for SidebarNode {
-    fn eq(&self, other: &InstanceSelection) -> bool {
+impl PartialEq<Instance> for SidebarNode {
+    fn eq(&self, other: &Instance) -> bool {
         match &self.kind {
             SidebarNodeKind::Instance(kind) => {
-                kind.is_server() == other.is_server() && self.name == other.get_name()
+                kind.is_server() == other.is_server() && &*self.name == other.get_name()
             }
             SidebarNodeKind::Folder(_) => false,
         }
     }
 }
 
-impl PartialEq<InstanceSelection> for SidebarSelection {
-    fn eq(&self, other: &InstanceSelection) -> bool {
+impl PartialEq<Instance> for SidebarSelection {
+    fn eq(&self, other: &Instance) -> bool {
         match self {
             SidebarSelection::Instance(name, instance_kind) => {
-                instance_kind.is_server() == other.is_server() && name == other.get_name()
+                instance_kind.is_server() == other.is_server() && &**name == other.get_name()
             }
             SidebarSelection::Folder(_) => false,
         }
@@ -98,24 +98,9 @@ impl FolderId {
     }
 }
 
-// TODO: Refactor the entire launcher to use this
-// instead of `is_server: bool`
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[serde(rename_all = "snake_case")]
-pub enum InstanceKind {
-    Client,
-    Server,
-}
-
-impl InstanceKind {
-    pub fn is_server(self) -> bool {
-        matches!(self, Self::Server)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SidebarSelection {
-    Instance(String, InstanceKind),
+    Instance(Arc<str>, InstanceKind),
     Folder(FolderId),
 }
 

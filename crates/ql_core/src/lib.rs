@@ -246,19 +246,28 @@ where
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub enum InstanceSelection {
-    Instance(String),
-    Server(String),
+pub struct Instance {
+    pub name: Arc<str>,
+    pub kind: InstanceKind,
 }
 
-impl InstanceSelection {
+impl Instance {
     #[must_use]
-    pub fn new(name: &str, is_server: bool) -> Self {
-        if is_server {
-            Self::Server(name.to_owned())
-        } else {
-            Self::Instance(name.to_owned())
+    pub fn new(name: &str, kind: InstanceKind) -> Self {
+        Self {
+            name: Arc::from(name),
+            kind,
         }
+    }
+
+    #[must_use]
+    pub fn client(name: &str) -> Self {
+        Self::new(name, InstanceKind::Client)
+    }
+
+    #[must_use]
+    pub fn server(name: &str) -> Self {
+        Self::new(name, InstanceKind::Server)
     }
 
     /// Gets the path where launcher-specific things are stored.
@@ -267,53 +276,63 @@ impl InstanceSelection {
     /// - Servers: `QuantumLauncher/servers/<Name>/` (identical to `dot_minecraft_path`)
     #[must_use]
     pub fn get_instance_path(&self) -> PathBuf {
-        match self {
-            Self::Instance(name) => LAUNCHER_DIR.join("instances").join(name),
-            Self::Server(name) => LAUNCHER_DIR.join("servers").join(name),
-        }
+        let name = &*self.name;
+        self.kind.get_root_directory().join(name)
     }
 
-    /// Gets the path where files used by the game itself are stored,
-    /// also called the `.minecraft` folder.
+    /// Gets the path where files used by the game itself are stored.
+    ///
+    /// For clients this is the `.minecraft` folder. It can vary,
+    /// the only requirement is that it must be equal to, or a subdirectory of,
+    /// the instance path ([`Instance::get_instance_path`]).
     ///
     /// - Instances: `QuantumLauncher/instances/<NAME>/.minecraft/`
     /// - Servers: `QuantumLauncher/servers/<NAME>/` (identical to `instance_path`)
     #[must_use]
     pub fn get_dot_minecraft_path(&self) -> PathBuf {
-        match self {
-            InstanceSelection::Instance(name) => {
-                LAUNCHER_DIR.join("instances").join(name).join(".minecraft")
-            }
-            InstanceSelection::Server(name) => LAUNCHER_DIR.join("servers").join(name),
+        let name = &*self.name;
+        match self.kind {
+            InstanceKind::Client => LAUNCHER_DIR.join("instances").join(name).join(".minecraft"),
+            InstanceKind::Server => LAUNCHER_DIR.join("servers").join(name),
         }
     }
 
     #[must_use]
     pub fn get_name(&self) -> &str {
-        match self {
-            Self::Instance(name) | Self::Server(name) => name,
-        }
+        &self.name
     }
 
     #[must_use]
-    pub fn is_server(&self) -> bool {
-        matches!(self, Self::Server(_))
-    }
-
-    pub fn set_name(&mut self, name: String) {
-        match self {
-            Self::Instance(n) | Self::Server(n) => *n = name,
-        }
+    pub const fn is_server(&self) -> bool {
+        self.kind.is_server()
     }
 
     #[must_use]
     pub fn get_pair(&self) -> (&str, bool) {
         (self.get_name(), self.is_server())
     }
+}
 
-    pub async fn get_loader(&self) -> Result<Loader, JsonFileError> {
-        let config_json = InstanceConfigJson::read(self).await?;
-        Ok(config_json.mod_type)
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum InstanceKind {
+    Server,
+    #[serde(other)]
+    Client,
+}
+
+impl InstanceKind {
+    #[must_use]
+    pub const fn is_server(self) -> bool {
+        matches!(self, Self::Server)
+    }
+
+    pub fn get_root_directory(&self) -> PathBuf {
+        let name = match self {
+            InstanceKind::Client => "instances",
+            InstanceKind::Server => "servers",
+        };
+        LAUNCHER_DIR.join(name)
     }
 }
 
@@ -529,7 +548,7 @@ pub enum OptifineUniqueVersion {
 
 impl OptifineUniqueVersion {
     #[must_use]
-    pub async fn get(instance: &InstanceSelection) -> Option<Self> {
+    pub async fn get(instance: &Instance) -> Option<Self> {
         VersionDetails::load(instance)
             .await
             .ok()
@@ -624,7 +643,7 @@ pub async fn find_forge_shim_file(dir: &Path) -> Option<PathBuf> {
 #[derive(Debug, Clone)]
 pub struct LaunchedProcess {
     pub child: Arc<tokio::sync::Mutex<Child>>,
-    pub instance: InstanceSelection,
+    pub instance: Instance,
     /// Present because Minecraft classic servers
     /// have some special properties
     ///
@@ -634,7 +653,7 @@ pub struct LaunchedProcess {
     pub is_classic_server: bool,
 }
 
-type ReadLogOut = Result<(ExitStatus, InstanceSelection, Option<Diagnostic>), ReadError>;
+type ReadLogOut = Result<(ExitStatus, Instance, Option<Diagnostic>), ReadError>;
 
 impl LaunchedProcess {
     /// Reads log output from the game process.

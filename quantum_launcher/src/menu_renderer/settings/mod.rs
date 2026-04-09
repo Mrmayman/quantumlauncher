@@ -31,7 +31,7 @@ impl MenuLauncherSettings {
                 "MenuLauncherSettings:sidebar",
                 Some(
                     widget::column![
-                        back_button().on_press(back_to_launch_screen(None, None)),
+                        back_button().on_press(back_to_launch_screen(None)),
                         Self::get_heading()
                     ]
                     .spacing(10)

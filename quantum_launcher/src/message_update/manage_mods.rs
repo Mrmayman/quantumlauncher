@@ -1,7 +1,7 @@
 use iced::{Task, widget};
 use iced::{futures::executor::block_on, keyboard::Modifiers};
 use ql_core::file_utils::exists;
-use ql_core::{InstanceSelection, IntoIoError, IntoStringError, err, jarmod::JarMods};
+use ql_core::{Instance, IntoIoError, IntoStringError, err, jarmod::JarMods};
 use ql_mod_manager::store::{ModId, ModIndex, SelectedMod};
 use std::{collections::HashSet, path::PathBuf};
 
@@ -175,7 +175,7 @@ impl Launcher {
                                 menu.info_message = Some(InfoMessage {
                                     text: "No updates found".to_owned(),
                                     kind: InfoMessageKind::Success,
-                                })
+                                });
                             }
 
                             menu.available_updates = updates
@@ -398,10 +398,7 @@ impl Launcher {
         }
     }
 
-    fn get_delete_mods_command(
-        selected_instance: InstanceSelection,
-        menu: &MenuEditMods,
-    ) -> Task<Message> {
+    fn get_delete_mods_command(selected_instance: Instance, menu: &MenuEditMods) -> Task<Message> {
         let ids: Vec<ModId> = menu
             .selected_mods
             .iter()

@@ -1,4 +1,5 @@
 use std::process::ExitStatus;
+use std::sync::Arc;
 use std::{io::Write, time::Duration};
 
 use ql_core::read_log::Diagnostic;
@@ -6,12 +7,12 @@ use ql_core::{IntoStringError, err};
 
 use crate::{Cli, attempt, search::search_for_window, set_terminal};
 
-pub async fn launch(name: String, timeout: f32, cli: &Cli) -> bool {
+pub async fn launch(name: &str, timeout: f32, cli: &Cli) -> bool {
     print!("Testing {name} ");
     _ = std::io::stdout().flush();
     let child = attempt(
         ql_instances::launch(
-            name.clone(),
+            Arc::from(name),
             "test".to_owned(),
             None,
             None,
@@ -63,10 +64,7 @@ pub async fn launch(name: String, timeout: f32, cli: &Cli) -> bool {
 }
 
 type ProcessExitResult = Option<
-    Result<
-        (ExitStatus, ql_core::InstanceSelection, Option<Diagnostic>),
-        ql_core::read_log::ReadError,
-    >,
+    Result<(ExitStatus, ql_core::Instance, Option<Diagnostic>), ql_core::read_log::ReadError>,
 >;
 
 async fn handle_process_exit(handle: tokio::task::JoinHandle<ProcessExitResult>) -> bool {

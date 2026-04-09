@@ -13,7 +13,7 @@ use iced::{
     Alignment, Length,
     widget::{self, column, horizontal_space, row},
 };
-use ql_core::InstanceSelection;
+use ql_core::{Instance, InstanceKind};
 use ql_core::{
     JavaVersion,
     json::{
@@ -27,7 +27,7 @@ use super::Element;
 impl MenuEditInstance {
     pub fn view<'a>(
         &'a self,
-        selected_instance: &InstanceSelection,
+        selected_instance: &Instance,
         jar_choices: Option<&'a CustomJarState>,
     ) -> Element<'a> {
         widget::scrollable(
@@ -35,38 +35,36 @@ impl MenuEditInstance {
                 self.item_rename(selected_instance),
                 self.item_mem_alloc(),
 
-                if selected_instance.is_server() {
-                    column![widget::button("Edit server.properties")]
-                } else {
-                    resolution_dialog(
+                // Instance type specific settings
+                match selected_instance.kind {
+                    InstanceKind::Client => column![
+                        resolution_dialog(
                             self.config.global_settings.as_ref(),
                             |n| EditInstanceMessage::WindowWidthChanged(n).into(),
                             |n| EditInstanceMessage::WindowHeightChanged(n).into(),
-                    )
+                        ),
+                        column![
+                            widget::Space::with_height(5),
+                            widget::checkbox("DEBUG: Enable log system (recommended)", self.config.enable_logger.unwrap_or(true))
+                                .on_toggle(|t| EditInstanceMessage::LoggingToggle(t).into()),
+                            widget::text("Once disabled, logs will be printed in launcher STDOUT.\nRun the launcher executable from the terminal/command prompt to see it").size(12).style(tsubtitle),
+                            horizontal_space(),
+                        ].spacing(5),
+                    ].spacing(20),
+                    // TODO: Add option to edit server.properties in user-friendly way
+                    InstanceKind::Server => column![widget::button("Edit server.properties")],
                 },
-
-                widget::Column::new()
-                .push(
-                    column![
-                        widget::Space::with_height(5),
-                        widget::checkbox("DEBUG: Enable log system (recommended)", self.config.enable_logger.unwrap_or(true))
-                            .on_toggle(|t| EditInstanceMessage::LoggingToggle(t).into()),
-                        widget::text("Once disabled, logs will be printed in launcher STDOUT.\nRun the launcher executable from the terminal/command prompt to see it").size(12).style(tsubtitle),
-                        horizontal_space(),
-                    ].spacing(5)
-                )
-                .spacing(10),
 
                 self.item_args(),
                 self.item_java_override(),
                 self.item_custom_jar(jar_choices),
 
-                item_footer(selected_instance)
+                item_footer(selected_instance.kind)
             ]),
         ).style(LauncherTheme::style_scrollable_flat_extra_dark).spacing(1).into()
     }
 
-    fn item_rename(&self, selected_instance: &InstanceSelection) -> Column<'_> {
+    fn item_rename(&self, selected_instance: &Instance) -> Column<'_> {
         column![
             row![
                 widget::text(selected_instance.get_name().to_owned())
@@ -402,11 +400,9 @@ Heavy modpacks / High settings: 4-8 GB+"
     }
 }
 
-fn item_footer(
-    selected_instance: &InstanceSelection,
-) -> widget::Column<'static, Message, LauncherTheme> {
-    match selected_instance {
-        InstanceSelection::Instance(_) => column![
+fn item_footer(kind: InstanceKind) -> widget::Column<'static, Message, LauncherTheme> {
+    match kind {
+        InstanceKind::Client => column![
             row![
                 button_with_icon(icons::version_download_s(14), "Reinstall Libraries", 13)
                     .padding([4, 8])
@@ -424,7 +420,7 @@ fn item_footer(
                 .on_press(Message::DeleteInstanceMenu)
         ]
         .spacing(10),
-        InstanceSelection::Server(_) => {
+        InstanceKind::Server => {
             column![
                 button_with_icon(icons::bin(), "Delete Server", 16)
                     .on_press(Message::DeleteInstanceMenu)

@@ -16,7 +16,7 @@ use tokio::{
 };
 
 use crate::{
-    InstanceSelection, IoError, JsonError, JsonFileError, REDACT_SENSITIVE_INFO, err,
+    Instance, InstanceKind, IoError, JsonError, JsonFileError, REDACT_SENSITIVE_INFO, err,
     json::VersionDetails, print::REDACTION_USERNAME,
 };
 
@@ -31,9 +31,9 @@ use crate::{
 pub(crate) async fn read_logs(
     child: Arc<Mutex<Child>>,
     sender: Option<Sender<LogLine>>,
-    instance: InstanceSelection,
+    instance: Instance,
     censors: Vec<String>,
-) -> Result<(ExitStatus, InstanceSelection, Option<Diagnostic>), ReadError> {
+) -> Result<(ExitStatus, Instance, Option<Diagnostic>), ReadError> {
     let r = {
         let mut c = child.lock().await;
         (c.stdout.take(), c.stderr.take())
@@ -42,7 +42,7 @@ pub(crate) async fn read_logs(
         return Ok((ExitStatus::default(), instance, None));
     };
 
-    let uses_xml = !instance.is_server() && is_xml(instance.get_name()).await?;
+    let uses_xml = matches!(instance.kind, InstanceKind::Client) && is_xml(&instance).await?;
 
     let stdout = BufReader::new(stdout);
     let stderr = BufReader::new(stderr);
@@ -214,8 +214,8 @@ fn xml_parse(
     }
 }
 
-async fn is_xml(instance_name: &str) -> Result<bool, ReadError> {
-    let json = VersionDetails::load(&InstanceSelection::Instance(instance_name.to_owned())).await?;
+async fn is_xml(instance: &Instance) -> Result<bool, ReadError> {
+    let json = VersionDetails::load(instance).await?;
 
     Ok(json.logging.is_some())
 }

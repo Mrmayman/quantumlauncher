@@ -4,7 +4,7 @@ use crate::{
     jarmod,
 };
 use ql_core::{
-    CLASSPATH_SEPARATOR, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError,
+    CLASSPATH_SEPARATOR, GenericProgress, Instance, IntoIoError, IntoJsonError, IoError,
     JsonFileError, LAUNCHER_DIR, Loader, err,
     file_utils::{self, exists},
     info,
@@ -20,7 +20,7 @@ use std::{
     io::ErrorKind,
     path::{Path, PathBuf},
     process::Stdio,
-    sync::mpsc::Sender,
+    sync::{Arc, mpsc::Sender},
 };
 use tokio::process::Command;
 
@@ -28,7 +28,7 @@ use super::{error::GameLaunchError, replace_var};
 
 pub struct GameLauncher {
     username: String,
-    instance_name: String,
+    instance_name: Arc<str>,
 
     /// If Java isn't installed, it will be auto-installed by the launcher.
     /// This field allows you to send progress updates
@@ -52,7 +52,7 @@ pub struct GameLauncher {
 
 impl GameLauncher {
     pub async fn new(
-        instance_name: String,
+        instance_name: Arc<str>,
         username: String,
         java_install_progress_sender: Option<Sender<GenericProgress>>,
         global_settings: Option<GlobalSettings>,
@@ -74,7 +74,7 @@ impl GameLauncher {
             c => c?,
         };
 
-        let instance = InstanceSelection::Instance(instance_name.clone());
+        let instance = Instance::client(&instance_name);
         let mut version_json = VersionDetails::load(&instance).await?;
         version_json.apply_tweaks(&instance).await?;
 
@@ -501,7 +501,7 @@ impl GameLauncher {
         // classpath_entries is a HashSet that determines if an overridden
         // version of a library has already been loaded.
 
-        let instance = InstanceSelection::Instance(self.instance_name.clone());
+        let instance = Instance::client(&self.instance_name);
         let jar_path = jarmod::build(&instance).await?;
         debug_assert!(
             jar_path.is_file(),

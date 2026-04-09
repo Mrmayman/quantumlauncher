@@ -4,13 +4,13 @@ use chrono::DateTime;
 use download::version_sort;
 use indexmap::IndexMap;
 use info::ProjectInfo;
-use ql_core::{GenericProgress, InstanceSelection, Loader, download, pt};
+use ql_core::{GenericProgress, Instance, Loader, download, pt};
 use serde::Deserialize;
 use versions::ModVersion;
 
 use crate::{
     rate_limiter::{RATE_LIMITER, lock},
-    store::{Category, ModId, SearchMod, StoreBackendType, types::GalleryItem},
+    store::{Category, ModId, QueryType, SearchMod, StoreBackendType, types::GalleryItem},
 };
 
 use super::{Backend, CurseforgeNotAllowed, ModError, Query, SearchResult};
@@ -109,7 +109,7 @@ impl Backend for ModrinthBackend {
 
     async fn download(
         id: &str,
-        instance: &InstanceSelection,
+        instance: &Instance,
         sender: Option<Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
         let _guard = lock().await;
@@ -126,7 +126,7 @@ impl Backend for ModrinthBackend {
 
     async fn download_bulk(
         ids: &[String],
-        instance: &InstanceSelection,
+        instance: &Instance,
         ignore_incompatible: bool,
         set_manually_installed: bool,
         sender: Option<&Sender<GenericProgress>>,
@@ -270,6 +270,15 @@ impl Backend for ModrinthBackend {
                 }
             })
             .collect())
+    }
+
+    async fn get_download_link(
+        instance: &Instance,
+        id: &str,
+        query_type: QueryType,
+    ) -> Result<String, ModError> {
+        let downloader = download::ModDownloader::basic(instance).await?;
+        downloader.get_download_link(id, query_type).await
     }
 }
 

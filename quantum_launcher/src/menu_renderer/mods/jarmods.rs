@@ -1,5 +1,5 @@
 use iced::{Length, widget};
-use ql_core::InstanceSelection;
+use ql_core::Instance;
 
 use crate::{
     icons,
@@ -9,7 +9,7 @@ use crate::{
 };
 
 impl MenuEditJarMods {
-    pub fn view(&'_ self, selected_instance: &InstanceSelection) -> Element<'_> {
+    pub fn view(&'_ self, selected_instance: &Instance) -> Element<'_> {
         let menu_main = widget::row!(
             widget::container(
                 widget::scrollable(

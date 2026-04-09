@@ -1,5 +1,9 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
+use ql_core::InstanceKind;
 use serde::{Deserialize, Serialize};
 
 mod drag_drop;
@@ -51,7 +55,7 @@ impl SidebarConfig {
             }
 
             let index = index?;
-            let folder = SidebarNode::new_folder(name.to_owned());
+            let folder = SidebarNode::new_folder(Arc::from(name));
             let id = folder
                 .get_folder_id()
                 .expect("should be folder, not instance");
@@ -62,7 +66,7 @@ impl SidebarConfig {
         if let Some(selection) = selection {
             for (i, child) in self.list.iter_mut().enumerate() {
                 if *child == selection {
-                    let folder = SidebarNode::new_folder(name.to_owned());
+                    let folder = SidebarNode::new_folder(Arc::from(name));
                     let id = folder
                         .get_folder_id()
                         .expect("should be folder, not instance");
@@ -75,7 +79,7 @@ impl SidebarConfig {
             }
         }
 
-        let folder = SidebarNode::new_folder(name.to_owned());
+        let folder = SidebarNode::new_folder(Arc::from(name));
         let id = folder
             .get_folder_id()
             .expect("should be folder, not instance");
@@ -102,28 +106,25 @@ impl SidebarConfig {
         self.list.extend(temp);
     }
 
-    pub fn rename_folder(&mut self, id: FolderId, new_name: &str) {
-        fn walk(node: &mut SidebarNode, id: FolderId, new_name: &str) -> bool {
-            let SidebarNodeKind::Folder(f) = &mut node.kind else {
-                return false;
-            };
-
-            if f.id == id {
-                // Finally rename the thing
-                new_name.clone_into(&mut node.name);
+    pub fn rename(&mut self, selection: &SidebarSelection, new_name: &str) {
+        fn walk(node: &mut SidebarNode, selection: &SidebarSelection, new_name: &str) -> bool {
+            if node == selection {
+                node.name = Arc::from(new_name);
                 return true;
             }
 
-            for child in &mut f.children {
-                if walk(child, id, new_name) {
-                    return true;
+            if let SidebarNodeKind::Folder(f) = &mut node.kind {
+                for child in &mut f.children {
+                    if walk(child, selection, new_name) {
+                        return true;
+                    }
                 }
             }
             false
         }
 
         for child in &mut self.list {
-            if walk(child, id, new_name) {
+            if walk(child, selection, new_name) {
                 break;
             }
         }
@@ -147,6 +148,7 @@ impl SidebarConfig {
         }
     }
 
+    #[must_use]
     pub fn get_node(&self, selection: &SidebarSelection) -> Option<&SidebarNode> {
         fn walk<'a>(
             child: &'a SidebarNode,
@@ -202,7 +204,7 @@ impl SidebarConfig {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct SidebarNode {
-    pub name: String,
+    pub name: Arc<str>,
     // icon: Option<String>
     pub kind: SidebarNodeKind,
     #[serde(flatten)]
@@ -214,7 +216,7 @@ impl SidebarNode {
     fn contains_instance(&self, name: &str, instance_kind: InstanceKind) -> bool {
         match &self.kind {
             SidebarNodeKind::Instance(kind) => {
-                if *kind == instance_kind && self.name == name {
+                if *kind == instance_kind && &*self.name == name {
                     return true;
                 }
             }
@@ -240,7 +242,7 @@ impl SidebarNode {
     }
 
     #[must_use]
-    pub fn new_folder(name: String) -> Self {
+    pub fn new_folder(name: Arc<str>) -> Self {
         SidebarNode {
             name,
             kind: SidebarNodeKind::Folder(SidebarFolder::default()),
@@ -249,7 +251,7 @@ impl SidebarNode {
     }
 
     #[must_use]
-    pub fn new_instance(name: String, kind: InstanceKind) -> Self {
+    pub fn new_instance(name: Arc<str>, kind: InstanceKind) -> Self {
         SidebarNode {
             name,
             kind: SidebarNodeKind::Instance(kind),

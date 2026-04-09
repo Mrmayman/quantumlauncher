@@ -6,7 +6,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    DEFAULT_RAM_MB_FOR_INSTANCE, InstanceSelection, IntoIoError, IntoJsonError, JsonFileError,
+    DEFAULT_RAM_MB_FOR_INSTANCE, Instance, InstanceKind, IntoIoError, IntoJsonError, JsonFileError,
     Loader,
 };
 
@@ -103,7 +103,7 @@ pub struct InstanceConfigJson {
 
 impl InstanceConfigJson {
     #[must_use]
-    pub fn new(is_server: bool, is_classic_server: bool, version_info: VersionInfo) -> Self {
+    pub fn new(kind: InstanceKind, is_classic_server: bool, version_info: VersionInfo) -> Self {
         #[allow(deprecated)]
         Self {
             mod_type: Loader::Vanilla,
@@ -114,7 +114,7 @@ impl InstanceConfigJson {
             java_args: None,
             game_args: None,
 
-            is_server: Some(is_server),
+            is_server: Some(kind.is_server()),
             is_classic_server: Some(is_classic_server),
 
             omniarchive: None,
@@ -159,7 +159,7 @@ impl InstanceConfigJson {
     /// # Errors
     /// - `config.json` file couldn't be loaded
     /// - `config.json` couldn't be parsed into valid JSON
-    pub async fn read(instance: &InstanceSelection) -> Result<Self, JsonFileError> {
+    pub async fn read(instance: &Instance) -> Result<Self, JsonFileError> {
         Self::read_from_dir(&instance.get_instance_path()).await
     }
 
@@ -183,7 +183,7 @@ impl InstanceConfigJson {
     /// # Errors
     /// - `config.json` file couldn't be written to
     /// - `self` couldn't be serialized into valid JSON
-    pub async fn save(&self, instance: &InstanceSelection) -> Result<(), JsonFileError> {
+    pub async fn save(&self, instance: &Instance) -> Result<(), JsonFileError> {
         self.save_to_dir(&instance.get_instance_path()).await
     }
 

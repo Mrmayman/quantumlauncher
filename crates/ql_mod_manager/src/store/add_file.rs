@@ -1,6 +1,6 @@
 use std::{collections::HashSet, ffi::OsStr, path::PathBuf, sync::mpsc::Sender};
 
-use ql_core::{GenericProgress, InstanceSelection, IntoIoError, err, pt};
+use ql_core::{GenericProgress, Instance, IntoIoError, err, pt};
 
 use crate::{presets, store::download_mods_bulk};
 
@@ -10,7 +10,7 @@ use super::{
 };
 
 pub async fn add_files(
-    instance: InstanceSelection,
+    instance: Instance,
     paths: Vec<PathBuf>,
     progress: Option<Sender<GenericProgress>>,
 ) -> Result<HashSet<CurseforgeNotAllowed>, PackError> {

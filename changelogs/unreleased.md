@@ -19,10 +19,33 @@
   - Now configured globally in Launcher Settings (moved from per-instance settings)
 - Improved Launcher Settings page design
 
+# Server Manager
+
+(still experimental, enable with `--enable-server-manager`)
+
+- Now servers and instances are unified in one list
+  - The list now reloads in real time if your instances change on disk
+
 # Fixes
 
+<<<<<<< mod-store-improvements
 - Fixed "system theme" error spam on Raspberry Pi OS (Labwc)
 - Fixed launcher auto-updater not supporting `.tar.gz` files
 - Fixed Modrinth and CurseForge pages occasionally mixing after selection
 - Fixed CurseForge modpack mods being incorrectly stored as Modrinth mods
 - Fixed Java binary detection on Linux ARM
+=======
+- Fixed "system theme" error spam on Raspberry Pi OS, LXDE, Openbox, etc
+- Fixed launcher auto-updater not supporting `.tar.gz` files (only `.zip`)
+- Fixed Modrinth pages sometimes appearing after selecting Curseforge,
+  and vice versa
+- Fixed mods installed through Curseforge modpacks internally being
+  stored as Modrinth mods
+- Fixed Java binary not being found on Linux ARM
+- Fixed switching to server manager messing up folder organization
+- Fixed Logs tab not being updated when switching instances
+- Fixed one instance's log output showing up in another
+- Fixed up/down arrow key instance selection following creation date order
+  rather than the order shown in sidebar
+- Reduced clashing between sidebar resizing and scrollbar in main menu
+>>>>>>> main

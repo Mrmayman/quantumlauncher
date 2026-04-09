@@ -3,9 +3,8 @@ use std::sync::mpsc::Sender;
 
 use chrono::DateTime;
 use chrono::Local;
-use ql_core::{
-    GenericProgress, InstanceSelection, Loader, do_jobs, err, info, json::VersionDetails,
-};
+use ql_core::InstanceConfigJson;
+use ql_core::{GenericProgress, Instance, do_jobs, err, info, json::VersionDetails};
 
 use crate::store::{get_latest_version_date, toggle_mods};
 
@@ -18,7 +17,7 @@ pub struct ChangelogFile {
 }
 
 pub async fn apply_updates(
-    selected_instance: InstanceSelection,
+    selected_instance: Instance,
     updates: Vec<(ModId, String)>,
     progress: Option<Sender<GenericProgress>>,
     make_changelog: bool,
@@ -57,7 +56,7 @@ pub async fn apply_updates(
 
 async fn write_changelog(
     entries: Vec<String>,
-    selected_instance: InstanceSelection,
+    selected_instance: Instance,
 ) -> Option<ChangelogFile> {
     let titles = entries.join("\n");
     let now = Local::now();
@@ -108,15 +107,14 @@ fn trim(value: &str) -> &str {
 }
 
 pub async fn check_for_updates(
-    instance: InstanceSelection,
+    instance: Instance,
 ) -> Result<Vec<(ModId, String)>, ModError> {
     let index = ModIndex::load(&instance).await?;
     let version_json = VersionDetails::load(&instance).await?;
+    let config = InstanceConfigJson::read(&instance).await?;
 
-    let loader = instance.get_loader().await?;
-    if let Loader::OptiFine = loader {
-        return Ok(Vec::new());
-    }
+    let loader = config.mod_type;
+
     info!(
         "Checking for mod updates (instance: {}, loader: {loader})",
         instance.get_name()

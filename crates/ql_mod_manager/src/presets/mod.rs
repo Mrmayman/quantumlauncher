@@ -6,7 +6,7 @@ use std::{
 
 use owo_colors::OwoColorize;
 use ql_core::{
-    InstanceSelection, IntoIoError, IntoJsonError, LAUNCHER_VERSION_NAME, Loader, err, info,
+    Instance, IntoIoError, IntoJsonError, LAUNCHER_VERSION_NAME, Loader, err, info,
     json::{InstanceConfigJson, VersionDetails},
     pt,
 };
@@ -80,7 +80,7 @@ impl Preset {
     /// the bytes of the final `.qmp` file that you can save
     /// anywhere you want.
     pub async fn generate(
-        instance: InstanceSelection,
+        instance: Instance,
         selected_mods: HashSet<SelectedMod>,
         include_config: bool,
     ) -> Result<Vec<u8>, ModError> {
@@ -175,7 +175,7 @@ impl Preset {
     /// ---
     /// - And many other things I probably forgot
     pub async fn load(
-        instance: InstanceSelection,
+        instance: Instance,
         file: Vec<u8>,
         apply: bool,
     ) -> Result<PresetOutput, ModError> {
@@ -278,7 +278,7 @@ impl Preset {
     }
 }
 
-async fn get_instance_type(instance_name: &InstanceSelection) -> Result<Loader, ModError> {
+async fn get_instance_type(instance_name: &Instance) -> Result<Loader, ModError> {
     let config = InstanceConfigJson::read(instance_name).await?;
     Ok(config.mod_type)
 }
@@ -300,7 +300,7 @@ fn add_downloaded_mod_to_entries(
     }
 }
 
-async fn get_minecraft_version(instance_name: &InstanceSelection) -> Result<String, ModError> {
+async fn get_minecraft_version(instance_name: &Instance) -> Result<String, ModError> {
     let version_json = VersionDetails::load(instance_name).await?;
     let minecraft_version = version_json.get_id().to_owned();
     Ok(minecraft_version)

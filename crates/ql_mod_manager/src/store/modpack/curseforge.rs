@@ -4,7 +4,7 @@ use std::{
 };
 
 use ql_core::{
-    GenericProgress, InstanceSelection, IntoIoError, Loader, do_jobs, download,
+    GenericProgress, Instance, IntoIoError, Loader, do_jobs, download,
     json::{InstanceConfigJson, VersionDetails},
     pt,
 };
@@ -181,7 +181,7 @@ async fn send_progress(
 }
 
 pub async fn install(
-    instance: &InstanceSelection,
+    instance: &Instance,
     config: &InstanceConfigJson,
     json: &VersionDetails,
     index: &PackIndex,

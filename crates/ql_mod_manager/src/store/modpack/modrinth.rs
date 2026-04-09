@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::Path, sync::mpsc::Sender};
 
 use ql_core::{
-    GenericProgress, InstanceSelection, Loader, do_jobs, download,
+    GenericProgress, Instance, InstanceKind, Loader, do_jobs, download,
     json::{InstanceConfigJson, VersionDetails},
     pt,
 };
@@ -40,7 +40,7 @@ pub struct PackEnv {
 }
 
 pub async fn install(
-    instance: &InstanceSelection,
+    instance: &Instance,
     mc_dir: &Path,
     config: &InstanceConfigJson,
     json: &VersionDetails,
@@ -80,9 +80,9 @@ pub async fn install(
             .iter()
             .filter_map(|file| file.downloads.first().map(|n| (file, n)))
             .map(|(file, url)| async move {
-                let required_field = match instance {
-                    InstanceSelection::Instance(_) => &file.env.client,
-                    InstanceSelection::Server(_) => &file.env.server,
+                let required_field = match instance.kind {
+                    InstanceKind::Client => &file.env.client,
+                    InstanceKind::Server => &file.env.server,
                 };
                 if required_field != "required" {
                     pt!("Skipping {} (optional)", file.path);

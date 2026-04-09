@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use ql_core::{
-    InstanceSelection, JsonDownloadError, RequestError, download, info,
+    Instance, InstanceKind, JsonDownloadError, RequestError, download, info,
     json::{V_OFFICIAL_FABRIC_SUPPORT, VersionDetails},
     pt,
 };
@@ -179,17 +179,17 @@ impl FabricVersionList {
 }
 
 pub async fn get_list_of_versions(
-    instance: InstanceSelection,
+    instance: Instance,
     is_quilt: bool,
 ) -> Result<FabricVersionList, FabricInstallError> {
     info!("Loading fabric version list...");
-    let is_server = instance.is_server();
+    let kind = instance.kind;
     let version_json = VersionDetails::load(&instance).await?;
 
-    let mut result = get_list_of_versions_inner(&version_json, is_quilt, is_server).await;
+    let mut result = get_list_of_versions_inner(&version_json, is_quilt, kind).await;
     if result.is_err() {
         for _ in 0..5 {
-            result = get_list_of_versions_inner(&version_json, is_quilt, is_server).await;
+            result = get_list_of_versions_inner(&version_json, is_quilt, kind).await;
             match &result {
                 Ok(_) => break,
                 Err(JsonDownloadError::RequestError(RequestError::DownloadError {
@@ -214,7 +214,7 @@ pub async fn get_list_of_versions(
 pub async fn get_list_of_versions_from_backend(
     version: &str,
     backend: BackendType,
-    is_server: bool,
+    kind: InstanceKind,
 ) -> Result<List, JsonDownloadError> {
     let versions: List = if let BackendType::CursedLegacy = backend {
         vec![FabricVersionListItem {
@@ -231,7 +231,7 @@ pub async fn get_list_of_versions_from_backend(
         let url1 = format!("https://meta.ornithemc.net/v3/versions/{name}-loader/{version}");
         let url2 = format!(
             "https://meta.ornithemc.net/v3/versions/{name}-loader/{version}-{}",
-            if is_server { "server" } else { "client" }
+            if kind.is_server() { "server" } else { "client" }
         );
 
         let list = download(&url1).json::<List>().await?;
@@ -255,16 +255,16 @@ pub async fn get_list_of_versions_from_backend(
 async fn get_list_of_versions_inner(
     version_json: &VersionDetails,
     is_quilt: bool,
-    is_server: bool,
+    kind: InstanceKind,
 ) -> Result<FabricVersionList, JsonDownloadError> {
     let version = version_json.get_id();
     if is_quilt {
-        return get_quilt_list(version_json, is_server, version).await;
+        return get_quilt_list(version_json, kind, version).await;
     }
 
     if version_json.is_after_or_eq(V_OFFICIAL_FABRIC_SUPPORT) {
         let official_versions =
-            get_list_of_versions_from_backend(version, BackendType::Fabric, is_server).await?;
+            get_list_of_versions_from_backend(version, BackendType::Fabric, kind).await?;
         if !official_versions.is_empty() {
             return Ok(FabricVersionList::Fabric(official_versions));
         }
@@ -272,9 +272,9 @@ async fn get_list_of_versions_inner(
 
     if version == "b1.7.3" {
         let (ornithe_mc, cursed_legacy, babric) = tokio::try_join!(
-            get_list_of_versions_from_backend(version, BackendType::OrnitheMCFabric, is_server),
-            get_list_of_versions_from_backend(version, BackendType::CursedLegacy, is_server),
-            get_list_of_versions_from_backend(version, BackendType::Babric, is_server),
+            get_list_of_versions_from_backend(version, BackendType::OrnitheMCFabric, kind),
+            get_list_of_versions_from_backend(version, BackendType::CursedLegacy, kind),
+            get_list_of_versions_from_backend(version, BackendType::Babric, kind),
         )?;
 
         return Ok(FabricVersionList::Beta173 {
@@ -285,8 +285,8 @@ async fn get_list_of_versions_inner(
     }
 
     let (legacy_fabric, ornithe_mc) = tokio::try_join!(
-        get_list_of_versions_from_backend(version, BackendType::LegacyFabric, is_server),
-        get_list_of_versions_from_backend(version, BackendType::OrnitheMCFabric, is_server)
+        get_list_of_versions_from_backend(version, BackendType::LegacyFabric, kind),
+        get_list_of_versions_from_backend(version, BackendType::OrnitheMCFabric, kind)
     )?;
 
     Ok(match (legacy_fabric.is_empty(), ornithe_mc.is_empty()) {
@@ -302,12 +302,12 @@ async fn get_list_of_versions_inner(
 
 async fn get_quilt_list(
     version_json: &VersionDetails,
-    is_server: bool,
+    kind: InstanceKind,
     version: &str,
 ) -> Result<FabricVersionList, JsonDownloadError> {
     let (versions, should_try_ornithe) =
         if version_json.is_after_or_eq(V_OFFICIAL_FABRIC_SUPPORT) {
-            match get_list_of_versions_from_backend(version, BackendType::Quilt, is_server).await {
+            match get_list_of_versions_from_backend(version, BackendType::Quilt, kind).await {
                 // If the list is empty or an error 404
                 // then try OrnitheMC backend, otherwise
                 // stick to official Quilt backend
@@ -325,8 +325,7 @@ async fn get_quilt_list(
         };
     Ok(if should_try_ornithe {
         let versions =
-            get_list_of_versions_from_backend(version, BackendType::OrnitheMCQuilt, is_server)
-                .await?;
+            get_list_of_versions_from_backend(version, BackendType::OrnitheMCQuilt, kind).await?;
         if versions.is_empty() {
             FabricVersionList::Unsupported
         } else {

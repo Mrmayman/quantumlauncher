@@ -5,7 +5,7 @@ use std::{
 };
 
 use ql_core::{
-    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, err, info,
+    GenericProgress, Instance, IntoIoError, IntoJsonError, err, info,
     json::{InstanceConfigJson, VersionDetails},
     pt,
 };
@@ -44,7 +44,7 @@ use super::CurseforgeNotAllowed;
 /// - `Err` - Any error that occurred.
 pub async fn install_modpack(
     file: Vec<u8>,
-    instance: InstanceSelection,
+    instance: Instance,
     sender: Option<&Sender<GenericProgress>>,
 ) -> Result<Option<HashSet<CurseforgeNotAllowed>>, PackError> {
     let mut zip = zip::ZipArchive::new(Cursor::new(file.as_slice()))?;
