@@ -371,11 +371,7 @@ impl MenuModsDownload {
                 cats.categories
                     .as_ref()
                     .ok()
-<<<<<<< mod-store-improvements
-                    .and_then(|cats| cats.iter().filter_map(|n| n.search_for_slug(slug)).next())
-=======
                     .and_then(|categories| categories.iter().find_map(|n| n.search_for_slug(slug)))
->>>>>>> main
                     .cloned()
             })
             .collect();

@@ -7,13 +7,8 @@ use ql_core::{Instance, InstanceKind, LAUNCHER_VERSION_NAME};
 use crate::cli::EXPERIMENTAL_MMC_IMPORT;
 use crate::menu_renderer::onboarding::x86_warning;
 use crate::menu_renderer::{
-<<<<<<< mod-store-improvements
-    CTXI_SIZE, Column, FONT_MONO, back_to_launch_screen, barthin, ctx_button, ctxbox, sidebar,
-    tsubtitle, underline, view_info_message,
-=======
     CTXI_SIZE, Column, FONT_MONO, barthin, ctx_button, ctxbox, sidebar, tsubtitle, underline,
     view_info_message,
->>>>>>> main
 };
 use crate::state::{
     GameLogMessage, InstanceNotes, LaunchModal, MainMenuMessage, NotesMessage, ShortcutMessage,

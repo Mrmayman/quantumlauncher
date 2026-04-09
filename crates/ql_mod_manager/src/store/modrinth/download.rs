@@ -5,14 +5,9 @@ use std::{
 };
 
 use chrono::DateTime;
-<<<<<<< mod-store-improvements
-use ql_core::{GenericProgress, InstanceSelection, download, err, info, json::VersionDetails, pt};
-=======
 use ql_core::{
-    GenericProgress, InstanceConfigJson, Instance, download, err, file_utils, info,
-    json::VersionDetails, pt,
+    GenericProgress, Instance, InstanceConfigJson, download, err, info, json::VersionDetails, pt,
 };
->>>>>>> main
 
 use crate::store::{
     DirStructure, ModError, ModId, QueryType, StoreBackendType, install_modpack,
