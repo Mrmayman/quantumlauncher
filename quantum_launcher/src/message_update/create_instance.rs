@@ -1,12 +1,13 @@
 use iced::{Task, widget::pane_grid};
 use ql_core::{
-    DownloadProgress, Instance, InstanceKind, IntoStringError, ListEntry, ListEntryKind,
+    DownloadProgress, Instance, InstanceKind, IntoStringError, ListEntry, ListEntryKind, Loader,
 };
 
 use crate::{
-    message_handler::{SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
+    message_handler::{ForgeKind, SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
     state::{
-        AutoSaveKind, CreateInstanceMessage, InfoMessage, Launcher, MenuCreateInstance,
+        AutoSaveKind, CreateInstanceMessage, InfoMessage, InstallFabricMessage,
+        InstallOptifineMessage, InstallPaperMessage, Launcher, MenuCreateInstance,
         MenuCreateInstanceChoosing, Message, ProgressBar, State,
     },
 };
@@ -103,15 +104,32 @@ impl Launcher {
             CreateInstanceMessage::ChangeKind(t) => iflet!(self, kind; {
                 *kind = t;
             }),
+            CreateInstanceMessage::ChangeLoader(t) => iflet!(self, loader; {
+                *loader = t;
+            }),
 
             CreateInstanceMessage::Start => return self.create_instance(),
-            CreateInstanceMessage::End(Ok(instance)) => {
+            CreateInstanceMessage::End(Ok((instance, loader))) => {
                 let is_server = instance.is_server();
                 self.selected_instance = Some(instance);
-                return self.go_to_main_menu(Some(InfoMessage::success(format!(
-                    "Created {}",
-                    if is_server { "Server" } else { "Instance" }
-                ))));
+                return match loader {
+                    Loader::Vanilla => self.go_to_main_menu(Some(InfoMessage::success(format!(
+                        "Created {}",
+                        if is_server { "Server" } else { "Instance" }
+                    )))),
+                    Loader::Fabric => {
+                        Task::done(InstallFabricMessage::ScreenOpen { is_quilt: false }.into())
+                    }
+                    Loader::Quilt => {
+                        Task::done(InstallFabricMessage::ScreenOpen { is_quilt: true }.into())
+                    }
+                    Loader::Forge => Task::done(Message::InstallForge(ForgeKind::Normal)),
+                    Loader::Neoforge => Task::done(Message::InstallForge(ForgeKind::NeoForge)),
+                    Loader::OptiFine => Task::done(InstallOptifineMessage::ScreenOpen.into()),
+                    Loader::Paper => Task::done(InstallPaperMessage::ScreenOpen.into()),
+
+                    Loader::Liteloader | Loader::Modloader | Loader::Rift => todo!(),
+                };
             }
             CreateInstanceMessage::ChangeAssetToggle(t) => iflet!(self, download_assets; {
                 *download_assets = t;
@@ -202,6 +220,7 @@ then go to "Mods->Add File""#,
             search_box: String::new(),
             show_category_dropdown: false,
             selected_categories: self.config.c_persistent().get_create_instance_filters(),
+            loader: Loader::Vanilla,
             kind,
             sidebar_grid_state,
             sidebar_split,
@@ -211,7 +230,7 @@ then go to "Mods->Add File""#,
     }
 
     fn create_instance(&mut self) -> Task<Message> {
-        iflet!(self, instance_name, download_assets, selected_version, kind; {
+        iflet!(self, instance_name, download_assets, selected_version, loader, kind; {
             let already_exists = {
                 let existing_instances = match kind {
                     InstanceKind::Client => self.client_list.as_ref(),
@@ -243,6 +262,7 @@ then go to "Mods->Add File""#,
             };
             let download_assets = *download_assets;
             let kind = *kind;
+            let loader = *loader;
 
             self.state = State::Create(MenuCreateInstance::DownloadingInstance(progress));
 
@@ -253,7 +273,7 @@ then go to "Mods->Add File""#,
                         ql_servers::create_server(instance_name.clone(), version, Some(&sender))
                             .await
                             .strerr()
-                            .map(|n| Instance::server(&n))
+                            .map(|n| (Instance::server(&n), loader))
                     },
                     |n| CreateInstanceMessage::End(n).into(),
                 ),
@@ -264,8 +284,8 @@ then go to "Mods->Add File""#,
                         Some(sender),
                         download_assets,
                     ),
-                    |n| CreateInstanceMessage::End(
-                        n.strerr().map(|n| Instance::client(&n)),
+                    move |n| CreateInstanceMessage::End(
+                        n.strerr().map(|n| (Instance::client(&n), loader)),
                     ).into(),
                 )
             }

@@ -320,7 +320,7 @@ Heavy modpacks / High settings: 4-8 GB+"
                 button_with_icon(icons::folder_s(14), "", 13)
                     .padding([5, 10])
                     .on_press(Message::EditInstance(
-                        EditInstanceMessage::BrowseJavaOverride
+                        EditInstanceMessage::BrowseJavaOverrideStart
                     ))
             )
             .spacing(5)

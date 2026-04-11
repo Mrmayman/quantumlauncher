@@ -10,6 +10,12 @@
 
 > TODO: Add screenshots
 
+# Mod Loaders
+
+- You can now directly install mod loaders from the Create Instance screen
+
+> TODO: More in future
+
 # UX
 
 - Automatically **generate changelogs** after mod updates, showing version changes

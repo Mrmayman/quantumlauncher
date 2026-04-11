@@ -20,7 +20,7 @@ use iced::{
     widget::{self, scrollable::AbsoluteOffset},
 };
 use ql_core::{
-    DownloadProgress, GenericProgress, Instance, InstanceKind, IntoStringError, ListEntry,
+    DownloadProgress, GenericProgress, Instance, InstanceKind, IntoStringError, ListEntry, Loader,
     OptifineUniqueVersion,
     file_utils::DirItem,
     jarmod::JarMods,
@@ -426,6 +426,7 @@ pub struct MenuCreateInstanceChoosing {
     pub selected_version: ListEntry,
     pub instance_name: String,
     pub download_assets: bool,
+    pub loader: Loader,
 }
 
 pub enum MenuInstallFabric {
@@ -842,6 +843,7 @@ impl std::fmt::Display for LicenseTab {
 pub enum MenuInstallOptifine {
     Choosing {
         optifine_unique_version: Option<OptifineUniqueVersion>,
+        version: String,
         delete_installer: bool,
         drag_and_drop_hovered: bool,
     },

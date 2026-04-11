@@ -1,4 +1,7 @@
-use iced::{Alignment, Length, widget};
+use iced::{
+    Alignment, Length,
+    widget::{self, column, row},
+};
 use ql_core::Instance;
 use ql_mod_manager::loaders::fabric::{self, FabricVersionList, FabricVersionListItem};
 
@@ -11,25 +14,23 @@ use crate::{
         InstallFabricMessage, InstallOptifineMessage, ManageModsMessage, MenuInstallFabric,
         MenuInstallForge, MenuInstallOptifine, Message,
     },
-    stylesheet::styles::LauncherTheme,
 };
 
 impl MenuInstallOptifine {
     pub fn view(&'_ self) -> Element<'_> {
         match self {
             MenuInstallOptifine::InstallingB173 => {
-                widget::column![widget::text("Installing OptiFine for Beta 1.7.3...").size(20)]
-                    .padding(10)
+                column![widget::text("Installing OptiFine for Beta 1.7.3...").size(20)].padding(10)
             }
             MenuInstallOptifine::Installing {
                 optifine_install_progress,
                 java_install_progress,
                 is_java_being_installed,
                 ..
-            } => widget::column!(
+            } => column![
                 widget::text("Installing OptiFine").size(20),
                 optifine_install_progress.view()
-            )
+            ]
             .push_maybe(
                 java_install_progress
                     .as_ref()
@@ -41,14 +42,12 @@ impl MenuInstallOptifine {
             MenuInstallOptifine::Choosing {
                 delete_installer,
                 drag_and_drop_hovered,
+                version,
                 ..
             } => {
-                let menu = self
-                    .install_optifine_screen(*delete_installer)
-                    .padding(10)
-                    .spacing(10);
+                let menu = self.install_optifine_screen(version, *delete_installer);
                 if *drag_and_drop_hovered {
-                    widget::column![widget::stack!(
+                    column![widget::stack!(
                         menu,
                         widget::center(widget::button(
                             widget::text("Drag and drop the OptiFine installer").size(20)
@@ -62,37 +61,31 @@ impl MenuInstallOptifine {
         .into()
     }
 
-    pub fn install_optifine_screen<'a>(
+    pub fn install_optifine_screen(
         &self,
+        version: &str,
         delete_installer: bool,
-    ) -> widget::Column<'a, Message, LauncherTheme, iced::Renderer> {
-        widget::column!(
-            back_button().on_press(ManageModsMessage::Open.into()),
-            widget::container(
-                widget::column!(
-                    widget::text("Install OptiFine").size(20),
-                    "Step 1: Open the OptiFine download page and download the installer.",
-                    "WARNING: Make sure to download the correct version.",
-                    widget::button("Open download page")
-                        .on_press(Message::CoreOpenLink(self.get_url().to_owned()))
-                )
-                .padding(10)
-                .spacing(10)
-            ),
-            widget::container(
-                widget::column!(
-                    "Step 2: Select the installer file",
-                    widget::checkbox("Delete installer after use", delete_installer)
-                        .on_toggle(|t| InstallOptifineMessage::DeleteInstallerToggle(t).into()),
-                    widget::button("Select File")
-                        .on_press(InstallOptifineMessage::SelectInstallerStart.into())
-                )
-                .padding(10)
-                .spacing(10)
-            )
-        )
+    ) -> Column<'static> {
+        column![
+            row![
+                back_button().on_press(ManageModsMessage::Open.into()),
+                widget::text!("Install OptiFine ({version})").size(20),
+            ],
+            "Step 1: Open the OptiFine download page and download the installer.",
+            "WARNING: Make sure to download the correct version.",
+            widget::button("Open download page")
+                .on_press(Message::CoreOpenLink(self.get_url().to_owned())),
+            widget::horizontal_rule(2),
+            "Step 2: Select the installer file",
+            widget::checkbox("Delete installer after use", delete_installer)
+                .on_toggle(|t| InstallOptifineMessage::DeleteInstallerToggle(t).into()),
+            widget::button("Select File")
+                .on_press(InstallOptifineMessage::SelectInstallerStart.into()),
+        ]
         .width(Length::Fill)
         .height(Length::Fill)
+        .padding(10)
+        .spacing(10)
     }
 }
 
@@ -103,7 +96,7 @@ impl MenuInstallFabric {
                 let loader_name = if *is_quilt { "Quilt" } else { "Fabric" };
                 let dots = ".".repeat((tick_timer % 3) + 1);
 
-                widget::column![
+                column![
                     back_button().on_press(ManageModsMessage::Open.into()),
                     widget::text!("Loading {loader_name} version list{dots}").size(20)
                 ]
@@ -113,29 +106,29 @@ impl MenuInstallFabric {
                 backend,
                 ..
             } => {
-                widget::column![
+                column![
                     widget::text!("Installing {backend}...").size(20),
                     progress.view(),
                 ]
             }
             MenuInstallFabric::Unsupported(is_quilt) => {
-                widget::column!(
+                column![
                     back_button().on_press(ManageModsMessage::Open.into()),
                     widget::text!(
                         "{} is unsupported for this Minecraft version.",
                         if *is_quilt { "Quilt" } else { "Fabric" }
                     )
-                )
+                ]
             }
             MenuInstallFabric::Loaded {
                 fabric_versions: FabricVersionList::Unsupported,
                 backend,
                 ..
             } => {
-                widget::column!(
+                column![
                     back_button().on_press(ManageModsMessage::Open.into()),
                     widget::text!("{backend} is unsupported for this Minecraft version.")
-                )
+                ]
             }
             MenuInstallFabric::Loaded {
                 backend,
@@ -155,7 +148,7 @@ fn install_fabric_main<'a>(
     backend: &'a fabric::BackendType,
     fabric_version: &'a str,
     fabric_versions: &'a FabricVersionList,
-) -> widget::Column<'a, Message, LauncherTheme> {
+) -> Column<'a> {
     let picker = match fabric_versions {
         FabricVersionList::Quilt(l)
         | FabricVersionList::Fabric(l)
@@ -175,7 +168,7 @@ fn install_fabric_main<'a>(
                 _ => unreachable!(),
             };
 
-            widget::column![
+            column![
                 "Pick an implementation of Fabric for beta 1.7.3:",
                 widget::pick_list(
                     [
@@ -200,7 +193,7 @@ fn install_fabric_main<'a>(
                 _ => unreachable!(),
             };
 
-            widget::column![
+            column![
                 "Pick an implementation of Fabric:",
                 widget::pick_list(
                     [
@@ -218,7 +211,7 @@ fn install_fabric_main<'a>(
         FabricVersionList::Unsupported => unreachable!(),
     };
 
-    widget::column![
+    column![
         back_button().on_press(ManageModsMessage::Open.into()),
         widget::text!("Install {backend} for \"{}\"", selected_instance.get_name()).size(20),
         picker,
@@ -233,7 +226,7 @@ fn version_list<'a>(list: &'a [FabricVersionListItem], selected: &'a str) -> Col
             version: selected.to_owned(),
         },
     };
-    widget::column![
+    column![
         widget::text("Version:"),
         widget::row![widget::pick_list(list, Some(selected.clone()), |n| {
             InstallFabricMessage::VersionSelected(n.loader.version).into()
@@ -251,17 +244,14 @@ fn version_list<'a>(list: &'a [FabricVersionListItem], selected: &'a str) -> Col
 
 impl MenuInstallForge {
     pub fn view(&'_ self) -> Element<'_> {
-        let main_block = widget::column!(
+        column![
             widget::text("Installing Forge/NeoForge...").size(20),
             self.forge_progress.view()
+        ]
+        .push_maybe(
+            self.is_java_getting_installed
+                .then(|| self.java_progress.view()),
         )
-        .spacing(10);
-
-        if self.is_java_getting_installed {
-            widget::column!(main_block, self.java_progress.view())
-        } else {
-            main_block
-        }
         .padding(20)
         .spacing(10)
         .into()
@@ -272,14 +262,14 @@ impl MenuInstallPaper {
     pub fn view(&'_ self, tick_timer: usize) -> Element<'_> {
         let dots = ".".repeat((tick_timer % 3) + 1);
         match self {
-            MenuInstallPaper::Loading { .. } => widget::column![
+            MenuInstallPaper::Loading { .. } => column![
                 back_button().on_press(ManageModsMessage::Open.into()),
                 widget::text!("Loading{dots}").size(20),
             ]
             .padding(10)
             .spacing(10)
             .into(),
-            MenuInstallPaper::Loaded { version, versions } => widget::column![
+            MenuInstallPaper::Loaded { version, versions } => column![
                 back_button().on_press(ManageModsMessage::Open.into()),
                 widget::text!("Select Version").size(20),
                 widget::row![widget::pick_list(versions.clone(), Some(version), |v| {
@@ -299,7 +289,7 @@ impl MenuInstallPaper {
             .spacing(10)
             .into(),
             MenuInstallPaper::Installing => {
-                widget::column![widget::text!("Installing Paper{dots}").size(20)]
+                column![widget::text!("Installing Paper{dots}").size(20)]
                     .padding(10)
                     .into()
             }

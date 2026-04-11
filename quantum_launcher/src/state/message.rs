@@ -57,6 +57,7 @@ pub enum CreateInstanceMessage {
     NameInput(String),
     ChangeAssetToggle(bool),
     ChangeKind(InstanceKind),
+    ChangeLoader(Loader),
 
     SearchInput(String),
     SearchSubmit,
@@ -64,7 +65,7 @@ pub enum CreateInstanceMessage {
     CategoryToggle(ql_core::ListEntryKind),
 
     Start,
-    End(Res<Instance>),
+    End(Res<(Instance, Loader)>),
 
     #[allow(unused)]
     Import,
@@ -76,7 +77,8 @@ pub enum EditInstanceMessage {
     ConfigSaved(Res),
     ReinstallLibraries,
     UpdateAssets,
-    BrowseJavaOverride,
+    BrowseJavaOverrideStart,
+    BrowseJavaOverrideEnd(PathBuf),
 
     JavaOverride(String),
     JavaOverrideVersion(usize),
@@ -200,6 +202,7 @@ pub enum InstallModsMessage {
 pub enum InstallOptifineMessage {
     ScreenOpen,
     SelectInstallerStart,
+    SelectInstaller(PathBuf),
     DeleteInstallerToggle(bool),
     End(Res),
 }
@@ -537,3 +540,4 @@ from_m!(GameLog, GameLogMessage);
 from_m!(Window, WindowMessage);
 from_m!(Shortcut, ShortcutMessage);
 from_m!(ModDescription, ModDescriptionMessage);
+from_m!(InstallPaper, InstallPaperMessage);

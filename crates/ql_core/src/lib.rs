@@ -550,12 +550,19 @@ pub enum OptifineUniqueVersion {
 }
 
 impl OptifineUniqueVersion {
-    #[must_use]
-    pub async fn get(instance: &Instance) -> Option<Self> {
-        VersionDetails::load(instance)
-            .await
-            .ok()
-            .and_then(|n| Self::from_version(n.get_id()))
+    /// Checks if the instance needs a special version of Optifine,
+    /// that's installed in a unique way. Also returns the instance version.
+    ///
+    /// Returns:
+    ///
+    /// - `Ok((Some(_), _))`: Needs a special version of Optifine
+    /// - `Ok((None, _))`: Normal Optifine is used
+    /// - `Err(_)`: The [`VersionDetails`] JSON couldn't be loaded
+    ///   (corrupted/invalid instance)
+    pub async fn get(instance: &Instance) -> Result<(Option<Self>, String), JsonFileError> {
+        let details = VersionDetails::load(instance).await?;
+        let version = details.get_id();
+        Ok((Self::from_version(version), version.to_owned()))
     }
 
     #[must_use]
