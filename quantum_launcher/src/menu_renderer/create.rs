@@ -307,9 +307,7 @@ impl MenuCreateInstanceChoosing {
         .into()
     }
 
-    fn get_category_dropdown(
-        selected_categories: &HashSet<ListEntryKind>,
-    ) -> widget::Column<'static, Message, LauncherTheme> {
+    fn get_category_dropdown(selected_categories: &HashSet<ListEntryKind>) -> Column<'static> {
         let mut col = column![widget::text("Version Types:").size(14)].spacing(5);
 
         for kind in ListEntryKind::ALL {

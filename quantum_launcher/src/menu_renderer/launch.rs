@@ -265,7 +265,7 @@ impl Launcher {
         &'element self,
         menu: &'element MenuLaunch,
         kind: InstanceKind,
-    ) -> widget::Column<'element, Message, LauncherTheme> {
+    ) -> Column<'element> {
         const TEXT_SIZE: f32 = 12.0;
 
         let State::Launch(MenuLaunch {
@@ -657,7 +657,7 @@ fn get_no_logs_message<'a>() -> Column<'a> {
         .spacing(10)
 }
 
-fn get_footer_text() -> widget::Column<'static, Message, LauncherTheme> {
+fn get_footer_text() -> Column<'static> {
     cfg_if! (
         if #[cfg(feature = "simulate_linux_arm64")] {
             let subtext = "(Simulating Linux aarch64)";

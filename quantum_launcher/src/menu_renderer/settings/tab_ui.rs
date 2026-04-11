@@ -9,7 +9,6 @@ use crate::{
         Column, checkered_list, get_mode_selector, settings::get_theme_selector, tsubtitle,
     },
     state::{LauncherSettingsMessage, MenuLauncherSettings, Message},
-    stylesheet::styles::LauncherTheme,
 };
 
 const SETTING_WIDTH: u16 = 180;
@@ -98,7 +97,7 @@ Only increase if progress bars stutter or "not responding" dialogs show"#).size(
     }
 }
 
-fn get_ui_opacity(config: &LauncherConfig) -> widget::Column<'static, Message, LauncherTheme> {
+fn get_ui_opacity(config: &LauncherConfig) -> Column<'static> {
     let ui_opacity = config.c_ui_opacity();
     let t = |t| widget::text(t).size(12).style(tsubtitle);
 

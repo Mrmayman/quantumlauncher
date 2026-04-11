@@ -5,7 +5,7 @@ use iced::{
 
 use crate::{
     config::sidebar::{SDragLocation, SDragTo, SidebarNode, SidebarNodeKind, SidebarSelection},
-    menu_renderer::sidebar::LEVEL_WIDTH,
+    menu_renderer::{Column, sidebar::LEVEL_WIDTH},
     state::{MenuLaunch, Message, SidebarMessage},
     stylesheet::{color::Color, styles::LauncherTheme},
 };
@@ -15,7 +15,7 @@ pub fn drag_drop_receiver(
     menu: &MenuLaunch,
     selection: &SidebarSelection,
     node: &SidebarNode,
-) -> Option<widget::Column<'static, Message, LauncherTheme>> {
+) -> Option<Column<'static>> {
     let (_, dragged_to) = menu.get_modal_drag()?;
 
     let (is_hovered, offset) = dragged_to.as_ref().map_or((false, SDragTo::Before), |n| {

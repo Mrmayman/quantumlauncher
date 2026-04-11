@@ -5,10 +5,10 @@ use ql_mod_manager::store::SelectedMod;
 
 use crate::{
     icons,
-    menu_renderer::{Element, back_button, button_with_icon, tsubtitle},
+    menu_renderer::{Column, Element, back_button, button_with_icon, tsubtitle},
     state::{
-        EditPresetsMessage, ManageModsMessage, MenuEditPresets, MenuRecommendedMods, Message,
-        ModListEntry, SelectedState,
+        EditPresetsMessage, ManageModsMessage, MenuEditPresets, MenuRecommendedMods, ModListEntry,
+        SelectedState,
     },
     stylesheet::{color::Color, styles::LauncherTheme},
 };
@@ -97,10 +97,7 @@ Modrinth/Curseforge modpack"
         }
     }
 
-    fn get_mods_list<'a>(
-        &'a self,
-        selected_mods: &'a HashSet<SelectedMod>,
-    ) -> widget::Column<'a, Message, LauncherTheme, iced::Renderer> {
+    fn get_mods_list<'a>(&'a self, selected_mods: &'a HashSet<SelectedMod>) -> Column<'a> {
         widget::column(self.sorted_mods_list.iter().map(|entry| {
             if entry.is_manually_installed() {
                 widget::checkbox(entry.name(), selected_mods.contains(&entry.clone().into()))

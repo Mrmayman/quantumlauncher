@@ -400,7 +400,7 @@ Heavy modpacks / High settings: 4-8 GB+"
     }
 }
 
-fn item_footer(kind: InstanceKind) -> widget::Column<'static, Message, LauncherTheme> {
+fn item_footer(kind: InstanceKind) -> Column<'static> {
     match kind {
         InstanceKind::Client => column![
             row![
