@@ -585,7 +585,7 @@ impl OptifineUniqueVersion {
                 false,
             ),
             OptifineUniqueVersion::V1_2_5 => (
-                "https://optifine.net/adloadx?f=OptiFine_1.5.2_HD_U_D2.zip",
+                "https://optifine.net/adloadx?f=OptiFine_1.2.5_HD_U_D2.zip",
                 false,
             ),
             OptifineUniqueVersion::B1_7_3 => (

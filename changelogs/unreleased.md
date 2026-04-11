@@ -28,24 +28,15 @@
 
 # Fixes
 
-<<<<<<< mod-store-improvements
 - Fixed "system theme" error spam on Raspberry Pi OS (Labwc)
 - Fixed launcher auto-updater not supporting `.tar.gz` files
 - Fixed Modrinth and CurseForge pages occasionally mixing after selection
 - Fixed CurseForge modpack mods being incorrectly stored as Modrinth mods
 - Fixed Java binary detection on Linux ARM
-=======
-- Fixed "system theme" error spam on Raspberry Pi OS, LXDE, Openbox, etc
-- Fixed launcher auto-updater not supporting `.tar.gz` files (only `.zip`)
-- Fixed Modrinth pages sometimes appearing after selecting Curseforge,
-  and vice versa
-- Fixed mods installed through Curseforge modpacks internally being
-  stored as Modrinth mods
-- Fixed Java binary not being found on Linux ARM
 - Fixed switching to server manager messing up folder organization
 - Fixed Logs tab not being updated when switching instances
 - Fixed one instance's log output showing up in another
 - Fixed up/down arrow key instance selection following creation date order
   rather than the order shown in sidebar
+- Fixed Optifine for 1.2.5 not installing properly
 - Reduced clashing between sidebar resizing and scrollbar in main menu
->>>>>>> main
