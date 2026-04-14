@@ -184,6 +184,7 @@ pub struct Category {
 }
 
 impl Category {
+    #[must_use]
     pub fn search_for_slug(&self, slug: &str) -> Option<&Self> {
         if self.slug == slug {
             return Some(self);

@@ -5,8 +5,8 @@ use std::{
 };
 
 use ql_core::{
-    InstanceSelection, IntoIoError, IntoJsonError, LAUNCHER_VERSION_NAME, err, file_utils::DirItem,
-    info, json::VersionDetails,
+    Instance, IntoIoError, IntoJsonError, LAUNCHER_VERSION_NAME, err, file_utils::DirItem, info,
+    json::VersionDetails,
 };
 use zip::ZipWriter;
 
@@ -26,7 +26,7 @@ use crate::{
 ///
 /// Returns bytes of the generated `.qmp` file.
 pub async fn generate(
-    instance: InstanceSelection,
+    instance: Instance,
     selected_mods: HashSet<SelectedMod>,
     dotmc_entries: Vec<DirItem>,
     include_config: bool,
@@ -93,7 +93,7 @@ pub async fn generate(
     Ok(file)
 }
 
-async fn get_minecraft_version(instance_name: &InstanceSelection) -> Result<String, ModError> {
+async fn get_minecraft_version(instance_name: &Instance) -> Result<String, ModError> {
     let version_json = VersionDetails::load(instance_name).await?;
     let minecraft_version = version_json.get_id().to_owned();
     Ok(minecraft_version)
@@ -112,7 +112,7 @@ fn add_downloaded_mod_to_entries(
     entries_modrinth.insert(id.clone(), config.clone());
 
     for dep in &config.dependencies {
-        add_downloaded_mod_to_entries(entries_modrinth, index, &dep);
+        add_downloaded_mod_to_entries(entries_modrinth, index, dep);
     }
 }
 

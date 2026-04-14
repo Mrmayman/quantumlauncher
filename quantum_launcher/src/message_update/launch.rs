@@ -1,5 +1,5 @@
 use iced::Task;
-use ql_core::InstanceSelection;
+use ql_core::Instance;
 
 use crate::{
     config::sidebar::SidebarSelection,
@@ -22,16 +22,15 @@ impl Launcher {
                     }) = modal
                     {
                         if self.selected_instance.is_none() {
-                            self.selected_instance =
-                                Some(InstanceSelection::new(name, kind.is_server()));
+                            self.selected_instance = Some(Instance::new(name, *kind));
                         }
                     }
                     *modal = None;
                 }
 
                 self.load_edit_instance(Some(tab));
-                if let (LaunchTab::Log, Some(instance)) = (tab, self.selected_instance.clone()) {
-                    self.load_logs(instance);
+                if let LaunchTab::Log = tab {
+                    self.load_logs();
                 }
             }
             MainMenuMessage::Modal(modal) => {
@@ -54,7 +53,7 @@ impl Launcher {
             }
             MainMenuMessage::InstanceSelected(inst) => {
                 self.selected_instance = Some(inst);
-                return self.on_instance_selected();
+                return self.on_selecting_instance();
             }
             MainMenuMessage::UsernameSet(username) => {
                 self.config.username = username;
@@ -87,21 +86,9 @@ impl Launcher {
                     );
                 }
             }
-            SidebarMessage::Scroll {
-                total,
-                offset,
-                bounds,
-            } => {
-                if let State::Launch(MenuLaunch {
-                    sidebar_scroll_total,
-                    sidebar_scroll_offset,
-                    sidebar_scroll_bounds,
-                    ..
-                }) = &mut self.state
-                {
-                    *sidebar_scroll_total = total;
-                    *sidebar_scroll_offset = offset;
-                    *sidebar_scroll_bounds = Some(bounds);
+            SidebarMessage::Scroll(scroll) => {
+                if let State::Launch(MenuLaunch { sidebar_scroll, .. }) = &mut self.state {
+                    *sidebar_scroll = scroll;
                 }
             }
             SidebarMessage::NewFolder(at_position) => {
@@ -157,7 +144,9 @@ impl Launcher {
                     ..
                 }) = &self.state
                 {
-                    self.config.c_sidebar().rename_folder(*id, name);
+                    self.config
+                        .c_sidebar()
+                        .rename(&SidebarSelection::Folder(*id), name);
                     self.hide_submenu();
                 }
                 self.sidebar_update_state();

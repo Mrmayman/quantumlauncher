@@ -1,5 +1,5 @@
 use ql_core::{
-    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, ListEntry, Progress,
+    GenericProgress, Instance, InstanceKind, IntoIoError, IntoJsonError, ListEntry, Progress,
     file_utils::{self, exists},
     info,
     json::{InstanceConfigJson, VersionDetails},
@@ -50,7 +50,7 @@ pub async fn import_instance(
     zip_path: PathBuf,
     download_assets: bool,
     sender: Option<Sender<GenericProgress>>,
-) -> Result<Option<(InstanceSelection, CurseforgeNotAllowed)>, InstancePackageError> {
+) -> Result<Option<(Instance, CurseforgeNotAllowed)>, InstancePackageError> {
     let temp_dir_obj = tempfile::TempDir::new().map_err(InstancePackageError::TempDir)?;
     let temp_dir = temp_dir_obj.path();
 
@@ -104,18 +104,24 @@ async fn import_qmp(
     zip_path: &PathBuf,
     download_assets: bool,
     sender: Option<Arc<Sender<GenericProgress>>>,
-) -> Result<Option<(InstanceSelection, CurseforgeNotAllowed)>, InstancePackageError> {
+) -> Result<Option<(Instance, CurseforgeNotAllowed)>, InstancePackageError> {
     let zip_bytes = tokio::fs::read(zip_path).await.path(zip_path)?;
 
     let peek_info = ql_mod_manager::presets::load(
-        InstanceSelection::Instance(qmp_instance_selection(zip_path)),
+        Instance::client(&qmp_instance_selection(zip_path)),
         &zip_bytes,
         false, // Just peek, don't install
     )
     .await?;
 
+    let kind = if peek_info.is_server {
+        InstanceKind::Server
+    } else {
+        InstanceKind::Client
+    };
+
     // Create the instance
-    let instance = InstanceSelection::new(&peek_info.instance_name, peek_info.is_server);
+    let instance = Instance::new(&peek_info.instance_name, kind);
     let instance = create_instance_qmp(
         download_assets,
         &sender,
@@ -173,7 +179,7 @@ async fn import_quantumlauncher(
     temp_dir: &Path,
     instance_info: String,
     sender: Option<Arc<Sender<GenericProgress>>>,
-) -> Result<InstanceSelection, InstancePackageError> {
+) -> Result<Instance, InstancePackageError> {
     info!("Importing QuantumLauncher instance...");
 
     let instance_info: InstanceInfo = serde_json::from_str(&instance_info).json(instance_info)?;
@@ -184,7 +190,14 @@ async fn import_quantumlauncher(
         serde_json::from_str(&file).json(file)?
     };
 
-    let instance = InstanceSelection::new(&instance_info.instance_name, instance_info.is_server);
+    let instance = Instance::new(
+        &instance_info.instance_name,
+        if instance_info.is_server {
+            InstanceKind::Server
+        } else {
+            InstanceKind::Client
+        },
+    );
 
     pt!("Name: {} ", instance_info.instance_name);
     pt!("Version : {}", version_json.get_id());
@@ -222,9 +235,9 @@ async fn create_instance_qmp(
     download_assets: bool,
     sender: &Option<Arc<Sender<GenericProgress>>>,
     version: ListEntry,
-    instance: &InstanceSelection,
+    instance: &Instance,
     zip_path: &Path,
-) -> Result<InstanceSelection, InstancePackageError> {
+) -> Result<Instance, InstancePackageError> {
     let (d_send, d_recv) = std::sync::mpsc::channel();
     if let Some(sender) = sender.clone() {
         std::thread::spawn(move || {
@@ -247,13 +260,16 @@ async fn create_instance_qmp(
     if r.as_ref().is_err_and(|n| n.already_exists()) {
         // Use different name
         let name = qmp_instance_selection(zip_path);
-        if instance.is_server() {
-            ql_servers::create_server(name.clone(), version, Some(&d_send)).await?;
-        } else {
-            ql_instances::create_instance(name.clone(), version, Some(d_send), download_assets)
-                .await?;
+        match instance.kind {
+            InstanceKind::Server => {
+                ql_servers::create_server(name.clone(), version, Some(&d_send)).await?;
+            }
+            InstanceKind::Client => {
+                ql_instances::create_instance(name.clone(), version, Some(d_send), download_assets)
+                    .await?;
+            }
         }
-        Ok(InstanceSelection::new(&name, instance.is_server()))
+        Ok(Instance::new(&name, instance.kind))
     } else {
         Ok(instance.clone())
     }
@@ -264,7 +280,7 @@ async fn import_modpack(
     peek_info: ql_mod_manager::store::modpack::PeekInfo,
     zip_path: &Path,
     sender: Option<Arc<Sender<GenericProgress>>>,
-) -> Result<(InstanceSelection, CurseforgeNotAllowed), InstancePackageError> {
+) -> Result<(Instance, CurseforgeNotAllowed), InstancePackageError> {
     info!("Importing modpack as instance...");
 
     // Generate instance name from modpack metadata first, then fallback to zip filename
@@ -278,7 +294,7 @@ async fn import_modpack(
             .to_string()
     };
 
-    let instance = InstanceSelection::new(&instance_name, false);
+    let instance = Instance::client(&instance_name);
 
     pt!("Name: {} ", instance_name);
     pt!("Version: {}", peek_info.game_version);

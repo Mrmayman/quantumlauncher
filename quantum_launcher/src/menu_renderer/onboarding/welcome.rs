@@ -78,7 +78,6 @@ impl MenuWelcome {
                 let next = Message::MScreenOpen {
                     message: None,
                     clear_selection: true,
-                    is_server: Some(false),
                 };
                 widget::column![
                     widget::vertical_space(),

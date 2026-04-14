@@ -161,7 +161,6 @@ fn entry_list<'a, T>(
         .height(Length::Fill)
         .into()
     })
-    .into()
 }
 
 fn select_all_button(

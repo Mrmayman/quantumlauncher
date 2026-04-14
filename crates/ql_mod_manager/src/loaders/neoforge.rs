@@ -1,7 +1,7 @@
 use chrono::DateTime;
 use ql_core::{
-    CLASSPATH_SEPARATOR, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError,
-    Loader, REGEX_SNAPSHOT, download,
+    CLASSPATH_SEPARATOR, GenericProgress, Instance, InstanceKind, IntoIoError, IntoJsonError,
+    IoError, Loader, REGEX_SNAPSHOT, download,
     file_utils::{self, exists},
     info,
     json::{VersionDetails, instance_config::ModTypeInfo},
@@ -28,7 +28,7 @@ struct NeoforgeVersions {
 
 pub async fn install(
     neoforge_version: Option<String>,
-    instance: InstanceSelection,
+    instance: Instance,
     f_progress: Option<Sender<ForgeInstallProgress>>,
     j_progress: Option<Sender<GenericProgress>>,
 ) -> Result<(), ForgeInstallError> {
@@ -57,7 +57,7 @@ pub async fn install(
         &neoforge_dir,
         j_progress.as_ref(),
         f_progress,
-        instance.is_server(),
+        instance.kind,
     )
     .await?;
 
@@ -182,7 +182,7 @@ async fn get_installer(
 
 async fn get_version_and_json(
     neoforge_version: Option<String>,
-    instance: &InstanceSelection,
+    instance: &Instance,
     f_progress: Option<&Sender<ForgeInstallProgress>>,
 ) -> Result<(String, VersionDetails), ForgeInstallError> {
     Ok(if let Some(n) = neoforge_version {
@@ -232,7 +232,7 @@ fn send_progress(f_progress: Option<&Sender<ForgeInstallProgress>>, message: For
 }
 
 pub async fn get_versions(
-    instance_selection: InstanceSelection,
+    instance_selection: Instance,
 ) -> Result<(Vec<String>, VersionDetails), ForgeInstallError> {
     let versions: NeoforgeVersions =
         file_utils::download_file_to_json(NEOFORGE_VERSIONS_URL, false).await?;
@@ -303,15 +303,14 @@ pub async fn run_installer(
     neoforge_dir: &Path,
     j_progress: Option<&Sender<GenericProgress>>,
     f_progress: Option<&Sender<ForgeInstallProgress>>,
-    is_server: bool,
+    kind: InstanceKind,
 ) -> Result<(), ForgeInstallError> {
     pt!("Running Installer");
     send_progress(f_progress, ForgeInstallProgress::P4RunningInstaller);
 
-    let installer = if is_server {
-        FORGE_INSTALLER_SERVER
-    } else {
-        FORGE_INSTALLER_CLIENT
+    let installer = match kind {
+        InstanceKind::Server => FORGE_INSTALLER_SERVER,
+        InstanceKind::Client => FORGE_INSTALLER_CLIENT,
     };
     let installer_class = neoforge_dir.join("NeoForgeInstaller.class");
     fs::write(&installer_class, installer)
@@ -329,12 +328,11 @@ pub async fn run_installer(
             ),
             "NeoForgeInstaller",
         ])
-        .current_dir(if is_server {
-            neoforge_dir
+        .current_dir(match kind {
+            InstanceKind::Client => neoforge_dir.to_owned(),
+            InstanceKind::Server => neoforge_dir
                 .parent()
                 .map_or(neoforge_dir.join(".."), Path::to_owned)
-        } else {
-            neoforge_dir.to_owned()
         });
 
     let output = command.output().await.path(java_path)?;

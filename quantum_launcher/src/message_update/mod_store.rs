@@ -2,8 +2,7 @@ use std::{collections::HashMap, time::Instant};
 
 use iced::{Task, futures::executor::block_on, widget::scrollable::AbsoluteOffset};
 use ql_core::{
-    InstanceConfigJson, InstanceSelection, IntoStringError, JsonFileError, err,
-    json::VersionDetails,
+    InstanceConfigJson, InstanceKind, IntoStringError, JsonFileError, err, json::VersionDetails,
 };
 use ql_mod_manager::store::{
     self, ModId, ModIndex, Query, QueryType, StoreBackendType, get_description,
@@ -16,7 +15,10 @@ use crate::state::{
 
 impl Launcher {
     pub fn update_install_mods(&mut self, message: InstallModsMessage) -> Task<Message> {
-        let is_server = matches!(&self.selected_instance, Some(InstanceSelection::Server(_)));
+        let is_server = matches!(
+            self.selected_instance.as_ref().map(|n| n.kind),
+            Some(InstanceKind::Server)
+        );
 
         match message {
             InstallModsMessage::LoadedDescription(Err(err))
@@ -283,15 +285,15 @@ impl Launcher {
     }
 
     async fn open_mods_store(&mut self) -> Result<Task<Message>, JsonFileError> {
-        let selection = self.instance();
+        let instance = self.instance();
 
-        let config = InstanceConfigJson::read(selection).await?;
+        let config = InstanceConfigJson::read(instance).await?;
         let version_json = if let State::EditMods(menu) = &self.state {
             menu.version_json.clone()
         } else {
-            Box::new(VersionDetails::load(selection).await?)
+            Box::new(VersionDetails::load(instance).await?)
         };
-        let mod_index = ModIndex::load(selection).await?;
+        let mod_index = ModIndex::load(instance).await?;
 
         let menu = MenuModsDownload {
             scroll_offset: AbsoluteOffset::default(),
@@ -314,10 +316,7 @@ impl Launcher {
             query_type: QueryType::Mods,
         };
         let command = Task::batch([
-            menu.search_store(
-                matches!(&self.selected_instance, Some(InstanceSelection::Server(_))),
-                0,
-            ),
+            menu.search_store(instance.is_server(), 0),
             menu.load_categories(),
         ]);
         self.state = State::ModsDownload(menu);
@@ -380,12 +379,7 @@ impl MenuModsDownload {
                     .categories
                     .as_ref()
                     .ok()
-                    .and_then(|categories| {
-                        categories
-                            .iter()
-                            .filter_map(|n| n.search_for_slug(slug))
-                            .next()
-                    })
+                    .and_then(|categories| categories.iter().find_map(|n| n.search_for_slug(slug)))
                     .cloned()
             })
             .collect();

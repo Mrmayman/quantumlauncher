@@ -21,7 +21,7 @@
 use std::{cmp::Ordering, collections::HashMap, io::ErrorKind};
 
 use ql_core::{
-    InstanceSelection, IntoIoError, IoError, Loader, file_utils::DirItem, json::InstanceConfigJson,
+    Instance, IntoIoError, IoError, Loader, file_utils::DirItem, json::InstanceConfigJson,
 };
 use serde::{Deserialize, Serialize};
 
@@ -94,12 +94,12 @@ struct PresetJson {
     entries_local: Vec<String>,
 }
 
-async fn get_instance_type(instance_name: &InstanceSelection) -> Result<Loader, ModError> {
+async fn get_instance_type(instance_name: &Instance) -> Result<Loader, ModError> {
     let config = InstanceConfigJson::read(instance_name).await?;
     Ok(config.mod_type)
 }
 
-pub async fn get_mc_dir_contents(instance: &InstanceSelection) -> Result<Vec<DirItem>, IoError> {
+pub async fn get_mc_dir_contents(instance: &Instance) -> Result<Vec<DirItem>, IoError> {
     async fn get_contents_inner(
         dotmc_dir: std::path::PathBuf,
         contents: &mut Vec<DirItem>,

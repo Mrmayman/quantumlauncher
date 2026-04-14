@@ -2,17 +2,15 @@ use cfg_if::cfg_if;
 use frostmark::MarkWidget;
 use iced::widget::{column, horizontal_space, row, text_editor, tooltip::Position, vertical_space};
 use iced::{Alignment, Length, Padding, widget};
-use ql_core::{InstanceSelection, LAUNCHER_VERSION_NAME};
+use ql_core::{Instance, InstanceKind, LAUNCHER_VERSION_NAME};
 
-use crate::cli::EXPERIMENTAL_SERVERS;
-use crate::menu_renderer::onboarding::x86_warning;
 use crate::menu_renderer::{
-    CTXI_SIZE, FONT_MONO, back_to_launch_screen, barthin, ctx_button, ctxbox, sidebar, tsubtitle,
-    underline, view_info_message,
+    CTXI_SIZE, Column, FONT_MONO, barthin, ctx_button, ctxbox, onboarding::x86_warning, sidebar,
+    tsubtitle, underline, view_info_message,
 };
 use crate::state::{
     GameLogMessage, InstanceNotes, LaunchModal, MainMenuMessage, NotesMessage, ShortcutMessage,
-    SidebarMessage, WindowMessage,
+    SidebarMessage, SidebarScroll, WindowMessage,
 };
 use crate::{
     icons,
@@ -66,7 +64,7 @@ impl Launcher {
                 .on_press(Message::CoreHideModal)
                 .into()
             })
-            .on_resize(10, |t| SidebarMessage::Resize(t.ratio).into())
+            .on_resize(5, |t| SidebarMessage::Resize(t.ratio).into())
         )
         .push_maybe(Self::sidebar_context_menu(menu))
         .push_maybe(self.sidebar_drag_tooltip(menu))
@@ -78,8 +76,8 @@ impl Launcher {
 
         let tab_body = if let Some(selected) = &self.selected_instance {
             match menu.tab {
-                LaunchTab::Buttons => self.get_tab_main(menu),
-                LaunchTab::Log => self.get_tab_logs(menu).into(),
+                LaunchTab::Buttons => self.get_tab_main(menu, selected),
+                LaunchTab::Log => self.get_tab_logs(menu, selected.kind).into(),
                 LaunchTab::Edit => {
                     if let Some(menu) = &menu.edit_instance {
                         menu.view(selected, self.custom_jar.as_ref())
@@ -96,23 +94,18 @@ impl Launcher {
                 }
             }
         } else {
-            column![widget::text(if menu.is_viewing_server {
-                "Select a server\n\nNote: You are trying the *early-alpha* server manager feature.\nYou need playit.gg (or port-forwarding) for others to join"
-            } else if self.client_list.as_ref().is_some_and(Vec::is_empty) {
-                "Click \"New\" to create your first Minecraft instance"
-            } else {
-                "Select an instance"
-            })
-            .size(14)
-            .style(|t: &LauncherTheme| t.style_text(Color::Mid))]
+            column![
+                widget::text(if self.client_list.as_ref().is_some_and(Vec::is_empty) {
+                    "Click \"New\" to create your first Minecraft instance"
+                } else {
+                    "Select an instance"
+                })
+                .size(14)
+                .style(|t: &LauncherTheme| t.style_text(Color::Mid))
+            ]
             .push_maybe(cfg!(target_arch = "x86").then(x86_warning))
             .push(vertical_space())
-            .push(
-                widget::Row::new()
-                    .push_maybe(get_view_servers(menu.is_viewing_server))
-                    .push(get_footer_text())
-                    .align_y(Alignment::End),
-            )
+            .push(get_footer_text())
             .padding(16)
             .spacing(10)
             .into()
@@ -169,15 +162,14 @@ impl Launcher {
         .into()
     }
 
-    fn get_tab_main<'a>(&'a self, menu: &'a MenuLaunch) -> Element<'a> {
-        let selected = self.instance();
+    fn get_tab_main<'a>(&'a self, menu: &'a MenuLaunch, selected: &'a Instance) -> Element<'a> {
         let is_running = self.is_process_running(selected);
 
         let main_buttons = row![
-            if menu.is_viewing_server {
-                self.get_server_play_button().into()
+            if selected.is_server() {
+                self.get_server_play_button(selected)
             } else {
-                self.get_client_play_button()
+                self.get_client_play_button(selected)
             },
             Self::get_mods_button(),
             Self::get_files_button(selected),
@@ -233,27 +225,22 @@ impl Launcher {
             main_buttons,
             notes,
             row![
-                widget::Column::new()
-                    .push_maybe(get_view_servers(menu.is_viewing_server))
-                    .push(
+                row![
+                    widget::button(icons::lines_s(10)).padding([5, 8]).on_press(
+                        MainMenuMessage::Modal(Some(LaunchModal::InstanceOptions)).into()
+                    ),
+                    widget::button(
                         row![
-                            widget::button(icons::lines_s(10)).padding([5, 8]).on_press(
-                                MainMenuMessage::Modal(Some(LaunchModal::InstanceOptions)).into()
-                            ),
-                            widget::button(
-                                row![
-                                    icons::edit_s(10),
-                                    widget::text("Edit Notes").size(12).style(tsubtitle)
-                                ]
-                                .align_y(Alignment::Center)
-                                .spacing(8),
-                            )
-                            .padding([4, 8])
-                            .on_press(NotesMessage::OpenEdit.into()),
+                            icons::edit_s(10),
+                            widget::text("Edit Notes").size(12).style(tsubtitle)
                         ]
-                        .spacing(5)
+                        .align_y(Alignment::Center)
+                        .spacing(8),
                     )
-                    .spacing(5),
+                    .padding([4, 8])
+                    .on_press(NotesMessage::OpenEdit.into()),
+                ]
+                .spacing(5),
                 get_footer_text(),
             ]
             .align_y(Alignment::End)
@@ -272,6 +259,7 @@ impl Launcher {
     pub fn get_tab_logs<'element>(
         &'element self,
         menu: &'element MenuLaunch,
+        kind: InstanceKind,
     ) -> widget::Column<'element, Message, LauncherTheme> {
         const TEXT_SIZE: f32 = 12.0;
 
@@ -329,17 +317,16 @@ impl Launcher {
             has_crashed.then_some(
                 widget::text!(
                     "The {} has crashed!",
-                    if menu.is_viewing_server {
-                        "server"
-                    } else {
-                        "game"
+                    match kind {
+                        InstanceKind::Client => "game",
+                        InstanceKind::Server => "server",
                     }
                 )
                 .size(18),
             ),
         )
         .push_maybe(
-            menu.is_viewing_server.then_some(
+            matches!(kind, InstanceKind::Server).then_some(
                 widget::text_input("Enter command...", command)
                     .on_input(Message::ServerCommandEdit)
                     .on_submit(Message::ServerCommandSubmit)
@@ -374,12 +361,12 @@ impl Launcher {
                     .style(LauncherTheme::style_scrollable_flat_extra_dark)
                     .id(widget::scrollable::Id::new("MenuLaunch:sidebar"))
                     .on_scroll(|n| {
-                        let total = n.content_bounds().height - n.bounds().height;
-                        SidebarMessage::Scroll {
-                            total,
+                        let remaining = n.content_bounds().height - n.bounds().height;
+                        SidebarMessage::Scroll(SidebarScroll {
+                            remaining,
                             offset: n.absolute_offset().y,
-                            bounds: n.bounds(),
-                        }
+                            bounds: Some(n.bounds()),
+                        })
                         .into()
                     })
             )
@@ -394,13 +381,12 @@ impl Launcher {
             widget::horizontal_rule(1).style(|t: &LauncherTheme| t.style_rule(Color::Dark, 1)),
             self.get_accounts_bar(menu),
         ]
-        .padding(iced::Padding::default().right(3.0))
         .spacing(5)
         .width(Length::Fill);
 
         column![
             widget::mouse_area(
-                widget::container(get_sidebar_new_button(menu, decor))
+                widget::container(get_sidebar_new_button(decor))
                     .align_y(Alignment::End)
                     .width(Length::Fill)
                     .height(tab_height(decor) + decorh(decor))
@@ -419,10 +405,10 @@ impl Launcher {
 
     pub(super) fn get_running_icon(
         &self,
-        menu: &MenuLaunch,
         name: &str,
+        kind: InstanceKind,
     ) -> Option<widget::Row<'static, Message, LauncherTheme>> {
-        if self.is_process_running(&InstanceSelection::new(name, menu.is_viewing_server)) {
+        if self.is_process_running(&Instance::new(name, kind)) {
             Some(row![
                 horizontal_space(),
                 icons::play_s(12),
@@ -433,7 +419,7 @@ impl Launcher {
         }
     }
 
-    fn is_process_running(&self, instance: &InstanceSelection) -> bool {
+    fn is_process_running(&self, instance: &Instance) -> bool {
         self.processes.contains_key(instance)
     }
 
@@ -478,15 +464,18 @@ impl Launcher {
         .into()
     }
 
-    fn get_client_play_button(&'_ self) -> Element<'_> {
+    fn get_client_play_button(
+        &'_ self,
+        selected: &Instance,
+    ) -> widget::Tooltip<'_, Message, LauncherTheme> {
         let play_button = button_with_icon(icons::play(), "Play", 16).width(98);
         let is_offline = self.account_selected == OFFLINE_ACCOUNT_NAME;
 
         if self.config.username.is_empty() && is_offline {
-            tooltip(play_button, "Username is empty!", Position::Bottom).into()
+            tooltip(play_button, "Username is empty!", Position::Bottom)
         } else if self.config.username.contains(' ') && is_offline {
-            tooltip(play_button, "Username contains spaces!", Position::Bottom).into()
-        } else if self.processes.contains_key(self.instance()) {
+            tooltip(play_button, "Username contains spaces!", Position::Bottom)
+        } else if self.processes.contains_key(selected) {
             tooltip(
                 button_with_icon(icons::play(), "Kill", 16)
                     .on_press(Message::LaunchKill)
@@ -494,21 +483,23 @@ impl Launcher {
                 shortcut_ctrl("Backspace"),
                 Position::Bottom,
             )
-            .into()
         } else if self.is_launching_game {
-            button_with_icon(icons::play(), "...", 16).width(98).into()
+            tooltip(
+                button_with_icon(icons::play(), "...", 16).width(98),
+                "Launching game...",
+                Position::Bottom,
+            )
         } else {
             tooltip(
                 play_button.on_press(Message::LaunchStart),
                 shortcut_ctrl("Enter"),
                 Position::Bottom,
             )
-            .into()
         }
     }
 
     fn get_files_button(
-        selected_instance: &InstanceSelection,
+        selected_instance: &Instance,
     ) -> widget::Button<'_, Message, LauncherTheme> {
         button_with_icon(icons::folder(), "Files", 16)
             .on_press(Message::CoreOpenPath(
@@ -517,42 +508,34 @@ impl Launcher {
             .width(97)
     }
 
-    fn get_server_play_button(&self) -> widget::Tooltip<'_, Message, LauncherTheme> {
-        match &self.selected_instance {
-            Some(n) if self.processes.contains_key(n) => tooltip(
+    fn get_server_play_button(
+        &self,
+        selected: &Instance,
+    ) -> widget::Tooltip<'_, Message, LauncherTheme> {
+        if self.processes.contains_key(selected) {
+            tooltip(
                 button_with_icon(icons::play(), "Stop", 16)
-                    .width(97)
+                    .width(98)
                     .on_press(Message::LaunchKill),
                 shortcut_ctrl("Escape"),
                 Position::Bottom,
-            ),
-            _ => tooltip(
+            )
+        } else if self.is_launching_game {
+            tooltip(
+                button_with_icon(icons::play(), "...", 16).width(98),
+                "Starting server...",
+                Position::Bottom,
+            )
+        } else {
+            tooltip(
                 button_with_icon(icons::play(), "Start", 16)
-                    .width(97)
+                    .width(98)
                     .on_press(Message::LaunchStart),
                 "By starting the server, you agree to the EULA",
                 Position::Bottom,
-            ),
+            )
         }
     }
-}
-
-fn get_view_servers(
-    is_viewing_server: bool,
-) -> Option<widget::Button<'static, Message, LauncherTheme>> {
-    let b = widget::button(
-        widget::text(if is_viewing_server {
-            "View Instances..."
-        } else {
-            "View Servers..."
-        })
-        .size(12)
-        .style(tsubtitle),
-    )
-    .padding([4, 8])
-    .on_press(back_to_launch_screen(None, Some(!is_viewing_server)));
-
-    EXPERIMENTAL_SERVERS.read().unwrap().then_some(b)
 }
 
 impl MenuLaunch {
@@ -655,7 +638,7 @@ fn render_tab_button(tab: LaunchTab, decor: bool, menu: &'_ MenuLaunch) -> Eleme
     }
 }
 
-fn get_no_logs_message<'a>() -> widget::Column<'a, Message, LauncherTheme> {
+fn get_no_logs_message<'a>() -> Column<'a> {
     const BASE_MESSAGE: &str = "No logs found";
 
     column![widget::text(BASE_MESSAGE).style(|t: &LauncherTheme| t.style_text(Color::Mid))]
@@ -704,10 +687,7 @@ fn get_footer_text() -> widget::Column<'static, Message, LauncherTheme> {
     ]
 }
 
-fn get_sidebar_new_button(
-    menu: &MenuLaunch,
-    decor: bool,
-) -> widget::Button<'_, Message, LauncherTheme> {
+fn get_sidebar_new_button(decor: bool) -> widget::Button<'static, Message, LauncherTheme> {
     widget::button(
         row![icons::new(), widget::text("New").size(15)]
             .align_y(Alignment::Center)
@@ -724,8 +704,8 @@ fn get_sidebar_new_button(
             },
         )
     })
-    .on_press(Message::CreateInstance(CreateInstanceMessage::ScreenOpen {
-        is_server: menu.is_viewing_server,
-    }))
+    .on_press(Message::CreateInstance(CreateInstanceMessage::ScreenOpen(
+        InstanceKind::Client,
+    )))
     .width(Length::Fill)
 }

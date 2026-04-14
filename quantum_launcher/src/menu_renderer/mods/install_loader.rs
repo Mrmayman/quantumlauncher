@@ -1,7 +1,8 @@
 use iced::{Alignment, Length, widget};
-use ql_core::InstanceSelection;
+use ql_core::Instance;
 use ql_mod_manager::loaders::fabric::{self, FabricVersionList, FabricVersionListItem};
 
+use crate::menu_renderer::Column;
 use crate::state::{InstallPaperMessage, MenuInstallPaper};
 use crate::{
     icons,
@@ -96,7 +97,7 @@ impl MenuInstallOptifine {
 }
 
 impl MenuInstallFabric {
-    pub fn view(&'_ self, selected_instance: &InstanceSelection, tick_timer: usize) -> Element<'_> {
+    pub fn view(&'_ self, selected_instance: &Instance, tick_timer: usize) -> Element<'_> {
         match self {
             MenuInstallFabric::Loading { is_quilt, .. } => {
                 let loader_name = if *is_quilt { "Quilt" } else { "Fabric" };
@@ -141,78 +142,7 @@ impl MenuInstallFabric {
                 fabric_version,
                 fabric_versions,
                 ..
-            } => {
-                let picker = match fabric_versions {
-                    FabricVersionList::Quilt(l)
-                    | FabricVersionList::Fabric(l)
-                    | FabricVersionList::LegacyFabric(l)
-                    | FabricVersionList::OrnitheMCQuilt(l)
-                    | FabricVersionList::OrnitheMCFabric(l) => version_list(l, fabric_version),
-
-                    FabricVersionList::Beta173 {
-                        ornithe_mc,
-                        babric,
-                        cursed_legacy,
-                    } => {
-                        let list = match backend {
-                            fabric::BackendType::OrnitheMCFabric => ornithe_mc,
-                            fabric::BackendType::Babric => babric,
-                            fabric::BackendType::CursedLegacy => cursed_legacy,
-                            _ => unreachable!(),
-                        };
-
-                        widget::column![
-                            "Pick an implementation of Fabric for beta 1.7.3:",
-                            widget::pick_list(
-                                [
-                                    fabric::BackendType::Babric,
-                                    fabric::BackendType::OrnitheMCFabric,
-                                    fabric::BackendType::CursedLegacy
-                                ],
-                                Some(backend),
-                                |b| InstallFabricMessage::ChangeBackend(b).into()
-                            ),
-                            version_list(list, fabric_version),
-                        ]
-                        .spacing(5)
-                    }
-                    FabricVersionList::Both {
-                        legacy_fabric,
-                        ornithe_mc,
-                    } => {
-                        let list = match backend {
-                            fabric::BackendType::LegacyFabric => legacy_fabric,
-                            fabric::BackendType::OrnitheMCFabric => ornithe_mc,
-                            _ => unreachable!(),
-                        };
-
-                        widget::column![
-                            "Pick an implementation of Fabric:",
-                            widget::pick_list(
-                                [
-                                    fabric::BackendType::LegacyFabric,
-                                    fabric::BackendType::OrnitheMCFabric,
-                                ],
-                                Some(backend),
-                                |b| InstallFabricMessage::ChangeBackend(b).into()
-                            ),
-                            version_list(list, fabric_version),
-                        ]
-                        .spacing(5)
-                    }
-
-                    FabricVersionList::Unsupported => unreachable!(),
-                };
-
-                widget::column![
-                    back_button().on_press(ManageModsMessage::Open.into()),
-                    widget::text!("Install {backend} for \"{}\"", selected_instance.get_name())
-                        .size(20),
-                    picker,
-                    button_with_icon(icons::download(), "Install", 16)
-                        .on_press(InstallFabricMessage::ButtonClicked.into()),
-                ]
-            }
+            } => install_fabric_main(selected_instance, backend, fabric_version, fabric_versions),
         }
         .padding(10)
         .spacing(10)
@@ -220,10 +150,84 @@ impl MenuInstallFabric {
     }
 }
 
-fn version_list<'a>(
-    list: &'a [FabricVersionListItem],
-    selected: &'a str,
+fn install_fabric_main<'a>(
+    selected_instance: &Instance,
+    backend: &'a fabric::BackendType,
+    fabric_version: &'a str,
+    fabric_versions: &'a FabricVersionList,
 ) -> widget::Column<'a, Message, LauncherTheme> {
+    let picker = match fabric_versions {
+        FabricVersionList::Quilt(l)
+        | FabricVersionList::Fabric(l)
+        | FabricVersionList::LegacyFabric(l)
+        | FabricVersionList::OrnitheMCQuilt(l)
+        | FabricVersionList::OrnitheMCFabric(l) => version_list(l, fabric_version),
+
+        FabricVersionList::Beta173 {
+            ornithe_mc,
+            babric,
+            cursed_legacy,
+        } => {
+            let list = match backend {
+                fabric::BackendType::OrnitheMCFabric => ornithe_mc,
+                fabric::BackendType::Babric => babric,
+                fabric::BackendType::CursedLegacy => cursed_legacy,
+                _ => unreachable!(),
+            };
+
+            widget::column![
+                "Pick an implementation of Fabric for beta 1.7.3:",
+                widget::pick_list(
+                    [
+                        fabric::BackendType::Babric,
+                        fabric::BackendType::OrnitheMCFabric,
+                        fabric::BackendType::CursedLegacy
+                    ],
+                    Some(backend),
+                    |b| InstallFabricMessage::ChangeBackend(b).into()
+                ),
+                version_list(list, fabric_version),
+            ]
+            .spacing(5)
+        }
+        FabricVersionList::Both {
+            legacy_fabric,
+            ornithe_mc,
+        } => {
+            let list = match backend {
+                fabric::BackendType::LegacyFabric => legacy_fabric,
+                fabric::BackendType::OrnitheMCFabric => ornithe_mc,
+                _ => unreachable!(),
+            };
+
+            widget::column![
+                "Pick an implementation of Fabric:",
+                widget::pick_list(
+                    [
+                        fabric::BackendType::LegacyFabric,
+                        fabric::BackendType::OrnitheMCFabric,
+                    ],
+                    Some(backend),
+                    |b| InstallFabricMessage::ChangeBackend(b).into()
+                ),
+                version_list(list, fabric_version),
+            ]
+            .spacing(5)
+        }
+
+        FabricVersionList::Unsupported => unreachable!(),
+    };
+
+    widget::column![
+        back_button().on_press(ManageModsMessage::Open.into()),
+        widget::text!("Install {backend} for \"{}\"", selected_instance.get_name()).size(20),
+        picker,
+        button_with_icon(icons::download(), "Install", 16)
+            .on_press(InstallFabricMessage::ButtonClicked.into()),
+    ]
+}
+
+fn version_list<'a>(list: &'a [FabricVersionListItem], selected: &'a str) -> Column<'a> {
     let selected = FabricVersionListItem {
         loader: fabric::FabricVersion {
             version: selected.to_owned(),

@@ -4,7 +4,7 @@ use std::{
 };
 
 use ql_core::{
-    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, Loader, err, info,
+    GenericProgress, Instance, IntoIoError, IntoJsonError, Loader, err, info,
     json::{InstanceConfigJson, VersionDetails},
     pt,
 };
@@ -43,7 +43,7 @@ pub struct PeekInfo {
 /// - `Err`: Installation error.
 pub async fn install(
     file: &[u8],
-    instance: InstanceSelection,
+    instance: Instance,
     sender: Option<&Sender<GenericProgress>>,
 ) -> Result<(bool, CurseforgeNotAllowed), PackError> {
     let mut zip = zip::ZipArchive::new(Cursor::new(file))?;

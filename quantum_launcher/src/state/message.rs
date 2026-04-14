@@ -3,12 +3,12 @@ use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
 use crate::{
     config::sidebar::{FolderId, SDragLocation, SidebarSelection},
     message_handler::ForgeKind,
-    state::{InfoMessage, LaunchModal, MenuEditModsModal},
+    state::{InfoMessage, LaunchModal, MenuEditModsModal, SidebarScroll},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
 use iced::widget::{self, scrollable::AbsoluteOffset};
 use ql_core::{
-    InstanceSelection, LaunchedProcess, ListEntry, Loader,
+    Instance, InstanceKind, LaunchedProcess, ListEntry, Loader,
     file_utils::DirItem,
     jarmod::JarMods,
     json::instance_config::{MainClassMode, PreLaunchPrefixMode},
@@ -49,15 +49,14 @@ pub enum InstallPaperMessage {
 
 #[derive(Debug, Clone)]
 pub enum CreateInstanceMessage {
-    ScreenOpen {
-        is_server: bool,
-    },
+    ScreenOpen(InstanceKind),
     SidebarResize(f32),
 
     VersionsLoaded(Res<(Vec<ListEntry>, String)>),
     VersionSelected(ListEntry),
     NameInput(String),
     ChangeAssetToggle(bool),
+    ChangeKind(InstanceKind),
 
     SearchInput(String),
     SearchSubmit,
@@ -65,11 +64,11 @@ pub enum CreateInstanceMessage {
     CategoryToggle(ql_core::ListEntryKind),
 
     Start,
-    End(Res<InstanceSelection>),
+    End(Res<Instance>),
 
     #[allow(unused)]
     Import,
-    ImportResult(Res<Option<(InstanceSelection, CurseforgeNotAllowed)>>),
+    ImportResult(Res<Option<(Instance, CurseforgeNotAllowed)>>),
 }
 
 #[derive(Debug, Clone)]
@@ -84,7 +83,6 @@ pub enum EditInstanceMessage {
     MemoryChanged(f32),
     MemoryInputChanged(String),
     LoggingToggle(bool),
-    CloseLauncherToggle(bool),
     SetMainClass(Option<MainClassMode>, Option<String>),
 
     JavaArgs(ListMessage),
@@ -303,6 +301,7 @@ pub enum LauncherSettingsMessage {
     ToggleWindowSize(bool),
     ToggleInstanceRemembering(bool),
     ToggleModUpdateChangelog(bool),
+    AfterLaunchBehaviorChanged(crate::config::AfterLaunchBehavior),
     #[allow(unused)]
     ToggleWindowDecorations(bool),
 
@@ -376,11 +375,7 @@ pub enum GameLogMessage {
 #[derive(Debug, Clone)]
 pub enum SidebarMessage {
     Resize(f32),
-    Scroll {
-        total: f32,
-        offset: f32,
-        bounds: iced::Rectangle,
-    },
+    Scroll(SidebarScroll),
     FolderRenameConfirm,
 
     NewFolder(Option<SidebarSelection>),
@@ -397,7 +392,7 @@ pub enum SidebarMessage {
 pub enum MainMenuMessage {
     ChangeTab(LaunchTab),
     Modal(Option<LaunchModal>),
-    InstanceSelected(InstanceSelection),
+    InstanceSelected(Instance),
     UsernameSet(String),
     SetInfoMessage(Option<InfoMessage>),
 }
@@ -461,12 +456,11 @@ pub enum Message {
     MScreenOpen {
         message: Option<InfoMessage>,
         clear_selection: bool,
-        is_server: Option<bool>,
     },
     LaunchStart,
     LaunchEnd(Res<LaunchedProcess>),
     LaunchKill,
-    LaunchGameExited(Res<(ExitStatus, InstanceSelection, Option<Diagnostic>)>),
+    LaunchGameExited(Res<(ExitStatus, Instance, Option<Diagnostic>)>),
 
     DeleteInstanceMenu,
     DeleteInstance,
@@ -492,7 +486,7 @@ pub enum Message {
     CoreOpenPath(PathBuf),
     CoreCopyText(String),
     CoreTick,
-    CoreListLoaded(Res<(Vec<String>, bool)>),
+    CoreListLoaded(Res<(Vec<String>, InstanceKind)>),
     CoreOpenChangeLog,
     CoreOpenIntro,
     CoreEvent(iced::Event, iced::event::Status),

@@ -8,8 +8,8 @@ use ql_mod_manager::store::{Category, ModId, QueryType, SearchMod, StoreBackendT
 use crate::{
     icons,
     menu_renderer::{
-        Element, barthin, button_with_icon, mods::description::view_project_description, tooltip,
-        tsubtitle,
+        Column, Element, barthin, button_with_icon, mods::description::view_project_description,
+        tooltip, tsubtitle,
     },
     state::{
         ImageState, InstallModsMessage, ManageModsMessage, MenuModsDownload, Message,
@@ -71,11 +71,7 @@ impl MenuModsDownload {
         .padding([5, 10])
     }
 
-    fn mods_display<'a>(
-        &'a self,
-        images: &'a ImageState,
-        tick_timer: usize,
-    ) -> widget::Column<'a, Message, LauncherTheme> {
+    fn mods_display<'a>(&'a self, images: &'a ImageState, tick_timer: usize) -> Column<'a> {
         let mods_list = self.get_mods_list(images, tick_timer);
 
         self.mods_view_warnings().push(
@@ -193,11 +189,7 @@ impl MenuModsDownload {
         .style(LauncherTheme::style_scrollable_flat_extra_dark)
     }
 
-    fn get_mods_list<'a>(
-        &'a self,
-        images: &'a ImageState,
-        tick_timer: usize,
-    ) -> widget::Column<'a, Message, LauncherTheme> {
+    fn get_mods_list<'a>(&'a self, images: &'a ImageState, tick_timer: usize) -> Column<'a> {
         if let Some(results) = self.results.as_ref() {
             if results.mods.is_empty() {
                 column!["No results found."].padding(10)
@@ -291,12 +283,7 @@ impl MenuModsDownload {
 }
 
 impl ModCategoryState {
-    fn view(
-        &self,
-        backend: StoreBackendType,
-        open_source: bool,
-        tick_timer: usize,
-    ) -> widget::Column<'_, Message, LauncherTheme> {
+    fn view(&self, backend: StoreBackendType, open_source: bool, tick_timer: usize) -> Column<'_> {
         let category_view: Element = match &self.categories {
             Ok(n) if n.is_empty() => {
                 let dots = ".".repeat((tick_timer % 3) + 1);
@@ -338,10 +325,7 @@ impl ModCategoryState {
         .spacing(5)
     }
 
-    fn view_category<'a>(
-        &'a self,
-        category: &'a Category,
-    ) -> widget::Column<'a, Message, LauncherTheme> {
+    fn view_category<'a>(&'a self, category: &'a Category) -> Column<'a> {
         widget::Column::new()
             .push_maybe(category.is_usable.then(|| {
                 widget::checkbox(&category.name, self.selected.contains(&category.slug))

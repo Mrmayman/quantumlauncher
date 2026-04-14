@@ -4,9 +4,7 @@ use std::{
 };
 
 use owo_colors::OwoColorize;
-use ql_core::{
-    InstanceSelection, IntoIoError, IntoJsonError, Loader, info, json::VersionDetails, pt,
-};
+use ql_core::{Instance, IntoIoError, IntoJsonError, Loader, info, json::VersionDetails, pt};
 
 use crate::{
     presets::{PresetJson, get_instance_type},
@@ -40,11 +38,7 @@ pub struct PresetOutput {
 /// - Invalid zip file or JSON
 /// - Permission or path access issues
 /// - Instance configuration errors
-pub async fn load(
-    instance: InstanceSelection,
-    file: &[u8],
-    apply: bool,
-) -> Result<PresetOutput, ModError> {
+pub async fn load(instance: Instance, file: &[u8], apply: bool) -> Result<PresetOutput, ModError> {
     info!("Importing mod preset");
 
     let dotmc_dir = instance.get_dot_minecraft_path();
@@ -140,7 +134,7 @@ async fn write_file(
     name: &str,
 ) -> Result<(), ModError> {
     let path = root_dir.join(name.replace('\\', "/"));
-    Ok(if file.is_dir() {
+    if file.is_dir() {
         tokio::fs::create_dir_all(&path).await.path(&path)?;
     } else {
         let parent = path.parent().unwrap();
@@ -150,5 +144,6 @@ async fn write_file(
         file.read_to_end(&mut buf)
             .map_err(|n| ModError::ZipIoError(n, name.to_owned()))?;
         tokio::fs::write(&path, &buf).await.path(&path)?;
-    })
+    }
+    Ok(())
 }

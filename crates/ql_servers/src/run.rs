@@ -5,7 +5,7 @@ use std::{
 };
 
 use ql_core::{
-    GenericProgress, InstanceSelection, IntoIoError, LAUNCHER_DIR, LaunchedProcess, Loader,
+    GenericProgress, Instance, IntoIoError, LAUNCHER_DIR, LaunchedProcess, Loader,
     find_forge_shim_file, info,
     json::{InstanceConfigJson, VersionDetails},
     no_window, pt,
@@ -35,7 +35,7 @@ use crate::ServerError;
 /// - Forge shim file (`forge-*-shim.jar`) couldn't be found
 /// - Other stuff I'm too dumb to see
 pub async fn run(
-    name: String,
+    name: Arc<str>,
     java_install_progress: Option<Sender<GenericProgress>>,
 ) -> Result<LaunchedProcess, ServerError> {
     let launcher = ServerLauncher::new(&name).await?;
@@ -74,7 +74,7 @@ pub async fn run(
     }
     Ok(LaunchedProcess {
         child: Arc::new(Mutex::new(child)),
-        instance: InstanceSelection::Server(name),
+        instance: Instance::server(&name),
         is_classic_server: launcher.is_classic_server(),
     })
 }

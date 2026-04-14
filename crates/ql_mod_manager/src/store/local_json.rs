@@ -5,7 +5,7 @@ use std::{
 };
 
 use ql_core::{
-    InstanceSelection, IntoIoError, IntoJsonError, IoError, JsonFileError, file_utils::exists, info,
+    Instance, IntoIoError, IntoJsonError, IoError, JsonFileError, file_utils::exists, info,
 };
 use serde::{Deserialize, Serialize};
 use tokio::fs;
@@ -32,14 +32,14 @@ pub struct ModConfig {
     pub dependents: HashSet<ModId>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ModIndex {
     pub mods: HashMap<ModId, ModConfig>,
     pub is_server: Option<bool>,
 }
 
 impl ModIndex {
-    pub async fn load(selected_instance: &InstanceSelection) -> Result<Self, JsonFileError> {
+    pub async fn load(selected_instance: &Instance) -> Result<Self, JsonFileError> {
         let mut index = load_inner(selected_instance).await?;
         index.fix(selected_instance).await?;
         Ok(index)
@@ -47,7 +47,7 @@ impl ModIndex {
 
     pub async fn save(
         &mut self,
-        selected_instance: &InstanceSelection,
+        selected_instance: &Instance,
     ) -> Result<(), JsonFileError> {
         let index_dir = selected_instance
             .get_dot_minecraft_path()
@@ -58,14 +58,14 @@ impl ModIndex {
         Ok(())
     }
 
-    fn new(instance_name: &InstanceSelection) -> Self {
+    fn new(instance_name: &Instance) -> Self {
         Self {
             mods: HashMap::new(),
             is_server: Some(instance_name.is_server()),
         }
     }
 
-    pub async fn fix(&mut self, selected_instance: &InstanceSelection) -> Result<(), IoError> {
+    pub async fn fix(&mut self, selected_instance: &Instance) -> Result<(), IoError> {
         let mods_dir = selected_instance.get_dot_minecraft_path().join("mods");
         if !exists(&mods_dir).await {
             fs::create_dir(&mods_dir).await.path(&mods_dir)?;
@@ -128,7 +128,7 @@ impl ModIndex {
     }
 }
 
-async fn load_inner(selected_instance: &InstanceSelection) -> Result<ModIndex, JsonFileError> {
+async fn load_inner(selected_instance: &Instance) -> Result<ModIndex, JsonFileError> {
     let dot_mc_dir = selected_instance.get_dot_minecraft_path();
 
     let mods_dir = dot_mc_dir.join("mods");

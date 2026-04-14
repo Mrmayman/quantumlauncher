@@ -1,5 +1,5 @@
 use ql_core::{
-    CLIENT, InstanceConfigJson, InstanceSelection, IntoJsonError, IntoStringError, Loader,
+    CLIENT, InstanceConfigJson, Instance, IntoJsonError, IntoStringError, Loader,
     json::VersionDetails, request::check_for_success,
 };
 use serde::Deserialize;
@@ -14,7 +14,7 @@ pub struct MclogsResponse {
 }
 
 /// Uploads log content to <https://mclo.gs> and returns the URL if successful
-pub async fn upload_log(content: String, instance: InstanceSelection) -> Result<String, String> {
+pub async fn upload_log(content: String, instance: Instance) -> Result<String, String> {
     #[derive(serde::Serialize)]
     struct Metadata {
         key: &'static str,

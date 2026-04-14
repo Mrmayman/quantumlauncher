@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex, mpsc::Sender};
 
 use futures::StreamExt;
 use owo_colors::colored::OwoColorize;
-use ql_core::{GenericProgress, InstanceSelection, Loader, err, info, json::VersionDetails, pt};
+use ql_core::{GenericProgress, Instance, Loader, err, info, json::VersionDetails, pt};
 
 use crate::store::{ModId, ModIndex, StoreBackendType, get_latest_version_date};
 
@@ -20,7 +20,7 @@ pub struct RecommendedMod {
 impl RecommendedMod {
     pub async fn get_compatible_mods(
         ids: Vec<Self>,
-        instance: InstanceSelection,
+        instance: Instance,
         loader: Loader,
         sender: Sender<GenericProgress>,
     ) -> Result<Vec<Self>, ModError> {

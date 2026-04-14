@@ -191,7 +191,10 @@ pub async fn find_java_bin_in_dir(name: &str, path: &Path) -> Result<PathBuf, Ja
 
     let entries = file_utils::read_filenames_from_dir(path).await;
     if let Ok(entries) = entries.as_deref() {
-        if let Some(entry) = entries.iter().find(|n| n.name.contains("bellsoft")) {
+        if let Some(entry) = entries
+            .iter()
+            .find(|n| n.name.contains("bellsoft") || n.name.contains("zulu"))
+        {
             return Box::pin(find_java_bin_in_dir(name, &path.join(&entry.name))).await;
         }
     }

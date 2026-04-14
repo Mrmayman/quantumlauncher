@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
+    sync::Arc,
     time::Instant,
 };
 
@@ -19,7 +20,7 @@ use iced::{
     widget::{self, scrollable::AbsoluteOffset},
 };
 use ql_core::{
-    DownloadProgress, GenericProgress, InstanceSelection, IntoStringError, ListEntry,
+    DownloadProgress, GenericProgress, Instance, InstanceKind, IntoStringError, ListEntry,
     OptifineUniqueVersion,
     file_utils::DirItem,
     jarmod::JarMods,
@@ -64,7 +65,7 @@ pub enum LaunchModal {
     InstanceOptions,
 
     // Sidebar
-    SCtxMenu(Option<(SidebarSelection, String)>, (f32, f32)),
+    SCtxMenu(Option<(SidebarSelection, Arc<str>)>, (f32, f32)),
     SDragging {
         being_dragged: SidebarSelection,
         dragged_to: Option<SDragLocation>,
@@ -106,19 +107,33 @@ pub struct MenuLaunch {
     pub log_state: Option<LogState>,
     pub modal: Option<LaunchModal>,
 
-    pub sidebar_scroll_total: f32,
-    pub sidebar_scroll_offset: f32,
-    pub sidebar_scroll_bounds: Option<Rectangle>,
+    pub sidebar_scroll: SidebarScroll,
     pub sidebar_grid_state: widget::pane_grid::State<bool>,
     sidebar_split: Option<widget::pane_grid::Split>,
 
-    pub is_viewing_server: bool,
     pub is_uploading_mclogs: bool,
 }
 
 impl Default for MenuLaunch {
     fn default() -> Self {
         Self::new(None)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SidebarScroll {
+    pub remaining: f32,
+    pub offset: f32,
+    pub bounds: Option<Rectangle>,
+}
+
+impl Default for SidebarScroll {
+    fn default() -> Self {
+        Self {
+            remaining: 100.0,
+            offset: 0.0,
+            bounds: None,
+        }
     }
 }
 
@@ -138,10 +153,7 @@ impl MenuLaunch {
             tab: LaunchTab::default(),
             edit_instance: None,
             login_progress: None,
-            sidebar_scroll_total: 100.0,
-            sidebar_scroll_offset: 0.0,
-            sidebar_scroll_bounds: None,
-            is_viewing_server: false,
+            sidebar_scroll: SidebarScroll::default(),
             sidebar_grid_state,
             log_state: None,
             is_uploading_mclogs: false,
@@ -157,7 +169,7 @@ impl MenuLaunch {
         }
     }
 
-    pub fn reload_notes(&mut self, instance: InstanceSelection) -> Task<Message> {
+    pub fn reload_notes(&mut self, instance: Instance) -> Task<Message> {
         self.notes = None;
         Task::perform(ql_instances::notes::read(instance), |n| {
             NotesMessage::Loaded(n.strerr()).into()
@@ -183,7 +195,7 @@ pub struct MenuEditInstance {
     // Renaming Instance:
     pub is_editing_name: bool,
     pub instance_name: String,
-    pub old_instance_name: String,
+    pub old_instance_name: Arc<str>,
     // Changing RAM:
     pub slider_value: f32,
     pub slider_text: String,
@@ -331,7 +343,7 @@ pub enum MenuEditModsModal {
 impl MenuEditMods {
     pub fn update_locally_installed_mods(
         idx: &ModIndex,
-        selected_instance: &InstanceSelection,
+        selected_instance: &Instance,
     ) -> Task<Message> {
         let mut blacklist = Vec::new();
         for mod_info in idx.mods.values() {
@@ -418,9 +430,9 @@ pub enum MenuCreateInstance {
 
 pub struct MenuCreateInstanceChoosing {
     pub _loading_list_handle: iced::task::Handle,
-    pub list: Option<Vec<ListEntry>>,
+    pub list: Result<Option<Vec<ListEntry>>, String>,
     // UI:
-    pub is_server: bool,
+    pub kind: InstanceKind,
     pub search_box: String,
     pub show_category_dropdown: bool,
     pub selected_categories: HashSet<ql_core::ListEntryKind>,
@@ -583,7 +595,7 @@ pub struct MenuLauncherSettings {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LauncherSettingsTab {
     UserInterface,
-    Internal,
+    Game,
     About,
 }
 
@@ -591,26 +603,26 @@ impl std::fmt::Display for LauncherSettingsTab {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             LauncherSettingsTab::UserInterface => "Appearance",
-            LauncherSettingsTab::Internal => "Game",
+            LauncherSettingsTab::Game => "Game",
             LauncherSettingsTab::About => "About",
         })
     }
 }
 
 impl LauncherSettingsTab {
-    pub const ALL: &'static [Self] = &[Self::UserInterface, Self::Internal, Self::About];
+    pub const ALL: &'static [Self] = &[Self::UserInterface, Self::Game, Self::About];
 
     pub const fn next(self) -> Self {
         match self {
-            Self::UserInterface => Self::Internal,
-            Self::Internal | Self::About => Self::About,
+            Self::UserInterface => Self::Game,
+            Self::Game | Self::About => Self::About,
         }
     }
 
     pub const fn prev(self) -> Self {
         match self {
-            Self::UserInterface | Self::Internal => Self::UserInterface,
-            Self::About => Self::Internal,
+            Self::UserInterface | Self::Game => Self::UserInterface,
+            Self::About => Self::Game,
         }
     }
 }

@@ -34,11 +34,13 @@ pub use onboarding::changelog;
 
 pub const DISCORD: &str = "https://discord.gg/bWqRaSXar5";
 pub const GITHUB: &str = "https://github.com/Mrmayman/quantumlauncher";
+pub const MATRIX: &str = "https://matrix.to/#/#quantumgroup:matrix.org";
 
 pub const FONT_MONO: iced::Font = iced::Font::with_name("JetBrains Mono");
 pub const FONT_DEFAULT: iced::Font = iced::Font::with_name("Inter");
 
 pub type Element<'a> = iced::Element<'a, Message, LauncherTheme>;
+pub type Column<'a> = widget::Column<'a, Message, LauncherTheme>;
 
 const PADDING_NOT_BOTTOM: iced::Padding = iced::Padding {
     top: 10.0,
@@ -110,7 +112,7 @@ fn view_info_message(
 
 pub fn checkered_list<'a, Item: Into<Element<'a>>>(
     children: impl IntoIterator<Item = Item>,
-) -> widget::Column<'a, Message, LauncherTheme> {
+) -> Column<'a> {
     widget::column(children.into_iter().enumerate().map(|(i, e)| {
         widget::container(e)
             .width(Length::Fill)
@@ -320,7 +322,7 @@ impl crate::state::MenuLauncherUpdate {
                 button_with_icon(icons::download(), "Download", 16)
                     .on_press(Message::UpdateDownloadStart))
             )
-            .push(back_button().on_press(back_to_launch_screen(None, None)))
+            .push(back_button().on_press(back_to_launch_screen(None)))
             .push(button_with_icon(icons::globe(), "Open Website", 16)
                 .on_press(Message::CoreOpenLink(ql_core::WEBSITE.to_owned())))
             .spacing(5).wrap(),
@@ -374,16 +376,15 @@ pub fn get_mode_selector(config: &LauncherConfig) -> Element<'static> {
     .into()
 }
 
-pub fn back_to_launch_screen(message: Option<InfoMessage>, is_server: Option<bool>) -> Message {
+pub fn back_to_launch_screen(message: Option<InfoMessage>) -> Message {
     Message::MScreenOpen {
         message,
         clear_selection: false,
-        is_server,
     }
 }
 
 impl<T: Progress> ProgressBar<T> {
-    pub fn view(&'_ self) -> widget::Column<'_, Message, LauncherTheme> {
+    pub fn view(&'_ self) -> Column<'_> {
         let total = T::total();
         column![widget::progress_bar(0.0..=total, self.num)]
             .push_maybe(self.message.as_deref().map(widget::text))
@@ -472,7 +473,7 @@ impl MenuLicense {
 
 pub fn view_account_login<'a>() -> Element<'a> {
     column![
-        back_button().on_press(back_to_launch_screen(None, None)),
+        back_button().on_press(back_to_launch_screen(None)),
         widget::vertical_space(),
         row![
             widget::horizontal_space(),
@@ -513,7 +514,7 @@ pub fn view_error(error: &'_ str) -> Element<'_> {
         column![
             widget::text!("Error: {error}"),
             row![
-                widget::button("Back").on_press(back_to_launch_screen(None, None)),
+                widget::button("Back").on_press(back_to_launch_screen(None)),
                 widget::button("Copy Error").on_press(Message::CoreCopyError),
                 widget::button("Copy Error + Log").on_press(Message::CoreCopyLog),
                 widget::button("Join Discord for help")
@@ -531,16 +532,12 @@ pub fn view_error(error: &'_ str) -> Element<'_> {
     .into()
 }
 
-pub fn view_log_upload_result(url: &'_ str, is_server: bool) -> Element<'_> {
+pub fn view_log_upload_result(url: &'_ str) -> Element<'_> {
     column![
-        back_button().on_press(back_to_launch_screen(None, Some(is_server))),
+        back_button().on_press(back_to_launch_screen(None)),
         column![
             widget::vertical_space(),
-            widget::text(format!(
-                "{} log uploaded successfully!",
-                if is_server { "Server" } else { "Game" }
-            ))
-            .size(20),
+            widget::text("Log uploaded successfully!").size(20),
             widget::text("Your log has been uploaded to mclo.gs. You can share the link below:")
                 .size(14),
             widget::container(
@@ -646,7 +643,6 @@ pub fn view_changelog() -> Element<'static> {
     let back_msg = Message::MScreenOpen {
         message: None,
         clear_selection: true,
-        is_server: None,
     };
     widget::scrollable(
         widget::column!(

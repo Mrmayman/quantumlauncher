@@ -1,4 +1,4 @@
-use crate::config::SIDEBAR_WIDTH;
+use crate::config::AfterLaunchBehavior;
 use crate::menu_renderer::back_to_launch_screen;
 use crate::state::{
     AutoSaveKind, GameProcess, InfoMessage, LaunchTab, LogState, MenuCreateInstance,
@@ -6,7 +6,7 @@ use crate::state::{
 };
 use crate::tick::sort_dependencies;
 use crate::{
-    Launcher, Message, get_entries,
+    Launcher, Message,
     state::{
         EditPresetsMessage, ManageModsMessage, MenuEditInstance, MenuEditMods, MenuInstallForge,
         MenuLaunch, OFFLINE_ACCOUNT_NAME, ProgressBar, SelectedState, State,
@@ -20,10 +20,10 @@ use ql_core::json::VersionDetails;
 use ql_core::json::instance_config::ModTypeInfo;
 use ql_core::read_log::{Diagnostic, ReadError};
 use ql_core::{
-    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IntoStringError, JsonFileError,
-    err, json::instance_config::InstanceConfigJson,
+    GenericProgress, Instance, IntoIoError, IntoJsonError, IntoStringError, JsonFileError, err,
+    json::instance_config::InstanceConfigJson,
 };
-use ql_core::{LaunchedProcess, info, pt};
+use ql_core::{InstanceKind, LaunchedProcess, info, pt};
 use ql_instances::auth::AccountData;
 use ql_mod_manager::{loaders, store::ModIndex};
 use std::{
@@ -38,41 +38,38 @@ use tokio::io::AsyncWriteExt;
 pub const SIDEBAR_LIMIT_RIGHT: f32 = 140.0;
 pub const SIDEBAR_LIMIT_LEFT: f32 = 135.0;
 
+mod arrow_keys;
 mod iced_event;
 
 impl Launcher {
-    pub fn on_instance_selected(&mut self) -> Task<Message> {
-        let instance = self.instance().clone();
-
+    pub fn on_selecting_instance(&mut self) -> Task<Message> {
         self.load_edit_instance(None);
+        let Some(instance) = self.selected_instance.clone() else {
+            return Task::none();
+        };
 
-        {
-            let persistent = self.config.c_persistent();
-            if persistent.selected_remembered {
-                match instance.clone() {
-                    InstanceSelection::Instance(n) => persistent.selected_instance = Some(n),
-                    InstanceSelection::Server(n) => persistent.selected_server = Some(n),
-                }
-                self.autosave.remove(&AutoSaveKind::LauncherConfig);
-            }
-        }
-        self.load_logs(instance.clone());
+        let persistent = self.config.c_persistent();
+        persistent.selected_instance = Some(instance.name.clone());
+        self.autosave.remove(&AutoSaveKind::LauncherConfig);
+
+        self.load_logs();
         if let State::Launch(menu) = &mut self.state {
             menu.modal = None;
-            menu.reload_notes(instance)
+            menu.reload_notes(instance.clone())
         } else {
             Task::none()
         }
     }
 
-    pub fn load_logs(&mut self, instance: InstanceSelection) {
+    pub fn load_logs(&mut self) {
         let State::Launch(menu) = &mut self.state else {
             return;
         };
-        if let (Some(logs), LaunchTab::Log) = (self.logs.get(&instance), menu.tab) {
-            if menu.log_state.is_some() && Some(instance) == self.selected_instance {
-                return;
-            }
+        let Some(instance) = self.selected_instance.as_ref() else {
+            menu.log_state = None;
+            return;
+        };
+        if let (Some(logs), LaunchTab::Log) = (self.logs.get(instance), menu.tab) {
             menu.log_state = Some(LogState {
                 content: iced::widget::text_editor::Content::with_text(&logs.log.join("\n")),
             });
@@ -96,7 +93,7 @@ impl Launcher {
         let global_settings = self.config.global_settings.clone();
         let extra_java_args = self.config.extra_java_args.clone().unwrap_or_default();
 
-        let instance_name = self.instance().get_name().to_owned();
+        let instance_name = self.instance().name.clone();
         Task::perform(
             async move {
                 ql_instances::launch(
@@ -143,7 +140,7 @@ impl Launcher {
                     }
                 }
 
-                return Task::perform(
+                let log_task = Task::perform(
                     async move {
                         let result = child.read_logs(censors, Some(sender)).await;
                         let default_output = Ok((ExitStatus::default(), selected_instance, None));
@@ -162,6 +159,21 @@ impl Launcher {
                     },
                     Message::LaunchGameExited,
                 );
+
+                match self.config.c_after_launch_behavior() {
+                    AfterLaunchBehavior::DoNothing => {}
+                    AfterLaunchBehavior::CloseLauncher => {
+                        ql_core::logger_finish();
+                        std::process::exit(0);
+                    }
+                    AfterLaunchBehavior::MinimizeLauncher => {
+                        let minimize_task = iced::window::get_latest()
+                            .and_then(|id| iced::window::minimize(id, true));
+                        return Task::batch([log_task, minimize_task]);
+                    }
+                }
+
+                return log_task;
             }
             Err(err) => self.set_error(err),
         }
@@ -176,29 +188,30 @@ impl Launcher {
         let selected_instance = self.instance();
         let is_server = selected_instance.is_server();
         let deleted_instance_dir = selected_instance.get_instance_path();
+
         if let Err(err) = std::fs::remove_dir_all(&deleted_instance_dir) {
             self.set_error(err);
             return Task::none();
         }
 
         self.unselect_instance();
-        if is_server {
-            self.go_to_server_manage_menu(Some(InfoMessage::success("Deleted Server")))
-        } else {
-            self.go_to_launch_screen(Some(InfoMessage::success("Deleted Instance")))
-        }
+        self.go_to_main_menu(Some(InfoMessage::success(format!(
+            "Deleted {}",
+            if is_server { "Server" } else { "Instance" }
+        ))))
     }
 
     pub fn unselect_instance(&mut self) {
         self.selected_instance = None;
-        self.config.c_persistent().selected_instance = None;
-        self.config.c_persistent().selected_server = None;
+        let p = self.config.c_persistent();
+        p.selected_instance = None;
+        p.selected_instance_kind = None;
         self.autosave.remove(&AutoSaveKind::LauncherConfig);
     }
 
     pub fn load_edit_instance_inner(
         edit_instance: &mut Option<MenuEditInstance>,
-        selected_instance: &InstanceSelection,
+        selected_instance: &Instance,
     ) -> Result<(), JsonFileError> {
         let config_path = selected_instance.get_instance_path().join("config.json");
 
@@ -212,14 +225,12 @@ impl Launcher {
         // Use this to check for performance impact
         // std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let instance_name = selected_instance.get_name();
-
         *edit_instance = Some(MenuEditInstance {
             main_class_mode: config_json.get_main_class_mode(),
             config: config_json,
             slider_value,
-            instance_name: instance_name.to_owned(),
-            old_instance_name: instance_name.to_owned(),
+            instance_name: selected_instance.name.to_string(),
+            old_instance_name: selected_instance.name.clone(),
             slider_text: format_memory(memory_mb),
             memory_input: memory_mb.to_string(),
             is_editing_name: false,
@@ -289,7 +300,7 @@ impl Launcher {
     pub fn set_game_exited(
         &mut self,
         status: ExitStatus,
-        instance: &InstanceSelection,
+        instance: &Instance,
         diagnostic: Option<Diagnostic>,
     ) {
         let kind = if instance.is_server() {
@@ -321,7 +332,13 @@ impl Launcher {
         };
 
         if let Some(process) = self.processes.remove(instance) {
-            Self::read_game_logs(&process, instance, &mut self.logs, log_state);
+            Self::read_game_logs(
+                &process,
+                instance,
+                &mut self.logs,
+                log_state,
+                self.selected_instance.as_ref(),
+            );
         }
     }
 
@@ -359,30 +376,6 @@ impl Launcher {
         } else {
             Task::none()
         }
-    }
-
-    pub fn go_to_server_manage_menu(&mut self, message: Option<InfoMessage>) -> Task<Message> {
-        if let State::Launch(menu) = &mut self.state {
-            menu.is_viewing_server = true;
-            menu.message = message;
-        } else {
-            let mut menu_launch = MenuLaunch::new(message);
-            menu_launch.is_viewing_server = true;
-            menu_launch.resize_sidebar(SIDEBAR_WIDTH);
-            self.state = State::Launch(menu_launch);
-        }
-
-        let get_entries = Task::perform(get_entries(true), Message::CoreListLoaded);
-        match &self.selected_instance {
-            Some(InstanceSelection::Instance(_)) => self.selected_instance = None,
-            Some(i @ InstanceSelection::Server(_)) => {
-                if let State::Launch(menu) = &mut self.state {
-                    return Task::batch([get_entries, menu.reload_notes(i.clone())]);
-                }
-            }
-            None => {}
-        }
-        get_entries
     }
 
     pub fn install_forge(&mut self, kind: ForgeKind) -> Task<Message> {
@@ -435,28 +428,18 @@ impl Launcher {
         command
     }
 
-    pub fn go_to_main_menu(&mut self, message: Option<InfoMessage>) -> Task<Message> {
-        if self.server_selected() {
-            self.go_to_server_manage_menu(message)
-        } else {
-            self.go_to_launch_screen(message)
-        }
-    }
-
-    pub fn server_selected(&self) -> bool {
-        self.selected_instance
-            .as_ref()
-            .is_some_and(InstanceSelection::is_server)
-            || if let State::Launch(menu) = &self.state {
-                menu.is_viewing_server
-            } else if let State::Create(MenuCreateInstance::Choosing(
-                MenuCreateInstanceChoosing { is_server, .. },
-            )) = &self.state
+    pub fn selected_kind(&self) -> Option<InstanceKind> {
+        self.selected_instance.as_ref().map(|n| n.kind).or(
+            if let State::Create(MenuCreateInstance::Choosing(MenuCreateInstanceChoosing {
+                kind,
+                ..
+            })) = &self.state
             {
-                *is_server
+                Some(*kind)
             } else {
-                false
-            }
+                None
+            },
+        )
     }
 
     pub fn get_selected_dot_minecraft_dir(&self) -> Option<PathBuf> {
@@ -583,14 +566,14 @@ impl Launcher {
         let Some(instance) = &self.selected_instance else {
             return Task::none();
         };
-        match instance {
-            InstanceSelection::Instance(_) => {
+        match instance.kind {
+            InstanceKind::Client => {
                 if let Some(process) = self.processes.remove(instance) {
                     let mut child = block_on(process.child.child.lock());
                     _ = child.start_kill();
                 }
             }
-            InstanceSelection::Server(_) => {
+            InstanceKind::Server => {
                 if let Some(GameProcess {
                     server_input: Some((stdin, has_issued_stop_command)),
                     child,
@@ -624,7 +607,7 @@ impl Launcher {
             ),
             msg2: "All your data, including worlds, will be lost".to_owned(),
             yes: Message::DeleteInstance,
-            no: back_to_launch_screen(None, None),
+            no: back_to_launch_screen(None),
         };
     }
 
@@ -637,8 +620,8 @@ impl Launcher {
         }
         self.logs.remove(selected_instance);
 
-        match selected_instance {
-            InstanceSelection::Instance(_) => {
+        match selected_instance.kind {
+            InstanceKind::Client => {
                 if self.account_selected == OFFLINE_ACCOUNT_NAME
                     && (self.config.username.is_empty() || self.config.username.contains(' '))
                 {
@@ -658,11 +641,11 @@ impl Launcher {
                 // directly launch the game
                 self.launch_game(account_data)
             }
-            InstanceSelection::Server(server) => {
+            InstanceKind::Server => {
                 let (sender, receiver) = std::sync::mpsc::channel();
                 self.java_recv = Some(ProgressBar::with_recv(receiver));
 
-                let server = server.clone();
+                let server = selected_instance.name.clone();
                 Task::perform(
                     async move { ql_servers::run(server, Some(sender)).await.strerr() },
                     Message::LaunchEnd,
@@ -718,7 +701,7 @@ pub enum ForgeKind {
     OptiFine,
 }
 
-async fn copy_optifine_over(instance: &InstanceSelection) -> Result<(), String> {
+async fn copy_optifine_over(instance: &Instance) -> Result<(), String> {
     let instance_dir = instance.get_instance_path();
     let installer_path = instance_dir.join("optifine/OptiFine.jar");
     let mods_dir = instance_dir.join(".minecraft/mods");

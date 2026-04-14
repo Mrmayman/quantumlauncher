@@ -1,15 +1,17 @@
-use crate::config::sidebar::{InstanceKind, SidebarConfig, SidebarNode, SidebarNodeKind};
+use crate::config::sidebar::{SidebarConfig, SidebarNode, SidebarNodeKind};
 use crate::stylesheet::styles::{LauncherTheme, LauncherThemeColor, LauncherThemeLightness};
 use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
-use ql_core::ListEntryKind;
-use ql_core::json::GlobalSettings;
 use ql_core::{
-    IntoIoError, IntoJsonError, JsonFileError, LAUNCHER_DIR, LAUNCHER_VERSION_NAME, err,
+    InstanceKind, IntoIoError, IntoJsonError, JsonFileError, LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
+    ListEntryKind, err, json::GlobalSettings,
 };
 use ql_instances::auth::{AccountData, AccountType};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
-use std::{collections::HashMap, path::Path};
+use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 
 pub mod sidebar;
 
@@ -100,6 +102,10 @@ pub struct LauncherConfig {
     pub persistent: Option<PersistentSettings>,
     // Since: v0.5.1
     pub sidebar: Option<SidebarConfig>,
+    /// Time of last auto-update check result, in seconds since the Unix epoch.
+    // Since: TBD
+    #[cfg(feature = "auto_update")]
+    pub last_update_check: Option<u64>,
 
     /// Preserve fields when downgrading
     #[serde(flatten)]
@@ -126,6 +132,8 @@ impl Default for LauncherConfig {
             persistent: None,
             sidebar: None,
             _extra: HashMap::new(),
+            #[cfg(feature = "auto_update")]
+            last_update_check: None,
         }
     }
 }
@@ -180,27 +188,24 @@ impl LauncherConfig {
         Ok(())
     }
 
-    pub fn update_sidebar(&mut self, instances: &[String], is_server: bool) {
+    pub fn update_sidebar(&mut self, instances: &[String], kind: InstanceKind) {
         let sidebar = self.sidebar.get_or_insert_with(SidebarConfig::default);
-        let kind = if is_server {
-            InstanceKind::Server
-        } else {
-            InstanceKind::Client
-        };
 
         // Remove nonexistent instances
         sidebar.retain_instances(|node| match &node.kind {
             SidebarNodeKind::Instance(instance_kind) => {
-                *instance_kind == kind && instances.contains(&node.name)
+                (*instance_kind == kind && instances.iter().any(|n| n == &*node.name))
+                    || (*instance_kind != kind)
             }
             SidebarNodeKind::Folder { .. } => true,
         });
         // Add new instances
         for instance in instances {
             if !sidebar.contains_instance(instance, kind) {
-                sidebar
-                    .list
-                    .push(SidebarNode::new_instance(instance.clone(), kind));
+                sidebar.list.push(SidebarNode::new_instance(
+                    Arc::from(instance.as_str()),
+                    kind,
+                ));
             }
         }
     }
@@ -253,6 +258,12 @@ impl LauncherConfig {
         self.ui.as_ref().map_or(OPACITY, |n| n.window_opacity)
     }
 
+    pub fn c_after_launch_behavior(&self) -> AfterLaunchBehavior {
+        self.ui
+            .as_ref()
+            .map_or(AfterLaunchBehavior::default(), |n| n.after_game_opens)
+    }
+
     pub fn uses_system_decorations(&self) -> bool {
         // change this to `is_some_and` when enabling the experimental decorations
         self.ui
@@ -302,6 +313,29 @@ impl LauncherConfig {
             debug_assert!(false, "idle FPS shouldn't be zero");
             IDLE_FPS
         }
+    }
+
+    #[cfg(feature = "auto_update")]
+    pub fn should_update_check(&self) -> bool {
+        const INTERVAL_SECS: u64 = 60 * 60;
+
+        if let Some(last) = self.last_update_check {
+            if let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+                let elapsed = now.as_secs().saturating_sub(last);
+                return elapsed >= INTERVAL_SECS;
+            }
+        }
+        true
+    }
+
+    #[cfg(feature = "auto_update")]
+    pub fn update_set_now(&mut self) {
+        self.last_update_check = Some(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        );
     }
 }
 
@@ -409,6 +443,11 @@ pub struct UiSettings {
     pub window_opacity: f32,
     // Since: v0.5.0
     pub idle_fps: Option<u64>,
+    /// When the game is launched, the launcher can either
+    /// minimize itself, close itself, or do nothing (default).
+    // Since: v0.5.2
+    #[serde(default)]
+    pub after_game_opens: AfterLaunchBehavior,
     #[serde(flatten)]
     _extra: HashMap<String, serde_json::Value>,
 }
@@ -419,7 +458,31 @@ impl Default for UiSettings {
             window_decorations: UiWindowDecorations::default(),
             window_opacity: OPACITY,
             idle_fps: None,
+            after_game_opens: AfterLaunchBehavior::default(),
             _extra: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum AfterLaunchBehavior {
+    /// Enable to reduce taskbar icons; leaving it open has negligible impact.
+    #[serde(rename = "close_launcher")]
+    CloseLauncher,
+    #[serde(rename = "minimize_launcher")]
+    MinimizeLauncher,
+    #[serde(rename = "do_nothing")]
+    #[default]
+    #[serde(other)]
+    DoNothing,
+}
+
+impl AfterLaunchBehavior {
+    pub const fn desc(self) -> &'static str {
+        match self {
+            Self::CloseLauncher => "Close launcher",
+            Self::MinimizeLauncher => "Minimize launcher",
+            Self::DoNothing => "Do nothing",
         }
     }
 }
@@ -446,9 +509,10 @@ pub enum UiWindowDecorations {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PersistentSettings {
-    pub selected_instance: Option<String>,
-    pub selected_server: Option<String>,
+    pub selected_instance: Option<Arc<str>>,
     pub selected_remembered: bool,
+    // Since: TBD
+    pub selected_instance_kind: Option<InstanceKind>,
 
     #[serde(default = "default_true")]
     pub write_mod_update_changelog: bool,
@@ -464,7 +528,7 @@ impl Default for PersistentSettings {
     fn default() -> Self {
         Self {
             selected_instance: None,
-            selected_server: None,
+            selected_instance_kind: None,
             selected_remembered: true,
             write_mod_update_changelog: true,
             create_instance_filters: None,

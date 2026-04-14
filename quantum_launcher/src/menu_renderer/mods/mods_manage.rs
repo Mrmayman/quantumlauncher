@@ -2,13 +2,13 @@ use iced::{
     Alignment, Length,
     widget::{self, column, row, tooltip::Position},
 };
-use ql_core::{InstanceSelection, Loader, json::InstanceConfigJson};
+use ql_core::{Instance, InstanceKind, Loader, json::InstanceConfigJson};
 use ql_mod_manager::store::SelectedMod;
 
 use crate::{
     icons,
     menu_renderer::{
-        CTXI_SIZE, Element, FONT_MONO, back_button, back_to_launch_screen, barthin,
+        CTXI_SIZE, Column, Element, FONT_MONO, back_button, back_to_launch_screen, barthin,
         button_with_icon, ctx_button, ctxbox, dots, offset, select_box, subbutton_with_icon,
         tooltip, tsubtitle, view_info_message,
     },
@@ -27,7 +27,7 @@ pub const MODS_SIDEBAR_WIDTH: u16 = 190;
 impl MenuEditMods {
     pub fn view<'a>(
         &'a self,
-        selected_instance: &'a InstanceSelection,
+        selected_instance: &'a Instance,
         tick_timer: usize,
         images: &'a ImageState,
         window_height: f32,
@@ -110,16 +110,13 @@ impl MenuEditMods {
 
     fn get_sidebar<'a>(
         &'a self,
-        selected_instance: &'a InstanceSelection,
+        selected_instance: &'a Instance,
         tick_timer: usize,
     ) -> widget::Scrollable<'a, Message, LauncherTheme> {
         widget::scrollable(
             column![
                 row![
-                    back_button().on_press(back_to_launch_screen(
-                        None,
-                        Some(selected_instance.is_server()),
-                    )),
+                    back_button().on_press(back_to_launch_screen(None)),
                     tooltip(
                         button_with_icon(icons::folder_s(14), "Open", 14).on_press_with(|| {
                             Message::CoreOpenPath(
@@ -131,7 +128,7 @@ impl MenuEditMods {
                     )
                 ]
                 .spacing(5),
-                self.get_mod_installer_buttons(selected_instance),
+                self.get_mod_installer_buttons(selected_instance.kind),
                 column![
                     button_with_icon(icons::download_s(15), "Download Content...", 14)
                         .on_press(InstallModsMessage::Open.into()),
@@ -154,10 +151,7 @@ impl MenuEditMods {
         .height(Length::Fill)
     }
 
-    fn get_mod_update_pane(
-        &'_ self,
-        tick_timer: usize,
-    ) -> widget::Column<'_, Message, LauncherTheme> {
+    fn get_mod_update_pane(&'_ self, tick_timer: usize) -> Column<'_> {
         if self.update_check_handle.is_some() {
             column![widget::text!("Checking for mod updates{}", dots(tick_timer)).size(12)]
         } else if self.available_updates.is_empty() {
@@ -198,10 +192,10 @@ impl MenuEditMods {
         }
     }
 
-    fn get_mod_installer_buttons(&'_ self, selected_instance: &InstanceSelection) -> Element<'_> {
+    fn get_mod_installer_buttons(&'_ self, kind: InstanceKind) -> Element<'_> {
         match self.config.mod_type {
-            Loader::Vanilla => match selected_instance {
-                InstanceSelection::Instance(_) => column![
+            Loader::Vanilla => match kind {
+                InstanceKind::Client => column![
                     "Install:",
                     row![
                         install_ldr("Fabric")
@@ -220,7 +214,7 @@ impl MenuEditMods {
                 ]
                 .spacing(5)
                 .into(),
-                InstanceSelection::Server(_) => column![
+                InstanceKind::Server => column![
                     "Install:",
                     row![
                         install_ldr("Fabric")
@@ -249,7 +243,7 @@ impl MenuEditMods {
 
             Loader::Forge => widget::Column::new()
                 .push_maybe(
-                    (!selected_instance.is_server())
+                    matches!(kind, InstanceKind::Client)
                         .then(|| Self::get_optifine_install_button(&self.config)),
                 )
                 .push(Self::get_uninstall_panel(self.config.mod_type))

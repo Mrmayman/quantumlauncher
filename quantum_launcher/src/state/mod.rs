@@ -8,7 +8,7 @@ use std::{
 use iced::Task;
 use notify::Watcher;
 use ql_core::{
-    GenericProgress, InstanceSelection, IntoIoError, IntoStringError, IoError, JsonFileError,
+    GenericProgress, Instance, InstanceKind, IntoIoError, IntoStringError, IoError, JsonFileError,
     LAUNCHER_DIR, LAUNCHER_VERSION_NAME, LaunchedProcess, Progress, err,
     file_utils::{self, exists},
     read_log::LogLine,
@@ -46,7 +46,7 @@ pub struct InstanceLog {
 
 pub struct Launcher {
     pub state: State,
-    pub selected_instance: Option<InstanceSelection>,
+    pub selected_instance: Option<Instance>,
     pub config: LauncherConfig,
     pub theme: LauncherTheme,
     pub images: ImageState,
@@ -67,9 +67,11 @@ pub struct Launcher {
 
     pub client_list: Option<Vec<String>>,
     pub server_list: Option<Vec<String>>,
+    pub client_watcher: Option<DirWatcher>,
+    pub server_watcher: Option<DirWatcher>,
 
-    pub processes: HashMap<InstanceSelection, GameProcess>,
-    pub logs: HashMap<InstanceSelection, InstanceLog>,
+    pub processes: HashMap<Instance, GameProcess>,
+    pub logs: HashMap<Instance, InstanceLog>,
 
     pub window_state: WindowState,
     pub keys_pressed: HashSet<iced::keyboard::Key>,
@@ -100,8 +102,7 @@ pub struct WindowState {
 
 pub struct CustomJarState {
     pub choices: Vec<String>,
-    pub recv: Receiver<notify::Event>,
-    pub _watcher: notify::RecommendedWatcher,
+    pub watcher: DirWatcher,
 }
 
 impl CustomJarState {
@@ -109,6 +110,21 @@ impl CustomJarState {
         Task::perform(load_custom_jars(), |n| {
             EditInstanceMessage::CustomJarLoaded(n.strerr()).into()
         })
+    }
+}
+
+pub struct DirWatcher {
+    recv: Receiver<notify::Event>,
+    _watcher: notify::RecommendedWatcher,
+}
+
+impl DirWatcher {
+    pub fn has_changed(&self) -> bool {
+        let mut has_changed = false;
+        while let Ok(_event) = self.recv.try_recv() {
+            has_changed = true;
+        }
+        has_changed
     }
 }
 
@@ -156,13 +172,21 @@ impl Launcher {
         let (accounts, accounts_dropdown, account_selected) = load_accounts(&mut config);
 
         let persistent = config.c_persistent();
+        let selected_instance = persistent
+            .selected_instance
+            .as_ref()
+            .filter(|_| persistent.selected_remembered)
+            .map(|n| {
+                Instance::new(
+                    n,
+                    persistent
+                        .selected_instance_kind
+                        .unwrap_or(ql_core::InstanceKind::Client),
+                )
+            });
 
         Ok(Self {
-            selected_instance: persistent
-                .selected_instance
-                .as_ref()
-                .filter(|_| persistent.selected_remembered)
-                .map(|n| InstanceSelection::new(n, false)),
+            selected_instance,
             state,
             config,
             theme,
@@ -178,6 +202,8 @@ impl Launcher {
 
             client_list: None,
             server_list: None,
+            client_watcher: None,
+            server_watcher: None,
             java_recv: None,
             custom_jar: None,
 
@@ -233,6 +259,8 @@ impl Launcher {
             java_recv: None,
             client_list: None,
             server_list: None,
+            client_watcher: None,
+            server_watcher: None,
             selected_instance: None,
             custom_jar: None,
 
@@ -260,7 +288,7 @@ impl Launcher {
         }
     }
 
-    pub fn instance(&self) -> &InstanceSelection {
+    pub fn instance(&self) -> &Instance {
         self.selected_instance.as_ref().unwrap()
     }
 
@@ -271,24 +299,17 @@ impl Launcher {
         self.state = State::Error { error }
     }
 
-    pub fn go_to_launch_screen(&mut self, message: Option<InfoMessage>) -> Task<Message> {
+    pub fn go_to_main_menu(&mut self, message: Option<InfoMessage>) -> Task<Message> {
         let mut menu_launch = MenuLaunch::new(message);
         menu_launch.resize_sidebar(SIDEBAR_WIDTH);
+        let t = if let Some(inst) = &self.selected_instance {
+            menu_launch.reload_notes(inst.clone())
+        } else {
+            Task::none()
+        };
         self.state = State::Launch(menu_launch);
 
-        let get_entries = Task::perform(get_entries(false), Message::CoreListLoaded);
-        match &self.selected_instance {
-            Some(i @ InstanceSelection::Instance(_)) => {
-                if let State::Launch(menu) = &mut self.state {
-                    return Task::batch([menu.reload_notes(i.clone()), get_entries]);
-                }
-            }
-            // We're going to the *instance* launch screen,
-            // there's a separate function for servers.
-            Some(InstanceSelection::Server(_)) => self.selected_instance = None,
-            None => {}
-        }
-        get_entries
+        t
     }
 }
 
@@ -377,18 +398,14 @@ fn load_account(
     }
 }
 
-pub async fn get_entries(is_server: bool) -> Res<(Vec<String>, bool)> {
-    let dir_path = file_utils::get_launcher_dir().strerr()?.join(if is_server {
-        "servers"
-    } else {
-        "instances"
-    });
+pub async fn get_entries(kind: InstanceKind) -> Res<(Vec<String>, InstanceKind)> {
+    let dir_path = kind.get_root_directory();
     if !exists(&dir_path).await {
         tokio::fs::create_dir_all(&dir_path)
             .await
             .path(&dir_path)
             .strerr()?;
-        return Ok((Vec::new(), is_server));
+        return Ok((Vec::new(), kind));
     }
 
     Ok((
@@ -399,7 +416,7 @@ pub async fn get_entries(is_server: bool) -> Res<(Vec<String>, bool)> {
             .filter(|n| !n.is_file)
             .map(|n| n.name)
             .collect(),
-        is_server,
+        kind,
     ))
 }
 
@@ -459,10 +476,8 @@ pub async fn load_custom_jars() -> Result<Vec<String>, IoError> {
     Ok(list)
 }
 
-pub fn dir_watch<P: AsRef<Path>>(
-    path: P,
-) -> notify::Result<(Receiver<notify::Event>, notify::RecommendedWatcher)> {
-    let (tx, rx) = mpsc::channel();
+pub fn dir_watch<P: AsRef<Path>>(path: P) -> notify::Result<DirWatcher> {
+    let (tx, recv) = mpsc::channel();
 
     // `notify` runs callbacks in its own thread.
     let mut watcher: notify::RecommendedWatcher = notify::recommended_watcher(move |res| {
@@ -470,9 +485,13 @@ pub fn dir_watch<P: AsRef<Path>>(
             _ = tx.send(event);
         }
     })?;
-    watcher.watch(path.as_ref(), notify::RecursiveMode::NonRecursive)?;
+    let path = path.as_ref();
+    watcher.watch(path, notify::RecursiveMode::NonRecursive)?;
 
-    Ok((rx, watcher))
+    Ok(DirWatcher {
+        recv,
+        _watcher: watcher,
+    })
 }
 
 fn migration(version: &str) -> Result<(), String> {

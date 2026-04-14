@@ -1,3 +1,4 @@
+use crate::message_handler::arrow_keys::InstSelectOperation;
 use crate::message_update::MSG_RESIZE;
 use crate::state::{
     AutoSaveKind, CreateInstanceMessage, InfoMessage, LaunchTab, Launcher, LauncherSettingsMessage,
@@ -11,7 +12,7 @@ use iced::{
     keyboard::{self, Key, key::Named},
 };
 use ql_core::{
-    InstanceSelection, err,
+    Instance, err,
     jarmod::{JarMod, JarMods},
     pt,
 };
@@ -158,10 +159,9 @@ impl Launcher {
                 // ========
                 // MAIN MENU
                 // ========
-                ("n", true, _, _, State::Launch(n)) => CreateInstanceMessage::ScreenOpen {
-                    is_server: n.is_viewing_server,
+                ("n", true, _, _, State::Launch(_)) => {
+                    CreateInstanceMessage::ScreenOpen(ql_core::InstanceKind::Client).into()
                 }
-                .into(),
                 ("1", ctrl, alt, _, State::Launch(_)) if ctrl | alt => {
                     MainMenuMessage::ChangeTab(LaunchTab::Buttons).into()
                 }
@@ -194,9 +194,9 @@ impl Launcher {
             }
         } else if let (State::Launch(_), true) = (&self.state, ignored) {
             if let Key::Named(Named::ArrowUp) = key {
-                return self.key_change_selected_instance(false);
+                return self.select_instance_recursive(InstSelectOperation::Up);
             } else if let Key::Named(Named::ArrowDown) = key {
-                return self.key_change_selected_instance(true);
+                return self.select_instance_recursive(InstSelectOperation::Down);
             } else if let Key::Named(Named::Enter) = key {
                 if modifiers.command() {
                     return self.launch_start();
@@ -207,7 +207,7 @@ impl Launcher {
                 }
             }
         } else if let State::Create(MenuCreateInstance::Choosing(MenuCreateInstanceChoosing {
-            list: Some(_),
+            list: Ok(Some(_)),
             ..
         })) = &self.state
         {
@@ -227,7 +227,6 @@ impl Launcher {
                                 "Install Minecraft by clicking \"+ New\"",
                             )),
                             clear_selection: true,
-                            is_server: Some(false),
                         });
                     }
                 };
@@ -281,7 +280,7 @@ impl Launcher {
     }
 
     fn load_jarmods_from_path(
-        selected_instance: &InstanceSelection,
+        selected_instance: &Instance,
         path: &Path,
         filename: &str,
         jarmods: &mut JarMods,
@@ -454,81 +453,5 @@ impl Launcher {
             }
         }
         false
-    }
-
-    fn key_change_selected_instance(&mut self, down: bool) -> Task<Message> {
-        let (is_viewing_server, sidebar_height) = {
-            let State::Launch(menu) = &self.state else {
-                return Task::none();
-            };
-            (menu.is_viewing_server, menu.sidebar_scroll_total)
-        };
-        let list = if is_viewing_server {
-            self.server_list.clone()
-        } else {
-            self.client_list.clone()
-        };
-
-        let Some(list) = list else {
-            return Task::none();
-        };
-
-        // If the user actually switched instances,
-        // and not hitting top/bottom of the list.
-        let mut did_scroll = false;
-
-        let idx = if let Some(selected_instance) = &mut self.selected_instance {
-            if let Some(idx) = list
-                .iter()
-                .enumerate()
-                .find_map(|(i, n)| (n == selected_instance.get_name()).then_some(i))
-            {
-                if down {
-                    if idx + 1 < list.len() {
-                        did_scroll = true;
-                        *selected_instance =
-                            InstanceSelection::new(list.get(idx + 1).unwrap(), is_viewing_server);
-                        idx + 1
-                    } else {
-                        idx
-                    }
-                } else if idx > 0 {
-                    did_scroll = true;
-                    *selected_instance =
-                        InstanceSelection::new(list.get(idx - 1).unwrap(), is_viewing_server);
-                    idx - 1
-                } else {
-                    idx
-                }
-            } else {
-                debug_assert!(
-                    false,
-                    "Selected instance {selected_instance:?}, not found in list?"
-                );
-                0
-            }
-        } else {
-            did_scroll = true;
-            self.selected_instance = list
-                .first()
-                .map(|n| InstanceSelection::new(n, is_viewing_server));
-            0
-        };
-
-        let scroll_pos = idx as f32 / (list.len() as f32 - 1.0);
-        let scroll_pos = scroll_pos * sidebar_height;
-        let scroll_task = iced::widget::scrollable::scroll_to(
-            iced::widget::scrollable::Id::new("MenuLaunch:sidebar"),
-            iced::widget::scrollable::AbsoluteOffset {
-                x: 0.0,
-                y: scroll_pos,
-            },
-        );
-
-        if did_scroll {
-            Task::batch([scroll_task, self.on_instance_selected()])
-        } else {
-            scroll_task
-        }
     }
 }
