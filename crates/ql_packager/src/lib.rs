@@ -1,4 +1,4 @@
-use std::{collections::HashSet, path::PathBuf};
+use std::path::PathBuf;
 
 use ql_core::{IoError, JsonError, RequestError, impl_3_errs_jri};
 use ql_mod_manager::{
@@ -6,16 +6,13 @@ use ql_mod_manager::{
     store::{ModError, modpack::PackError},
 };
 use ql_servers::ServerError;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use ql_instances::DownloadError;
 
-mod export;
 mod import;
 mod multimc;
 
-pub use export::{EXCEPTIONS, export_instance};
 pub use import::import_instance;
 
 const PKG_ERR_PREFIX: &str = "while importing/exporting instance:\n";
@@ -73,11 +70,4 @@ impl InstancePackageError {
                 | Self::Server(ServerError::ServerAlreadyExists)
         )
     }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct InstanceInfo {
-    pub instance_name: String,
-    pub exceptions: HashSet<String>,
-    pub is_server: bool,
 }

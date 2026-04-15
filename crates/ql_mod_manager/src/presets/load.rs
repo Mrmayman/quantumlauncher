@@ -103,7 +103,7 @@ pub async fn load(instance: Instance, file: &[u8], apply: bool) -> Result<Preset
 
     Ok(PresetOutput {
         is_server: index.is_server.unwrap_or(instance.is_server()),
-        instance_name: index.instance_name.unwrap_or_else(|| instance.name),
+        instance_name: index.instance_name.unwrap_or(instance.name),
         local_mods,
         local_overrides,
         to_install,
@@ -143,7 +143,8 @@ async fn process_file(
         if !name.ends_with('/') && !name.ends_with('\\') {
             pt!("Config: {}", name.bright_black());
         }
-        write_file(dotmc_dir, file, &name.to_owned()).await?;
+        let name = name.to_owned(); // borrow checker error
+        write_file(dotmc_dir, file, &name).await?;
     } else if name.starts_with(constcat::concat!(OVERRIDES_NAME, "/"))
         || name.starts_with(constcat::concat!(OVERRIDES_NAME, "\\"))
     {
@@ -161,7 +162,7 @@ async fn process_file(
         if !should_sideload {
             return Ok(());
         }
-        write_file(dotmc_dir, file, &name).await?;
+        write_file(dotmc_dir, file, name).await?;
     } else if name.contains('/') || name.contains('\\') {
         info!("Feature not implemented: {name}");
     } else {
@@ -175,7 +176,7 @@ async fn process_file(
         }
 
         pt!("Local file: {name}");
-        let path = mods_dir.join(&name);
+        let path = mods_dir.join(name);
         let mut buf = Vec::new();
         let name = name.to_owned();
         file.read_to_end(&mut buf)

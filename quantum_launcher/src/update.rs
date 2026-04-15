@@ -1,5 +1,5 @@
 use iced::{Task, futures::executor::block_on};
-use ql_core::{InstanceKind, IntoIoError, IntoStringError, err, file_utils::DirItem, info};
+use ql_core::{InstanceKind, IntoStringError, err, file_utils::DirItem, info};
 use std::fmt::Write;
 use tokio::io::AsyncWriteExt;
 
@@ -12,7 +12,7 @@ use crate::{
     state::{
         AutoSaveKind, CustomJarState, DirWatcher, GameProcess, InfoMessage, LaunchTab, Launcher,
         LauncherSettingsMessage, ManageModsMessage, MenuExportInstance, MenuLaunch, MenuLicense,
-        MenuWelcome, Message, ProgressBar, State, dir_watch, get_entries,
+        MenuWelcome, Message, State, dir_watch, get_entries,
     },
     stylesheet::styles::LauncherThemeLightness,
 };
@@ -336,42 +336,6 @@ impl Launcher {
                     }
                 }
             }
-            Message::ExportInstanceStart => {
-                if let State::ExportInstance(MenuExportInstance {
-                    entries: Some(entries),
-                    progress,
-                }) = &mut self.state
-                {
-                    let (send, recv) = std::sync::mpsc::channel();
-                    *progress = Some(ProgressBar::with_recv(recv));
-
-                    let exceptions = entries
-                        .iter()
-                        .filter_map(|(n, b)| (!b).then_some(format!(".minecraft/{}", n.name)))
-                        .collect();
-
-                    return Task::perform(
-                        ql_packager::export_instance(
-                            self.selected_instance.clone().unwrap(),
-                            exceptions,
-                            Some(send),
-                        ),
-                        |n| Message::ExportInstanceFinished(n.strerr()),
-                    );
-                }
-            }
-            Message::ExportInstanceFinished(res) => match res {
-                Ok(bytes) => {
-                    if let Some(path) = rfd::FileDialog::new().save_file() {
-                        if let Err(err) = std::fs::write(&path, bytes).path(path) {
-                            self.set_error(err);
-                        } else {
-                            return self.go_to_main_menu(None);
-                        }
-                    }
-                }
-                Err(err) => self.set_error(err),
-            },
             Message::LicenseOpen => {
                 self.go_to_licenses_menu();
             }

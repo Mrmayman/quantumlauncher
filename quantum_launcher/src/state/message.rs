@@ -472,11 +472,10 @@ pub enum Message {
     UninstallLoaderStart,
     UninstallLoaderEnd(Res),
 
+    // Not removing this because void98's PR uses this
     #[allow(unused)]
     ExportInstanceOpen,
     ExportInstanceToggleItem(usize, bool),
-    ExportInstanceStart,
-    ExportInstanceFinished(Res<Vec<u8>>),
     ExportInstanceLoaded(Res<Vec<DirItem>>),
 
     CoreCopyError,
