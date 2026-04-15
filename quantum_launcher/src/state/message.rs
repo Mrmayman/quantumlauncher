@@ -212,7 +212,6 @@ pub enum EditPresetsMessage {
     ModToggle((String, ModId), bool),
     ModToggleLocal(String, bool),
     ModSelectAll,
-    ModIncludeConfig(bool),
 
     DirToggle(String, bool),
     DirSelectAll,

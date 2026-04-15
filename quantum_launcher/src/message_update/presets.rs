@@ -1,5 +1,5 @@
 use iced::Task;
-use ql_core::{IntoIoError, IntoStringError};
+use ql_core::IntoStringError;
 use ql_mod_manager::{presets::SOFT_EXCEPTIONS, store::SelectedMod};
 use std::collections::HashSet;
 
@@ -23,13 +23,14 @@ impl Launcher {
         match message {
             EditPresetsMessage::Open => return self.go_to_edit_presets_menu(),
             EditPresetsMessage::ModToggle((name, id), enable) => {
-                iflet_manage_preset!(self, mods_selected, mods_selected_state, {
+                iflet_manage_preset!(self, mods_entries, mods_selected, mods_selected_state, {
                     if enable {
                         mods_selected.insert(SelectedMod::Downloaded { name, id });
                     } else {
                         mods_selected.remove(&SelectedMod::Downloaded { name, id });
                     }
-                    *mods_selected_state = SelectedState::Some;
+                    *mods_selected_state =
+                        SelectedState::compute(mods_selected.len(), mods_entries.len());
                 });
             }
             EditPresetsMessage::ModToggleLocal(file_name, enable) => {
@@ -63,11 +64,6 @@ impl Launcher {
             EditPresetsMessage::DirSelectAll => self.preset_dir_select_all(),
             EditPresetsMessage::ModSelectAll => self.preset_mod_select_all(),
 
-            EditPresetsMessage::ModIncludeConfig(enable) => {
-                iflet_manage_preset!(self, include_config, {
-                    *include_config = enable;
-                });
-            }
             EditPresetsMessage::LoadedDir(res) => match res {
                 Ok(dir) => {
                     iflet_manage_preset!(
@@ -90,22 +86,20 @@ impl Launcher {
                 Err(err) => self.set_error(err),
             },
             EditPresetsMessage::Generate => {
-                iflet_manage_preset!(self, mods_selected, include_config, mc_dir_entries, {
+                iflet_manage_preset!(self, mods_selected, mc_dir_entries, mc_dir_selected, {
                     let selected_instance = self.selected_instance.clone().unwrap();
                     let mods_selected = mods_selected.clone();
-                    let include_config = *include_config;
-                    let dir = mc_dir_entries.clone();
+                    let dir = mc_dir_entries
+                        .iter()
+                        .filter(|n| mc_dir_selected.contains(&n.name))
+                        .cloned()
+                        .collect();
 
                     self.state =
                         State::ManagePresets(MenuEditPresets::Loading("Building Preset..."));
 
                     return Task::perform(
-                        ql_mod_manager::presets::generate(
-                            selected_instance,
-                            mods_selected,
-                            dir,
-                            include_config,
-                        ),
+                        ql_mod_manager::presets::generate(selected_instance, mods_selected, dir),
                         |n| EditPresetsMessage::GenerateEnd(n.strerr()).into(),
                     );
                 });
@@ -172,9 +166,18 @@ impl Launcher {
                     mc_dir_selected.clear();
                     *mc_dir_selected_state = SelectedState::None;
                 }
-                SelectedState::Some | SelectedState::None => {
+                SelectedState::Some => {
                     *mc_dir_selected = mc_dir_entries.iter().map(|n| n.name.clone()).collect();
                     *mc_dir_selected_state = SelectedState::All;
+                }
+                SelectedState::None => {
+                    *mc_dir_selected = mc_dir_entries
+                        .iter()
+                        .filter(|n| !SOFT_EXCEPTIONS.iter().any(|ex| *ex == n.name))
+                        .map(|n| n.name.clone())
+                        .collect();
+                    *mc_dir_selected_state =
+                        SelectedState::compute(mc_dir_selected.len(), mc_dir_entries.len());
                 }
             }
         }
@@ -194,7 +197,6 @@ impl Launcher {
         let menu = MenuEditPresets::Selecting {
             mods_selected,
             mods_selected_state: SelectedState::All,
-            include_config: true,
             mods_entries: menu.sorted_mods_list.clone(),
             drag_and_drop_hovered: false,
             mc_dir_entries: Vec::new(),

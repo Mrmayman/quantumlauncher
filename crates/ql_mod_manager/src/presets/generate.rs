@@ -29,11 +29,11 @@ pub async fn generate(
     instance: Instance,
     selected_mods: HashSet<SelectedMod>,
     dotmc_entries: Vec<DirItem>,
-    include_config: bool,
 ) -> Result<Vec<u8>, ModError> {
+    let opts = zip::write::FileOptions::<()>::default();
+
     let dotmc_dir = instance.get_dot_minecraft_path();
     let mods_dir = dotmc_dir.join("mods");
-    let config_dir = dotmc_dir.join("config");
 
     let minecraft_version = get_minecraft_version(&instance).await?;
     let instance_type = get_instance_type(&instance).await?;
@@ -74,16 +74,14 @@ pub async fn generate(
     let mut zip = ZipWriter::new(Cursor::new(file));
 
     for (name, bytes) in entries_local {
-        zip.start_file(&name, zip::write::FileOptions::<()>::default())?;
+        zip.start_file(&name, opts)?;
         zip.write_all(&bytes)
             .map_err(|n| ModError::ZipIoError(n, name.clone()))?;
     }
 
-    if include_config && config_dir.is_dir() {
-        add_dir_to_zip_recursive(&config_dir, &mut zip, PathBuf::from("config")).await?;
-    }
+    zip_add_dotmc_dir(dotmc_entries, dotmc_dir, &mut zip).await?;
 
-    zip.start_file("index.json", zip::write::FileOptions::<()>::default())?;
+    zip.start_file("index.json", opts)?;
     zip.write_all(&serde_json::to_vec(&json).json_to()?)
         .map_err(|n| ModError::ZipIoError(n, "index.json".to_owned()))?;
 
@@ -91,6 +89,51 @@ pub async fn generate(
     info!("Built mod preset! Size: {} bytes", file.len());
 
     Ok(file)
+}
+
+async fn zip_add_dotmc_dir(
+    dotmc_entries: Vec<DirItem>,
+    dotmc_dir: PathBuf,
+    zip: &mut ZipWriter<Cursor<Vec<u8>>>,
+) -> Result<(), ModError> {
+    let opts = zip::write::FileOptions::<()>::default();
+
+    zip.add_directory("overrides", opts)
+        .map_err(ModError::Zip)?;
+
+    let mut dotmc_read = tokio::fs::read_dir(&dotmc_dir).await.path(&dotmc_dir)?;
+
+    while let Some(entry) = dotmc_read.next_entry().await.path(&dotmc_dir)? {
+        let filename = entry.file_name();
+        let Some(selected_entry) = dotmc_entries
+            .iter()
+            .find(|e| e.name.as_bytes() == filename.as_encoded_bytes())
+        else {
+            // Not enabled by user
+            continue;
+        };
+        println!("Adding file {filename:?}");
+
+        let path = entry.path();
+        let root_path = format!("overrides/{}", selected_entry.name);
+        if selected_entry.is_file {
+            zip.start_file(&root_path, opts)?;
+            let bytes = tokio::fs::read(&path).await.path(&path)?;
+            zip.write_all(&bytes)
+                .map_err(|n| ModError::ZipIoError(n, filename.to_string_lossy().into_owned()))?;
+        } else {
+            zip.add_directory(&root_path, opts)?;
+            add_dir_to_zip_recursive(
+                &path,
+                zip,
+                PathBuf::from("overrides").join(filename),
+                |_| true,
+            )
+            .await?;
+        }
+    }
+
+    Ok(())
 }
 
 async fn get_minecraft_version(instance_name: &Instance) -> Result<String, ModError> {
@@ -129,6 +172,7 @@ async fn add_dir_to_zip_recursive(
     path: &Path,
     zip: &mut ZipWriter<Cursor<Vec<u8>>>,
     accumulation: PathBuf,
+    filter: impl Fn(&Path) -> bool + Clone,
 ) -> Result<(), ModError> {
     let mut dir = tokio::fs::read_dir(path).await.path(path)?;
 
@@ -146,19 +190,31 @@ async fn add_dir_to_zip_recursive(
 
     while let Some(entry) = dir.next_entry().await.path(path)? {
         let path = entry.path();
-        let accumulation = accumulation.join(path.file_name().unwrap());
+        let file_name = entry.file_name();
+        let accumulation = accumulation.join(&file_name);
         let acc_name = accumulation.to_string_lossy();
 
-        if path.is_dir() {
+        let f = filter.clone();
+        if !f(&path) {
+            continue;
+        }
+
+        if entry.file_type().await.path(&path)?.is_dir() {
             zip.add_directory(
-                format!("{acc_name}/"),
+                acc_name.replace(std::path::MAIN_SEPARATOR, "/"),
                 zip::write::FileOptions::<()>::default(),
             )
             .map_err(ModError::Zip)?;
 
             // ... accumulation = "config/dir1"
             // Then this call will have "config/dir1" as starting value.
-            Box::pin(add_dir_to_zip_recursive(&path, zip, accumulation.clone())).await?;
+            Box::pin(add_dir_to_zip_recursive(
+                &path,
+                zip,
+                accumulation.clone(),
+                filter.clone(),
+            ))
+            .await?;
         } else {
             // ... accumulation = "config/file1.txt"
             let bytes = tokio::fs::read(&path).await.path(path.clone())?;

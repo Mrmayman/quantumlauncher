@@ -205,7 +205,7 @@ pub struct MenuEditInstance {
     pub arg_split_by_space: bool,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum SelectedState {
     All,
     Some,
@@ -639,7 +639,6 @@ pub enum MenuEditPresets {
         mc_dir_selected: HashSet<String>,
         mc_dir_selected_state: SelectedState,
 
-        include_config: bool,
         drag_and_drop_hovered: bool,
     },
 }

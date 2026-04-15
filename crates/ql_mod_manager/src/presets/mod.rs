@@ -40,7 +40,6 @@ const HARD_EXCEPTIONS: &[&str] = &[
     "libraries",
     "resources",
     // Mods
-    "config",
     "mods",
     "mod_index.json",
 ];
@@ -53,6 +52,8 @@ pub const SOFT_EXCEPTIONS: &[&str] = &[
     "realms_persistence.json",
     "debug",
     ".cache",
+    "launcher_profiles.json",
+    "launcher_profiles_microsoft_store.json",
     // Fabric
     ".fabric",
     "data",
@@ -111,7 +112,7 @@ pub async fn get_mc_dir_contents(instance: &Instance) -> Result<Vec<DirItem>, Io
                 continue;
             }
             let is_file = entry.file_type().await.is_ok_and(|n| !n.is_dir());
-            let name = entry.file_name().to_string_lossy().to_string();
+            let name = entry.file_name().to_string_lossy().into_owned();
             contents.push(DirItem { name, is_file });
         }
 

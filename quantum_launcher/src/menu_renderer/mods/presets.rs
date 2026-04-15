@@ -9,7 +9,9 @@ use ql_mod_manager::store::SelectedMod;
 
 use crate::{
     icons,
-    menu_renderer::{Element, FONT_MONO, back_button, barthin, button_with_icon, tsubtitle},
+    menu_renderer::{
+        Element, FONT_MONO, back_button, barthin, button_with_icon, tooltip, tsubtitle,
+    },
     state::{
         EditPresetsMessage, ImageState, ManageModsMessage, MenuEditPresets, MenuRecommendedMods,
         Message, ModListEntry, SelectedState,
@@ -40,27 +42,25 @@ impl MenuEditPresets {
                 mc_dir_entries,
                 mc_dir_selected,
                 mc_dir_selected_state,
-                include_config,
                 drag_and_drop_hovered,
             } => {
-                const HEIGHT: f32 = 35.0;
+                let selected_text = |len| {
+                    widget::text!("{len} selected")
+                        .size(12)
+                        .style(tsubtitle)
+                        .width(Length::Fill)
+                        .align_x(Alignment::End)
+                };
+
                 let list_mods = column![
                     row![
                         widget::text("Mods").size(14),
-                        select_all_button(*mods_selected_state)
+                        select_all_button(*mods_selected_state, false)
                             .on_press(EditPresetsMessage::ModSelectAll.into()),
-                        widget::checkbox(
-                            "Include mod settings/configuration (config folder)",
-                            *include_config
-                        )
-                        .size(12)
-                        .text_size(10)
-                        .spacing(4)
-                        .on_toggle(|t| EditPresetsMessage::ModIncludeConfig(t).into()),
+                        selected_text(mods_selected.len()),
                     ]
-                    .spacing(8)
-                    .padding([5, 8])
-                    .height(HEIGHT)
+                    .spacing(10)
+                    .padding([5, 10])
                     .align_y(Alignment::Center),
                     widget::horizontal_rule(1).style(barthin),
                     entry_list(mods_entries, |entry| get_mod_entry(
@@ -74,12 +74,12 @@ impl MenuEditPresets {
                 let list_dir = column![
                     row![
                         widget::text(".minecraft folder").size(14),
-                        select_all_button(*mc_dir_selected_state)
+                        select_all_button(*mc_dir_selected_state, true)
                             .on_press(EditPresetsMessage::DirSelectAll.into()),
+                        selected_text(mc_dir_selected.len()),
                     ]
-                    .spacing(10)
+                    .spacing(8)
                     .padding([5, 10])
-                    .height(HEIGHT)
                     .align_y(Alignment::Center),
                     widget::horizontal_rule(1).style(barthin),
                     entry_list(mc_dir_entries, |entry| get_dir_entry(
@@ -92,17 +92,7 @@ impl MenuEditPresets {
                 let p_main = column![
                     top_bar(),
                     widget::horizontal_rule(1).style(barthin),
-                    column![
-                        widget::text(
-                            "Share your instance and mods setup with others through a single file!"
-                        )
-                        .size(12)
-                        .style(tsubtitle),
-                        get_format_selector(),
-                    ]
-                    .spacing(5)
-                    .padding(10),
-                    widget::horizontal_rule(1).style(barthin),
+                    get_format_selector(),
                     row![list_mods, widget::vertical_rule(2), list_dir]
                 ];
 
@@ -127,33 +117,32 @@ fn entry_list<'a, T>(
     draw: impl Fn(&'a T) -> Element<'a> + 'a,
 ) -> widget::Responsive<'a, Message, LauncherTheme> {
     widget::responsive(move |size| {
+        let chunk_size = (size.width / 225.0).floor().max(1.0) as usize;
         widget::scrollable(
-            widget::column(
-                entries
-                    .chunks((size.width / 225.0).floor().max(1.0) as usize)
-                    .map(|chunk| {
-                        column![
-                            widget::row(chunk.iter().map(|entry| {
-                                widget::stack!(
-                                    row![draw(entry), widget::Space::with_width(5)],
-                                    row![
-                                        widget::horizontal_space(),
-                                        widget::vertical_rule(1).style(barthin),
-                                        widget::Space::with_width(1),
-                                    ]
-                                )
-                                .into()
-                                // widget::container("").width(250).into()
+            widget::column(entries.chunks(chunk_size).map(|chunk| {
+                column![
+                    widget::row(chunk.iter().map(|entry| {
+                        widget::stack!(row![draw(entry), widget::Space::with_width(5)])
+                            .push_maybe((chunk_size > 1).then(|| {
+                                // Horizontal Separator
+                                row![
+                                    widget::horizontal_space(),
+                                    widget::vertical_rule(1).style(barthin),
+                                    widget::Space::with_width(1),
+                                ]
                             }))
-                            .spacing(10)
-                            .width(Length::Fill)
-                            .align_y(Alignment::Center),
-                            widget::horizontal_rule(1).style(barthin)
-                        ]
-                        .spacing(5)
-                        .into()
-                    }),
-            )
+                            .into()
+                        // widget::container("").width(250).into()
+                    }))
+                    .spacing(10)
+                    .width(Length::Fill)
+                    .align_y(Alignment::Center),
+                    // Vertical Separator
+                    widget::horizontal_rule(1).style(barthin)
+                ]
+                .spacing(5)
+                .into()
+            }))
             .padding(10)
             .spacing(5),
         )
@@ -165,10 +154,13 @@ fn entry_list<'a, T>(
 
 fn select_all_button(
     selected_state: SelectedState,
+    recommended: bool,
 ) -> widget::Button<'static, Message, LauncherTheme> {
     widget::button(
         widget::text(if let SelectedState::All = selected_state {
             "Unselect All"
+        } else if selected_state == SelectedState::None && recommended {
+            "Select\nRecommended"
         } else {
             "Select All"
         })
@@ -194,6 +186,7 @@ fn get_format_selector() -> Element<'static> {
     ]
     .align_y(Alignment::Center)
     .spacing(10)
+    .padding([8, 10])
     .wrap()
     .into()
 }
@@ -205,7 +198,19 @@ fn top_bar() -> widget::Container<'static, Message, LauncherTheme> {
                 button_with_icon(icons::back_s(12), "Back", 13)
                     .padding([5, 8])
                     .on_press(ManageModsMessage::Open.into()),
-                widget::text("Modpacks/Mod Presets...").width(Length::Fill),
+                widget::text("Modpacks/Mod Presets..."),
+                tooltip(
+                    widget::text("(?)")
+                        .size(14)
+                        .style(tsubtitle)
+                        .font(FONT_MONO),
+                    widget::text(
+                        "Share your instance and mods setup with others through a single file!"
+                    )
+                    .size(14),
+                    widget::tooltip::Position::Bottom
+                ),
+                widget::horizontal_space(),
                 button_with_icon(icons::checkmark_s(12), "Build Preset", 13)
                     .padding([5, 8])
                     .on_press(EditPresetsMessage::Generate.into()),
