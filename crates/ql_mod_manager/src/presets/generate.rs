@@ -6,12 +6,12 @@ use std::{
 
 use ql_core::{
     Instance, IntoIoError, IntoJsonError, LAUNCHER_VERSION_NAME, err, file_utils::DirItem, info,
-    json::VersionDetails,
+    json::VersionDetails, pt,
 };
 use zip::ZipWriter;
 
 use crate::{
-    presets::{PresetJson, get_instance_type},
+    presets::{OVERRIDES_NAME, PresetJson, get_instance_type},
     store::{ModConfig, ModError, ModId, ModIndex, SelectedMod},
 };
 
@@ -61,8 +61,8 @@ pub async fn generate(
     }
 
     let json = PresetJson {
-        instance_name: Some(instance.get_name().to_owned()),
         is_server: Some(instance.is_server()),
+        instance_name: Some(instance.name),
         instance_type,
         launcher_version: LAUNCHER_VERSION_NAME.to_owned(),
         minecraft_version,
@@ -98,7 +98,7 @@ async fn zip_add_dotmc_dir(
 ) -> Result<(), ModError> {
     let opts = zip::write::FileOptions::<()>::default();
 
-    zip.add_directory("overrides", opts)
+    zip.add_directory(OVERRIDES_NAME, opts)
         .map_err(ModError::Zip)?;
 
     let mut dotmc_read = tokio::fs::read_dir(&dotmc_dir).await.path(&dotmc_dir)?;
@@ -112,10 +112,10 @@ async fn zip_add_dotmc_dir(
             // Not enabled by user
             continue;
         };
-        println!("Adding file {filename:?}");
+        pt!("Adding {}", selected_entry.name);
 
         let path = entry.path();
-        let root_path = format!("overrides/{}", selected_entry.name);
+        let root_path = format!("{OVERRIDES_NAME}/{}", selected_entry.name);
         if selected_entry.is_file {
             zip.start_file(&root_path, opts)?;
             let bytes = tokio::fs::read(&path).await.path(&path)?;
@@ -126,7 +126,7 @@ async fn zip_add_dotmc_dir(
             add_dir_to_zip_recursive(
                 &path,
                 zip,
-                PathBuf::from("overrides").join(filename),
+                PathBuf::from(OVERRIDES_NAME).join(filename),
                 |_| true,
             )
             .await?;

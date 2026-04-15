@@ -18,7 +18,7 @@
 //! - Top-level `.jar` files for external mods
 //! - `config/` directory (extracted to `.minecraft/config/`)
 
-use std::{cmp::Ordering, collections::HashMap, io::ErrorKind};
+use std::{cmp::Ordering, collections::HashMap, io::ErrorKind, sync::Arc};
 
 use ql_core::{
     Instance, IntoIoError, IoError, Loader, file_utils::DirItem, json::InstanceConfigJson,
@@ -67,6 +67,8 @@ pub const SOFT_EXCEPTIONS: &[&str] = &[
     "usernamecache.json",
 ];
 
+const OVERRIDES_NAME: &str = "overrides";
+
 /// The main upfront choices the user will have to make.
 ///
 /// Only for client instances, not servers.
@@ -84,7 +86,7 @@ pub const MAIN_CHOICES: &[(&str, &str, bool)] = &[
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct PresetJson {
-    instance_name: Option<String>,
+    instance_name: Option<Arc<str>>,
     is_server: Option<bool>,
 
     launcher_version: String,
