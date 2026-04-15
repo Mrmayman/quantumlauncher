@@ -59,7 +59,7 @@ pub async fn make_launch_jar(
                     .ok()
                     .unwrap_or(library)
                     .to_string_lossy()
-                    .to_string()
+                    .into_owned()
                     .replace('\\', "/")
             })
             .collect::<Vec<_>>()

@@ -15,10 +15,7 @@ pub fn flip_filename(name: &str) -> String {
     }
 }
 
-pub async fn toggle_mods_local(
-    names: Vec<String>,
-    instance: Instance,
-) -> Result<(), ModError> {
+pub async fn toggle_mods_local(names: Vec<String>, instance: Instance) -> Result<(), ModError> {
     let mods_dir = instance.get_dot_minecraft_path().join("mods");
 
     for file in names {

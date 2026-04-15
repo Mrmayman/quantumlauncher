@@ -127,7 +127,7 @@ impl Launcher {
         let exec_path = std::env::current_exe()
             .map_err(|n| format!("while getting path to current exe:\n{n}"))?;
 
-        shortcut.exec = exec_path.to_string_lossy().to_string();
+        shortcut.exec = exec_path.to_string_lossy().into_owned();
 
         // Environment setup
         if instance.is_server() {
@@ -141,7 +141,7 @@ impl Launcher {
                 shortcut.exec_args.push("--dir".to_owned());
                 shortcut
                     .exec_args
-                    .push(LAUNCHER_DIR.to_string_lossy().to_string());
+                    .push(LAUNCHER_DIR.to_string_lossy().into_owned());
             }
         }
 

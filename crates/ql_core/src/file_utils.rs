@@ -509,7 +509,7 @@ pub async fn zip_directory_to_bytes<P: AsRef<Path>>(dir: P) -> std::io::Result<V
         let relative_path = path
             .strip_prefix(base_path)
             .map_err(std::io::Error::other)?;
-        let mut name_in_zip = relative_path.to_string_lossy().to_string();
+        let mut name_in_zip = relative_path.to_string_lossy().into_owned();
         // .replace('\\', "/");
 
         if path.is_dir() {

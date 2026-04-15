@@ -6,7 +6,7 @@ use std::{
 
 use chrono::DateTime;
 use ql_core::{
-    GenericProgress, InstanceConfigJson, Instance, download, err, file_utils, info,
+    GenericProgress, Instance, InstanceConfigJson, download, err, file_utils, info,
     json::VersionDetails, pt,
 };
 

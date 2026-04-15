@@ -136,7 +136,7 @@ impl Launcher {
                 if let Some((instance, not_allowed)) = instance {
                     self.selected_instance = Some(instance);
                     if not_allowed.is_empty() {
-                    return self.go_to_main_menu(None);
+                        return self.go_to_main_menu(None);
                     } else {
                         self.state = State::curseforge_manual_download(not_allowed);
                     }

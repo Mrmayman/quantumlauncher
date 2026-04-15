@@ -212,18 +212,23 @@ impl Launcher {
     }
 
     fn build_end(&mut self, preset: Vec<u8>) -> Task<Message> {
-        if let Some(path) = rfd::FileDialog::new()
-            .add_filter("QuantumLauncher Preset", &["qmp"])
-            .set_file_name("my_preset.qmp")
-            .set_title("Save your QuantumLauncher Preset")
-            .save_file()
-        {
-            if let Err(err) = std::fs::write(&path, preset).path(&path) {
-                self.set_error(err);
-            }
-            self.go_to_edit_mods_menu(Some(InfoMessage::success("Created Preset")))
-        } else {
-            Task::none()
-        }
+        let save = Task::perform(
+            async move {
+                if let Some(file) = rfd::AsyncFileDialog::new()
+                    .add_filter("QuantumLauncher Preset", &["qmp"])
+                    .set_file_name("my_preset.qmp")
+                    .set_title("Save your QuantumLauncher Preset")
+                    .save_file()
+                    .await
+                {
+                    _ = tokio::fs::write(&file.path(), preset).await;
+                }
+            },
+            |_| Message::Nothing,
+        );
+        Task::batch([
+            self.go_to_edit_mods_menu(Some(InfoMessage::success("Created Preset"))),
+            save,
+        ])
     }
 }
