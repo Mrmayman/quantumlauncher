@@ -21,6 +21,7 @@ futures.workspace = true
 
 owo-colors.workspace = true
 thiserror.workspace = true
+constcat.workspace = true
 
 chrono.workspace = true
 regex.workspace = true

@@ -205,10 +205,23 @@ pub struct MenuEditInstance {
     pub arg_split_by_space: bool,
 }
 
+#[derive(Clone, Copy, PartialEq)]
 pub enum SelectedState {
     All,
     Some,
     None,
+}
+
+impl SelectedState {
+    pub fn compute(sel_len: usize, entries_len: usize) -> Self {
+        if sel_len == 0 {
+            SelectedState::None
+        } else if sel_len == entries_len {
+            SelectedState::All
+        } else {
+            SelectedState::Some
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -614,15 +627,20 @@ impl LauncherSettingsTab {
     }
 }
 
-pub struct MenuEditPresets {
-    pub selected_mods: HashSet<SelectedMod>,
-    pub selected_state: SelectedState,
-    pub is_building: bool,
-    pub include_config: bool,
+pub enum MenuEditPresets {
+    Loading(&'static str),
+    Installing(ProgressBar<GenericProgress>),
+    Selecting {
+        mods_entries: Vec<ModListEntry>,
+        mods_selected: HashSet<SelectedMod>,
+        mods_selected_state: SelectedState,
 
-    pub progress: Option<ProgressBar<GenericProgress>>,
-    pub sorted_mods_list: Vec<ModListEntry>,
-    pub drag_and_drop_hovered: bool,
+        mc_dir_entries: Vec<DirItem>,
+        mc_dir_selected: HashSet<String>,
+        mc_dir_selected_state: SelectedState,
+
+        drag_and_drop_hovered: bool,
+    },
 }
 
 pub enum MenuRecommendedMods {
@@ -645,7 +663,7 @@ pub enum MenuWelcome {
 }
 
 pub struct MenuCurseforgeManualDownload {
-    pub not_allowed: HashSet<CurseforgeNotAllowed>,
+    pub not_allowed: CurseforgeNotAllowed,
     pub delete_mods: bool,
 }
 
@@ -751,6 +769,15 @@ pub enum State {
     CreateShortcut(MenuShortcut),
 
     License(MenuLicense),
+}
+
+impl State {
+    pub fn curseforge_manual_download(not_allowed: CurseforgeNotAllowed) -> Self {
+        Self::CurseforgeManualDownload(MenuCurseforgeManualDownload {
+            not_allowed,
+            delete_mods: true,
+        })
+    }
 }
 
 pub struct MenuShortcut {

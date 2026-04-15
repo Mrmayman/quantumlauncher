@@ -6,6 +6,7 @@ use chrono::Local;
 use ql_core::InstanceConfigJson;
 use ql_core::{GenericProgress, Instance, do_jobs, err, info, json::VersionDetails};
 
+use crate::store::CurseforgeNotAllowed;
 use crate::store::{get_latest_version_date, toggle_mods};
 
 use super::{ModError, ModId, ModIndex, delete_mods, download_mods_bulk};
@@ -16,12 +17,19 @@ pub struct ChangelogFile {
     pub filename: String,
 }
 
+#[derive(Debug, Clone)]
+#[must_use]
+pub struct ModUpdateOutput {
+    pub changelog_file: Option<ChangelogFile>,
+    pub not_allowed: CurseforgeNotAllowed,
+}
+
 pub async fn apply_updates(
     selected_instance: Instance,
     updates: Vec<(ModId, String)>,
     progress: Option<Sender<GenericProgress>>,
     make_changelog: bool,
-) -> Result<Option<ChangelogFile>, ModError> {
+) -> Result<ModUpdateOutput, ModError> {
     let mod_index = ModIndex::load(&selected_instance).await?;
 
     let update_ids: Vec<ModId> = updates.iter().map(|(id, _)| id.clone()).collect();
@@ -41,7 +49,8 @@ pub async fn apply_updates(
 
     // It's as simple as that!
     delete_mods(update_ids.clone(), selected_instance.clone()).await?;
-    download_mods_bulk(update_ids, selected_instance.clone(), progress).await?;
+    let not_allowed =
+        download_mods_bulk(update_ids, selected_instance.clone(), progress.as_ref()).await?;
 
     let mut changelog_file = None;
     if make_changelog && !changelog_entries.is_empty() {
@@ -51,7 +60,10 @@ pub async fn apply_updates(
     // Ensure disabled mods stay disabled
     toggle_mods(disabled_mods, selected_instance).await?;
 
-    Ok(changelog_file)
+    Ok(ModUpdateOutput {
+        changelog_file,
+        not_allowed,
+    })
 }
 
 async fn write_changelog(
@@ -106,9 +118,7 @@ fn trim(value: &str) -> &str {
     }
 }
 
-pub async fn check_for_updates(
-    instance: Instance,
-) -> Result<Vec<(ModId, String)>, ModError> {
+pub async fn check_for_updates(instance: Instance) -> Result<Vec<(ModId, String)>, ModError> {
     let index = ModIndex::load(&instance).await?;
     let version_json = VersionDetails::load(&instance).await?;
     let config = InstanceConfigJson::read(&instance).await?;

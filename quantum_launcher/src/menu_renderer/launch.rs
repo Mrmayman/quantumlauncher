@@ -4,11 +4,9 @@ use iced::widget::{column, horizontal_space, row, text_editor, tooltip::Position
 use iced::{Alignment, Length, Padding, widget};
 use ql_core::{Instance, InstanceKind, LAUNCHER_VERSION_NAME};
 
-use crate::cli::EXPERIMENTAL_MMC_IMPORT;
-use crate::menu_renderer::onboarding::x86_warning;
 use crate::menu_renderer::{
-    CTXI_SIZE, Column, FONT_MONO, barthin, ctx_button, ctxbox, sidebar, tsubtitle, underline,
-    view_info_message,
+    CTXI_SIZE, Column, FONT_MONO, barthin, ctx_button, ctxbox, onboarding::x86_warning, sidebar,
+    tsubtitle, underline, view_info_message,
 };
 use crate::state::{
     GameLogMessage, InstanceNotes, LaunchModal, MainMenuMessage, NotesMessage, ShortcutMessage,
@@ -113,8 +111,6 @@ impl Launcher {
             .into()
         };
 
-        let mmc_import = EXPERIMENTAL_MMC_IMPORT.read().unwrap();
-
         widget::stack!(
             column![
                 menu.get_tab_selector(decor),
@@ -143,9 +139,8 @@ impl Launcher {
                             //     .on_press(Message::ExportInstanceOpen),
                             ctx_button(icons::file_gear_s(CTXI_SIZE), "Create Shortcut")
                                 .on_press(ShortcutMessage::Open.into()),
-                        ]
-                        .push_maybe(mmc_import.then_some(widget::horizontal_rule(1)))
-                        .push_maybe(mmc_import.then(|| {
+                            widget::horizontal_rule(1),
+                            // Import instance button
                             widget::button(import_description())
                                 .width(Length::Fill)
                                 .style(|t: &LauncherTheme, s| {
@@ -153,7 +148,7 @@ impl Launcher {
                                 })
                                 .padding(2)
                                 .on_press(CreateInstanceMessage::Import.into())
-                        }))
+                        ]
                         .spacing(4)
                     )
                     .width(150),

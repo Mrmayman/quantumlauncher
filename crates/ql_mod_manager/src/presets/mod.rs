@@ -1,281 +1,100 @@
-use std::{
-    collections::{HashMap, HashSet},
-    io::{Cursor, Read, Write},
-    path::{Path, PathBuf},
-};
+//! A mod preset: bundle of mods and their configuration.
+//!
+//! Similar to a modpack, but stored in a more efficient and flexible
+//! **QuantumLauncher-specific format**.
+//!
+//! ## Contents
+//! - Installed mods (store + external)
+//! - Mod configuration files
+//!
+//! ## Usage
+//! - [`generate`] - create from instance
+//! - [`load`] with `apply: true` - install preset
+//! - [`load`] with `apply: false` - preview without installing
+//!
+//! ## Format
+//! `.qmp` zip file containing:
+//! - `index.json`: serialized [`Preset`] metadata
+//! - Top-level `.jar` files for external mods
+//! - `config/` directory (extracted to `.minecraft/config/`)
 
-use owo_colors::OwoColorize;
+use std::{cmp::Ordering, collections::HashMap, io::ErrorKind, sync::Arc};
+
 use ql_core::{
-    Instance, IntoIoError, IntoJsonError, LAUNCHER_VERSION_NAME, Loader, err, info,
-    json::{InstanceConfigJson, VersionDetails},
-    pt,
+    Instance, IntoIoError, IoError, Loader, file_utils::DirItem, json::InstanceConfigJson,
 };
 use serde::{Deserialize, Serialize};
-use zip::ZipWriter;
 
-use crate::store::{ModConfig, ModError, ModId, ModIndex, SelectedMod, install_modpack};
+use crate::store::{ModConfig, ModError, ModId};
 
-#[must_use]
-#[derive(Debug, Clone, Default)]
-pub struct PresetOutput {
-    pub local_files: Vec<String>,
-    pub to_install: Vec<ModId>,
-}
+mod generate;
+pub use generate::generate;
+mod load;
+pub use load::{PresetOutput, load};
 
-/// A "Mod Preset"
+// TODO: (SERVER) Adapt both of these to also suit Minecraft servers,
+// not just clients. This is super important!
+const HARD_EXCEPTIONS: &[&str] = &[
+    "versions",
+    "usercache.json",
+    "libraries",
+    "resources",
+    // Mods
+    "mods",
+    "mod_index.json",
+];
+/// Cached/unnecessary files that can be skipped to save space
+pub const SOFT_EXCEPTIONS: &[&str] = &[
+    "logs",
+    "crash-reports",
+    "downloads",
+    "command_history.txt",
+    "realms_persistence.json",
+    "debug",
+    ".cache",
+    "launcher_profiles.json",
+    "launcher_profiles_microsoft_store.json",
+    // Fabric
+    ".fabric",
+    "data",
+    // Common mods...
+    "authlib-injector.log",
+    "easy_npc",
+    "CustomSkinLoader",
+    ".bobby",
+    "dynamic-data-pack-cache",
+    "dynamic-resource-pack-cache",
+    "usernamecache.json",
+];
+
+const OVERRIDES_NAME: &str = "overrides";
+
+/// The main upfront choices the user will have to make.
 ///
-/// # What are mod presets?
-/// Mod presets are essentially "bundles" or "packs"
-/// of mods. Think modpacks, but with a different, probably
-/// better format.
+/// Only for client instances, not servers.
 ///
-/// They include
-/// - Installed mods (both from store and from outside)
-/// - Mod configuration
-///
-/// # How to use this?
-/// See the [`Preset::generate`] and [`Preset::load`],
-///
-/// # Format
-/// Mod presets consist of a `.qmp` file
-/// (it's actually a zip, can be any extension you want).
-///
-/// Inside this zip file, there will be:
-/// - An `index.json` file, essentially a `serde::Serialize`d
-///   version of [`Preset`] (the main struct through which
-///   this API is used).
-/// - `.jar` files in the root of the zip (at the top level),
-///   for any local, sideloaded mods from outside the mod store.
-///   **Note: mods installed through the mod store shouldn't be saved
-///   here, but rather their details should be entered in the `index.json`
-/// - All configuration files in a `config/` folder. This will be extracted
-///   to the `.minecraft/config/` folder
+/// Includes:
+/// - Directory name
+/// - Display name
+/// - Enabled by default
+pub const MAIN_CHOICES: &[(&str, &str, bool)] = &[
+    ("saves", "Worlds", false),
+    ("resourcepacks", "Resource Packs", true),
+    ("texturepacks", "Texture Packs", true),
+    ("shaderpacks", "Shaders", true),
+];
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Preset {
-    pub launcher_version: String,
-    pub minecraft_version: String,
-    pub instance_type: Loader,
+struct PresetJson {
+    instance_name: Option<Arc<str>>,
+    is_server: Option<bool>,
+
+    launcher_version: String,
+    minecraft_version: String,
+    instance_type: Loader,
     #[serde(rename = "entries_modrinth")]
-    pub entries_downloaded: HashMap<ModId, ModConfig>,
-    pub entries_local: Vec<String>,
-}
-
-impl Preset {
-    /// Generates a "Mod Preset" from the mods
-    /// installed in the `instance`.
-    ///
-    /// This packages the contents of
-    /// `.minecraft/mods` and optionally `.minecraft/config`
-    /// into a `.qmp` file (a specialized ZIP file).
-    ///
-    /// You have to manually provide which of the
-    /// instance's mods you want through the `selected_mods`
-    /// argument. You *can't* leave it empty, or nothing
-    /// will generate.
-    ///
-    /// If `include_config` is true, the `config/` directory
-    /// will be included in the preset.
-    ///
-    /// This returns a `Result` of `Vec<u8>`, containing
-    /// the bytes of the final `.qmp` file that you can save
-    /// anywhere you want.
-    pub async fn generate(
-        instance: Instance,
-        selected_mods: HashSet<SelectedMod>,
-        include_config: bool,
-    ) -> Result<Vec<u8>, ModError> {
-        let dot_minecraft = instance.get_dot_minecraft_path();
-        let mods_dir = dot_minecraft.join("mods");
-        let config_dir = dot_minecraft.join("config");
-
-        let minecraft_version = get_minecraft_version(&instance).await?;
-        let instance_type = get_instance_type(&instance).await?;
-
-        let index = ModIndex::load(&instance).await?;
-
-        let mut entries_downloaded = HashMap::new();
-        let mut entries_local: Vec<(String, Vec<u8>)> = Vec::new();
-
-        for entry in selected_mods {
-            match entry {
-                SelectedMod::Downloaded { id, .. } => {
-                    add_downloaded_mod_to_entries(&mut entries_downloaded, &index, &id);
-                }
-                SelectedMod::Local { file_name } => {
-                    if is_already_covered(&index, &file_name) {
-                        continue;
-                    }
-
-                    let entry = mods_dir.join(&file_name);
-                    let mod_bytes = tokio::fs::read(&entry).await.path(&entry)?;
-                    entries_local.push((file_name.clone(), mod_bytes));
-                }
-            }
-        }
-
-        let this = Self {
-            instance_type,
-            launcher_version: LAUNCHER_VERSION_NAME.to_owned(),
-            minecraft_version,
-            entries_downloaded,
-            entries_local: entries_local.iter().map(|(n, _)| n).cloned().collect(),
-        };
-
-        let file: Vec<u8> = Vec::new();
-        let mut zip = ZipWriter::new(Cursor::new(file));
-
-        for (name, bytes) in entries_local {
-            zip.start_file(&name, zip::write::FileOptions::<()>::default())?;
-            zip.write_all(&bytes)
-                .map_err(|n| ModError::ZipIoError(n, name.clone()))?;
-        }
-
-        if include_config && config_dir.is_dir() {
-            add_dir_to_zip_recursive(&config_dir, &mut zip, PathBuf::from("config")).await?;
-        }
-
-        zip.start_file("index.json", zip::write::FileOptions::<()>::default())?;
-        let this_str = serde_json::to_string(&this).json_to()?;
-        let this_str = this_str.as_bytes();
-        zip.write_all(this_str)
-            .map_err(|n| ModError::ZipIoError(n, "index.json".to_owned()))?;
-
-        let file = zip.finish()?.get_ref().clone();
-        info!("Built mod preset! Size: {} bytes", file.len());
-
-        Ok(file)
-    }
-
-    /// Installs a `.qmp` file as a "Mod Preset".
-    ///
-    /// See the module documentation for what a preset is.
-    ///
-    /// # Arguments
-    /// - `instance: InstanceSelection`:
-    ///   The instance to which the preset will be installed.
-    /// - `zip: Vec<u8>`:
-    ///   The `.qmp` file in binary form. Must be read from
-    ///   disk earlier.
-    /// - `apply: bool`: Whether to actually install
-    ///   the preset or **just preview it**
-    ///
-    /// Returns a `Vec<String>` of mod id's to be installed
-    /// to "complete" the installation. You pass this to
-    /// [`crate::store::download_mods_bulk`]
-    ///
-    /// # Errors
-    /// - The provided `zip` is not a valid `.zip` file.
-    /// - `index.json` in the zip file isn't valid JSON
-    /// - User lacks permission to access `QuantumLauncher/` folder
-    /// - instance directory is outside the launcher directory (escape attack)
-    /// ---
-    /// `details.json` and `config.json` (in instance dir):
-    /// - couldn't be loaded from disk
-    /// - couldn't be parsed into valid JSON
-    /// ---
-    /// - And many other things I probably forgot
-    pub async fn load(
-        instance: Instance,
-        file: Vec<u8>,
-        apply: bool,
-    ) -> Result<PresetOutput, ModError> {
-        info!("Importing mod preset");
-
-        let main_dir = instance.get_dot_minecraft_path();
-        let mods_dir = main_dir.join("mods");
-
-        let mut zip = zip::ZipArchive::new(Cursor::new(&file)).map_err(ModError::Zip)?;
-
-        let version_json = VersionDetails::load(&instance).await?;
-        let mut local_files = Vec::new();
-
-        let index: Self = {
-            let Ok(mut index) = zip.by_name("index.json") else {
-                // Else this ain't a QMP file!
-                // Install as regular modpack
-                return match install_modpack(file.clone(), instance.clone(), None)
-                    .await
-                    .map_err(Box::new)?
-                {
-                    Some(n) => {
-                        if !n.is_empty() {
-                            let incompatible =
-                                n.iter().map(|n| n.name.as_str()).collect::<Vec<_>>();
-                            err!(
-                                "Curseforge has blocked downloading these mods: {incompatible:?}\n\nPlease install them manually"
-                            );
-                        }
-                        Ok(PresetOutput::default())
-                    }
-                    None => Err(ModError::NotValidPack),
-                };
-            };
-            let buf = std::io::read_to_string(&mut index)
-                .map_err(|n| ModError::ZipIoError(n, "index.json".to_owned()))?;
-            serde_json::from_str(&buf).json(buf)?
-        };
-
-        let instance_type = get_instance_type(&instance).await?;
-        // Only sideload mods if the version is the same
-        let should_sideload = index.minecraft_version == version_json.get_id()
-            && index.instance_type == instance_type;
-
-        for i in 0..zip.len() {
-            let mut file = zip.by_index(i).map_err(ModError::Zip)?;
-            let name = file.name().to_owned();
-
-            if name == "index.json" {
-            } else if name.starts_with("config/") || name.starts_with("config\\") {
-                if !apply {
-                    continue;
-                }
-                if !name.ends_with('/') && !name.ends_with('\\') {
-                    pt!("Config: {}", name.bright_black());
-                }
-                let path = main_dir.join(name.replace('\\', "/"));
-
-                if file.is_dir() {
-                    tokio::fs::create_dir_all(&path).await.path(&path)?;
-                } else {
-                    let parent = path.parent().unwrap();
-                    tokio::fs::create_dir_all(parent).await.path(parent)?;
-
-                    let mut buf = Vec::new();
-                    file.read_to_end(&mut buf)
-                        .map_err(|n| ModError::ZipIoError(n, name.clone()))?;
-                    tokio::fs::write(&path, &buf).await.path(&path)?;
-                }
-            } else if name.contains('/') || name.contains('\\') {
-                info!("Feature not implemented: {name}");
-            } else {
-                if !should_sideload {
-                    continue;
-                }
-                local_files.push(name.clone());
-                if !apply {
-                    continue;
-                }
-
-                pt!("Local file: {name}");
-                let path = mods_dir.join(&name);
-                let mut buf = Vec::new();
-                file.read_to_end(&mut buf)
-                    .map_err(|n| ModError::ZipIoError(n, name))?;
-                tokio::fs::write(&path, &buf).await.path(&path)?;
-            }
-        }
-
-        let to_install = index
-            .entries_downloaded
-            .into_iter()
-            .filter_map(|(k, n)| n.manually_installed.then_some(k))
-            .collect();
-
-        Ok(PresetOutput {
-            local_files,
-            to_install,
-        })
-    }
+    entries_downloaded: HashMap<ModId, ModConfig>,
+    entries_local: Vec<String>,
 }
 
 async fn get_instance_type(instance_name: &Instance) -> Result<Loader, ModError> {
@@ -283,81 +102,49 @@ async fn get_instance_type(instance_name: &Instance) -> Result<Loader, ModError>
     Ok(config.mod_type)
 }
 
-fn add_downloaded_mod_to_entries(
-    entries: &mut HashMap<ModId, ModConfig>,
-    index: &ModIndex,
-    id: &ModId,
-) {
-    let Some(config) = index.mods.get(id) else {
-        err!("Could not find id {id:?} in index!");
-        return;
-    };
+pub async fn get_mc_dir_contents(instance: &Instance) -> Result<Vec<DirItem>, IoError> {
+    async fn get_contents_inner(
+        dotmc_dir: std::path::PathBuf,
+        contents: &mut Vec<DirItem>,
+    ) -> Result<(), IoError> {
+        let mut dir = tokio::fs::read_dir(&dotmc_dir).await.path(&dotmc_dir)?;
 
-    entries.insert(id.clone(), config.clone());
+        while let Some(entry) = dir.next_entry().await.path(&dotmc_dir)? {
+            if HARD_EXCEPTIONS.iter().any(|n| &entry.file_name() == n) {
+                continue;
+            }
+            let is_file = entry.file_type().await.is_ok_and(|n| !n.is_dir());
+            let name = entry.file_name().to_string_lossy().into_owned();
+            contents.push(DirItem { name, is_file });
+        }
 
-    for dep in &config.dependencies {
-        add_downloaded_mod_to_entries(entries, index, dep);
+        contents.sort_unstable_by(|a, b| {
+            match (
+                SOFT_EXCEPTIONS.contains(&a.name.as_str()),
+                SOFT_EXCEPTIONS.contains(&b.name.as_str()),
+            ) {
+                (true, false) => Ordering::Greater,
+                (false, true) => Ordering::Less,
+                _ => match (a.is_file, b.is_file) {
+                    (true, false) => Ordering::Greater,
+                    (false, true) => Ordering::Less,
+                    _ => a.name.cmp(&b.name),
+                },
+            }
+        });
+
+        Ok(())
     }
-}
 
-async fn get_minecraft_version(instance_name: &Instance) -> Result<String, ModError> {
-    let version_json = VersionDetails::load(instance_name).await?;
-    let minecraft_version = version_json.get_id().to_owned();
-    Ok(minecraft_version)
-}
+    let dotmc_dir = instance.get_dot_minecraft_path();
+    let mut contents = Vec::new();
 
-async fn add_dir_to_zip_recursive(
-    path: &Path,
-    zip: &mut ZipWriter<Cursor<Vec<u8>>>,
-    accumulation: PathBuf,
-) -> Result<(), ModError> {
-    let mut dir = tokio::fs::read_dir(path).await.path(path)?;
-
-    // # Explanation
-    // For example, if the dir structure is:
-    //
-    // config
-    // |- file1.txt
-    // |- file2.txt
-    // |- dir1
-    // | |- file3.txt
-    // | |- file4.txt
-    //
-    // Assume accumulation is "config" for example...
-
-    while let Some(entry) = dir.next_entry().await.path(path)? {
-        let path = entry.path();
-        let accumulation = accumulation.join(path.file_name().unwrap());
-        let acc_name = accumulation.to_string_lossy();
-
-        if path.is_dir() {
-            zip.add_directory(
-                format!("{acc_name}/"),
-                zip::write::FileOptions::<()>::default(),
-            )
-            .map_err(ModError::Zip)?;
-
-            // ... accumulation = "config/dir1"
-            // Then this call will have "config/dir1" as starting value.
-            Box::pin(add_dir_to_zip_recursive(&path, zip, accumulation.clone())).await?;
-        } else {
-            // ... accumulation = "config/file1.txt"
-            let bytes = tokio::fs::read(&path).await.path(path.clone())?;
-
-            zip.start_file(&acc_name, zip::write::FileOptions::<()>::default())?;
-            zip.write_all(&bytes)
-                .map_err(|n| ModError::ZipIoError(n, acc_name.to_string()))?;
+    let res = get_contents_inner(dotmc_dir, &mut contents).await;
+    if let Err(IoError::Io { error, .. }) = &res {
+        if error.kind() != ErrorKind::NotFound {
+            res?;
         }
     }
 
-    Ok(())
-}
-
-fn is_already_covered(index: &ModIndex, mod_name: &String) -> bool {
-    for config in index.mods.values() {
-        if config.files.iter().any(|n| n.filename == *mod_name) {
-            return true;
-        }
-    }
-    false
+    Ok(contents)
 }

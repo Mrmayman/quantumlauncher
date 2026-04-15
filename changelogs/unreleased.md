@@ -1,5 +1,6 @@
 # unreleased changelog
 
+
 # Mod Store
 
 - Redesigned, now with a new look and many features
@@ -9,6 +10,17 @@
   - Mods menu: Right click -> Mod Details now takes you directly to description page
 
 TODO: Add screenshots
+
+# Import/export
+
+- You can now import instances from:
+  - MultiMC/PrismLauncher (experimental)
+  - Modrinth/Curseforge modpacks
+  - Official Minecraft Launcher, TL Legacy, TLauncher, GDLauncher, ATLauncher (TODO)
+- Export instances to:
+  - QuantumLauncher instance format (experimental)
+  - MultiMC/PrismLauncher (TODO)
+  - Modrinth/Curseforge modpacks (TODO)
 
 # UX
 

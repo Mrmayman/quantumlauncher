@@ -45,10 +45,7 @@ impl ModIndex {
         Ok(index)
     }
 
-    pub async fn save(
-        &mut self,
-        selected_instance: &Instance,
-    ) -> Result<(), JsonFileError> {
+    pub async fn save(&mut self, selected_instance: &Instance) -> Result<(), JsonFileError> {
         let index_dir = selected_instance
             .get_dot_minecraft_path()
             .join("mod_index.json");

@@ -3943,6 +3943,7 @@ name = "ql_mod_manager"
 version = "0.0.0"
 dependencies = [
  "chrono",
+ "constcat",
  "futures",
  "image",
  "indexmap",

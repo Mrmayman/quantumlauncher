@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     sync::{atomic::AtomicI32, mpsc::Sender},
     time::Instant,
 };
@@ -374,7 +374,7 @@ impl Backend for CurseforgeBackend {
         id: &str,
         instance: &ql_core::Instance,
         sender: Option<Sender<GenericProgress>>,
-    ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
+    ) -> Result<CurseforgeNotAllowed, ModError> {
         let _guard = lock().await;
         let mut downloader = ModDownloader::new(instance.clone(), sender.as_ref()).await?;
 
@@ -392,7 +392,7 @@ impl Backend for CurseforgeBackend {
         ignore_incompatible: bool,
         set_manually_installed: bool,
         sender: Option<&Sender<GenericProgress>>,
-    ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
+    ) -> Result<CurseforgeNotAllowed, ModError> {
         let _guard = lock().await;
         let mut downloader = ModDownloader::new(instance.clone(), sender).await?;
         downloader.ensure_essential_mods().await?;

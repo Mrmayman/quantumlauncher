@@ -429,7 +429,7 @@ pub async fn read_filenames_from_dir<P: AsRef<Path>>(dir: P) -> Result<Vec<DirIt
     Ok(filenames)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct DirItem {
     pub name: String,
     pub is_file: bool,
@@ -509,7 +509,7 @@ pub async fn zip_directory_to_bytes<P: AsRef<Path>>(dir: P) -> std::io::Result<V
         let relative_path = path
             .strip_prefix(base_path)
             .map_err(std::io::Error::other)?;
-        let mut name_in_zip = relative_path.to_string_lossy().to_string();
+        let mut name_in_zip = relative_path.to_string_lossy().into_owned();
         // .replace('\\', "/");
 
         if path.is_dir() {

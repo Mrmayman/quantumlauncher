@@ -21,8 +21,8 @@ use ql_instances::auth::{
 use ql_mod_manager::{
     loaders::{fabric, paper::PaperVersion},
     store::{
-        Category, CurseforgeNotAllowed, ModId, ModIndex, QueryType, RecommendedMod, SearchMod,
-        SearchResult, StoreBackendType,
+        Category, CurseforgeNotAllowed, ModId, ModIndex, ModUpdateOutput, QueryType,
+        RecommendedMod, SearchMod, SearchResult, StoreBackendType,
     },
 };
 
@@ -68,7 +68,7 @@ pub enum CreateInstanceMessage {
 
     #[allow(unused)]
     Import,
-    ImportResult(Res<Option<Instance>>),
+    ImportResult(Res<Option<(Instance, CurseforgeNotAllowed)>>),
 }
 
 #[derive(Debug, Clone)]
@@ -127,13 +127,16 @@ pub enum ManageModsMessage {
     UpdateCheckResult(Res<Vec<(ModId, String)>>),
     UpdateCheckToggle(usize, bool),
     UpdatePerform,
-    UpdatePerformDone(Res<(Option<ql_mod_manager::store::ChangelogFile>, bool)>),
+    UpdatePerformDone(Res<(ModUpdateOutput, bool)>),
     SetInfoMessage(Option<InfoMessage>),
 
     /// Add a mod, preset or modpack to the current instance.
     /// The field represents whether to delete the file after importing it.
     AddFile(bool),
-    AddFileDone(Res<HashSet<CurseforgeNotAllowed>>),
+    /// Add a mod (only `.jar` files).
+    /// The field represents whether to delete the file after importing it.
+    AddFileOnlyJar(bool),
+    AddFileDone(Res<CurseforgeNotAllowed>),
 
     SelectAll,
     SetModal(Option<MenuEditModsModal>),
@@ -180,7 +183,7 @@ pub enum InstallModsMessage {
     SearchInput(String),
     SearchResult(Res<SearchResult>),
     Download(usize),
-    DownloadComplete(Res<(ModId, HashSet<CurseforgeNotAllowed>)>),
+    DownloadComplete(Res<(ModId, CurseforgeNotAllowed)>),
     InstallModpack(ModId),
     Uninstall(usize),
     UninstallComplete(Res<Vec<ModId>>),
@@ -205,13 +208,19 @@ pub enum InstallOptifineMessage {
 #[derive(Debug, Clone)]
 pub enum EditPresetsMessage {
     Open,
-    ToggleCheckbox((String, ModId), bool),
-    ToggleCheckboxLocal(String, bool),
-    ToggleIncludeConfig(bool),
-    SelectAll,
-    BuildYourOwn,
-    BuildYourOwnEnd(Res<Vec<u8>>),
-    LoadComplete(Res<HashSet<CurseforgeNotAllowed>>),
+
+    ModToggle((String, ModId), bool),
+    ModToggleLocal(String, bool),
+    ModSelectAll,
+
+    DirToggle(String, bool),
+    DirSelectAll,
+
+    LoadedDir(Res<Vec<DirItem>>),
+
+    Generate,
+    GenerateEnd(Res<Vec<u8>>),
+    ImportComplete(Res<CurseforgeNotAllowed>),
 }
 
 #[derive(Debug, Clone)]
@@ -220,7 +229,7 @@ pub enum RecommendedModMessage {
     ModCheckResult(Res<Vec<RecommendedMod>>),
     Toggle(usize, bool),
     Download,
-    DownloadEnd(Res<HashSet<CurseforgeNotAllowed>>),
+    DownloadEnd(Res<CurseforgeNotAllowed>),
 }
 
 #[derive(Debug, Clone)]
@@ -463,11 +472,10 @@ pub enum Message {
     UninstallLoaderStart,
     UninstallLoaderEnd(Res),
 
+    // Not removing this because void98's PR uses this
     #[allow(unused)]
     ExportInstanceOpen,
     ExportInstanceToggleItem(usize, bool),
-    ExportInstanceStart,
-    ExportInstanceFinished(Res<Vec<u8>>),
     ExportInstanceLoaded(Res<Vec<DirItem>>),
 
     CoreCopyError,

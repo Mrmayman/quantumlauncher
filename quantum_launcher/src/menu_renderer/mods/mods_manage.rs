@@ -66,10 +66,10 @@ impl MenuEditMods {
             let submenu = column![
                 ctx_button(icons::refresh_s(CTXI_SIZE), "Check for updates")
                     .on_press(ManageModsMessage::UpdateCheck.into()),
+                ctx_button(icons::file_zip_s(CTXI_SIZE), "Export...")
+                    .on_press(EditPresetsMessage::Open.into()),
                 ctx_button(icons::file_info_s(CTXI_SIZE), "Export list as text")
                     .on_press(ManageModsMessage::ExportMenuOpen.into()),
-                ctx_button(icons::file_zip_s(CTXI_SIZE), "Export QMP Preset")
-                    .on_press(EditPresetsMessage::Open.into()),
                 widget::horizontal_rule(1).style(barthin),
                 ctx_button(icons::download_s(CTXI_SIZE), "See recommended mods").on_press(
                     Message::RecommendedMods(crate::state::RecommendedModMessage::Open)

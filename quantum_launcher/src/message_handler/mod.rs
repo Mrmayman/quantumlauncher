@@ -2,7 +2,7 @@ use crate::config::AfterLaunchBehavior;
 use crate::menu_renderer::back_to_launch_screen;
 use crate::state::{
     AutoSaveKind, GameProcess, InfoMessage, LaunchTab, LogState, MenuCreateInstance,
-    MenuCreateInstanceChoosing, MenuInstallOptifine,
+    MenuCreateInstanceChoosing, MenuEditPresets, MenuInstallOptifine,
 };
 use crate::tick::sort_dependencies;
 use crate::{
@@ -350,12 +350,14 @@ impl Launcher {
                 .into_iter()
                 .map(|(id, version, _)| (id, version))
                 .collect();
+
             let write_changelog = self.config.c_persistent().write_mod_update_changelog;
             let (sender, receiver) = std::sync::mpsc::channel();
             menu.mod_update_progress = Some(ProgressBar::with_recv_and_msg(
                 receiver,
                 "Deleting Mods".to_owned(),
             ));
+
             let selected_instance = self.selected_instance.clone().unwrap();
             Task::perform(
                 ql_mod_manager::store::apply_updates(
@@ -480,27 +482,36 @@ impl Launcher {
                 return Task::none();
             }
         };
-        match tokio::runtime::Handle::current().block_on(ql_mod_manager::Preset::load(
+        match tokio::runtime::Handle::current().block_on(ql_mod_manager::presets::load(
             self.selected_instance.clone().unwrap(),
-            file,
+            &file,
             true,
         )) {
             Ok(mods) => {
+                if mods.is_regular_modpack {
+                    return self.load_modpack_from_path(path.to_owned());
+                }
+                if mods.to_install.is_empty() {
+                    return Task::none();
+                }
+
                 let (sender, receiver) = std::sync::mpsc::channel();
                 if let State::EditMods(_) = &self.state {
-                    self.go_to_edit_presets_menu();
-                }
-                if let State::ManagePresets(menu) = &mut self.state {
-                    menu.progress = Some(ProgressBar::with_recv(receiver));
+                    self.state = State::ManagePresets(MenuEditPresets::Installing(
+                        ProgressBar::with_recv(receiver),
+                    ));
                 }
                 let instance_name = self.selected_instance.clone().unwrap();
                 Task::perform(
-                    ql_mod_manager::store::download_mods_bulk(
-                        mods.to_install,
-                        instance_name,
-                        Some(sender),
-                    ),
-                    |n| EditPresetsMessage::LoadComplete(n.strerr()).into(),
+                    async move {
+                        ql_mod_manager::store::download_mods_bulk(
+                            mods.to_install,
+                            instance_name,
+                            Some(&sender),
+                        )
+                        .await
+                    },
+                    |n| EditPresetsMessage::ImportComplete(n.strerr()).into(),
                 )
             }
             Err(err) => {
@@ -513,8 +524,12 @@ impl Launcher {
     fn set_drag_and_drop_hover(&mut self, is_hovered: bool) {
         if let State::EditMods(menu) = &mut self.state {
             menu.drag_and_drop_hovered = is_hovered;
-        } else if let State::ManagePresets(menu) = &mut self.state {
-            menu.drag_and_drop_hovered = is_hovered;
+        } else if let State::ManagePresets(MenuEditPresets::Selecting {
+            drag_and_drop_hovered,
+            ..
+        }) = &mut self.state
+        {
+            *drag_and_drop_hovered = is_hovered;
         } else if let State::EditJarMods(menu) = &mut self.state {
             menu.drag_and_drop_hovered = is_hovered;
         } else if let State::InstallOptifine(MenuInstallOptifine::Choosing {
