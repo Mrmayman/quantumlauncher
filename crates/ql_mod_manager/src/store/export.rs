@@ -13,7 +13,6 @@ use std::fs;
 use std::io::Result as StdResult;
 use std::path::{Path, PathBuf};
 use tokio::fs::read;
-use crate::store::ModId::Curseforge;
 
 #[derive(Serialize)]
 pub struct FormatMQFileEntry {
@@ -56,6 +55,37 @@ pub struct QlModpackManifest {
     summary: String,
     icon: Vec<String>,
     files: Vec<FormatMQFileEntry>,
+}
+
+#[derive(Serialize)]
+struct CurseForgeModpackManifest {
+    minecraft: CurseForgeMinecraftConfig,
+    manifest_type: String,
+    manifest_version: u32,
+    name: String,
+    version: String,
+    author: String,
+    files: Vec<CurseForgeFileEntry>,
+    overrides: String,
+}
+
+#[derive(Serialize)]
+struct CurseForgeMinecraftConfig {
+    version: String,
+    mod_loaders: Vec<CurseForgeModLoader>,
+}
+
+#[derive(Serialize)]
+struct CurseForgeModLoader {
+    id: String,
+    primary: bool,
+}
+
+#[derive(Serialize)]
+struct CurseForgeFileEntry {
+    project_id: u64,
+    file_id: u64,
+    required: bool,
 }
 
 pub async fn export_modrinth_modpack(
@@ -197,9 +227,9 @@ pub async fn export_modrinth_modpack(
     let result: Vec<(String, String)> = overrides_full_paths
         .into_iter()
         .map(|full| {
-            let path = std::path::Path::new(&full);
+            let path = Path::new(&full);
             let relative = path
-                .strip_prefix(std::path::Path::new(
+                .strip_prefix(Path::new(
                     &instance.get_dot_minecraft_path().to_str().unwrap(),
                 ))
                 .unwrap_or(path);
@@ -210,6 +240,47 @@ pub async fn export_modrinth_modpack(
     let overrides = result.clone();
 
     package_format1_pack("modrinth.index".to_string(), json_data, zip_path, overrides).unwrap();
+}
+
+pub async fn export_curseforge_modpack(
+    author: String,
+    modpack_name: String,
+    modpack_version: String,
+    modpack_summary: String,
+    modpack_file_name: String,
+    mod_ids: HashSet<ModId>,
+    overrides: Vec<(String, String)>,
+    instance: InstanceSelection) {
+
+    let details = VersionDetails::load(&instance).await.unwrap();
+    let minecraft_version = details.get_id().to_string();
+    let config = ql_core::InstanceConfigJson::read(&instance).await;
+    let loader_name = config.unwrap().mod_type.to_modrinth_str(); // formating changes needed
+    let config = ql_core::InstanceConfigJson::read(&instance).await;
+    let loader_version = config.unwrap().mod_type_info.unwrap().version;
+    let loader = loader_name.to_string() + ":" + loader_version.unwrap().as_str();
+
+    let file_ids: Vec<&str> = vec!["temp"]; // TODO: get FileIds here!!
+
+    let mod_ids: Vec<String>= mod_ids
+        .into_iter()
+        .map(|map| serde_json::to_string(&map).unwrap())
+        .collect();
+
+
+    let json_data = write_curseforge_manifest_json(
+        mod_ids,
+        file_ids,
+        author,
+        modpack_version,
+        modpack_name,
+        loader,
+        minecraft_version
+    )
+    .unwrap();
+
+    package_format1_pack("manifest".to_string(), json_data, "".to_string(), overrides).unwrap();
+
 }
 
 /*
@@ -305,7 +376,7 @@ async fn package_format1_pack(
     zip_path: String,
     overrides: Vec<(String, String)>,
 ) -> Result<(), PackageError> {
-    let parent_dir = std::path::Path::new(&zip_path).parent().unwrap();
+    let parent_dir = Path::new(&zip_path).parent().unwrap();
     tokio::fs::create_dir_all(parent_dir).await?;
 
     let output_file = tokio::fs::File::create(&zip_path).await?;
@@ -369,6 +440,39 @@ fn create_modrinth_index_json(
     let json_data = serde_json::to_string_pretty(&manifest)?;
 
     Ok(json_data)
+}
+
+fn write_curseforge_manifest_json(mod_id: Vec<String>, file_id: Vec<&str>, author: String, modpack_version: String, name: String, loader_id: String, version: String, ) -> StdResult<String> {
+
+    let primary = true;
+
+    let files: Vec<CurseForgeFileEntry> = mod_id
+        .into_iter()
+        .zip(file_id.into_iter())
+        .map(|(proj_str, file_str)| CurseForgeFileEntry {
+            project_id: proj_str.parse::<u64>().unwrap(),
+            file_id: file_str.parse::<u64>().unwrap(),
+            required: true,
+        })
+        .collect();
+
+    let manifest = CurseForgeModpackManifest {
+        minecraft: CurseForgeMinecraftConfig {
+            version,
+            mod_loaders: vec![CurseForgeModLoader { id: loader_id, primary }],
+        },
+        manifest_type: "minecraftModpack".to_string(),
+        manifest_version: 1,
+        name,
+        version: modpack_version,
+        author,
+        files,
+        overrides: "overrides".to_string(),
+    };
+
+    let manifest_json = serde_json::to_string_pretty(&manifest)?;
+
+    Ok(manifest_json)
 }
 
 fn create_qlmp_index_json(
@@ -440,100 +544,3 @@ fn format_1_file_entry(
 
     Ok(files)
 }
-
-
-#[derive(Serialize)]
-struct CurseForgeModpackManifest {
-    minecraft: CurseForgeMinecraftConfig,
-    manifest_type: String,
-    manifest_version: u32,
-    name: String,
-    version: String,
-    author: String,
-    files: Vec<CurseForgeFileEntry>,
-    overrides: String,
-}
-
-#[derive(Serialize)]
-struct CurseForgeMinecraftConfig {
-    version: String,
-    mod_loaders: Vec<CurseForgeModLoader>,
-}
-
-#[derive(Serialize)]
-struct CurseForgeModLoader {
-    id: String,
-    primary: bool,
-}
-
-#[derive(Serialize)]
-struct CurseForgeFileEntry {
-    project_id: u64,
-    file_id: u64,
-    required: bool,
-}
-
-pub async fn export_curseforge_modpack(author: String, modpack_name: String,modpack_version: String, modpack_summary: String,modpack_file_name: String, mod_ids: HashSet<ModId>, overrides: Vec<String>, instance: InstanceSelection) {
-
-    let details = VersionDetails::load(&instance).await.unwrap();
-    let minecraft_version = details.get_id().to_string();
-    let config = ql_core::InstanceConfigJson::read(&instance).await;
-    let loader_name = config.unwrap().mod_type.to_modrinth_str(); // formating changes needed
-    let config = ql_core::InstanceConfigJson::read(&instance).await;
-    let loader_version = config.unwrap().mod_type_info.unwrap().version;
-    let loader = loader_name.to_string() + ":" + loader_version.unwrap().as_str();
-
-    let file_ids: Vec<&str> = vec!["temp"]; // TODO: get FileIds here!!
-
-    let mod_ids: Vec<String>= mod_ids
-        .into_iter()
-        .map(|map| serde_json::to_string(&map).unwrap())
-        .collect();
-
-
-     let json_data = write_curseforge_manifest_json(
-         mod_ids,
-         file_ids,
-         author,
-         modpack_version,
-         modpack_name,
-         loader,
-         minecraft_version
-     );
-
-}
-
-
-fn write_curseforge_manifest_json(mod_id: Vec<String>, file_id: Vec<&str>, author: String, modpack_version: String, name: String, loader_id: String, version: String, ) -> StdResult<String> {
-
-    let primary = true;
-
-    let files: Vec<CurseForgeFileEntry> = mod_id
-        .into_iter()
-        .zip(file_id.into_iter())
-        .map(|(proj_str, file_str)| CurseForgeFileEntry {
-            project_id: proj_str.parse::<u64>().unwrap(),
-            file_id: file_str.parse::<u64>().unwrap(),
-            required: true,
-        })
-        .collect();
-
-    let manifest = CurseForgeModpackManifest {
-        minecraft: CurseForgeMinecraftConfig {
-            version,
-            mod_loaders: vec![CurseForgeModLoader { id: loader_id, primary }],
-        },
-        manifest_type: "minecraftModpack".to_string(),
-        manifest_version: 1,
-        name,
-        version: modpack_version,
-        author,
-        files,
-        overrides: "overrides".to_string(),
-    };
-
-    let manifest_json = serde_json::to_string_pretty(&manifest)?;
-
-    Ok(manifest_json)
-}
-
