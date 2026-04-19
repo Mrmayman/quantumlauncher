@@ -131,7 +131,15 @@ pub async fn export_modrinth_modpack(
     let details = VersionDetails::load(&instance).await.unwrap();
     let minecraft_version = details.get_id();
     let config = ql_core::InstanceConfigJson::read(&instance).await;
-    let loader_name = config.unwrap().mod_type.to_modrinth_str(); // TODO: INCORRECT: Waiting for change
+    let loader_name = match config.unwrap().mod_type.to_modrinth_str() {
+        // Modrinth only supports these for modpacks
+        "fabric" => {"fabric-loader"},
+        "quilt" => {"quilt-loader"},
+        "forge" => {"forge"},
+        "neofroge" => {"neoforge"},
+        _ => panic!("Unsupported loader type"),
+    };
+
     let config = ql_core::InstanceConfigJson::read(&instance).await;
     let loader_version = config.unwrap().mod_type_info.unwrap().version;
 
@@ -223,7 +231,6 @@ pub async fn export_curseforge_modpack(
     author: String,
     modpack_name: String,
     modpack_version: String,
-    modpack_summary: String,
     modpack_file_name: String,
     mod_ids: HashSet<ModId>,
     overrides: Vec<(String, String)>,
@@ -262,10 +269,18 @@ pub async fn export_curseforge_modpack(
     let details = VersionDetails::load(&instance).await.unwrap();
     let minecraft_version = details.get_id().to_string();
     let config = ql_core::InstanceConfigJson::read(&instance).await;
-    let loader_name = config.unwrap().mod_type.to_modrinth_str(); // TODO: formating changes needed, curseforge format needed!!
+    let loader_name = match config.unwrap().mod_type.to_curseforge_num() {
+        "1" => {"forge"},
+        "4" => {"fabric"},
+        "5" => {"quilt"},
+        "6" => {"neoforge"},
+        "3" => {"lightloader"},
+        _ => panic!()
+    };
+
     let config = ql_core::InstanceConfigJson::read(&instance).await;
     let loader_version = config.unwrap().mod_type_info.unwrap().version;
-    let loader = loader_name.to_string() + ":" + loader_version.unwrap().as_str();
+    let loader = loader_name.to_string() + "-" + loader_version.unwrap().as_str();
 
     let file_ids: Vec<&str> = vec!["temp"]; // TODO: get FileIds here!!
 
