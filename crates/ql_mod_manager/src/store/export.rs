@@ -96,7 +96,7 @@ pub async fn export_modrinth_modpack(
     modpack_summary: String,
     modpack_file_name: String,
     mod_ids: HashSet<ModId>,
-    overrides_full_path: Vec<String>,
+    overrides: Vec<String>, // MUST BE FULL PATH!!
     instance: InstanceSelection,
 ) {
     let index = ModIndex::load(&instance).await.unwrap();
@@ -206,7 +206,7 @@ pub async fn export_modrinth_modpack(
 
     let zip_path = modpack_path + "/" + modpack_file_name.as_str() + ".mrpack";
 
-    let overrides: Vec<(String, String)> = overrides_full_path
+    let overrides: Vec<(String, String)> = overrides
         .into_iter()
         .chain(override_mods_full_path_string)
         .into_iter()
@@ -233,14 +233,12 @@ pub async fn export_curseforge_modpack(
     modpack_version: String,
     modpack_file_name: String,
     mod_ids: HashSet<ModId>,
-    overrides: Vec<(String, String)>,
+    overrides: Vec<String>, // MUST BE FULL PATH!!
     icon_url: String,
     instance: InstanceSelection) {
 
     let index = ModIndex::load(&instance).await.unwrap();
 
-    let mut urls: Vec<String> = Vec::new();
-    let mut filenames: Vec<String> = Vec::new();
     let mut override_filenames: Vec<String> = Vec::new();
 
     for id in &mod_ids {
@@ -259,8 +257,7 @@ pub async fn export_curseforge_modpack(
         };
 
         if is_curseforge {
-            urls.push(primary_file.url.clone());
-            filenames.push(primary_file.filename.clone());
+            continue
         } else {
             override_filenames.push(primary_file.filename.clone());
         }
@@ -289,6 +286,32 @@ pub async fn export_curseforge_modpack(
         .map(|map| serde_json::to_string(&map).unwrap())
         .collect();
 
+    let mods_folder_path = instance.get_dot_minecraft_path().join("mods");
+
+    let override_mods_full_path_string: Vec<String> = override_filenames
+        .iter()
+        .map(|rel_path| mods_folder_path.join(rel_path))
+        .collect::<Vec<_>>()
+        .into_iter()
+        .map(|path| path.into_os_string().into_string().unwrap())
+        .collect();
+
+    let overrides: Vec<(String, String)> = overrides
+        .into_iter()
+        .chain(override_mods_full_path_string)
+        .into_iter()
+        .collect::<Vec<String>>()
+        .into_iter()
+        .map(|full| {
+            let path = Path::new(&full);
+            let relative = path
+                .strip_prefix(Path::new(
+                    &instance.get_dot_minecraft_path().to_str().unwrap(),
+                ))
+                .unwrap_or(path);
+            (full.clone(), relative.to_string_lossy().into())
+        })
+        .collect();
 
     let json_data = write_curseforge_manifest_json(
         mod_ids,
