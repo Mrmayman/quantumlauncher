@@ -4,7 +4,7 @@ use iced::Task;
 use ql_core::{
     IntoIoError, IntoStringError, LAUNCHER_DIR, err,
     json::{
-        GlobalSettings, InstanceConfigJson,
+        InstanceConfigJson,
         instance_config::{CustomJarConfig, MainClassMode},
     },
     sanitize_instance_name,
@@ -52,7 +52,7 @@ macro_rules! iflet_config {
     ($state:expr, prefix, |$prefix:ident| $body:block) => {
         iflet_config!($state, global_settings: global_settings, {
             let global_settings =
-                global_settings.get_or_insert_with(GlobalSettings::default);
+                global_settings.get_or_insert_default();
             let $prefix =
                 &mut global_settings.pre_launch_prefix;
             $body
@@ -144,19 +144,19 @@ impl Launcher {
             EditInstanceMessage::JavaArgs(msg) => {
                 let split = self.should_split_args();
                 iflet_config!(&mut self.state, java_args, {
-                    msg.apply(java_args.get_or_insert_with(Vec::new), split);
+                    msg.apply(java_args.get_or_insert_default(), split);
                 });
             }
             EditInstanceMessage::GameArgs(msg) => {
                 let split = self.should_split_args();
                 iflet_config!(&mut self.state, game_args, {
-                    msg.apply(game_args.get_or_insert_with(Vec::new), split);
+                    msg.apply(game_args.get_or_insert_default(), split);
                 });
             }
             EditInstanceMessage::PreLaunchPrefix(msg) => {
                 let split = self.should_split_args();
                 iflet_config!(&mut self.state, prefix, |pre_launch_prefix| {
-                    msg.apply(pre_launch_prefix.get_or_insert_with(Vec::new), split);
+                    msg.apply(pre_launch_prefix.get_or_insert_default(), split);
                 });
             }
             EditInstanceMessage::PreLaunchPrefixModeChanged(mode) => {
@@ -226,10 +226,7 @@ impl Launcher {
                             LAUNCHER_DIR.join("custom_jars"),
                         )));
                     } else {
-                        menu.config
-                            .custom_jar
-                            .get_or_insert_with(CustomJarConfig::default)
-                            .name = path;
+                        menu.config.custom_jar.get_or_insert_default().name = path;
                     }
                 }
             }
@@ -353,10 +350,7 @@ impl Launcher {
                 custom_jars.choices.insert(1, file_name.clone());
             }
 
-            *menu
-                .config
-                .custom_jar
-                .get_or_insert_with(CustomJarConfig::default) =
+            *menu.config.custom_jar.get_or_insert_default() =
                 CustomJarConfig::new(file_name.clone());
 
             Task::perform(

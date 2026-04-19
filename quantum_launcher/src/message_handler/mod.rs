@@ -1,29 +1,26 @@
-use crate::config::AfterLaunchBehavior;
-use crate::menu_renderer::back_to_launch_screen;
-use crate::state::{
-    AutoSaveKind, GameProcess, InfoMessage, LaunchTab, LogState, MenuCreateInstance,
-    MenuCreateInstanceChoosing, MenuInstallOptifine,
-};
-use crate::tick::sort_dependencies;
 use crate::{
     Launcher, Message,
+    config::AfterLaunchBehavior,
+    menu_renderer::back_to_launch_screen,
     state::{
-        EditPresetsMessage, ManageModsMessage, MenuEditInstance, MenuEditMods, MenuInstallForge,
-        MenuLaunch, OFFLINE_ACCOUNT_NAME, ProgressBar, SelectedState, State,
+        AutoSaveKind, EditPresetsMessage, GameProcess, InfoMessage, LaunchTab, LogState,
+        ManageModsMessage, MenuCreateInstance, MenuCreateInstanceChoosing, MenuEditInstance,
+        MenuEditMods, MenuInstallForge, MenuInstallOptifine, MenuLaunch, OFFLINE_ACCOUNT_NAME,
+        ProgressBar, SelectedState, State,
     },
+    tick::sort_dependencies,
 };
-use iced::Task;
-use iced::futures::executor::block_on;
-use iced::widget::scrollable::AbsoluteOffset;
-use ql_core::file_utils::exists;
-use ql_core::json::VersionDetails;
-use ql_core::json::instance_config::ModTypeInfo;
-use ql_core::read_log::{Diagnostic, ReadError};
+use filthy_rich::{PresenceRunner, types::Activity};
+use iced::{Task, futures::executor::block_on, widget::scrollable::AbsoluteOffset};
 use ql_core::{
-    GenericProgress, Instance, IntoIoError, IntoJsonError, IntoStringError, JsonFileError, err,
-    json::instance_config::InstanceConfigJson,
+    GenericProgress, Instance, InstanceKind, IntoIoError, IntoJsonError, IntoStringError,
+    JsonFileError, LaunchedProcess, err,
+    file_utils::exists,
+    info,
+    json::{VersionDetails, instance_config::InstanceConfigJson},
+    pt,
+    read_log::{Diagnostic, ReadError},
 };
-use ql_core::{InstanceKind, LaunchedProcess, info, pt};
 use ql_instances::auth::AccountData;
 use ql_mod_manager::{loaders, store::ModIndex};
 use std::{
@@ -40,6 +37,17 @@ pub const SIDEBAR_LIMIT_LEFT: f32 = 135.0;
 
 mod arrow_keys;
 mod iced_event;
+
+trait StringPresenceExt {
+    fn substitute(&self, instance: &str, minecraft_vers: &str) -> String;
+}
+
+impl StringPresenceExt for str {
+    fn substitute(&self, instance: &str, minecraft_vers: &str) -> String {
+        self.replace("${version}", minecraft_vers)
+            .replace("${instance}", instance)
+    }
+}
 
 impl Launcher {
     pub fn on_selecting_instance(&mut self) -> Task<Message> {
@@ -140,6 +148,8 @@ impl Launcher {
                     }
                 }
 
+                let version_presence_task = self.rpc_game_update(selected_instance.clone(), false);
+
                 let log_task = Task::perform(
                     async move {
                         let result = child.read_logs(censors, Some(sender)).await;
@@ -169,15 +179,52 @@ impl Launcher {
                     AfterLaunchBehavior::MinimizeLauncher => {
                         let minimize_task = iced::window::get_latest()
                             .and_then(|id| iced::window::minimize(id, true));
-                        return Task::batch([log_task, minimize_task]);
+                        return Task::batch([log_task, minimize_task, version_presence_task]);
                     }
                 }
 
-                return log_task;
+                return Task::batch([log_task, version_presence_task]);
             }
             Err(err) => self.set_error(err),
         }
         Task::none()
+    }
+
+    fn rpc_game_update(&mut self, selected_instance: Instance, exited: bool) -> Task<Message> {
+        if !self.config.c_rpc_enabled() {
+            return Task::none();
+        }
+        let rpc_config = self.config.discord_rpc.get_or_insert_default();
+        let info = if exited {
+            &rpc_config.on_gameexit
+        } else {
+            &rpc_config.on_gameopen
+        };
+        let Some(gameexit_details) = info.top_text.clone() else {
+            return Task::none();
+        };
+
+        let client = self.discord_ipc_client.clone();
+        let gameexit_state = info.bottom_text.clone();
+
+        Task::perform(
+            async move {
+                if let Ok(version_details) = VersionDetails::load(&selected_instance).await {
+                    if let Some(c) = client {
+                        let instance = selected_instance.get_name();
+                        let minecraft_vers = version_details.get_id();
+
+                        let activity = Activity::new()
+                            .details(gameexit_details.substitute(instance, minecraft_vers))
+                            .state(gameexit_state.substitute(instance, minecraft_vers))
+                            .build();
+
+                        _ = c.set_activity(activity).await;
+                    }
+                }
+            },
+            |()| Message::Nothing,
+        )
     }
 
     pub fn delete_instance_confirm(&mut self) -> Task<Message> {
@@ -302,7 +349,7 @@ impl Launcher {
         status: ExitStatus,
         instance: &Instance,
         diagnostic: Option<Diagnostic>,
-    ) {
+    ) -> Task<Message> {
         let kind = if instance.is_server() {
             "Server"
         } else {
@@ -340,6 +387,52 @@ impl Launcher {
                 self.selected_instance.as_ref(),
             );
         }
+
+        self.rpc_game_update(instance.clone(), true)
+    }
+
+    pub fn start_discord_ipc_run(&self) -> Task<Message> {
+        const DISCORD_CLIENT_ID: &str = "1468876407756029965";
+
+        let mut runner = PresenceRunner::new(DISCORD_CLIENT_ID);
+
+        Task::perform(
+            {
+                async move {
+                    if runner.run(true).await.is_ok() {
+                        Some(runner.clone_handle())
+                    } else {
+                        None
+                    }
+                }
+            },
+            Message::DiscordIPCRunStarted,
+        )
+    }
+
+    pub fn set_custom_discord_presence(&self) -> Task<Message> {
+        let Some(c) = self.discord_ipc_client.clone() else {
+            return Task::none();
+        };
+        let rpc_config = self.config.discord_rpc.clone().unwrap_or_default();
+        let Some(top_text) = rpc_config.basic.top_text else {
+            return Task::none();
+        };
+        let bottom_text = rpc_config.basic.bottom_text;
+
+        Task::perform(
+            async move {
+                let mut activity = Activity::new().details(top_text);
+
+                if !bottom_text.is_empty() {
+                    activity = activity.state(bottom_text);
+                }
+
+                let built_activity = activity.build();
+                _ = c.set_activity(built_activity).await;
+            },
+            |()| Message::DiscordIPCPresenceSet,
+        )
     }
 
     pub fn update_mods(&mut self) -> Task<Message> {
@@ -704,10 +797,7 @@ async fn copy_optifine_over(instance: &Instance) -> Result<(), String> {
     tokio::fs::copy(&installer_path, &new_path).await.strerr()?;
 
     let mut config = InstanceConfigJson::read(instance).await.strerr()?;
-    config
-        .mod_type_info
-        .get_or_insert_with(ModTypeInfo::default)
-        .optifine_jar = Some("optifine.jar".to_owned());
+    config.mod_type_info.get_or_insert_default().optifine_jar = Some("optifine.jar".to_owned());
     config.save(instance).await.strerr()?;
 
     Ok(())

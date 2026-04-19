@@ -5,6 +5,7 @@ use std::{
     sync::mpsc::{self, Receiver},
 };
 
+use filthy_rich::PresenceClient;
 use iced::Task;
 use notify::Watcher;
 use ql_core::{
@@ -55,6 +56,9 @@ pub struct Launcher {
     pub log_scroll: isize,
     pub tick_timer: usize,
     pub is_launching_game: bool,
+
+    pub discord_ipc_client: Option<PresenceClient>,
+    pub is_presence_running: bool,
 
     pub java_recv: Option<ProgressBar<GenericProgress>>,
     pub custom_jar: Option<CustomJarState>,
@@ -215,6 +219,9 @@ impl Launcher {
             is_log_open: false,
             is_launching_game: false,
 
+            discord_ipc_client: None,
+            is_presence_running: false,
+
             log_scroll: 0,
             tick_timer: 0,
 
@@ -269,6 +276,9 @@ impl Launcher {
 
             log_scroll: 0,
             tick_timer: 0,
+
+            discord_ipc_client: None,
+            is_presence_running: false,
 
             logs: HashMap::new(),
             processes: HashMap::new(),

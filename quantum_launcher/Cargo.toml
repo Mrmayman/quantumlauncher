@@ -59,6 +59,13 @@ tokio.workspace = true
 cfg-if.workspace = true
 semver.workspace = true
 
+constcat = "0.6"
+rand = "0.10"
+chrono.workspace = true # Logging time/date
+paste = "1" # Icon widget macro
+rfd.workspace = true # File picker
+# For Discord Rich Presence management
+filthy-rich = "0.8.3"
 # Launcher Update
 thiserror.workspace = true
 zip.workspace = true
@@ -73,11 +80,6 @@ notify = "8"
 open = "5.3.2"
 dark-light.git = "https://github.com/rust-dark-light/dark-light" # Less dependencies than the stable one
 dirs.workspace = true
-
-paste = "1" # icon widget macro
-rfd.workspace = true # file picker
-constcat = "0.6"
-rand = "0.10"
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 notify-rust = { version = "4", default-features = false, features = ["z-with-tokio"] }

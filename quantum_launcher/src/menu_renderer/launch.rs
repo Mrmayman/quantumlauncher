@@ -11,8 +11,8 @@ use crate::menu_renderer::{
     view_info_message,
 };
 use crate::state::{
-    GameLogMessage, InstanceNotes, LaunchModal, MainMenuMessage, NotesMessage, ShortcutMessage,
-    SidebarMessage, SidebarScroll, WindowMessage,
+    GameLogMessage, InstanceNotes, LaunchModal, LauncherSettingsTab, MainMenuMessage, NotesMessage,
+    ShortcutMessage, SidebarMessage, SidebarScroll, WindowMessage,
 };
 use crate::{
     icons,
@@ -561,7 +561,7 @@ impl MenuLaunch {
         )
         .padding(0)
         .style(|n, status| n.style_button(status, StyleButton::FlatExtraDark))
-        .on_press(LauncherSettingsMessage::Open.into());
+        .on_press(LauncherSettingsMessage::Open(LauncherSettingsTab::default()).into());
 
         widget::mouse_area(
             widget::container(

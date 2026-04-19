@@ -127,9 +127,9 @@ impl Launcher {
                 .into(),
             State::ModsDownload(menu) => menu.view(&self.images, self.tick_timer),
             State::ModDescription(menu) => menu.view(&self.images, self.tick_timer),
-            State::LauncherSettings(menu) => menu.view(&self.config),
+            State::LauncherSettings(menu) => menu.view(&self.config, self.is_presence_running),
             State::InstallPaper(menu) => menu.view(self.tick_timer),
-            State::ChangeLog => view_changelog(),
+            State::ChangeLog => view_changelog(&self.config),
             State::Welcome(menu) => menu.view(&self.config),
             State::EditJarMods(menu) => menu.view(self.instance()),
             State::ImportModpack(progress) => {

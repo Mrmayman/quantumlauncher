@@ -1,4 +1,5 @@
 use frostmark::MarkState;
+use iced::futures::executor::block_on;
 use iced::{Task, widget::text_editor};
 use ql_core::{IntoStringError, err};
 use ql_mod_manager::{loaders, store};
@@ -13,14 +14,12 @@ mod optifine;
 mod presets;
 mod recommended;
 
-use crate::{
-    config::{UiSettings, UiWindowDecorations},
-    state::{
-        self, AutoSaveKind, GameLogMessage, InfoMessage, InstallFabricMessage, InstallPaperMessage,
-        InstanceNotes, Launcher, LauncherSettingsMessage, MenuInstallFabric, MenuInstallPaper,
-        MenuLaunch, MenuModDescription, Message, ModDescriptionMessage, NotesMessage, ProgressBar,
-        State, WindowMessage,
-    },
+use crate::config::UiWindowDecorations;
+use crate::state::{
+    self, AutoSaveKind, GameLogMessage, InfoMessage, InstallFabricMessage, InstallPaperMessage,
+    InstanceNotes, Launcher, LauncherSettingsMessage, LauncherSettingsTab, MenuInstallFabric,
+    MenuInstallPaper, MenuLaunch, MenuModDescription, Message, ModDescriptionMessage, NotesMessage,
+    ProgressBar, RpcMessage, State, WindowMessage,
 };
 
 mod shortcuts;
@@ -135,8 +134,8 @@ impl Launcher {
                 self.config.ui_mode = Some(theme);
                 self.theme.lightness = theme;
             }
-            LauncherSettingsMessage::Open => {
-                self.go_to_launcher_settings();
+            LauncherSettingsMessage::Open(tab) => {
+                self.go_to_launcher_settings(tab);
             }
             LauncherSettingsMessage::ColorSchemePicked(color) => {
                 self.config.ui_theme = Some(color);
@@ -148,10 +147,7 @@ impl Launcher {
                 }
             }
             LauncherSettingsMessage::UiOpacity(opacity) => {
-                self.config
-                    .ui
-                    .get_or_insert_with(UiSettings::default)
-                    .window_opacity = opacity;
+                self.config.ui.get_or_insert_default().window_opacity = opacity;
                 self.theme.alpha = opacity;
             }
             LauncherSettingsMessage::UiScaleApply => {
@@ -162,26 +158,15 @@ impl Launcher {
             }
             LauncherSettingsMessage::UiIdleFps(fps) => {
                 debug_assert!(fps > 0.0);
-                self.config
-                    .ui
-                    .get_or_insert_with(UiSettings::default)
-                    .idle_fps = Some(fps as u64);
+                self.config.ui.get_or_insert_default().idle_fps = Some(fps as u64);
             }
             LauncherSettingsMessage::ClearJavaInstalls => {
                 self.confirm_clear_java_installs();
             }
             LauncherSettingsMessage::ClearJavaInstallsConfirm => {
                 return Task::perform(ql_instances::delete_java_installs(), |()| {
-                    Message::LauncherSettings(LauncherSettingsMessage::ChangeTab(
-                        state::LauncherSettingsTab::Game,
-                    ))
+                    LauncherSettingsMessage::Open(LauncherSettingsTab::Game).into()
                 });
-            }
-            LauncherSettingsMessage::ChangeTab(tab) => {
-                self.go_to_launcher_settings();
-                if let State::LauncherSettings(menu) = &mut self.state {
-                    menu.selected_tab = tab;
-                }
             }
             LauncherSettingsMessage::ToggleAntialiasing(t) => {
                 self.config.ui_antialiasing = Some(t);
@@ -201,10 +186,7 @@ impl Launcher {
                 self.config.c_persistent().write_mod_update_changelog = t;
             }
             LauncherSettingsMessage::AfterLaunchBehaviorChanged(behavior) => {
-                self.config
-                    .ui
-                    .get_or_insert_with(UiSettings::default)
-                    .after_game_opens = behavior;
+                self.config.ui.get_or_insert_default().after_game_opens = behavior;
                 self.autosave.remove(&AutoSaveKind::LauncherConfig);
             }
             LauncherSettingsMessage::DefaultMinecraftWidthChanged(input) => {
@@ -215,10 +197,7 @@ impl Launcher {
             }
             LauncherSettingsMessage::GlobalJavaArgs(msg) => {
                 let split = self.should_split_args();
-                msg.apply(
-                    self.config.extra_java_args.get_or_insert_with(Vec::new),
-                    split,
-                );
+                msg.apply(self.config.extra_java_args.get_or_insert_default(), split);
             }
             LauncherSettingsMessage::GlobalPreLaunchPrefix(msg) => {
                 let split = self.should_split_args();
@@ -226,7 +205,7 @@ impl Launcher {
                     self.config
                         .c_global()
                         .pre_launch_prefix
-                        .get_or_insert_with(Vec::new),
+                        .get_or_insert_default(),
                     split,
                 );
             }
@@ -236,10 +215,7 @@ impl Launcher {
                 } else {
                     UiWindowDecorations::System
                 };
-                self.config
-                    .ui
-                    .get_or_insert_with(UiSettings::default)
-                    .window_decorations = decor;
+                self.config.ui.get_or_insert_default().window_decorations = decor;
             }
             LauncherSettingsMessage::LoadedSystemTheme(res) => match res {
                 Ok(mode) => {
@@ -257,6 +233,54 @@ impl Launcher {
                     err!(no_log, "while loading system theme: {err}");
                 }
             },
+            LauncherSettingsMessage::Rpc(msg) => return self.update_rpc(msg),
+        }
+        Task::none()
+    }
+
+    fn update_rpc(&mut self, msg: RpcMessage) -> Task<Message> {
+        match msg {
+            RpcMessage::Toggle(enable) => {
+                let rpc = self.config.discord_rpc.get_or_insert_default();
+                rpc.enable = enable;
+
+                if enable {
+                    // Start on enable
+                    return self.start_discord_ipc_run();
+                }
+
+                // On disable
+                let client = self.discord_ipc_client.clone();
+
+                block_on(async {
+                    if let Some(c) = client {
+                        let _ = c.close().await;
+                    }
+                });
+
+                self.is_presence_running = false;
+                self.discord_ipc_client = None;
+            }
+            RpcMessage::DefaultChanged(op) => {
+                let rpc = self.config.discord_rpc.get_or_insert_default();
+                rpc.basic.apply(op);
+            }
+            RpcMessage::TogglePresenceOnGameEvent(t) => {
+                let rpc = self.config.discord_rpc.get_or_insert_default();
+                rpc.update_on_game_open = t;
+            }
+            RpcMessage::GameOpen(op) => {
+                let rpc = self.config.discord_rpc.get_or_insert_default();
+                rpc.on_gameopen.apply(op);
+            }
+            RpcMessage::GameExit(op) => {
+                let rpc = self.config.discord_rpc.get_or_insert_default();
+                rpc.on_gameexit.apply(op);
+            }
+            RpcMessage::SetPresenceNow => return self.set_custom_discord_presence(),
+            RpcMessage::ResetPresence => {
+                self.config.reset_presence();
+            }
         }
         Task::none()
     }
@@ -280,17 +304,14 @@ impl Launcher {
             msg1: "delete auto-installed Java files".to_owned(),
             msg2: "They will get reinstalled automatically as needed".to_owned(),
             yes: LauncherSettingsMessage::ClearJavaInstallsConfirm.into(),
-            no: LauncherSettingsMessage::ChangeTab(state::LauncherSettingsTab::Game).into(),
+            no: LauncherSettingsMessage::Open(LauncherSettingsTab::Game).into(),
         }
     }
 
-    pub fn go_to_launcher_settings(&mut self) {
-        if let State::LauncherSettings(_) = &self.state {
-            return;
-        }
+    pub fn go_to_launcher_settings(&mut self, selected_tab: LauncherSettingsTab) {
         self.state = State::LauncherSettings(state::MenuLauncherSettings {
             temp_scale: self.config.ui_scale.unwrap_or(1.0),
-            selected_tab: state::LauncherSettingsTab::UserInterface,
+            selected_tab,
             arg_split_by_space: true,
         });
     }

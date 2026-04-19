@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use auth::AccountData;
 use iced::Task;
@@ -295,7 +292,7 @@ impl Launcher {
         }
         self.accounts_dropdown.insert(0, username.clone());
 
-        let config_accounts = self.config.accounts.get_or_insert_with(HashMap::new);
+        let config_accounts = self.config.accounts.get_or_insert_default();
         config_accounts.insert(username.clone(), ConfigAccount::from_account(&data));
 
         self.account_selected.clone_from(&username);

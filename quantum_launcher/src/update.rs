@@ -1,5 +1,5 @@
 use iced::{Task, futures::executor::block_on};
-use ql_core::{InstanceKind, IntoIoError, IntoStringError, err, file_utils::DirItem, info};
+use ql_core::{InstanceKind, IntoIoError, IntoStringError, err, file_utils::DirItem, info, pt};
 use std::fmt::Write;
 use tokio::io::AsyncWriteExt;
 
@@ -81,6 +81,28 @@ impl Launcher {
             Message::CreateInstance(message) => return self.update_create_instance(message),
             Message::DeleteInstanceMenu => self.go_to_delete_instance_menu(),
             Message::DeleteInstance => return self.delete_instance_confirm(),
+
+            Message::DiscordIPCRunStarted(c) => {
+                if let Some(c) = c {
+                    if !self.config.c_rpc_enabled() {
+                        if let Err(err) = block_on(c.close()) {
+                            err!(no_log, "{err}");
+                        }
+                        return Task::none();
+                    }
+                    self.discord_ipc_client = Some(c);
+                    return self.set_custom_discord_presence();
+                } else {
+                    pt!(
+                        no_log,
+                        "Rich presence couldn't be set as client wasn't found post-run."
+                    )
+                }
+            }
+            Message::DiscordIPCPresenceSet => {
+                self.is_presence_running = true;
+                pt!(no_log, "Rich presence has been set.");
+            }
 
             Message::MScreenOpen {
                 message,
@@ -179,7 +201,7 @@ impl Launcher {
                 return self.go_to_edit_mods_menu(Some(InfoMessage::success("Uninstalled loader")));
             }
             Message::LaunchGameExited(Ok((status, instance, diagnostic))) => {
-                self.set_game_exited(status, &instance, diagnostic);
+                return self.set_game_exited(status, &instance, diagnostic);
             }
             Message::LaunchKill => return self.kill_selected_instance(),
 

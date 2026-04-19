@@ -164,7 +164,7 @@ fn setup_config(ini: &Ini, instance_recipe: &InstanceRecipe, config: &mut Instan
     if let Ok(jvmargs) = general_get(ini, "JvmArgs") {
         config
             .java_args
-            .get_or_insert_with(Vec::new)
+            .get_or_insert_default()
             .extend(jvmargs.split_whitespace().map(str::to_owned));
     }
 

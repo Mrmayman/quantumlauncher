@@ -252,8 +252,7 @@ impl InstanceConfigJson {
 
     #[must_use]
     pub fn c_global_settings(&mut self) -> &mut GlobalSettings {
-        self.global_settings
-            .get_or_insert_with(GlobalSettings::default)
+        self.global_settings.get_or_insert_default()
     }
 
     #[must_use]

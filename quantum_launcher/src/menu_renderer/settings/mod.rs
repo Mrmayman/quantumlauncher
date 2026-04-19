@@ -15,6 +15,7 @@ use crate::{
 
 mod tab_about;
 mod tab_game;
+mod tab_presence;
 mod tab_ui;
 
 pub static IMG_ICED: LazyLock<widget::image::Handle> = LazyLock::new(|| {
@@ -25,7 +26,11 @@ pub const PREFIX_EXPLANATION: &str =
     "Commands to add before the game launch command\nEg: prime-run/gamemoderun/mangohud";
 
 impl MenuLauncherSettings {
-    pub fn view<'a>(&'a self, config: &'a LauncherConfig) -> Element<'a> {
+    pub fn view<'a>(
+        &'a self,
+        config: &'a LauncherConfig,
+        is_presence_running: bool,
+    ) -> Element<'a> {
         widget::row![
             sidebar(
                 "MenuLauncherSettings:sidebar",
@@ -43,7 +48,7 @@ impl MenuLauncherSettings {
                         tab,
                         &self.selected_tab,
                         text,
-                        LauncherSettingsMessage::ChangeTab(*tab).into(),
+                        LauncherSettingsMessage::Open(*tab).into(),
                     )
                 })
             )
@@ -53,7 +58,7 @@ impl MenuLauncherSettings {
                 border: iced::Border::default(),
                 shadow: iced::Shadow::default()
             }),
-            widget::scrollable(self.selected_tab.view(config, self))
+            widget::scrollable(self.selected_tab.view(config, self, is_presence_running))
                 .width(Length::Fill)
                 .spacing(0)
                 .style(LauncherTheme::style_scrollable_flat_dark)
@@ -85,9 +90,7 @@ pub fn get_theme_selector() -> widget::Row<'static, Message, LauncherTheme> {
                 }
                 .style_button(s, StyleButton::Round)
             })
-            .on_press(Message::LauncherSettings(
-                LauncherSettingsMessage::ColorSchemePicked(*color),
-            ))
+            .on_press(LauncherSettingsMessage::ColorSchemePicked(*color).into())
             .into()
     }))
     .spacing(5)
@@ -98,9 +101,11 @@ impl LauncherSettingsTab {
         &'a self,
         config: &'a LauncherConfig,
         menu: &'a MenuLauncherSettings,
+        is_presence_running: bool,
     ) -> Element<'a> {
         match self {
             LauncherSettingsTab::UserInterface => menu.view_ui_tab(config),
+            LauncherSettingsTab::Presence => menu.view_presence_tab(config, is_presence_running),
             LauncherSettingsTab::Game => menu.view_game_tab(config),
             LauncherSettingsTab::About => tab_about::view(),
         }

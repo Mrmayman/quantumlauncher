@@ -176,7 +176,7 @@ jobs:
           if [[ "${{ matrix.build }}" =~ "windows" ]]; then
             cp "target/${{ matrix.target }}/$PROFILE/${{ env.BIN_NAME }}.exe" "dist/"
           elif [[ "${{ matrix.build }}" =~ "macos" ]]; then
-            APP_DIR="build/quantum-launcher.app"
+            APP_DIR="build/QuantumLauncher.app"
             MACOS_DIR="$APP_DIR/Contents/MacOS"
             RESOURCES_DIR="$APP_DIR/Contents/Resources"
             mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"

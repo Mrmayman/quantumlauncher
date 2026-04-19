@@ -4,8 +4,8 @@ use crate::state::{
     AutoSaveKind, CreateInstanceMessage, InfoMessage, LaunchTab, Launcher, LauncherSettingsMessage,
     LauncherSettingsTab, MainMenuMessage, ManageModsMessage, MenuCreateInstance,
     MenuCreateInstanceChoosing, MenuEditMods, MenuEditPresets, MenuExportInstance,
-    MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLauncherSettings,
-    MenuLoginAlternate, MenuLoginMS, MenuRecommendedMods, MenuWelcome, Message, State,
+    MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLoginAlternate, MenuLoginMS,
+    MenuRecommendedMods, MenuWelcome, Message, State,
 };
 use iced::{
     Task,
@@ -31,7 +31,7 @@ impl Launcher {
                     self.window_state.size = (size.width, size.height);
 
                     // Remember window height
-                    let window = self.config.window.get_or_insert_with(Default::default);
+                    let window = self.config.window.get_or_insert_default();
                     window.width = Some(size.width);
                     window.height = Some(size.height);
                     if window.save_window_size {
@@ -42,11 +42,10 @@ impl Launcher {
                     // after changing UI scale
                     if let State::GenericMessage(msg) = &self.state {
                         if msg == MSG_RESIZE {
-                            return self.update(Message::LauncherSettings(
-                                LauncherSettingsMessage::ChangeTab(
-                                    LauncherSettingsTab::UserInterface,
-                                ),
-                            ));
+                            return self.update(
+                                LauncherSettingsMessage::Open(LauncherSettingsTab::UserInterface)
+                                    .into(),
+                            );
                         }
                     }
                 }
@@ -171,20 +170,18 @@ impl Launcher {
                 ("3", ctrl, alt, _, State::Launch(_)) if ctrl | alt => {
                     MainMenuMessage::ChangeTab(LaunchTab::Log).into()
                 }
-                (",", true, _, _, State::Launch(_)) => LauncherSettingsMessage::Open.into(),
+                (",", true, _, _, State::Launch(_)) => {
+                    LauncherSettingsMessage::Open(LauncherSettingsTab::default()).into()
+                }
 
                 _ => Message::Nothing,
             };
             return Task::done(msg);
         } else if let State::LauncherSettings(menu) = &mut self.state {
             if let Key::Named(Named::ArrowUp) = key {
-                return Task::done(Message::LauncherSettings(
-                    LauncherSettingsMessage::ChangeTab(menu.selected_tab.prev()),
-                ));
+                return Task::done(LauncherSettingsMessage::Open(menu.selected_tab.prev()).into());
             } else if let Key::Named(Named::ArrowDown) = key {
-                return Task::done(Message::LauncherSettings(
-                    LauncherSettingsMessage::ChangeTab(menu.selected_tab.next()),
-                ));
+                return Task::done(LauncherSettingsMessage::Open(menu.selected_tab.next()).into());
             }
         } else if let State::License(menu) = &mut self.state {
             if let Key::Named(Named::ArrowUp) = key {
@@ -336,14 +333,7 @@ impl Launcher {
 
             State::License(_) => {
                 if affect {
-                    if let State::LauncherSettings(_) = &self.state {
-                    } else {
-                        self.state = State::LauncherSettings(MenuLauncherSettings {
-                            temp_scale: self.config.ui_scale.unwrap_or(1.0),
-                            selected_tab: LauncherSettingsTab::About,
-                            arg_split_by_space: true,
-                        });
-                    }
+                    self.go_to_launcher_settings(LauncherSettingsTab::About);
                 }
                 return (true, Task::none());
             }
