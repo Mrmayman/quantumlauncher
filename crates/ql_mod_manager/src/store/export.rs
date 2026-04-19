@@ -287,7 +287,7 @@ pub async fn export_curseforge_modpack(
     )
     .unwrap();
 
-    package_format1_pack("manifest".to_string(), json_data, "".to_string(), overrides).unwrap();
+    package_format1_pack("manifest".to_string(), json_data, modpack_file_name, overrides).unwrap();
 
 }
 
@@ -378,7 +378,7 @@ enum PackageError {
 
 #[tokio::main]
 async fn package_format1_pack(
-    // Format 1 is used for Modrinth, QLMP and CurseForge packs
+    //  Used for Modrinth, QLMP and CurseForge packs
     json_name: String,
     json_data: String,
     zip_path: String,
@@ -450,7 +450,16 @@ fn create_modrinth_index_json(
     Ok(json_data)
 }
 
-fn write_curseforge_manifest_json(mod_id: Vec<String>, file_id: Vec<&str>, author: String, modpack_version: String, name: String, loader_id: String, version: String, image: String) -> StdResult<String> {
+fn write_curseforge_manifest_json(
+    mod_id: Vec<String>,
+    file_id: Vec<&str>,
+    author: String,
+    modpack_version: String,
+    name: String,
+    loader_id: String,
+    version: String,
+    image: String
+) -> StdResult<String> {
 
     let primary = true;
 
@@ -523,6 +532,7 @@ fn create_qlmp_index_json(
 }
 
 fn format_1_file_entry(
+    // Used by Modrinth and QLMP
     paths: Vec<String>,
     sha1: Vec<String>,
     sha512: Vec<String>,
