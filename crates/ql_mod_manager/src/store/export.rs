@@ -227,6 +227,41 @@ pub async fn export_modrinth_modpack(
     package_format1_pack("modrinth.index".to_string(), json_data, zip_path, overrides).unwrap();
 }
 
+fn create_modrinth_index_json(
+    format_version: u8,
+    name: String,
+    version_id: String,
+    summary: String,
+    loader_id: String,
+    loader_version: String,
+    minecraft_version: String,
+    paths: Vec<String>,
+    sha1: Vec<String>,
+    sha512: Vec<String>,
+    links: Vec<String>,
+    file_size: Vec<u64>,
+) -> StdResult<String> {
+    let mut dependencies = Map::new();
+    dependencies.insert("minecraft".to_string(), Value::String(minecraft_version));
+    dependencies.insert(loader_id.to_string(), Value::String(loader_version));
+
+    let files: Vec<FormatMQFileEntry> = format_1_file_entry(paths, sha1, sha512, links, file_size)?;
+
+    let manifest = ModrinthModpackManifest {
+        format_version,
+        game: "minecraft".to_string(),
+        version_id,
+        name,
+        summary,
+        files,
+        dependencies: Value::Object(dependencies),
+    };
+
+    let json_data = serde_json::to_string_pretty(&manifest)?;
+
+    Ok(json_data)
+}
+
 pub async fn export_curseforge_modpack(
     author: String,
     modpack_name: String,
@@ -329,6 +364,49 @@ pub async fn export_curseforge_modpack(
 
 }
 
+fn write_curseforge_manifest_json(
+    mod_id: Vec<String>,
+    file_id: Vec<&str>,
+    author: String,
+    modpack_version: String,
+    name: String,
+    loader_id: String,
+    version: String,
+    image: String
+) -> StdResult<String> {
+
+    let primary = true;
+
+    let files: Vec<CurseForgeFileEntry> = mod_id
+        .into_iter()
+        .zip(file_id.into_iter())
+        .map(|(proj_str, file_str)| CurseForgeFileEntry {
+            project_id: proj_str.parse::<u64>().unwrap(),
+            file_id: file_str.parse::<u64>().unwrap(),
+            required: true,
+        })
+        .collect();
+
+    let manifest = CurseForgeModpackManifest {
+        minecraft: CurseForgeMinecraftConfig {
+            version,
+            mod_loaders: vec![CurseForgeModLoader { id: loader_id, primary }],
+        },
+        manifest_type: "minecraftModpack".to_string(),
+        manifest_version: 1,
+        name,
+        version: modpack_version,
+        author,
+        files,
+        overrides: "overrides".to_string(),
+        image,
+    };
+
+    let manifest_json = serde_json::to_string_pretty(&manifest)?;
+
+    Ok(manifest_json)
+}
+
 /*
 pub async fn export_qlmp_modpack(author: String, icon: String, modpack_path: String, modpack_name: String,modpack_version: String, modpack_summary: String,modpack_file_name: String, mod_ids: HashSet<ModId>, overrides_full_path: Vec<String>, instance: InstanceSelection)  {
 
@@ -405,6 +483,44 @@ pub async fn export_qlmp_modpack(author: String, icon: String, modpack_path: Str
 }
  */
 
+fn create_qlmp_index_json(
+    format_version: u8,
+    minecraft_version: String,
+    loader_id: String,
+    loader_version: String,
+    version_id: String,
+    name: String,
+    author: String,
+    summary: String,
+    icon: String,
+    paths: Vec<String>,
+    sha1: Vec<String>,
+    sha512: Vec<String>,
+    links: Vec<String>,
+    file_size: Vec<u64>,
+) -> StdResult<String> {
+    let mut loader = Map::new();
+    loader.insert(loader_id.to_string(), Value::String(loader_version));
+
+    let files: Vec<FormatMQFileEntry> = format_1_file_entry(paths, sha1, sha512, links, file_size)?;
+
+    let manifest = QlModpackManifest {
+        format_version,
+        minecraft_version,
+        loader_id: Value::Object(loader),
+        version_id,
+        name,
+        author,
+        summary,
+        icon,
+        files,
+    };
+
+    let json_data = serde_json::to_string_pretty(&manifest)?;
+
+    Ok(json_data)
+}
+
 #[derive(thiserror::Error, Debug)]
 enum PackageError {
     #[error("zip error: {0}")]
@@ -451,122 +567,6 @@ async fn add_file_to_zip<W: tokio::io::AsyncWrite + Unpin>(
     let builder = ZipEntryBuilder::new(zip_relative_path.into(), Compression::Deflate);
     writer.write_entry_whole(builder, &data).await.unwrap();
     Ok(())
-}
-
-fn create_modrinth_index_json(
-    format_version: u8,
-    name: String,
-    version_id: String,
-    summary: String,
-    loader_id: String,
-    loader_version: String,
-    minecraft_version: String,
-    paths: Vec<String>,
-    sha1: Vec<String>,
-    sha512: Vec<String>,
-    links: Vec<String>,
-    file_size: Vec<u64>,
-) -> StdResult<String> {
-    let mut dependencies = Map::new();
-    dependencies.insert("minecraft".to_string(), Value::String(minecraft_version));
-    dependencies.insert(loader_id.to_string(), Value::String(loader_version));
-
-    let files: Vec<FormatMQFileEntry> = format_1_file_entry(paths, sha1, sha512, links, file_size)?;
-
-    let manifest = ModrinthModpackManifest {
-        format_version,
-        game: "minecraft".to_string(),
-        version_id,
-        name,
-        summary,
-        files,
-        dependencies: Value::Object(dependencies),
-    };
-
-    let json_data = serde_json::to_string_pretty(&manifest)?;
-
-    Ok(json_data)
-}
-
-fn write_curseforge_manifest_json(
-    mod_id: Vec<String>,
-    file_id: Vec<&str>,
-    author: String,
-    modpack_version: String,
-    name: String,
-    loader_id: String,
-    version: String,
-    image: String
-) -> StdResult<String> {
-
-    let primary = true;
-
-    let files: Vec<CurseForgeFileEntry> = mod_id
-        .into_iter()
-        .zip(file_id.into_iter())
-        .map(|(proj_str, file_str)| CurseForgeFileEntry {
-            project_id: proj_str.parse::<u64>().unwrap(),
-            file_id: file_str.parse::<u64>().unwrap(),
-            required: true,
-        })
-        .collect();
-
-    let manifest = CurseForgeModpackManifest {
-        minecraft: CurseForgeMinecraftConfig {
-            version,
-            mod_loaders: vec![CurseForgeModLoader { id: loader_id, primary }],
-        },
-        manifest_type: "minecraftModpack".to_string(),
-        manifest_version: 1,
-        name,
-        version: modpack_version,
-        author,
-        files,
-        overrides: "overrides".to_string(),
-        image,
-    };
-
-    let manifest_json = serde_json::to_string_pretty(&manifest)?;
-
-    Ok(manifest_json)
-}
-
-fn create_qlmp_index_json(
-    format_version: u8,
-    minecraft_version: String,
-    loader_id: String,
-    loader_version: String,
-    version_id: String,
-    name: String,
-    author: String,
-    summary: String,
-    icon: String,
-    paths: Vec<String>,
-    sha1: Vec<String>,
-    sha512: Vec<String>,
-    links: Vec<String>,
-    file_size: Vec<u64>,
-) -> StdResult<String> {
-    let mut loader = Map::new();
-    loader.insert(loader_id.to_string(), Value::String(loader_version));
-
-    let files: Vec<FormatMQFileEntry> = format_1_file_entry(paths, sha1, sha512, links, file_size)?;
-
-    let manifest = QlModpackManifest {
-        format_version,
-        minecraft_version,
-        loader_id: Value::Object(loader),
-        version_id,
-        name,
-        author,
-        summary,
-        icon,
-        files,
-    };
-
-    let json_data = serde_json::to_string_pretty(&manifest)?;
-
-    Ok(json_data)
 }
 
 fn format_1_file_entry(
