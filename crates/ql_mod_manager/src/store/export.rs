@@ -268,6 +268,7 @@ pub async fn export_curseforge_modpack(
     modpack_version: String,
     modpack_file_name: String,
     mod_ids: HashSet<ModId>,
+    modpack_path: String,
     overrides: Vec<String>, // MUST BE FULL PATH!!
     icon_url: String,
     instance: InstanceSelection) {
@@ -348,6 +349,8 @@ pub async fn export_curseforge_modpack(
         })
         .collect();
 
+    let zip_path = modpack_path + "/" + modpack_file_name.as_str() + ".zip";
+
     let json_data = write_curseforge_manifest_json(
         mod_ids,
         file_ids,
@@ -360,7 +363,7 @@ pub async fn export_curseforge_modpack(
     )
     .unwrap();
 
-    package_format1_pack("manifest".to_string(), json_data, modpack_file_name, overrides).unwrap();
+    package_format1_pack("manifest".to_string(), json_data, zip_path, overrides).unwrap();
 
 }
 
@@ -407,38 +410,76 @@ fn write_curseforge_manifest_json(
     Ok(manifest_json)
 }
 
-/*
-pub async fn export_qlmp_modpack(author: String, icon: String, modpack_path: String, modpack_name: String,modpack_version: String, modpack_summary: String,modpack_file_name: String, mod_ids: HashSet<ModId>, overrides_full_path: Vec<String>, instance: InstanceSelection)  {
+
+pub async fn export_qlmp_modpack(
+    author: String,
+    icon: String,
+    modpack_path: String,
+    modpack_name: String,
+    modpack_version: String,
+    modpack_summary: String,
+    modpack_file_name: String,
+    mod_ids: HashSet<ModId>,
+    overrides: Vec<String>,
+    instance: InstanceSelection
+)  {
+
+    let index = ModIndex::load(&instance).await.unwrap();
 
     let mut urls: Vec<String> = Vec::new();
-    let mut filenames: Vec<Format1FileEntry> = Vec::new();
+    let mut filenames: Vec<String> = Vec::new();
+    let mut override_filenames: Vec<String> = Vec::new();
 
+    for id in &mod_ids {
+
+        let modrinth_or_curseforge = matches!(id, ModId::Modrinth(_) | ModId::Curseforge(_));
+
+        let Some(config) = index.mods.get(id) else {
+            continue;
+        };
+        let Some(primary_file) = config
+            .files
+            .iter()
+            .find(|file| file.primary)
+            .or_else(|| config.files.first())
+        else {
+            continue;
+        };
+
+        if modrinth_or_curseforge {
+            urls.push(primary_file.url.clone());
+            filenames.push(primary_file.filename.clone());
+        } else {
+            override_filenames.push(primary_file.filename.clone());
+        }
+    }
 
     let details = VersionDetails::load(&instance).await.unwrap();
     let minecraft_version = details.get_id();
     let config = ql_core::InstanceConfigJson::read(&instance).await;
-    let loader_name = config.unwrap().mod_type.to_modrinth_str();  // TODO: INCORRECT: Waiting for change
+    let loader_name = config.unwrap().mod_type.to_modrinth_str();
     let config = ql_core::InstanceConfigJson::read(&instance).await;
     let loader_version = config.unwrap().mod_type_info.unwrap().version;
 
-    let minecraft_path = instance.get_dot_minecraft_path();
+    let mods_folder_path = instance.get_dot_minecraft_path().join("mods");
 
-    let paths: Vec<String> = filenames
+    let override_mods_full_path_string: Vec<String> = override_filenames
         .iter()
-        .map(|name| format!("mods/{}", name))
+        .map(|rel_path| mods_folder_path.join(rel_path))
+        .collect::<Vec<_>>()
+        .into_iter()
+        .map(|path| path.into_os_string().into_string().unwrap())
         .collect();
 
-    let full_path: Vec<PathBuf> = paths
+    let full_path: Vec<PathBuf> = filenames
         .iter()
-        .map(|rel_path| minecraft_path.join(rel_path))
+        .map(|rel_path| mods_folder_path.join(rel_path))
         .collect();
-
 
     let file_sizes: Vec<u64> = full_path
         .iter()
         .map(|path| fs::metadata(path).map(|meta| meta.len()).unwrap_or(0))
         .collect();
-
 
     let sha1s: Vec<String> = full_path
         .clone()
@@ -452,7 +493,6 @@ pub async fn export_qlmp_modpack(author: String, icon: String, modpack_path: Str
         })
         .collect();
 
-
     let sha512s: Vec<String> = full_path
         .into_iter()
         .map(|path| {
@@ -464,24 +504,49 @@ pub async fn export_qlmp_modpack(author: String, icon: String, modpack_path: Str
         })
         .collect();
 
-    let json_data = create_qlmp_index_json(1, minecraft_version, loader_name, loader_version, modpack_version, modpack_name, author, modpack_summary, icon, paths, sha1s, sha512s, urls, file_sizes).unwrap();
+    let json_data = create_qlmp_index_json(
+        1,
+        minecraft_version.to_string(),
+        loader_name.to_string(),
+        loader_version.unwrap(),
+        modpack_version,
+        modpack_name,
+        author,
+        modpack_summary,
+        icon,
+        filenames.iter()
+            .map(|name| format!("mods/{}", name))
+            .collect::<Vec<String>>(),
+        sha1s,
+        sha512s,
+        urls,
+        file_sizes,
+    )
+    .unwrap();
 
-    let zip_path= modpack_path + "/" + modpack_file_name.as_str() + ".qlmp";
+    let zip_path = modpack_path + "/" + modpack_file_name.as_str() + ".qlmp";
 
-    let result: Vec<(String, String)> = overrides_full_path
-        .iter()
+    let overrides: Vec<(String, String)> = overrides
+        .into_iter()
+        .chain(override_mods_full_path_string)
+        .into_iter()
+        .collect::<Vec<String>>()
+        .into_iter()
         .map(|full| {
-            let path = std::path::Path::new(full);
-            let relative = path.strip_prefix(std::path::Path::new(&instance.get_dot_minecraft_path().to_str().unwrap())).unwrap_or(path);
+            let path = Path::new(&full);
+            let relative = path
+                .strip_prefix(Path::new(
+                    &instance.get_dot_minecraft_path().to_str().unwrap(),
+                ))
+                .unwrap_or(path);
             (full.clone(), relative.to_string_lossy().into())
         })
         .collect();
 
-    let overrides = result.clone();
 
-    package_format1_pack(json_data, zip_path, overrides).unwrap();
+    package_format1_pack("qlmp.index".to_string(), json_data, zip_path, overrides).unwrap();
 }
- */
+
 
 fn create_qlmp_index_json(
     format_version: u8,
