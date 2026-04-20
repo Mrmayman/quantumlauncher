@@ -9,7 +9,6 @@ use serde_json::{Map, Value};
 use sha1::{Digest, Sha1};
 use sha2::Sha512;
 use std::collections::HashSet;
-use std::fs;
 use std::io::Result as StdResult;
 use std::path::{Path, PathBuf};
 use tokio::fs::read;
@@ -89,6 +88,12 @@ struct CurseForgeFileEntry {
     required: bool,
 }
 
+struct FileHashes {
+    sha1: String,
+    sha512: String,
+    file_size: u64,
+}
+
 pub async fn export_modrinth_modpack(
     modpack_path: String,
     modpack_name: String,
@@ -98,7 +103,7 @@ pub async fn export_modrinth_modpack(
     mod_ids: HashSet<ModId>,
     overrides: Vec<String>, // MUST BE FULL PATH!!
     instance: InstanceSelection,
-) {
+    ) {
     let index = ModIndex::load(&instance).await.unwrap();
 
     let mut urls: Vec<String> = Vec::new();
@@ -131,16 +136,14 @@ pub async fn export_modrinth_modpack(
     let details = VersionDetails::load(&instance).await.unwrap();
     let minecraft_version = details.get_id();
     let config = ql_core::InstanceConfigJson::read(&instance).await;
-    let loader_name = match config.unwrap().mod_type.to_modrinth_str() {
+    let loader_name = match config.as_ref().unwrap().mod_type.to_modrinth_str() {
         // Modrinth only supports these for modpacks
         "fabric" => {"fabric-loader"},
         "quilt" => {"quilt-loader"},
         "forge" => {"forge"},
-        "neofroge" => {"neoforge"},
+        "neoforge" => {"neoforge"},
         _ => panic!("Unsupported loader type"),
     };
-
-    let config = ql_core::InstanceConfigJson::read(&instance).await;
     let loader_version = config.unwrap().mod_type_info.unwrap().version;
 
     let mods_folder_path = instance.get_dot_minecraft_path().join("mods");
@@ -158,33 +161,16 @@ pub async fn export_modrinth_modpack(
         .map(|rel_path| mods_folder_path.join(rel_path))
         .collect();
 
-    let file_sizes: Vec<u64> = full_path
-        .iter()
-        .map(|path| fs::metadata(path).map(|meta| meta.len()).unwrap_or(0))
-        .collect();
+    let mut sha1s = Vec::new();
+    let mut sha512s = Vec::new();
+    let mut file_sizes = Vec::new();
 
-    let sha1s: Vec<String> = full_path
-        .clone()
-        .into_iter()
-        .map(|path| {
-            let data = fs::read(path).unwrap();
-            let mut hasher = Sha1::new();
-            hasher.update(&data);
-            let hash = hasher.finalize();
-            hex::encode(hash)
-        })
-        .collect();
-
-    let sha512s: Vec<String> = full_path
-        .into_iter()
-        .map(|path| {
-            let data = fs::read(path).unwrap();
-            let mut hasher = Sha512::new();
-            hasher.update(&data);
-            let hash = hasher.finalize();
-            hex::encode(hash)
-        })
-        .collect();
+    for path in &full_path {
+        let hashes = hash_file(path).await.unwrap();
+        sha1s.push(hashes.sha1);
+        sha512s.push(hashes.sha512);
+        file_sizes.push(hashes.file_size);
+    }
 
     let json_data = create_modrinth_index_json(
         1,
@@ -205,26 +191,9 @@ pub async fn export_modrinth_modpack(
     .unwrap();
 
     let zip_path = modpack_path + "/" + modpack_file_name.as_str() + ".mrpack";
+    let overrides: Vec<(String, String)> = overrides_fn(override_mods_full_path_string, overrides, instance).unwrap();
 
-    let overrides: Vec<(String, String)> = overrides
-        .into_iter()
-        .chain(override_mods_full_path_string)
-        .into_iter()
-        .collect::<Vec<String>>()
-        .into_iter()
-        .map(|full| {
-            let path = Path::new(&full);
-            let relative = path
-                .strip_prefix(Path::new(
-                    &instance.get_dot_minecraft_path().to_str().unwrap(),
-                ))
-                .unwrap_or(path);
-            (full.clone(), relative.to_string_lossy().into())
-        })
-        .collect();
-
-
-    package_format1_pack("modrinth.index".to_string(), json_data, zip_path, overrides).unwrap();
+    package_format1_pack("modrinth.index".to_string(), json_data, zip_path, overrides).await.unwrap();
 }
 
 fn create_modrinth_index_json(
@@ -271,7 +240,8 @@ pub async fn export_curseforge_modpack(
     modpack_path: String,
     overrides: Vec<String>, // MUST BE FULL PATH!!
     icon_url: String,
-    instance: InstanceSelection) {
+    instance: InstanceSelection
+    ) {
 
     let index = ModIndex::load(&instance).await.unwrap();
 
@@ -302,7 +272,7 @@ pub async fn export_curseforge_modpack(
     let details = VersionDetails::load(&instance).await.unwrap();
     let minecraft_version = details.get_id().to_string();
     let config = ql_core::InstanceConfigJson::read(&instance).await;
-    let loader_name = match config.unwrap().mod_type.to_curseforge_num() {
+    let loader_name = match config.as_ref().unwrap().mod_type.to_curseforge_num() {
         "1" => {"forge"},
         "4" => {"fabric"},
         "5" => {"quilt"},
@@ -310,8 +280,6 @@ pub async fn export_curseforge_modpack(
         "3" => {"lightloader"},
         _ => panic!()
     };
-
-    let config = ql_core::InstanceConfigJson::read(&instance).await;
     let loader_version = config.unwrap().mod_type_info.unwrap().version;
     let loader = loader_name.to_string() + "-" + loader_version.unwrap().as_str();
 
@@ -332,24 +300,8 @@ pub async fn export_curseforge_modpack(
         .map(|path| path.into_os_string().into_string().unwrap())
         .collect();
 
-    let overrides: Vec<(String, String)> = overrides
-        .into_iter()
-        .chain(override_mods_full_path_string)
-        .into_iter()
-        .collect::<Vec<String>>()
-        .into_iter()
-        .map(|full| {
-            let path = Path::new(&full);
-            let relative = path
-                .strip_prefix(Path::new(
-                    &instance.get_dot_minecraft_path().to_str().unwrap(),
-                ))
-                .unwrap_or(path);
-            (full.clone(), relative.to_string_lossy().into())
-        })
-        .collect();
-
     let zip_path = modpack_path + "/" + modpack_file_name.as_str() + ".zip";
+    let overrides: Vec<(String, String)> = overrides_fn(override_mods_full_path_string, overrides, instance).unwrap();
 
     let json_data = write_curseforge_manifest_json(
         mod_ids,
@@ -363,7 +315,7 @@ pub async fn export_curseforge_modpack(
     )
     .unwrap();
 
-    package_format1_pack("manifest".to_string(), json_data, zip_path, overrides).unwrap();
+    package_format1_pack("manifest".to_string(), json_data, zip_path, overrides).await.unwrap();
 
 }
 
@@ -376,7 +328,7 @@ fn write_curseforge_manifest_json(
     loader_id: String,
     version: String,
     image: String
-) -> StdResult<String> {
+    ) -> StdResult<String> {
 
     let primary = true;
 
@@ -422,7 +374,7 @@ pub async fn export_qlmp_modpack(
     mod_ids: HashSet<ModId>,
     overrides: Vec<String>,
     instance: InstanceSelection
-)  {
+    )  {
 
     let index = ModIndex::load(&instance).await.unwrap();
 
@@ -457,8 +409,7 @@ pub async fn export_qlmp_modpack(
     let details = VersionDetails::load(&instance).await.unwrap();
     let minecraft_version = details.get_id();
     let config = ql_core::InstanceConfigJson::read(&instance).await;
-    let loader_name = config.unwrap().mod_type.to_modrinth_str();
-    let config = ql_core::InstanceConfigJson::read(&instance).await;
+    let loader_name = config.as_ref().unwrap().mod_type.to_modrinth_str();
     let loader_version = config.unwrap().mod_type_info.unwrap().version;
 
     let mods_folder_path = instance.get_dot_minecraft_path().join("mods");
@@ -476,33 +427,16 @@ pub async fn export_qlmp_modpack(
         .map(|rel_path| mods_folder_path.join(rel_path))
         .collect();
 
-    let file_sizes: Vec<u64> = full_path
-        .iter()
-        .map(|path| fs::metadata(path).map(|meta| meta.len()).unwrap_or(0))
-        .collect();
+    let mut sha1s = Vec::new();
+    let mut sha512s = Vec::new();
+    let mut file_sizes = Vec::new();
 
-    let sha1s: Vec<String> = full_path
-        .clone()
-        .into_iter()
-        .map(|path| {
-            let data = fs::read(path).unwrap();
-            let mut hasher = Sha1::new();
-            hasher.update(&data);
-            let hash = hasher.finalize();
-            hex::encode(hash)
-        })
-        .collect();
-
-    let sha512s: Vec<String> = full_path
-        .into_iter()
-        .map(|path| {
-            let data = fs::read(path).unwrap();
-            let mut hasher = Sha512::new();
-            hasher.update(&data);
-            let hash = hasher.finalize();
-            hex::encode(hash)
-        })
-        .collect();
+    for path in &full_path {
+        let hashes = hash_file(path).await.unwrap();
+        sha1s.push(hashes.sha1);
+        sha512s.push(hashes.sha512);
+        file_sizes.push(hashes.file_size);
+    }
 
     let json_data = create_qlmp_index_json(
         1,
@@ -525,26 +459,10 @@ pub async fn export_qlmp_modpack(
     .unwrap();
 
     let zip_path = modpack_path + "/" + modpack_file_name.as_str() + ".qlmp";
-
-    let overrides: Vec<(String, String)> = overrides
-        .into_iter()
-        .chain(override_mods_full_path_string)
-        .into_iter()
-        .collect::<Vec<String>>()
-        .into_iter()
-        .map(|full| {
-            let path = Path::new(&full);
-            let relative = path
-                .strip_prefix(Path::new(
-                    &instance.get_dot_minecraft_path().to_str().unwrap(),
-                ))
-                .unwrap_or(path);
-            (full.clone(), relative.to_string_lossy().into())
-        })
-        .collect();
+    let overrides: Vec<(String, String)> = overrides_fn(override_mods_full_path_string, overrides, instance).unwrap();
 
 
-    package_format1_pack("qlmp.index".to_string(), json_data, zip_path, overrides).unwrap();
+    package_format1_pack("qlmp.index".to_string(), json_data, zip_path, overrides).await.unwrap();
 }
 
 
@@ -563,7 +481,7 @@ fn create_qlmp_index_json(
     sha512: Vec<String>,
     links: Vec<String>,
     file_size: Vec<u64>,
-) -> StdResult<String> {
+    ) -> StdResult<String> {
     let mut loader = Map::new();
     loader.insert(loader_id.to_string(), Value::String(loader_version));
 
@@ -595,14 +513,14 @@ enum PackageError {
     Io(#[from] std::io::Error),
 }
 
-#[tokio::main]
+
 async fn package_format1_pack(
     //  Used for Modrinth, QLMP and CurseForge packs
     json_name: String,
     json_data: String,
     zip_path: String,
     overrides: Vec<(String, String)>,
-) -> Result<(), PackageError> {
+    ) -> Result<(), PackageError> {
     let parent_dir = Path::new(&zip_path).parent().unwrap();
     tokio::fs::create_dir_all(parent_dir).await?;
 
@@ -627,10 +545,10 @@ async fn add_file_to_zip<W: tokio::io::AsyncWrite + Unpin>(
     writer: &mut ZipFileWriter<W>,
     original_file_path: &str,
     zip_relative_path: &str,
-) -> StdResult<()> {
+    ) -> Result<(), PackageError> {
     let data = read(original_file_path).await?;
     let builder = ZipEntryBuilder::new(zip_relative_path.into(), Compression::Deflate);
-    writer.write_entry_whole(builder, &data).await.unwrap();
+    writer.write_entry_whole(builder, &data).await?;
     Ok(())
 }
 
@@ -641,7 +559,7 @@ fn format_1_file_entry(
     sha512: Vec<String>,
     links: Vec<String>,
     file_size: Vec<u64>,
-) -> StdResult<Vec<FormatMQFileEntry>> {
+    ) -> StdResult<Vec<FormatMQFileEntry>> {
     let sha1: Vec<&str> = sha1.iter().map(|s| s.as_str()).collect();
     let sha512: Vec<&str> = sha512.iter().map(|s| s.as_str()).collect();
 
@@ -665,4 +583,42 @@ fn format_1_file_entry(
         .collect();
 
     Ok(files)
+}
+
+fn overrides_fn(
+    override_mods_full_path_string: Vec<String>,
+    overrides: Vec<String>,
+    instance: InstanceSelection
+    ) -> StdResult<Vec<(String, String)>> {
+
+    let overrides: Vec<(String, String)> = overrides
+        .into_iter()
+        .chain(override_mods_full_path_string)
+        .map(|full| {
+            let path = Path::new(&full);
+            let relative = path
+                .strip_prefix(Path::new(
+                    &instance.get_dot_minecraft_path().to_str().unwrap(),
+                ))
+                .unwrap_or(path);
+            (full.clone(), relative.to_string_lossy().into())
+        })
+        .collect();
+
+    Ok(overrides)
+}
+
+async fn hash_file(path: &Path) -> StdResult<FileHashes> {
+    let data = tokio::fs::read(path).await?;
+
+    let mut sha1 = Sha1::new();
+    let mut sha512 = Sha512::new();
+    sha1.update(&data);
+    sha512.update(&data);
+
+    Ok(FileHashes {
+        sha1: hex::encode(sha1.finalize()),
+        sha512: hex::encode(sha512.finalize()),
+        file_size: data.len() as u64,
+    })
 }
