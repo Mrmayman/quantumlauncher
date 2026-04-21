@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use auth::AccountData;
 use iced::Task;
-use ql_core::{err, IntoStringError};
+use ql_core::IntoStringError;
 use ql_instances::auth::{self, AccountType};
 
 use crate::{
@@ -48,13 +48,13 @@ impl Launcher {
             AccountMessage::Initialized(data) => {
                 self.accounts = data.accounts;
                 self.accounts_dropdown = data.accounts_dropdown;
-                self.accounts_selected = Some(
+                self.account_selected = 
                     self.config.account_selected.clone().unwrap_or(
                         self.accounts_dropdown
                             .first()
                             .cloned()
                             .unwrap_or_else(|| OFFLINE_ACCOUNT_NAME.to_owned()),
-                    ),
+                    
                 );
             }
 
@@ -281,7 +281,7 @@ impl Launcher {
                 Task::perform(
                     auth::ms::login_refresh(
                         account.username.clone(),
-                        account.refresh_token.clone(),
+                        refresh_token,
                         Some(sender),
                     ),
                     |n| AccountMessage::RefreshComplete(n.strerr()).into(),

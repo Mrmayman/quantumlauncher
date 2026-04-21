@@ -16,7 +16,6 @@ use std::{
 
 mod accounts;
 
-pub use accounts::ConfigAccount;
 pub mod discord_rpc;
 pub mod sidebar;
 
@@ -479,93 +478,98 @@ impl Default for UiSettings {
     }
 }
 
+/* idk, this doesnt
 impl UiSettings {
     pub fn get_idle_fps(&self) -> u64 {
         self.idle_fps.unwrap_or(6)
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum AfterLaunchBehavior {
-    /// Enable to reduce taskbar icons; leaving it open has negligible impact.
-    #[serde(rename = "close_launcher")]
-    CloseLauncher,
-    #[serde(rename = "minimize_launcher")]
-    MinimizeLauncher,
-    #[serde(rename = "do_nothing")]
-    #[default]
-    #[serde(other)]
-    DoNothing,
 }
+ */
 
-impl AfterLaunchBehavior {
-    pub const fn desc(self) -> &'static str {
-        match self {
-            Self::CloseLauncher => "Close launcher",
-            Self::MinimizeLauncher => "Minimize launcher",
-            Self::DoNothing => "Do nothing",
+
+        #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
+        pub enum AfterLaunchBehavior {
+            /// Enable to reduce taskbar icons; leaving it open has negligible impact.
+            #[serde(rename = "close_launcher")]
+            CloseLauncher,
+            #[serde(rename = "minimize_launcher")]
+            MinimizeLauncher,
+            #[serde(rename = "do_nothing")]
+            #[default]
+            #[serde(other)]
+            DoNothing,
         }
-    }
-}
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
-pub enum UiWindowDecorations {
-    #[serde(rename = "system")]
-    #[default]
-    System,
-    #[serde(rename = "left")]
-    Left,
-    #[serde(rename = "right")]
-    Right,
-}
-
-/*impl Default for UiWindowDecorations {
-    fn default() -> Self {
-        #[cfg(target_os = "macos")]
-        return Self::Left;
-        #[cfg(not(target_os = "macos"))]
-        Self::Right
-    }
-}*/
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct PersistentSettings {
-    pub selected_instance: Option<Arc<str>>,
-    pub selected_remembered: bool,
-    // Since: TBD
-    pub selected_instance_kind: Option<InstanceKind>,
-
-    #[serde(default = "default_true")]
-    pub write_mod_update_changelog: bool,
-
-    /// Remembers version filters (eg: snapshot, release, etc) in Create Instance
-    pub create_instance_filters: Option<HashSet<ListEntryKind>>,
-
-    #[serde(flatten)]
-    _extra: HashMap<String, serde_json::Value>,
-}
-
-impl Default for PersistentSettings {
-    fn default() -> Self {
-        Self {
-            selected_instance: None,
-            selected_instance_kind: None,
-            selected_remembered: true,
-            write_mod_update_changelog: true,
-            create_instance_filters: None,
-            _extra: HashMap::new(),
+        impl AfterLaunchBehavior {
+            pub const fn desc(self) -> &'static str {
+                match self {
+                    Self::CloseLauncher => "Close launcher",
+                    Self::MinimizeLauncher => "Minimize launcher",
+                    Self::DoNothing => "Do nothing",
+                }
+            }
         }
-    }
-}
 
-fn default_true() -> bool {
-    true
-}
+        #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
+        pub enum UiWindowDecorations {
+            #[serde(rename = "system")]
+            #[default]
+            System,
+            #[serde(rename = "left")]
+            Left,
+            #[serde(rename = "right")]
+            Right,
+        }
 
-impl PersistentSettings {
-    #[must_use]
-    pub fn get_create_instance_filters(&self) -> HashSet<ListEntryKind> {
-        self.create_instance_filters
-            .clone()
-            .filter(|n| !n.is_empty())
-            .unwrap_or_else(ListEntryKind::default_selected)
-    }
-}
+        /*impl Default for UiWindowDecorations {
+            fn default() -> Self {
+                #[cfg(target_os = "macos")]
+                return Self::Left;
+                #[cfg(not(target_os = "macos"))]
+                Self::Right
+            }
+        }*/
+
+        #[derive(Serialize, Deserialize, Debug, Clone)]
+        pub struct PersistentSettings {
+            pub selected_instance: Option<Arc<str>>,
+            pub selected_remembered: bool,
+            // Since: TBD
+            pub selected_instance_kind: Option<InstanceKind>,
+
+            #[serde(default = "default_true")]
+            pub write_mod_update_changelog: bool,
+
+            /// Remembers version filters (eg: snapshot, release, etc) in Create Instance
+            pub create_instance_filters: Option<HashSet<ListEntryKind>>,
+
+            #[serde(flatten)]
+            _extra: HashMap<String, serde_json::Value>,
+        }
+
+        impl Default for PersistentSettings {
+            fn default() -> Self {
+                Self {
+                    selected_instance: None,
+                    selected_instance_kind: None,
+                    selected_remembered: true,
+                    write_mod_update_changelog: true,
+                    create_instance_filters: None,
+                    _extra: HashMap::new(),
+                }
+            }
+        }
+
+        fn default_true() -> bool {
+            true
+        }
+
+        impl PersistentSettings {
+            #[must_use]
+            pub fn get_create_instance_filters(&self) -> HashSet<ListEntryKind> {
+                self.create_instance_filters
+                    .clone()
+                    .filter(|n| !n.is_empty())
+                    .unwrap_or_else(ListEntryKind::default_selected)
+            }
+        }
+

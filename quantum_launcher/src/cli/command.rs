@@ -1,4 +1,4 @@
-use owo_colors::{OwoColorize, Style};
+use owo_colors::Style;
 use ql_core::{
     Instance, InstanceKind, IntoStringError, ListEntry, Loader, OptifineUniqueVersion, eeprintln,
     err, info,
@@ -6,12 +6,13 @@ use ql_core::{
 };
 use ql_mod_manager::loaders::LoaderInstallResult;
 use std::{path::PathBuf, process::exit, sync::Arc};
-
+use ql_instances::auth;
+use ql_instances::auth::AccountType;
 use crate::{
-    cli::{QLoader, account::refresh_account, helpers::render_row},
+    cli::{QLoader, helpers::render_row},
     state::get_entries,
 };
-
+use crate::config::LauncherConfig;
 use super::PrintCmd;
 
 pub fn list_available_versions(kind: InstanceKind) {
@@ -216,7 +217,7 @@ pub async fn launch_instance(
     account_type: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let account = if matches!(kind, InstanceKind::Client) {
-        refresh_account(&username, use_account, show_progress, account_type).await?
+        refresh_account(&username, use_account).await?
     } else {
         None
     };
@@ -275,7 +276,7 @@ async fn refresh_account(
             exit(1);
         };
 
-        match account.account_type.as_deref() {
+        match account.account_type.as_ref() {
             // Hook: Account types
             Some(kind @ ("ElyBy" | "LittleSkin")) => {
                 let account_type = if kind == "ElyBy" {

@@ -1,4 +1,4 @@
-use owo_colors::OwoColorize;
+use owo_colors;
 use std::process::exit;
 
 use ql_core::err;
@@ -38,16 +38,16 @@ pub async fn refresh_account(
     }
 
     let refresh_token =
-        auth::read_refresh_token(refresh_name, account.account_type.unwrap_or_default())?;
+        auth::read_refresh_token(refresh_name.to_string(), account.account_type.unwrap_or_default());
 
     // Hook: Account types
     let account = if let Some(account_type @ (AccountType::ElyBy | AccountType::LittleSkin)) =
         account.account_type
     {
-        auth::yggdrasil::login_refresh(refresh_name.to_owned(), refresh_token, account_type).await?
+        auth::yggdrasil::login_refresh(refresh_name.to_owned(), refresh_token.await.unwrap().to_string(), account_type).await?
     } else {
-        let refresh_token = auth::read_refresh_token(username, AccountType::Microsoft)?;
-        auth::ms::login_refresh(username.clone(), refresh_token, None).await?
+        let refresh_token = auth::read_refresh_token(username.to_string(), AccountType::Microsoft);
+        auth::ms::login_refresh(username.clone(), refresh_token.await.unwrap().to_string(), None).await?
     };
 
     Ok(Some(account))
@@ -71,7 +71,7 @@ fn get_account<'a>(
             _ => {
                 err!(
                     "Unknown account type override: {}\nSupported types are: elyby, littleskin, microsoft",
-                    acc_type.underline().bold()
+                    acc_type //.underline().bold() IDK it doesnt like this!
                 );
                 exit(1);
             }

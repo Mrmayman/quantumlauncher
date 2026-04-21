@@ -88,7 +88,7 @@ impl AccountType {
 
     async fn get_keyring_entry(self, username: &str) -> Result<keyring::Entry, alt::Error> {
         let username = username.to_owned();
-        Ok(tokio::task::spawn_blocking(move || {
+        Ok(spawn_blocking(move || {
             keyring::Entry::new(
                 "QuantumLauncher",
                 &format!(

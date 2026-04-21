@@ -9,8 +9,8 @@ use filthy_rich::PresenceClient;
 use iced::Task;
 use notify::Watcher;
 use ql_core::{
-    err, file_utils, read_log::LogLine, GenericProgress, InstanceSelection, IntoIoError,
-    IntoStringError, IoError, JsonFileError, LaunchedProcess, ModId, Progress, LAUNCHER_DIR,
+    err, GenericProgress, IntoIoError,
+    IntoStringError, IoError, JsonFileError, LaunchedProcess, Progress, LAUNCHER_DIR,
     LAUNCHER_VERSION_NAME, Instance, InstanceKind,
     file_utils::{self, exists},
     read_log::LogLine,
@@ -174,7 +174,7 @@ impl Launcher {
             State::ChangeLog
         };
 
-        let (accounts, accounts_dropdown, account_selected) = load_accounts(&mut config);
+        let (accounts, accounts_dropdown, account_selected) = init_accounts(&mut config);
 
         let persistent = config.c_persistent();
         let selected_instance = persistent
@@ -186,7 +186,7 @@ impl Launcher {
                     n,
                     persistent
                         .selected_instance_kind
-                        .unwrap_or(ql_core::InstanceKind::Client),
+                        .unwrap_or(InstanceKind::Client),
                 )
             });
 
@@ -339,7 +339,7 @@ fn init_accounts(
     (accounts, accounts_dropdown, selected_account)
 }
 
-fn load_account(
+async fn load_account(
     accounts: &mut HashMap<String, AccountData>,
     accounts_dropdown: &mut Vec<String>,
     accounts_to_remove: &mut Vec<String>,
@@ -356,7 +356,7 @@ fn load_account(
 
     let keyring_username = account.get_keyring_identifier(username);
     let refresh_token =
-        ql_instances::auth::read_refresh_token(keyring_username, account_type).strerr();
+        ql_instances::auth::read_refresh_token(keyring_username.to_string(), account_type).await.strerr();
 
     let keyring_username = account.get_keyring_identifier(username);
 

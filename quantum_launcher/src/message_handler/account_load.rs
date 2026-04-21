@@ -32,7 +32,7 @@ async fn load_account(
     accounts: &mut HashMap<String, AccountData>,
     accounts_dropdown: &mut Vec<String>,
     username: &str,
-    account: &crate::config::ConfigAccount,
+    account: &ConfigAccount,
 ) {
     let account_type = account.get_account_type(username);
     let keyring_username = account.get_keyring_identifier(username).to_owned();
