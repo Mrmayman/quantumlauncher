@@ -1,7 +1,7 @@
 use ql_java_handler::JavaInstallError;
 use std::path::PathBuf;
 
-use ql_core::{impl_3_errs_jri, json::VersionDetails, IoError, JsonError, RequestError};
+use ql_core::{IoError, JsonError, RequestError, impl_3_errs_jri, json::VersionDetails};
 
 use crate::{download::DownloadError, jarmod::JarModError};
 
@@ -20,10 +20,12 @@ pub enum GameLaunchError {
     UsernameHasSpaces,
     #[error("username is empty")]
     UsernameIsEmpty,
-    #[error("{GAME_ERR_PREFIX}instance not found")]
-    InstanceNotFound,
+    #[error("{GAME_ERR_PREFIX}instance not found: {0}")]
+    InstanceNotFound(String),
     #[error("{GAME_ERR_PREFIX}no arguments field in details.json")]
     VersionJsonNoArgumentsField(Box<VersionDetails>),
+    #[error("your instance hadn't finished downloading, or files are missing")]
+    InstanceIncomplete,
 
     #[error("{GAME_ERR_PREFIX}semver error: {0}")]
     Semver(#[from] semver::Error),
@@ -41,10 +43,14 @@ pub enum GameLaunchError {
 
     #[error("{GAME_ERR_PREFIX}{0}")]
     MsAuth(#[from] crate::auth::ms::Error),
-    #[error("{GAME_ERR_PREFIX}Microsoft account token was not loaded\n\nTry logging out of your account and logging back in")]
+    #[error(
+        "{GAME_ERR_PREFIX}Microsoft account token was not loaded\n\nTry logging out of your account and logging back in"
+    )]
     InvalidToken,
 
-    #[error("{GAME_ERR_PREFIX}error upgrading forge install (transforming path)\n{FORGE_UPGRADE_MESSAGE}")]
+    #[error(
+        "{GAME_ERR_PREFIX}error upgrading forge install (transforming path)\n{FORGE_UPGRADE_MESSAGE}"
+    )]
     ForgeInstallUpgradeTransformPathError,
     #[error(
         "{GAME_ERR_PREFIX}error upgrading forge install (removing prefix)\n{FORGE_UPGRADE_MESSAGE}"

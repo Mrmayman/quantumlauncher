@@ -1,19 +1,22 @@
+use std::sync::Arc;
+
 use iced::Task;
 use ql_core::{
-    err,
+    IntoIoError, IntoStringError, LAUNCHER_DIR, err,
     json::{
+        InstanceConfigJson,
         instance_config::{CustomJarConfig, MainClassMode},
-        GlobalSettings, InstanceConfigJson,
     },
-    IntoIoError, IntoStringError, LAUNCHER_DIR,
+    sanitize_instance_name,
 };
 
 use crate::{
+    config::sidebar::SidebarSelection,
     message_handler::format_memory,
     state::{
-        dir_watch, get_entries, CustomJarState, EditInstanceMessage, LaunchTab, Launcher,
-        MenuCreateInstance, MenuEditInstance, MenuLaunch, Message, ProgressBar, State,
-        ADD_JAR_NAME, NONE_JAR_NAME, OPEN_FOLDER_JAR_NAME, REMOVE_JAR_NAME,
+        ADD_JAR_NAME, AutoSaveKind, CustomJarState, EditInstanceMessage, LaunchTab, Launcher,
+        MainMenuMessage, MenuCreateInstance, MenuEditInstance, MenuLaunch, Message, NONE_JAR_NAME,
+        OPEN_FOLDER_JAR_NAME, ProgressBar, REMOVE_JAR_NAME, State, dir_watch, get_entries,
     },
 };
 
@@ -49,7 +52,7 @@ macro_rules! iflet_config {
     ($state:expr, prefix, |$prefix:ident| $body:block) => {
         iflet_config!($state, global_settings: global_settings, {
             let global_settings =
-                global_settings.get_or_insert_with(GlobalSettings::default);
+                global_settings.get_or_insert_default();
             let $prefix =
                 &mut global_settings.pre_launch_prefix;
             $body
@@ -75,26 +78,24 @@ impl Launcher {
                 }
             }
             EditInstanceMessage::JavaOverride(n) => {
-                if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
-                    ..
-                }) = &mut self.state
-                {
-                    menu.config.java_override = Some(n);
-                }
+                iflet_config!(&mut self.state, config <- {
+                    config.java_override = Some(n);
+                    config.java_override_version = None;
+                });
+            }
+            EditInstanceMessage::JavaOverrideVersion(n) => {
+                iflet_config!(&mut self.state, config <- {
+                    config.java_override_version = Some(n);
+                });
             }
             EditInstanceMessage::BrowseJavaOverride => {
                 if let Some(file) = rfd::FileDialog::new()
                     .set_title("Select Java Executable (./bin/java)")
                     .pick_file()
                 {
-                    if let State::Launch(MenuLaunch {
-                        edit_instance: Some(menu),
-                        ..
-                    }) = &mut self.state
-                    {
-                        menu.config.java_override = Some(file.to_string_lossy().to_string());
-                    }
+                    iflet_config!(&mut self.state, config <- {
+                        config.java_override = Some(file.to_string_lossy().to_string());
+                    });
                 }
             }
             EditInstanceMessage::MemoryChanged(new_slider_value) => {
@@ -106,26 +107,28 @@ impl Launcher {
                     menu.slider_value = new_slider_value;
                     menu.config.ram_in_mb = 2f32.powf(new_slider_value) as usize;
                     menu.slider_text = format_memory(menu.config.ram_in_mb);
+                    menu.memory_input = menu.config.ram_in_mb.to_string();
                 }
             }
-            EditInstanceMessage::LoggingToggle(t) => {
+            EditInstanceMessage::MemoryInputChanged(input) => {
                 if let State::Launch(MenuLaunch {
                     edit_instance: Some(menu),
                     ..
                 }) = &mut self.state
                 {
-                    menu.config.enable_logger = Some(t);
+                    if let Ok(mb) = input.parse::<usize>() {
+                        if mb > 0 {
+                            menu.config.ram_in_mb = mb;
+                            menu.slider_value = f32::log2(mb as f32);
+                            menu.slider_text = format_memory(mb);
+                        }
+                    }
+                    menu.memory_input = input;
                 }
             }
-            EditInstanceMessage::CloseLauncherToggle(t) => {
-                if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
-                    ..
-                }) = &mut self.state
-                {
-                    menu.config.close_on_start = Some(t);
-                }
-            }
+            EditInstanceMessage::LoggingToggle(t) => iflet_config!(&mut self.state, config <- {
+                config.enable_logger = Some(t);
+            }),
             EditInstanceMessage::JavaArgsModeChanged(mode) => {
                 iflet_config!(&mut self.state, global_java_args_enable, {
                     *global_java_args_enable = Some(mode);
@@ -134,19 +137,19 @@ impl Launcher {
             EditInstanceMessage::JavaArgs(msg) => {
                 let split = self.should_split_args();
                 iflet_config!(&mut self.state, java_args, {
-                    msg.apply(java_args.get_or_insert_with(Vec::new), split);
+                    msg.apply(java_args.get_or_insert_default(), split);
                 });
             }
             EditInstanceMessage::GameArgs(msg) => {
                 let split = self.should_split_args();
                 iflet_config!(&mut self.state, game_args, {
-                    msg.apply(game_args.get_or_insert_with(Vec::new), split);
+                    msg.apply(game_args.get_or_insert_default(), split);
                 });
             }
             EditInstanceMessage::PreLaunchPrefix(msg) => {
                 let split = self.should_split_args();
                 iflet_config!(&mut self.state, prefix, |pre_launch_prefix| {
-                    msg.apply(pre_launch_prefix.get_or_insert_with(Vec::new), split);
+                    msg.apply(pre_launch_prefix.get_or_insert_default(), split);
                 });
             }
             EditInstanceMessage::PreLaunchPrefixModeChanged(mode) => {
@@ -160,12 +163,11 @@ impl Launcher {
                     ..
                 }) = &mut self.state
                 {
-                    menu.instance_name = self
-                        .selected_instance
+                    self.selected_instance
                         .as_ref()
                         .unwrap()
                         .get_name()
-                        .to_owned();
+                        .clone_into(&mut menu.instance_name);
                     menu.is_editing_name = !menu.is_editing_name;
                 }
             }
@@ -217,10 +219,7 @@ impl Launcher {
                             LAUNCHER_DIR.join("custom_jars"),
                         )));
                     } else {
-                        menu.config
-                            .custom_jar
-                            .get_or_insert_with(CustomJarConfig::default)
-                            .name = path
+                        menu.config.custom_jar.get_or_insert_default().name = path;
                     }
                 }
             }
@@ -251,7 +250,7 @@ impl Launcher {
                     if let Some(c) = &mut config.custom_jar {
                         c.autoset_main_class = autos;
                     }
-                };
+                }
             }
             EditInstanceMessage::ReinstallLibraries => {
                 return Ok(self.instance_redownload_stage(
@@ -284,32 +283,13 @@ impl Launcher {
                 if let Err(err) = t {
                     Message::Error(err)
                 } else {
-                    Message::MChangeTab(LaunchTab::Edit)
+                    MainMenuMessage::ChangeTab(LaunchTab::Edit).into()
                 }
             },
         )
     }
 
-    fn loaded_custom_jar(&mut self, items: Vec<String>) -> Task<Message> {
-        match &mut self.custom_jar {
-            Some(cx) => {
-                cx.choices = items.clone();
-            }
-            None => {
-                let (recv, watcher) = match dir_watch(LAUNCHER_DIR.join("custom_jars")) {
-                    Ok(n) => n,
-                    Err(err) => {
-                        err!("Couldn't load list of custom jars (2)! {err}");
-                        return Task::none();
-                    }
-                };
-                self.custom_jar = Some(CustomJarState {
-                    choices: items.clone(),
-                    recv,
-                    _watcher: watcher,
-                });
-            }
-        }
+    fn loaded_custom_jar(&mut self, choices: Vec<String>) -> Task<Message> {
         // If the currently selected jar got deleted/renamed
         // then unselect it
         if let State::Launch(MenuLaunch {
@@ -318,11 +298,26 @@ impl Launcher {
         }) = &mut self.state
         {
             if let Some(jar) = &menu.config.custom_jar {
-                if !items.contains(&jar.name) {
+                if !choices.contains(&jar.name) {
+                    self.autosave.remove(&AutoSaveKind::InstanceConfig);
                     menu.config.custom_jar = None;
                 }
             }
         }
+
+        if let Some(cx) = &mut self.custom_jar {
+            cx.choices = choices;
+        } else {
+            let watcher = match dir_watch(LAUNCHER_DIR.join("custom_jars")) {
+                Ok(n) => n,
+                Err(err) => {
+                    err!("Couldn't load list of custom jars (2)! {err}");
+                    return Task::none();
+                }
+            };
+            self.custom_jar = Some(CustomJarState { choices, watcher });
+        }
+
         Task::none()
     }
 
@@ -348,13 +343,8 @@ impl Launcher {
                 custom_jars.choices.insert(1, file_name.clone());
             }
 
-            *menu
-                .config
-                .custom_jar
-                .get_or_insert_with(CustomJarConfig::default) = CustomJarConfig {
-                name: file_name.clone(),
-                autoset_main_class: false,
-            };
+            *menu.config.custom_jar.get_or_insert_default() =
+                CustomJarConfig::new(file_name.clone());
 
             Task::perform(
                 tokio::fs::copy(path, LAUNCHER_DIR.join("custom_jars").join(file_name)),
@@ -374,49 +364,87 @@ impl Launcher {
             return Ok(Task::none());
         };
 
-        let mut disallowed = vec![
-            '/', '\\', ':', '*', '?', '"', '<', '>', '|', '\'', '\0', '\u{7F}',
-        ];
-        disallowed.extend('\u{1}'..='\u{1F}');
-
-        // Remove disallowed characters
-
-        let mut instance_name = menu.instance_name.clone();
-        instance_name.retain(|c| !disallowed.contains(&c));
-        let instance_name = instance_name.trim();
-
-        if instance_name.is_empty() {
+        let sanitized_name = sanitize_instance_name(menu.instance_name.clone());
+        if sanitized_name.is_empty() {
             err!("New name is empty or invalid");
             return Ok(Task::none());
         }
 
-        if menu.old_instance_name == menu.instance_name {
+        if *menu.old_instance_name == sanitized_name
+            || *menu.old_instance_name == menu.instance_name
+        {
             // Don't waste time talking to OS
             // and "renaming" instance if nothing has changed.
-            Ok(Task::none())
-        } else {
-            let instances_dir =
-                LAUNCHER_DIR.join(if self.selected_instance.as_ref().unwrap().is_server() {
-                    "servers"
-                } else {
-                    "instances"
-                });
+            return Ok(Task::none());
+        }
 
-            let old_path = instances_dir.join(&menu.old_instance_name);
-            let new_path = instances_dir.join(&menu.instance_name);
+        let instances_dir =
+            LAUNCHER_DIR.join(if self.selected_instance.as_ref().unwrap().is_server() {
+                "servers"
+            } else {
+                "instances"
+            });
 
-            menu.old_instance_name = menu.instance_name.clone();
-            if let Some(n) = &mut self.selected_instance {
-                n.set_name(&menu.instance_name);
-            }
-            std::fs::rename(&old_path, &new_path)
-                .path(&old_path)
-                .strerr()?;
+        let old_path = instances_dir.join(&*menu.old_instance_name);
+        let new_path = instances_dir.join(&sanitized_name);
 
-            Ok(Task::perform(
-                get_entries(self.instance().is_server()),
-                Message::CoreListLoaded,
-            ))
+        if new_path.parent().is_none_or(|n| n != instances_dir) {
+            err!("New instance path is outside instance dir!");
+            return Ok(Task::none());
+        }
+
+        let old_name = menu.old_instance_name.clone();
+        menu.old_instance_name = Arc::from(sanitized_name.as_str());
+        std::fs::rename(&old_path, &new_path)
+            .path(&old_path)
+            .strerr()?;
+
+        let mut instance = self.selected_instance.clone().unwrap();
+        instance.name = Arc::from(sanitized_name.as_str());
+
+        if let Some(s) = &mut self.config.sidebar {
+            s.rename(
+                &SidebarSelection::Instance(old_name, instance.kind),
+                &sanitized_name,
+            );
+        }
+
+        Ok(Task::perform(get_entries(self.instance().kind), move |n| {
+            Message::Multiple(vec![
+                Message::CoreListLoaded(n),
+                MainMenuMessage::InstanceSelected(instance.clone()).into(),
+            ])
+        }))
+    }
+}
+
+impl EditInstanceMessage {
+    pub fn edits_config(&self) -> bool {
+        match self {
+            EditInstanceMessage::ReinstallLibraries |
+            EditInstanceMessage::UpdateAssets |
+            EditInstanceMessage::RenameToggle |
+            EditInstanceMessage::ToggleSplitArg(_) |
+            EditInstanceMessage::RenameEdit(_) |
+            EditInstanceMessage::RenameApply | // ?
+            EditInstanceMessage::CustomJarLoaded(_) |
+            EditInstanceMessage::ConfigSaved(_) => false,
+
+            EditInstanceMessage::MemoryChanged(_) |
+            EditInstanceMessage::MemoryInputChanged(_) |
+            EditInstanceMessage::LoggingToggle(_) |
+            EditInstanceMessage::SetMainClass(_, _) |
+            EditInstanceMessage::JavaArgs(_) |
+            EditInstanceMessage::JavaArgsModeChanged(_) |
+            EditInstanceMessage::GameArgs(_) |
+            EditInstanceMessage::PreLaunchPrefix(_) |
+            EditInstanceMessage::PreLaunchPrefixModeChanged(_) |
+            EditInstanceMessage::JavaOverride(_) |
+            EditInstanceMessage::JavaOverrideVersion(_) |
+            EditInstanceMessage::WindowWidthChanged(_) |
+            EditInstanceMessage::WindowHeightChanged(_) |
+            EditInstanceMessage::CustomJarPathChanged(_) |
+            EditInstanceMessage::BrowseJavaOverride => true,
         }
     }
 }

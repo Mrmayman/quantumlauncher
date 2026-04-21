@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{err, file_utils, DownloadFileError, IntoIoError, RequestError};
+use crate::{DownloadFileError, IntoIoError, RequestError, download, err};
 
 #[derive(Serialize, Deserialize)]
 pub struct AssetIndex {
@@ -47,7 +47,7 @@ impl AssetObject {
             .url
             .clone()
             .unwrap_or(format!("{OBJECTS_URL}/{obj_id}/{}", self.hash));
-        let err = file_utils::download_file_to_path(&url, false, &obj_file_path).await;
+        let err = download(&url).path(&obj_file_path).await;
 
         match err {
             Ok(()) => {}

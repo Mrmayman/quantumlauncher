@@ -1,14 +1,15 @@
 [package]
 name = "ql_instances"
 version = "0.0.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 license = "GPL-3.0-only"
 
 [features]
 default = []
-simulate_linux_arm64 = ["ql_core/simulate_linux_arm64"]
-simulate_linux_arm32 = ["ql_core/simulate_linux_arm32"]
-simulate_macos_arm64 = ["ql_core/simulate_macos_arm64"]
+simulate_linux_arm64 = ["ql_core/simulate_linux_arm64", "ql_java_handler/simulate_linux_arm64"]
+simulate_linux_arm32 = ["ql_core/simulate_linux_arm32", "ql_java_handler/simulate_linux_arm32"]
+simulate_macos_arm64 = ["ql_core/simulate_macos_arm64", "ql_java_handler/simulate_macos_arm64"]
 
 [dependencies]
 ql_core.path = "../ql_core"
@@ -27,7 +28,7 @@ serde_json.workspace = true
 
 owo-colors.workspace = true
 thiserror.workspace = true
-indicatif = "0.17"
+indicatif = "0.18.*"
 
 urlencoding = "2"
 

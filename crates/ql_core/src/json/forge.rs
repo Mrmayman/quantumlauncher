@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{file_utils, JsonDownloadError};
+use crate::{JsonDownloadError, file_utils};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Deserialize)]

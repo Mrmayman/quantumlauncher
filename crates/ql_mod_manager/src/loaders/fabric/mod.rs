@@ -1,13 +1,15 @@
 use std::{
     path::{Path, PathBuf},
-    sync::{mpsc::Sender, Mutex},
+    sync::{Mutex, mpsc::Sender},
 };
 
 use ql_core::{
-    do_jobs, file_utils, info,
-    json::{instance_config::ModTypeInfo, FabricJSON, VersionDetails, V_1_12_2},
-    pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, Loader, RequestError,
-    LAUNCHER_DIR,
+    GenericProgress, Instance, InstanceKind, IntoIoError, IntoJsonError, LAUNCHER_DIR, Loader,
+    do_jobs, download,
+    file_utils::exists,
+    info,
+    json::{FabricJSON, V_1_12_2, VersionDetails, instance_config::ModTypeInfo},
+    pt,
 };
 use version_compare::compare_versions;
 
@@ -24,28 +26,16 @@ mod version_compare;
 mod version_list;
 
 pub use version_list::{
-    get_list_of_versions, get_list_of_versions_from_backend, BackendType, FabricVersion,
-    FabricVersionList, FabricVersionListItem,
+    BackendType, FabricVersion, FabricVersionList, FabricVersionListItem, get_list_of_versions,
+    get_list_of_versions_from_backend,
 };
 
 const CURSED_LEGACY_JSON: &str =
     include_str!("../../../../../assets/installers/cursed_legacy_fabric.json");
 
-async fn download_file_to_string(url: &str, backend: BackendType) -> Result<String, RequestError> {
-    file_utils::download_file_to_string(
-        &format!(
-            "{}{}{url}",
-            backend.get_url(),
-            if url.starts_with('/') { "" } else { "/" },
-        ),
-        false,
-    )
-    .await
-}
-
 pub async fn install_server(
     loader_version: String,
-    server_name: String,
+    server_name: &str,
     progress: Option<&Sender<GenericProgress>>,
     backend: BackendType,
 ) -> Result<(), FabricInstallError> {
@@ -113,14 +103,10 @@ pub async fn install_server(
         } else {
             Loader::Fabric
         },
-        Some(ModTypeInfo {
-            version: Some(loader_version),
-            backend_implementation: if let BackendType::Fabric | BackendType::Quilt = backend {
-                None
-            } else {
-                Some(backend.to_string())
-            },
-            optifine_jar: None,
+        Some(if let BackendType::Fabric | BackendType::Quilt = backend {
+            ModTypeInfo::new_regular(loader_version)
+        } else {
+            ModTypeInfo::new_with_backend(loader_version, backend.to_string())
         }),
     )
     .await?;
@@ -160,7 +146,7 @@ async fn download_library(
         pt!("Skipping (no url): {}", library.name);
         return Ok(None);
     };
-    file_utils::download_file_to_path(&url, false, &library_path).await?;
+    download(&url).path(&library_path).await?;
 
     send_progress(i, library, progress, number_of_libraries);
     Ok::<_, FabricInstallError>(Some(library_path.clone()))
@@ -168,7 +154,7 @@ async fn download_library(
 
 pub async fn install_client(
     loader_version: String,
-    instance_name: String,
+    instance_name: &str,
     progress: Option<&Sender<GenericProgress>>,
     backend: BackendType,
 ) -> Result<(), FabricInstallError> {
@@ -217,14 +203,10 @@ pub async fn install_client(
         } else {
             Loader::Fabric
         },
-        Some(ModTypeInfo {
-            version: Some(loader_version),
-            backend_implementation: if let BackendType::Fabric | BackendType::Quilt = backend {
-                None
-            } else {
-                Some(backend.to_string())
-            },
-            optifine_jar: None,
+        Some(if let BackendType::Fabric | BackendType::Quilt = backend {
+            ModTypeInfo::new_regular(loader_version)
+        } else {
+            ModTypeInfo::new_with_backend(loader_version, backend.to_string())
         }),
     )
     .await?;
@@ -249,37 +231,42 @@ async fn get_fabric_json(
         "client"
     };
 
-    Ok(
-        if let BackendType::OrnitheMCFabric | BackendType::OrnitheMCQuilt = backend {
-            let fq = if backend.is_quilt() {
-                "quilt"
-            } else {
-                "fabric"
-            };
-            let url1 = format!("https://meta.ornithemc.net/v3/versions/{fq}-loader/{game_version}/{loader_version}/{implementation}/json");
-            let url2 = format!("https://meta.ornithemc.net/v3/versions/{fq}-loader/{game_version}-{implementation_kind}/{loader_version}/{implementation}/json");
-
-            match file_utils::download_file_to_string(&url1, false).await {
-                Ok(n) => n,
-                Err(err) => match file_utils::download_file_to_string(&url2, false).await {
-                    Ok(n) => n,
-                    Err(_) => Err(err)?,
-                },
-            }
+    let json = if let BackendType::OrnitheMCFabric | BackendType::OrnitheMCQuilt = backend {
+        let fq = if backend.is_quilt() {
+            "quilt"
         } else {
-            download_file_to_string(
-                &format!("/versions/loader/{game_version}/{loader_version}/{implementation}/json"),
-                backend,
-            )
-            .await?
-        },
-    )
+            "fabric"
+        };
+        let url1 = format!(
+            "https://meta.ornithemc.net/v3/versions/{fq}-loader/{game_version}/{loader_version}/{implementation}/json"
+        );
+        let url2 = format!(
+            "https://meta.ornithemc.net/v3/versions/{fq}-loader/{game_version}-{implementation_kind}/{loader_version}/{implementation}/json"
+        );
+
+        match download(&url1).string().await {
+            Ok(n) => n,
+            Err(err) => match download(&url2).string().await {
+                Ok(n) => n,
+                Err(_) => Err(err)?,
+            },
+        }
+    } else {
+        download(&format!(
+            "{}/versions/loader/{game_version}/{loader_version}/{implementation}/json",
+            backend.get_url()
+        ))
+        .string()
+        .await?
+    };
+
+    Ok(json)
 }
 
 async fn migrate_index_file(instance_dir: &Path) -> Result<(), FabricInstallError> {
     let old_index_dir = instance_dir.join(".minecraft/mods/index.json");
     let new_index_dir = instance_dir.join(".minecraft/mod_index.json");
-    if old_index_dir.exists() {
+    if exists(&old_index_dir).await {
         let index = tokio::fs::read_to_string(&old_index_dir)
             .await
             .path(&old_index_dir)?;
@@ -324,19 +311,12 @@ fn send_progress(
 /// # Arguments
 /// - `loader_version` - (Optional) The version of the loader to install.
 ///   Will pick the latest compatible one if not specified.
-/// - `instance_name` - The name of the instance to install to.
-///   `InstanceSelection::Instance(n)` for a client instance,
-///   `InstanceSelection::Server(n)` for a server instance.
-/// - `progress` - A channel to send progress updates to.
-/// - `is_quilt` - Whether to install Quilt instead of Fabric.
-///   As much as people want you to think, Quilt is almost
-///   identical to Fabric. So it's just a matter of changing the URL.
-///
-/// Returns the `is_quilt` bool (so that the launcher can remember
-/// whether quilt or fabric was installed)
+/// - `instance` - The instance (client/server) to install to
+/// - `progress` - (Optional) A channel to send progress updates to.
+/// - `backend` - Backend fabric implementation (Fabric/Quilt/Babric/OrnitheMC/...)
 pub async fn install(
     loader_version: Option<String>,
-    instance: InstanceSelection,
+    instance: Instance,
     progress: Option<&Sender<GenericProgress>>,
     mut backend: BackendType,
 ) -> Result<(), FabricInstallError> {
@@ -353,10 +333,9 @@ pub async fn install(
             .version
             .clone()
     };
-    match instance {
-        InstanceSelection::Instance(n) => {
-            install_client(loader_version, n, progress, backend).await
-        }
-        InstanceSelection::Server(n) => install_server(loader_version, n, progress, backend).await,
+    let name = instance.get_name();
+    match instance.kind {
+        InstanceKind::Client => install_client(loader_version, name, progress, backend).await,
+        InstanceKind::Server => install_server(loader_version, name, progress, backend).await,
     }
 }

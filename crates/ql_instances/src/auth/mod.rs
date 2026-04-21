@@ -1,4 +1,5 @@
-use ql_core::{err, IntoStringError};
+use ql_core::{IntoStringError, err};
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use tokio::task::spawn_blocking;
 
@@ -24,12 +25,7 @@ pub struct AccountData {
 impl AccountData {
     #[must_use]
     pub fn get_username_modified(&self) -> String {
-        let suffix = match self.account_type {
-            AccountType::Microsoft => "",
-            AccountType::ElyBy => " (elyby)",
-            AccountType::LittleSkin => " (littleskin)",
-        };
-        format!("{}{suffix}", self.nice_username)
+        self.account_type.add_suffix_to_name(&self.nice_username)
     }
 
     #[must_use]
@@ -42,24 +38,22 @@ impl AccountData {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Copy)]
 pub enum AccountType {
-    Microsoft,
     ElyBy,
     LittleSkin,
+    #[serde(other)]
+    #[default]
+    Microsoft,
 }
 
 impl Display for AccountType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                AccountType::Microsoft => "Microsoft",
-                AccountType::ElyBy => "ElyBy",
-                AccountType::LittleSkin => "LittleSkin",
-            }
-        )
+        f.write_str(match self {
+            AccountType::Microsoft => "Microsoft",
+            AccountType::ElyBy => "ElyBy",
+            AccountType::LittleSkin => "LittleSkin",
+        })
     }
 }
 
@@ -127,6 +121,16 @@ impl AccountType {
             AccountType::LittleSkin => name.strip_suffix(" (littleskin)").unwrap_or(name),
         }
     }
+
+    #[must_use]
+    pub fn add_suffix_to_name(self, name: &str) -> String {
+        let suffix = match self {
+            AccountType::Microsoft => "",
+            AccountType::ElyBy => " (elyby)",
+            AccountType::LittleSkin => " (littleskin)",
+        };
+        format!("{name}{suffix}")
+    }
 }
 
 impl AccountData {
@@ -155,7 +159,10 @@ impl Display for KeyringError {
             keyring::Error::PlatformFailure(error)
                 if error.to_string().contains("The name is not activatable") =>
             {
-                write!(f, "{error}\n\nTry installing gnome-keyring and libsecret packages\n(may be called differently depending on your distro)")
+                write!(
+                    f,
+                    "{error}\n\nTry installing gnome-keyring and libsecret packages\n(may be called differently depending on your distro)"
+                )
             }
             #[cfg(target_os = "linux")]
             keyring::Error::NoStorageAccess(error)

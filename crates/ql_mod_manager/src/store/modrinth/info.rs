@@ -2,7 +2,7 @@ use ql_core::{err, file_utils};
 use serde::Deserialize;
 use std::fmt::Write;
 
-use crate::rate_limiter::RATE_LIMITER;
+use crate::{rate_limiter::RATE_LIMITER, store::types::UrlKind};
 
 use super::ModError;
 
@@ -15,19 +15,19 @@ pub struct ProjectInfo {
     pub id: String,
     pub body: String,
     pub project_type: String,
-    // pub slug: String,
+    pub slug: String,
     // pub categories: Vec<String>,
     // pub client_side: String,
     // pub server_side: String,
     // pub status: String,
     // pub requested_status: Option<String>,
     // pub additional_categories: Vec<String>,
-    // pub issues_url: Option<String>,
-    // pub source_url: Option<String>,
-    // pub wiki_url: Option<String>,
-    // pub discord_url: Option<String>,
-    // pub donation_urls: Vec<DonationLink>,
-    // pub downloads: usize,
+    pub issues_url: Option<String>,
+    pub source_url: Option<String>,
+    pub wiki_url: Option<String>,
+    pub discord_url: Option<String>,
+    pub donation_urls: Vec<DonationLink>,
+    pub downloads: usize,
     // pub color: Option<usize>,
     // pub thread_id: Option<String>,
     // pub monetization_status: Option<String>,
@@ -39,7 +39,27 @@ pub struct ProjectInfo {
     // pub license: License,
     // pub versions: Vec<String>,
     // pub game_versions: Vec<String>,
-    // pub gallery: Vec<GalleryItem>,
+    pub gallery: Vec<MGallery>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct MGallery {
+    pub url: String,
+    // pub featured: bool,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    // pub created: String,
+    pub ordering: i64,
+}
+
+impl From<MGallery> for crate::store::types::GalleryItem {
+    fn from(value: MGallery) -> Self {
+        Self {
+            url: value.url,
+            title: value.title,
+            description: value.description,
+        }
+    }
 }
 
 impl ProjectInfo {
@@ -70,28 +90,41 @@ impl ProjectInfo {
 
         Ok(file_utils::download_file_to_json(&url, false).await?)
     }
+
+    pub fn build_urls(&self) -> Vec<(UrlKind, String)> {
+        let mut urls = Vec::new();
+        if let Some(issues) = &self.issues_url {
+            urls.push((UrlKind::Issues, issues.clone()));
+        }
+        if let Some(source) = &self.source_url {
+            urls.push((UrlKind::Source, source.clone()));
+        }
+        if let Some(wiki) = &self.wiki_url {
+            urls.push((UrlKind::Wiki, wiki.clone()));
+        }
+        if let Some(discord) = &self.discord_url {
+            urls.push((UrlKind::Discord, discord.clone()));
+        }
+        for donation in &self.donation_urls {
+            urls.push((
+                UrlKind::Donation(donation.platform.clone()),
+                donation.url.clone(),
+            ));
+        }
+        urls
+    }
 }
 
-/*#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct DonationLink {
-    pub id: String,
+    // pub id: String,
     pub platform: String,
     pub url: String,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+/*#[derive(Deserialize, Debug, Clone)]
 pub struct License {
     pub id: String,
     pub name: String,
     pub url: Option<String>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct GalleryItem {
-    pub url: String,
-    pub featured: bool,
-    pub title: Option<String>,
-    pub description: Option<String>,
-    pub created: String,
-    pub ordering: i64,
 }*/

@@ -1,5 +1,5 @@
 use core_foundation::{array::CFArray, base::TCFType, dictionary::CFDictionary, number::CFNumber};
-use core_graphics::window::{kCGNullWindowID, kCGWindowListOptionAll, CGWindowListCopyWindowInfo};
+use core_graphics::window::{CGWindowListCopyWindowInfo, kCGNullWindowID, kCGWindowListOptionAll};
 
 use crate::search::kill_proc;
 use std::ffi::c_void;

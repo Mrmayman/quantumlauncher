@@ -1,7 +1,8 @@
 [package]
 name = "ql_mod_manager"
 version = "0.0.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 license = "GPL-3.0-only"
 
 [dependencies]
@@ -21,6 +22,7 @@ futures.workspace = true
 owo-colors.workspace = true
 thiserror.workspace = true
 
-image.workspace = true
 chrono.workspace = true
 regex.workspace = true
+image.workspace = true
+indexmap = "2"

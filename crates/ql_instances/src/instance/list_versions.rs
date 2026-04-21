@@ -1,4 +1,4 @@
-use ql_core::{json::Manifest, JsonDownloadError, ListEntry, ListEntryKind};
+use ql_core::{JsonDownloadError, ListEntry, ListEntryKind, json::Manifest};
 
 /// Returns a list of every downloadable version of Minecraft.
 /// Sources the list from multiple places (see [`Manifest`]).
@@ -7,7 +7,11 @@ use ql_core::{json::Manifest, JsonDownloadError, ListEntry, ListEntryKind};
 /// If [`Manifest`] couldn't be downloaded or parsed into JSON
 pub async fn list_versions() -> Result<(Vec<ListEntry>, String), JsonDownloadError> {
     let manifest = Manifest::download().await?;
-    let latest = manifest.get_latest_release().unwrap().id.clone();
+    let latest = manifest
+        .get_latest_release()
+        .or_else(|| manifest.versions.first())
+        .map(|version| version.id.clone())
+        .unwrap_or_default();
 
     Ok((
         manifest

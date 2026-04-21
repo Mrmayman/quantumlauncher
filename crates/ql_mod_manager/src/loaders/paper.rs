@@ -1,12 +1,14 @@
 use std::fmt::{Display, Formatter};
 use std::path::Path;
 
-use ql_core::impl_3_errs_jri;
+use ql_core::file_utils::exists;
 use ql_core::{
-    file_utils, info,
-    json::{instance_config::ModTypeInfo, VersionDetails},
-    pt, IntoIoError, IntoJsonError, IoError, JsonError, Loader, RequestError, LAUNCHER_DIR,
+    IntoIoError, IntoJsonError, IoError, JsonError, LAUNCHER_DIR, Loader, RequestError, file_utils,
+    info,
+    json::{VersionDetails, instance_config::ModTypeInfo},
+    pt,
 };
+use ql_core::{download, impl_3_errs_jri};
 use serde::Deserialize;
 use thiserror::Error;
 
@@ -15,7 +17,7 @@ use crate::loaders::change_instance_type;
 /// Moves a directory from `old_path` to `new_path`.
 /// If `new_path` exists, it will be deleted before the move.
 async fn move_dir(old_path: &Path, new_path: &Path) -> Result<(), IoError> {
-    if new_path.exists() {
+    if exists(&new_path).await {
         tokio::fs::remove_dir_all(new_path).await.path(new_path)?;
     }
     file_utils::copy_dir_recursive(old_path, new_path).await?;
@@ -42,7 +44,7 @@ impl PaperVer {
     pub async fn get(&self, version: &str) -> Result<PaperVersion, PaperInstallerError> {
         if let PaperVer::Full(n) = self {
             return Ok(n.clone());
-        };
+        }
 
         let list = get_list_of_versions(version.to_owned()).await?;
         Ok(match self {
@@ -69,16 +71,15 @@ pub async fn install(instance_name: String, version: PaperVer) -> Result<(), Pap
 
     pt!("Downloading jar");
     let jar_path = server_dir.join("paper_server.jar");
-    file_utils::download_file_to_path(&version.downloads.server.url, true, &jar_path).await?;
+    download(&version.downloads.server.url)
+        .user_agent_ql()
+        .path(&jar_path)
+        .await?;
 
     change_instance_type(
         &server_dir,
         Loader::Paper,
-        Some(ModTypeInfo {
-            version: Some(version.id.to_string()),
-            backend_implementation: None,
-            optifine_jar: None,
-        }),
+        Some(ModTypeInfo::new_regular(version.id.to_string())),
     )
     .await?;
 
@@ -90,7 +91,7 @@ pub async fn get_list_of_versions(
     version: String,
 ) -> Result<Vec<PaperVersion>, PaperInstallerError> {
     let url = format!("https://fill.papermc.io/v3/projects/paper/versions/{version}/builds");
-    let json = file_utils::download_file_to_string(&url, false).await?;
+    let json = download(&url).string().await?;
 
     let not_found = json.contains("\"version_not_found\"");
     let json: Vec<PaperVersion> = match serde_json::from_str(&json).json(json) {

@@ -1,16 +1,18 @@
+use std::process::ExitStatus;
+use std::sync::Arc;
 use std::{io::Write, time::Duration};
 
-use ql_core::err;
+use ql_core::read_log::Diagnostic;
+use ql_core::{IntoStringError, err};
 
-use crate::search::search_for_window;
-use crate::{attempt, set_terminal};
+use crate::{Cli, attempt, search::search_for_window, set_terminal};
 
-pub async fn launch(name: String, timeout: f32) -> bool {
+pub async fn launch(name: &str, timeout: f32, cli: &Cli) -> bool {
     print!("Testing {name} ");
     _ = std::io::stdout().flush();
     let child = attempt(
         ql_instances::launch(
-            name.clone(),
+            Arc::from(name),
             "test".to_owned(),
             None,
             None,
@@ -21,10 +23,17 @@ pub async fn launch(name: String, timeout: f32) -> bool {
     );
     set_terminal(true);
 
-    let Some(pid) = child.child.lock().unwrap().id() else {
+    let Some(pid) = child.child.lock().await.id() else {
         err!("{name}: No PID found");
         return false;
     };
+    let verbose = cli.verbose;
+    let handle = tokio::task::spawn(async move {
+        child
+            .read_logs(Vec::new(), (!verbose).then(|| std::sync::mpsc::channel().0))
+            .await
+    });
+    // Ok((ExitStatus::default(), instance, None))
 
     let timeout_duration = Duration::from_secs_f32(timeout);
     let start_time = tokio::time::Instant::now();
@@ -38,16 +47,8 @@ pub async fn launch(name: String, timeout: f32) -> bool {
         }
         tokio::time::sleep(Duration::from_secs_f32(timeout / 30.0)).await;
 
-        {
-            let exit_code = child.child.lock().unwrap().try_wait().ok().flatten();
-            if let Some(code) = exit_code {
-                if code.success() {
-                    err!("\nProcess mysteriously exited!");
-                } else {
-                    err!("\nProcess exited with code: {code}");
-                }
-                return false;
-            }
+        if handle.is_finished() {
+            return handle_process_exit(handle).await;
         }
 
         if search_for_window(pid, &sys) {
@@ -60,4 +61,37 @@ pub async fn launch(name: String, timeout: f32) -> bool {
 
     err!("{name}: No window found after waiting");
     false
+}
+
+type ProcessExitResult = Option<
+    Result<(ExitStatus, ql_core::Instance, Option<Diagnostic>), ql_core::read_log::ReadError>,
+>;
+
+async fn handle_process_exit(handle: tokio::task::JoinHandle<ProcessExitResult>) -> bool {
+    let out = handle.await;
+    match out
+        .strerr()
+        .map(|n| {
+            n.expect("stdout/stderr should exist, unless you turned switched off logging")
+                .strerr()
+        })
+        .flatten()
+    {
+        Ok((code, _, diag)) => {
+            if let Some(Diagnostic::MacOSPixelFormat) = diag {
+                println!("\nmacOS VM lacks GPU acceleration, test successful");
+                return true;
+            } else if let Some(diag) = diag {
+                err!("\nProcess exited (code: {code})\n    {diag}");
+            } else if code.success() {
+                err!("\nProcess exited somehow!");
+            } else {
+                err!("\nProcess exited (code: {code})");
+            }
+        }
+        Err(err) => {
+            err!("Instance child process: {err}");
+        }
+    }
+    return false;
 }

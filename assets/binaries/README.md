@@ -22,3 +22,12 @@ unlikely that you'll get matching binary-perfect builds.
 - Built on **FreeBSD 13.4** using a **chroot environment**
   inside FreeBSD 14.3.
 - Dependencies installed using `pkg`.
+
+--
+
+## `macos_shortcut/shortcut`
+
+- Built on **macOS Big Sur 11.7.10** with Clang 12.0.5 (clang-1205.0.22.11)
+- Lightweight C wrapper that calls shell script
+- Done because of faulty architecture detection for regular scripts on macOS
+  ("Do you want to install Rosetta 2?")

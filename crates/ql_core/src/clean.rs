@@ -4,10 +4,11 @@ use fs::DirEntry;
 use tokio::fs;
 
 use crate::{
-    file_utils::get_launcher_dir,
+    IntoIoError, IntoJsonError, IoError, JsonFileError, LAUNCHER_DIR,
+    file_utils::{exists, get_launcher_dir},
     info,
     json::{AssetIndex, VersionDetails},
-    pt, IntoIoError, IntoJsonError, IoError, JsonFileError, LAUNCHER_DIR,
+    pt,
 };
 
 const SIZE_LIMIT_BYTES: u64 = 100 * 1024 * 1024; // 100 MB
@@ -31,7 +32,7 @@ pub async fn dir(dir_name: &str) -> Result<(), IoError> {
     if dir == launcher_dir || dir_name.trim().is_empty() {
         return Ok(());
     }
-    if !dir.exists() {
+    if !exists(&dir).await {
         fs::create_dir_all(&dir).await.path(dir)?;
         return Ok(());
     }

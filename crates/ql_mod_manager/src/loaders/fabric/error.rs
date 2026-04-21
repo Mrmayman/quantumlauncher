@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use ql_core::{impl_3_errs_jri, IoError, JsonError, RequestError};
+use ql_core::{IoError, JsonError, RequestError, impl_3_errs_jri};
 use thiserror::Error;
 
 const FABRIC_INSTALL_ERR_PREFIX: &str = "while managing Fabric/Quilt:\n";

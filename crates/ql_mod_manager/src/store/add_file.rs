@@ -1,16 +1,16 @@
 use std::{collections::HashSet, ffi::OsStr, path::PathBuf, sync::mpsc::Sender};
 
-use ql_core::{err, pt, GenericProgress, InstanceSelection, IntoIoError};
+use ql_core::{GenericProgress, Instance, IntoIoError, err, pt};
 
-use crate::presets;
+use crate::{presets, store::download_mods_bulk};
 
 use super::{
-    modpack::{self, PackError},
     CurseforgeNotAllowed,
+    modpack::{self, PackError},
 };
 
 pub async fn add_files(
-    instance: InstanceSelection,
+    instance: Instance,
     paths: Vec<PathBuf>,
     progress: Option<Sender<GenericProgress>>,
 ) -> Result<HashSet<CurseforgeNotAllowed>, PackError> {
@@ -63,7 +63,10 @@ pub async fn add_files(
             }
             "qmp" => {
                 let file = tokio::fs::read(&path).await.path(&path)?;
-                presets::Preset::load(instance.clone(), file, true).await?;
+                let out = presets::Preset::load(instance.clone(), file, true).await?;
+                if !out.to_install.is_empty() {
+                    download_mods_bulk(out.to_install, instance.clone(), progress.clone()).await?;
+                }
             }
             extension => {
                 err!("While adding mod files: Unrecognized extension: .{extension}");

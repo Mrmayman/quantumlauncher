@@ -1,27 +1,26 @@
-use crate::config::SIDEBAR_WIDTH;
-use crate::state::{
-    AutoSaveKind, GameProcess, MenuCreateInstance, MenuCreateInstanceChoosing, MenuInstallOptifine,
-};
-use crate::tick::sort_dependencies;
 use crate::{
-    get_entries,
-    state::{
-        EditPresetsMessage, ManageModsMessage, MenuEditInstance, MenuEditMods, MenuInstallForge,
-        MenuLaunch, ProgressBar, SelectedState, State, OFFLINE_ACCOUNT_NAME,
-    },
     Launcher, Message,
+    config::AfterLaunchBehavior,
+    menu_renderer::back_to_launch_screen,
+    state::{
+        AutoSaveKind, EditPresetsMessage, GameProcess, InfoMessage, LaunchTab, LogState,
+        ManageModsMessage, MenuCreateInstance, MenuCreateInstanceChoosing, MenuEditInstance,
+        MenuEditMods, MenuInstallForge, MenuInstallOptifine, MenuLaunch, OFFLINE_ACCOUNT_NAME,
+        ProgressBar, SelectedState, State,
+    },
+    tick::sort_dependencies,
 };
-use iced::futures::executor::block_on;
-use iced::widget::scrollable::AbsoluteOffset;
-use iced::Task;
-use ql_core::json::instance_config::ModTypeInfo;
-use ql_core::json::VersionDetails;
-use ql_core::read_log::{Diagnostic, ReadError};
+use filthy_rich::{PresenceRunner, types::Activity};
+use iced::{Task, futures::executor::block_on, widget::scrollable::AbsoluteOffset};
 use ql_core::{
-    err, json::instance_config::InstanceConfigJson, GenericProgress, InstanceSelection,
-    IntoIoError, IntoJsonError, IntoStringError, JsonFileError,
+    GenericProgress, Instance, InstanceKind, IntoIoError, IntoJsonError, IntoStringError,
+    JsonFileError, LaunchedProcess, err,
+    file_utils::exists,
+    info,
+    json::{VersionDetails, instance_config::InstanceConfigJson},
+    pt,
+    read_log::{Diagnostic, ReadError},
 };
-use ql_core::{info, pt, LaunchedProcess};
 use ql_instances::auth::AccountData;
 use ql_mod_manager::{loaders, store::ModIndex};
 use std::{
@@ -37,29 +36,54 @@ pub const SIDEBAR_LIMIT_RIGHT: f32 = 140.0;
 pub const SIDEBAR_LIMIT_LEFT: f32 = 135.0;
 
 pub mod account_load;
+mod arrow_keys;
 mod iced_event;
 
+trait StringPresenceExt {
+    fn substitute(&self, instance: &str, minecraft_vers: &str) -> String;
+}
+
+impl StringPresenceExt for str {
+    fn substitute(&self, instance: &str, minecraft_vers: &str) -> String {
+        self.replace("${version}", minecraft_vers)
+            .replace("${instance}", instance)
+    }
+}
+
 impl Launcher {
-    pub fn on_instance_selected(&mut self) -> Task<Message> {
-        let instance = self.instance().clone();
-
+    pub fn on_selecting_instance(&mut self) -> Task<Message> {
         self.load_edit_instance(None);
+        let Some(instance) = self.selected_instance.clone() else {
+            return Task::none();
+        };
 
-        {
-            let persistent = self.config.c_persistent();
-            if persistent.selected_remembered {
-                match instance.clone() {
-                    InstanceSelection::Instance(n) => persistent.selected_instance = Some(n),
-                    InstanceSelection::Server(n) => persistent.selected_server = Some(n),
-                }
-                self.autosave.remove(&AutoSaveKind::LauncherConfig);
-            }
-        }
+        let persistent = self.config.c_persistent();
+        persistent.selected_instance = Some(instance.name.clone());
+        self.autosave.remove(&AutoSaveKind::LauncherConfig);
+
+        self.load_logs();
         if let State::Launch(menu) = &mut self.state {
             menu.modal = None;
-            menu.reload_notes(instance)
+            menu.reload_notes(instance.clone())
         } else {
             Task::none()
+        }
+    }
+
+    pub fn load_logs(&mut self) {
+        let State::Launch(menu) = &mut self.state else {
+            return;
+        };
+        let Some(instance) = self.selected_instance.as_ref() else {
+            menu.log_state = None;
+            return;
+        };
+        if let (Some(logs), LaunchTab::Log) = (self.logs.get(instance), menu.tab) {
+            menu.log_state = Some(LogState {
+                content: iced::widget::text_editor::Content::with_text(&logs.log.join("\n")),
+            });
+        } else {
+            menu.log_state = None;
         }
     }
 
@@ -78,7 +102,7 @@ impl Launcher {
         let global_settings = self.config.global_settings.clone();
         let extra_java_args = self.config.extra_java_args.clone().unwrap_or_default();
 
-        let instance_name = self.instance().get_name().to_owned();
+        let instance_name = self.instance().name.clone();
         Task::perform(
             async move {
                 ql_instances::launch(
@@ -103,7 +127,10 @@ impl Launcher {
             Ok(child) => {
                 let selected_instance = child.instance.clone();
 
-                let server_input = child.child.lock().unwrap().stdin.take().map(|n| (n, false));
+                let server_input = block_on(child.child.lock())
+                    .stdin
+                    .take()
+                    .map(|n| (n, false));
 
                 let (sender, receiver) = std::sync::mpsc::channel();
                 self.processes.insert(
@@ -122,29 +149,83 @@ impl Launcher {
                     }
                 }
 
-                if let Some(f) = child.read_logs(censors, Some(sender)) {
-                    return Task::perform(
-                        async move {
-                            let result = f.await;
+                let version_presence_task = self.rpc_game_update(selected_instance.clone(), false);
 
-                            match result {
-                                Err(ReadError::Io(io))
-                                    if io.kind() == std::io::ErrorKind::InvalidData =>
-                                {
-                                    err!("Minecraft log contains invalid unicode! Stopping logs");
-                                    pt!("The game will continue to run");
-                                    Ok((ExitStatus::default(), selected_instance, None))
-                                }
-                                _ => result.strerr(),
+                let log_task = Task::perform(
+                    async move {
+                        let result = child.read_logs(censors, Some(sender)).await;
+                        let default_output = Ok((ExitStatus::default(), selected_instance, None));
+
+                        match result {
+                            Some(Err(ReadError::Io(io)))
+                                if io.kind() == std::io::ErrorKind::InvalidData =>
+                            {
+                                err!("Minecraft log contains invalid unicode! Stopping logs");
+                                pt!("The game will continue to run");
+                                default_output
                             }
-                        },
-                        Message::LaunchGameExited,
-                    );
+                            Some(result) => result.strerr(),
+                            None => default_output,
+                        }
+                    },
+                    Message::LaunchGameExited,
+                );
+
+                match self.config.c_after_launch_behavior() {
+                    AfterLaunchBehavior::DoNothing => {}
+                    AfterLaunchBehavior::CloseLauncher => {
+                        ql_core::logger_finish();
+                        std::process::exit(0);
+                    }
+                    AfterLaunchBehavior::MinimizeLauncher => {
+                        let minimize_task = iced::window::get_latest()
+                            .and_then(|id| iced::window::minimize(id, true));
+                        return Task::batch([log_task, minimize_task, version_presence_task]);
+                    }
                 }
+
+                return Task::batch([log_task, version_presence_task]);
             }
             Err(err) => self.set_error(err),
         }
         Task::none()
+    }
+
+    fn rpc_game_update(&mut self, selected_instance: Instance, exited: bool) -> Task<Message> {
+        if !self.config.c_rpc_enabled() {
+            return Task::none();
+        }
+        let rpc_config = self.config.discord_rpc.get_or_insert_default();
+        let info = if exited {
+            &rpc_config.on_gameexit
+        } else {
+            &rpc_config.on_gameopen
+        };
+        let Some(gameexit_details) = info.top_text.clone() else {
+            return Task::none();
+        };
+
+        let client = self.discord_ipc_client.clone();
+        let gameexit_state = info.bottom_text.clone();
+
+        Task::perform(
+            async move {
+                if let Ok(version_details) = VersionDetails::load(&selected_instance).await {
+                    if let Some(c) = client {
+                        let instance = selected_instance.get_name();
+                        let minecraft_vers = version_details.get_id();
+
+                        let activity = Activity::new()
+                            .details(gameexit_details.substitute(instance, minecraft_vers))
+                            .state(gameexit_state.substitute(instance, minecraft_vers))
+                            .build();
+
+                        _ = c.set_activity(activity).await;
+                    }
+                }
+            },
+            |()| Message::Nothing,
+        )
     }
 
     pub fn delete_instance_confirm(&mut self) -> Task<Message> {
@@ -155,29 +236,30 @@ impl Launcher {
         let selected_instance = self.instance();
         let is_server = selected_instance.is_server();
         let deleted_instance_dir = selected_instance.get_instance_path();
+
         if let Err(err) = std::fs::remove_dir_all(&deleted_instance_dir) {
             self.set_error(err);
             return Task::none();
         }
 
         self.unselect_instance();
-        if is_server {
-            self.go_to_server_manage_menu(Some("Deleted Server".to_owned()))
-        } else {
-            self.go_to_launch_screen(Some("Deleted Instance".to_owned()))
-        }
+        self.go_to_main_menu(Some(InfoMessage::success(format!(
+            "Deleted {}",
+            if is_server { "Server" } else { "Instance" }
+        ))))
     }
 
     pub fn unselect_instance(&mut self) {
         self.selected_instance = None;
-        self.config.c_persistent().selected_instance = None;
-        self.config.c_persistent().selected_server = None;
+        let p = self.config.c_persistent();
+        p.selected_instance = None;
+        p.selected_instance_kind = None;
         self.autosave.remove(&AutoSaveKind::LauncherConfig);
     }
 
     pub fn load_edit_instance_inner(
         edit_instance: &mut Option<MenuEditInstance>,
-        selected_instance: &InstanceSelection,
+        selected_instance: &Instance,
     ) -> Result<(), JsonFileError> {
         let config_path = selected_instance.get_instance_path().join("config.json");
 
@@ -191,25 +273,24 @@ impl Launcher {
         // Use this to check for performance impact
         // std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let instance_name = selected_instance.get_name();
-
         *edit_instance = Some(MenuEditInstance {
             main_class_mode: config_json.get_main_class_mode(),
             config: config_json,
             slider_value,
-            instance_name: instance_name.to_owned(),
-            old_instance_name: instance_name.to_owned(),
+            instance_name: selected_instance.name.to_string(),
+            old_instance_name: selected_instance.name.clone(),
             slider_text: format_memory(memory_mb),
+            memory_input: memory_mb.to_string(),
             is_editing_name: false,
             arg_split_by_space: true,
         });
         Ok(())
     }
 
-    pub fn go_to_edit_mods_menu(&mut self, check_updates: bool) -> Task<Message> {
+    pub fn go_to_edit_mods_menu(&mut self, msg: Option<InfoMessage>) -> Task<Message> {
         async fn inner(
             this: &mut Launcher,
-            check_updates: bool,
+            info_message: Option<InfoMessage>,
         ) -> Result<Task<Message>, JsonFileError> {
             let instance = this.selected_instance.as_ref().unwrap();
 
@@ -223,26 +304,6 @@ impl Launcher {
             let locally_installed_mods = HashSet::new();
             let sorted_mods_list = sort_dependencies(&mods.mods, &locally_installed_mods);
 
-            let (update_cmd, update_check_handle) = if !check_updates
-                || this.mod_updates_checked.contains_key(instance)
-                || config_json.mod_type.is_vanilla()
-            {
-                (Task::none(), None)
-            } else {
-                let (a, b) = Task::perform(
-                    ql_mod_manager::store::check_for_updates(instance.clone()),
-                    |n| Message::ManageMods(ManageModsMessage::UpdateCheckResult(n.strerr())),
-                )
-                .abortable();
-                (a, Some(b.abort_on_drop()))
-            };
-
-            let available_updates = if let Some(updates) = this.mod_updates_checked.get(instance) {
-                updates.clone()
-            } else {
-                Vec::new()
-            };
-
             this.state = State::EditMods(MenuEditMods {
                 config: config_json,
                 mods,
@@ -250,22 +311,32 @@ impl Launcher {
                 shift_selected_mods: HashSet::new(),
                 sorted_mods_list,
                 selected_state: SelectedState::None,
-                available_updates,
+                available_updates: Vec::new(),
                 mod_update_progress: None,
                 locally_installed_mods,
                 drag_and_drop_hovered: false,
-                update_check_handle,
+                update_check_handle: None,
                 version_json,
                 modal: None,
                 search: None,
+                // If you wanna test stuff out...
+                // info_message: Some(crate::state::ModInfoMessage {
+                //     text: "Hello, World!".to_owned(),
+                //     kind: crate::state::InfoMessageKind::AtPath(PathBuf::from("/home/mrmayman")),
+                // }),
+                // info_message: Some(crate::state::ModInfoMessage {
+                //     text: "Hello, World!".to_owned(),
+                //     kind: crate::state::InfoMessageKind::Success,
+                // }),
+                info_message,
                 width_name: 220.0,
                 list_shift_index: None,
                 list_scroll: AbsoluteOffset::default(),
             });
 
-            Ok(Task::batch([update_local_mods_task, update_cmd]))
+            Ok(Task::batch([update_local_mods_task]))
         }
-        match block_on(inner(self, check_updates)) {
+        match block_on(inner(self, msg)) {
             Ok(n) => n,
             Err(err) => {
                 self.set_error(format!("While opening Mods screen:\n{err}"));
@@ -277,29 +348,92 @@ impl Launcher {
     pub fn set_game_exited(
         &mut self,
         status: ExitStatus,
-        instance: &InstanceSelection,
+        instance: &Instance,
         diagnostic: Option<Diagnostic>,
-    ) {
+    ) -> Task<Message> {
         let kind = if instance.is_server() {
             "Server"
         } else {
             "Game"
         };
-        info!("Game exited with status: {status}");
+        info!("Game exited ({status})");
 
-        if let State::Launch(MenuLaunch { message, .. }) = &mut self.state {
+        let log_state = if let State::Launch(MenuLaunch {
+            message, log_state, ..
+        }) = &mut self.state
+        {
             let has_crashed = !status.success();
             if has_crashed {
-                *message = format!("{kind} crashed! ({status})\nCheck \"Logs\" for more info");
+                let mut msg = format!("{kind} crashed! ({status})\nCheck \"Logs\" for more info");
                 if let Some(diag) = diagnostic {
-                    message.push_str("\n\n");
-                    message.push_str(&diag.to_string());
+                    msg.push_str("\n\n");
+                    msg.push_str(&diag.to_string());
                 }
+                *message = Some(InfoMessage::error(msg));
             }
             if let Some(log) = self.logs.get_mut(instance) {
                 log.has_crashed = has_crashed;
             }
+            log_state
+        } else {
+            &mut None
+        };
+
+        if let Some(process) = self.processes.remove(instance) {
+            Self::read_game_logs(
+                &process,
+                instance,
+                &mut self.logs,
+                log_state,
+                self.selected_instance.as_ref(),
+            );
         }
+
+        self.rpc_game_update(instance.clone(), true)
+    }
+
+    pub fn start_discord_ipc_run(&self) -> Task<Message> {
+        const DISCORD_CLIENT_ID: &str = "1468876407756029965";
+
+        let mut runner = PresenceRunner::new(DISCORD_CLIENT_ID);
+
+        Task::perform(
+            {
+                async move {
+                    if runner.run(true).await.is_ok() {
+                        Some(runner.clone_handle())
+                    } else {
+                        None
+                    }
+                }
+            },
+            Message::DiscordIPCRunStarted,
+        )
+    }
+
+    pub fn set_custom_discord_presence(&self) -> Task<Message> {
+        let Some(c) = self.discord_ipc_client.clone() else {
+            return Task::none();
+        };
+        let rpc_config = self.config.discord_rpc.clone().unwrap_or_default();
+        let Some(top_text) = rpc_config.basic.top_text else {
+            return Task::none();
+        };
+        let bottom_text = rpc_config.basic.bottom_text;
+
+        Task::perform(
+            async move {
+                let mut activity = Activity::new().details(top_text);
+
+                if !bottom_text.is_empty() {
+                    activity = activity.state(bottom_text);
+                }
+
+                let built_activity = activity.build();
+                _ = c.set_activity(built_activity).await;
+            },
+            |()| Message::DiscordIPCPresenceSet,
+        )
     }
 
     pub fn update_mods(&mut self) -> Task<Message> {
@@ -308,8 +442,9 @@ impl Launcher {
                 .available_updates
                 .clone()
                 .into_iter()
-                .map(|(n, _, _)| n)
+                .map(|(id, version, _)| (id, version))
                 .collect();
+            let write_changelog = self.config.c_persistent().write_mod_update_changelog;
             let (sender, receiver) = std::sync::mpsc::channel();
             menu.mod_update_progress = Some(ProgressBar::with_recv_and_msg(
                 receiver,
@@ -317,41 +452,22 @@ impl Launcher {
             ));
             let selected_instance = self.selected_instance.clone().unwrap();
             Task::perform(
-                ql_mod_manager::store::apply_updates(selected_instance, updates, Some(sender)),
-                |n| Message::ManageMods(ManageModsMessage::UpdateModsFinished(n.strerr())),
+                ql_mod_manager::store::apply_updates(
+                    selected_instance,
+                    updates,
+                    Some(sender),
+                    write_changelog,
+                ),
+                move |n| {
+                    ManageModsMessage::UpdatePerformDone(
+                        n.strerr().map(|res| (res, write_changelog)),
+                    )
+                    .into()
+                },
             )
         } else {
             Task::none()
         }
-    }
-
-    pub fn go_to_server_manage_menu(&mut self, message: Option<String>) -> Task<Message> {
-        if let State::Launch(menu) = &mut self.state {
-            menu.is_viewing_server = true;
-            if let Some(message) = message {
-                menu.message = message;
-            }
-        } else {
-            let mut menu_launch = match message {
-                Some(message) => MenuLaunch::with_message(message),
-                None => MenuLaunch::default(),
-            };
-            menu_launch.is_viewing_server = true;
-            menu_launch.resize_sidebar(SIDEBAR_WIDTH);
-            self.state = State::Launch(menu_launch);
-        }
-
-        let get_entries = Task::perform(get_entries(true), Message::CoreListLoaded);
-        match &self.selected_instance {
-            Some(InstanceSelection::Instance(_)) => self.selected_instance = None,
-            Some(i @ InstanceSelection::Server(_)) => {
-                if let State::Launch(menu) = &mut self.state {
-                    return Task::batch([get_entries, menu.reload_notes(i.clone())]);
-                }
-            }
-            None => {}
-        }
-        get_entries
     }
 
     pub fn install_forge(&mut self, kind: ForgeKind) -> Task<Message> {
@@ -404,32 +520,18 @@ impl Launcher {
         command
     }
 
-    pub fn go_to_main_menu_with_message(
-        &mut self,
-        message: Option<impl ToString>,
-    ) -> Task<Message> {
-        let message = message.map(|n| n.to_string());
-        if self.server_selected() {
-            self.go_to_server_manage_menu(message)
-        } else {
-            self.go_to_launch_screen::<String>(message)
-        }
-    }
-
-    pub fn server_selected(&self) -> bool {
-        self.selected_instance
-            .as_ref()
-            .is_some_and(|n| n.is_server())
-            || if let State::Launch(menu) = &self.state {
-                menu.is_viewing_server
-            } else if let State::Create(MenuCreateInstance::Choosing(
-                MenuCreateInstanceChoosing { is_server, .. },
-            )) = &self.state
+    pub fn selected_kind(&self) -> Option<InstanceKind> {
+        self.selected_instance.as_ref().map(|n| n.kind).or(
+            if let State::Create(MenuCreateInstance::Choosing(MenuCreateInstanceChoosing {
+                kind,
+                ..
+            })) = &self.state
             {
-                *is_server
+                Some(*kind)
             } else {
-                false
-            }
+                None
+            },
+        )
     }
 
     pub fn get_selected_dot_minecraft_dir(&self) -> Option<PathBuf> {
@@ -447,7 +549,7 @@ impl Launcher {
                 vec![path],
                 Some(sender),
             ),
-            |n| Message::ManageMods(ManageModsMessage::AddFileDone(n.strerr())),
+            |n| ManageModsMessage::AddFileDone(n.strerr()).into(),
         )
     }
 
@@ -492,7 +594,7 @@ impl Launcher {
                         instance_name,
                         Some(sender),
                     ),
-                    |n| Message::EditPresets(EditPresetsMessage::LoadComplete(n.strerr())),
+                    |n| EditPresetsMessage::LoadComplete(n.strerr()).into(),
                 )
             }
             Err(err) => {
@@ -531,11 +633,7 @@ impl Launcher {
             let url = url.clone();
 
             Task::perform(
-                async move {
-                    ql_instances::install_launcher_update(url, sender)
-                        .await
-                        .strerr()
-                },
+                async move { crate::launcher_update::install(url, sender).await.strerr() },
                 Message::UpdateDownloadEnd,
             )
         } else {
@@ -547,14 +645,14 @@ impl Launcher {
         let Some(instance) = &self.selected_instance else {
             return Task::none();
         };
-        match instance {
-            InstanceSelection::Instance(_) => {
+        match instance.kind {
+            InstanceKind::Client => {
                 if let Some(process) = self.processes.remove(instance) {
-                    let mut child = process.child.child.lock().unwrap();
+                    let mut child = block_on(process.child.child.lock());
                     _ = child.start_kill();
                 }
             }
-            InstanceSelection::Server(_) => {
+            InstanceKind::Server => {
                 if let Some(GameProcess {
                     server_input: Some((stdin, has_issued_stop_command)),
                     child,
@@ -563,11 +661,11 @@ impl Launcher {
                 {
                     *has_issued_stop_command = true;
                     if child.is_classic_server {
-                        _ = child.child.lock().unwrap().start_kill();
+                        _ = block_on(child.child.lock()).start_kill();
                     } else {
                         let future = stdin.write_all("stop\n".as_bytes());
                         _ = block_on(future);
-                    };
+                    }
                 }
             }
         }
@@ -588,11 +686,7 @@ impl Launcher {
             ),
             msg2: "All your data, including worlds, will be lost".to_owned(),
             yes: Message::DeleteInstance,
-            no: Message::MScreenOpen {
-                message: None,
-                clear_selection: false,
-                is_server: None,
-            },
+            no: back_to_launch_screen(None),
         };
     }
 
@@ -605,14 +699,12 @@ impl Launcher {
         }
         self.logs.remove(selected_instance);
 
-        match selected_instance {
-            InstanceSelection::Instance(_) => {
-                if let Some(account) = &self.accounts_selected {
-                    if account == OFFLINE_ACCOUNT_NAME
-                        && (self.config.username.is_empty() || self.config.username.contains(' '))
-                    {
-                        return Task::none();
-                    }
+        match selected_instance.kind {
+            InstanceKind::Client => {
+                if self.account_selected == OFFLINE_ACCOUNT_NAME
+                    && (self.config.username.is_empty() || self.config.username.contains(' '))
+                {
+                    return Task::none();
                 }
 
                 self.is_launching_game = true;
@@ -628,11 +720,11 @@ impl Launcher {
                 // directly launch the game
                 self.launch_game(account_data)
             }
-            InstanceSelection::Server(server) => {
+            InstanceKind::Server => {
                 let (sender, receiver) = std::sync::mpsc::channel();
                 self.java_recv = Some(ProgressBar::with_recv(receiver));
 
-                let server = server.clone();
+                let server = selected_instance.name.clone();
                 Task::perform(
                     async move { ql_servers::run(server, Some(sender)).await.strerr() },
                     Message::LaunchEnd,
@@ -688,15 +780,15 @@ pub enum ForgeKind {
     OptiFine,
 }
 
-async fn copy_optifine_over(instance: &InstanceSelection) -> Result<(), String> {
+async fn copy_optifine_over(instance: &Instance) -> Result<(), String> {
     let instance_dir = instance.get_instance_path();
     let installer_path = instance_dir.join("optifine/OptiFine.jar");
     let mods_dir = instance_dir.join(".minecraft/mods");
 
-    if !installer_path.exists() {
+    if !exists(&installer_path).await {
         return Ok(());
     }
-    if !mods_dir.exists() {
+    if !exists(&mods_dir).await {
         tokio::fs::create_dir_all(&mods_dir)
             .await
             .path(&mods_dir)
@@ -706,10 +798,7 @@ async fn copy_optifine_over(instance: &InstanceSelection) -> Result<(), String> 
     tokio::fs::copy(&installer_path, &new_path).await.strerr()?;
 
     let mut config = InstanceConfigJson::read(instance).await.strerr()?;
-    config
-        .mod_type_info
-        .get_or_insert_with(ModTypeInfo::default)
-        .optifine_jar = Some("optifine.jar".to_owned());
+    config.mod_type_info.get_or_insert_default().optifine_jar = Some("optifine.jar".to_owned());
     config.save(instance).await.strerr()?;
 
     Ok(())

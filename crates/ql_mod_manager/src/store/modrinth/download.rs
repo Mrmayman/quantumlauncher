@@ -6,20 +6,20 @@ use std::{
 
 use chrono::DateTime;
 use ql_core::{
-    err, file_utils, info, json::VersionDetails, pt, GenericProgress, InstanceSelection,
+    GenericProgress, InstanceConfigJson, Instance, download, err, file_utils, info,
+    json::VersionDetails, pt,
 };
 
 use crate::store::{
-    install_modpack,
+    DirStructure, ModError, ModId, QueryType, StoreBackendType, install_modpack,
     local_json::{ModConfig, ModIndex},
     modrinth::versions::ModVersion,
-    DirStructure, ModError, QueryType, SOURCE_ID_MODRINTH,
 };
 
 use super::info::ProjectInfo;
 
 pub struct ModDownloader {
-    instance: InstanceSelection,
+    instance: Instance,
     version: String,
     loader: Option<&'static str>,
 
@@ -32,29 +32,68 @@ pub struct ModDownloader {
 
 impl ModDownloader {
     pub async fn new(
-        instance: &InstanceSelection,
+        instance: &Instance,
         sender: Option<Sender<GenericProgress>>,
     ) -> Result<ModDownloader, ModError> {
         let version_json = VersionDetails::load(instance).await?;
-
+        let config = InstanceConfigJson::read(instance).await?;
         let index = ModIndex::load(instance).await?;
-        let loader = instance
-            .get_loader()
-            .await?
+
+        let loader = config
+            .mod_type
             .not_vanilla()
-            .map(|n| n.to_modrinth_str());
-        let currently_installing_mods = HashSet::new();
+            .map(ql_core::Loader::to_modrinth_str);
         Ok(ModDownloader {
             version: version_json.get_id().to_owned(),
             index,
             loader,
-            currently_installing_mods,
+            currently_installing_mods: HashSet::new(),
             info: HashMap::new(),
             instance: instance.clone(),
             sender,
 
             dirs: DirStructure::new(instance, &version_json).await?,
         })
+    }
+
+    pub async fn basic(instance: &Instance) -> Result<ModDownloader, ModError> {
+        let version_json = VersionDetails::load(instance).await?;
+        let config = InstanceConfigJson::read(instance).await?;
+
+        let loader = config
+            .mod_type
+            .not_vanilla()
+            .map(ql_core::Loader::to_modrinth_str);
+
+        Ok(ModDownloader {
+            version: version_json.get_id().to_owned(),
+            index: ModIndex::default(),
+            loader,
+            currently_installing_mods: HashSet::new(),
+            info: HashMap::new(),
+            instance: instance.clone(),
+            sender: None,
+            dirs: DirStructure::new(instance, &version_json).await?,
+        })
+    }
+
+    pub async fn get_download_link(
+        &self,
+        id: &str,
+        query_type: QueryType,
+    ) -> Result<String, ModError> {
+        let download_version = self.get_download_version(id, None, query_type).await?;
+
+        if let Some(file) = download_version
+            .files
+            .iter()
+            .find(|file| file.primary)
+            .or_else(|| download_version.files.first())
+        {
+            Ok(file.url.clone())
+        } else {
+            Err(ModError::NoFilesFound)
+        }
     }
 
     pub async fn download(
@@ -94,7 +133,7 @@ impl ModDownloader {
 
         print_downloading_message(&project_info, dependent);
         let download_version = self
-            .get_download_version(id, project_info.title.clone(), query_type)
+            .get_download_version(id, Some(&project_info.title), query_type)
             .await?;
 
         let mut dependency_list = HashSet::new();
@@ -104,7 +143,7 @@ impl ModDownloader {
                 .await?;
         }
 
-        if !self.index.mods.contains_key(id) {
+        if !self.index.mods.contains_key(&mid(id)) {
             if let Some(primary_file) = download_version.files.iter().find(|file| file.primary) {
                 self.download_file(query_type, primary_file).await?;
             } else {
@@ -131,7 +170,7 @@ impl ModDownloader {
         &mut self,
         id: &str,
         download_version: &ModVersion,
-        dependency_list: &mut HashSet<String>,
+        dependency_list: &mut HashSet<ModId>,
     ) -> Result<(), ModError> {
         for dependency in &download_version.dependencies {
             let Some(ref dep_id) = dependency.project_id else {
@@ -145,7 +184,7 @@ impl ModDownloader {
                 );
                 continue;
             }
-            if dependency_list.insert(dep_id.clone()) {
+            if dependency_list.insert(mid(dep_id)) {
                 Box::pin(self.download(dep_id, Some(id), false)).await?;
             }
         }
@@ -153,9 +192,9 @@ impl ModDownloader {
     }
 
     fn mark_as_installed(&mut self, id: &str, dependent: Option<&str>, name: &str) -> bool {
-        if let Some(mod_info) = self.index.mods.get_mut(id) {
+        if let Some(mod_info) = self.index.mods.get_mut(&mid(id)) {
             if let Some(dependent) = dependent {
-                mod_info.dependents.insert(dependent.to_owned());
+                mod_info.dependents.insert(mid(dependent));
             } else {
                 mod_info.manually_installed = true;
             }
@@ -165,7 +204,7 @@ impl ModDownloader {
         // Handling the same mod across multiple store backends
         if let Some(mod_info) = self.index.mods.values_mut().find(|n| n.name == name) {
             if let Some(dependent) = dependent {
-                mod_info.dependents.insert(dependent.to_owned());
+                mod_info.dependents.insert(mid(dependent));
             } else {
                 mod_info.manually_installed = true;
             }
@@ -194,7 +233,7 @@ impl ModDownloader {
     async fn get_download_version(
         &self,
         id: &str,
-        title: String,
+        title: Option<&str>,
         project_type: QueryType,
     ) -> Result<ModVersion, ModError> {
         pt!("Getting download info");
@@ -218,10 +257,13 @@ impl ModDownloader {
         // Sort by date published
         download_versions.sort_by(version_sort);
 
-        let download_version = download_versions
-            .into_iter()
-            .next_back()
-            .ok_or(ModError::NoCompatibleVersionFound(title))?;
+        let download_version =
+            download_versions
+                .into_iter()
+                .next_back()
+                .ok_or(ModError::NoCompatibleVersionFound(
+                    title.map_or_else(|| id.to_owned(), str::to_owned),
+                ))?;
 
         Ok(download_version)
     }
@@ -243,7 +285,7 @@ impl ModDownloader {
             return Ok(());
         }
         let file_path = self.dirs.get(project_type).unwrap().join(&file.filename);
-        file_utils::download_file_to_path(&file.url, true, &file_path).await?;
+        download(&file.url).user_agent_ql().path(&file_path).await?;
         Ok(())
     }
 
@@ -251,7 +293,7 @@ impl ModDownloader {
         &mut self,
         project_info: &ProjectInfo,
         download_version: &ModVersion,
-        dependency_list: HashSet<String>,
+        dependency_list: HashSet<ModId>,
         dependent: Option<&str>,
         manually_installed: bool,
         project_type: QueryType,
@@ -260,13 +302,13 @@ impl ModDownloader {
             name: project_info.title.clone(),
             description: project_info.description.clone(),
             icon_url: project_info.icon_url.clone(),
-            project_id: project_info.id.clone(),
+            project_id: ModId::Modrinth(project_info.id.clone()),
             files: download_version.files.clone(),
             supported_versions: download_version.game_versions.clone(),
             dependencies: dependency_list,
             dependents: if let Some(dependent) = dependent {
                 let mut set = HashSet::new();
-                set.insert(dependent.to_owned());
+                set.insert(mid(dependent));
                 set
             } else {
                 HashSet::new()
@@ -275,11 +317,11 @@ impl ModDownloader {
             enabled: true,
             installed_version: download_version.version_number.clone(),
             version_release_time: download_version.date_published.clone(),
-            project_source: SOURCE_ID_MODRINTH.to_owned(),
+            project_source: StoreBackendType::Modrinth,
         };
 
         if let QueryType::Mods = project_type {
-            self.index.mods.insert(project_info.id.clone(), config);
+            self.index.mods.insert(mid(&project_info.id), config);
         }
     }
 }
@@ -315,4 +357,8 @@ fn print_downloading_message(project_info: &ProjectInfo, dependent: Option<&str>
     } else {
         pt!("Downloading {}", project_info.title);
     }
+}
+
+fn mid(id: &str) -> ModId {
+    ModId::Modrinth(id.to_owned())
 }

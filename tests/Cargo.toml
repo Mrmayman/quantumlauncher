@@ -1,7 +1,8 @@
 [package]
 name = "tests"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 license = "GPL-3.0-only"
 
 [dependencies]
@@ -14,7 +15,7 @@ clap.workspace = true
 owo-colors.workspace = true
 
 duct = "1"
-sysinfo = "0.36"
+sysinfo = "0.38.*"
 which = "8.0.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -22,7 +23,11 @@ core-graphics = { version = "0.25", features = ["catalina"] }
 core-foundation = "0.10"
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.52", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading"] }
+windows = { version = "0.62.*", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Threading"
+] }
 
 [features]
 default = ["tokio/rt-multi-thread"]

@@ -1,13 +1,14 @@
 use ql_core::{
+    GenericProgress, Instance, InstanceKind, IntoIoError, IntoJsonError, ListEntry, Progress,
     file_utils, info,
     json::{InstanceConfigJson, VersionDetails},
-    pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, ListEntry, Progress,
+    pt,
 };
 use std::{
     path::{Path, PathBuf},
     sync::{
-        mpsc::{Receiver, Sender},
         Arc,
+        mpsc::{Receiver, Sender},
     },
 };
 use tokio::fs;
@@ -46,7 +47,7 @@ pub async fn import_instance(
     zip_path: PathBuf,
     download_assets: bool,
     sender: Option<Sender<GenericProgress>>,
-) -> Result<Option<InstanceSelection>, InstancePackageError> {
+) -> Result<Option<Instance>, InstancePackageError> {
     let temp_dir_obj = tempfile::TempDir::new().map_err(InstancePackageError::TempDir)?;
     let temp_dir = temp_dir_obj.path();
 
@@ -94,7 +95,7 @@ async fn import_quantumlauncher(
     temp_dir: &Path,
     instance_info: String,
     sender: Option<Arc<Sender<GenericProgress>>>,
-) -> Result<InstanceSelection, InstancePackageError> {
+) -> Result<Instance, InstancePackageError> {
     info!("Importing QuantumLauncher instance...");
 
     let instance_info: InstanceInfo = serde_json::from_str(&instance_info).json(instance_info)?;
@@ -105,7 +106,14 @@ async fn import_quantumlauncher(
         serde_json::from_str(&file).json(file)?
     };
 
-    let instance = InstanceSelection::new(&instance_info.instance_name, instance_info.is_server);
+    let instance = Instance::new(
+        &instance_info.instance_name,
+        if instance_info.is_server {
+            InstanceKind::Server
+        } else {
+            InstanceKind::Client
+        },
+    );
 
     pt!("Name: {} ", instance_info.instance_name);
     pt!("Version : {}", version_json.get_id());

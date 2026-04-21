@@ -1,13 +1,10 @@
-use std::sync::{mpsc::Sender, Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc::Sender};
 
 use futures::StreamExt;
 use owo_colors::colored::OwoColorize;
-use ql_core::{
-    err, info, json::VersionDetails, pt, GenericProgress, InstanceSelection, Loader, ModId,
-    StoreBackendType,
-};
+use ql_core::{GenericProgress, Instance, Loader, err, info, json::VersionDetails, pt};
 
-use crate::store::{get_latest_version_date, ModIndex};
+use crate::store::{ModId, ModIndex, StoreBackendType, get_latest_version_date};
 
 use super::ModError;
 
@@ -23,7 +20,7 @@ pub struct RecommendedMod {
 impl RecommendedMod {
     pub async fn get_compatible_mods(
         ids: Vec<Self>,
-        instance: InstanceSelection,
+        instance: Instance,
         loader: Loader,
         sender: Sender<GenericProgress>,
     ) -> Result<Vec<Self>, ModError> {
@@ -69,9 +66,7 @@ impl RecommendedMod {
         index: &ModIndex,
     ) -> Option<Self> {
         let mod_id = ModId::from_pair(self.id, self.backend);
-        if index.mods.contains_key(&mod_id.get_index_str())
-            || index.mods.iter().any(|n| n.1.name == self.name)
-        {
+        if index.mods.contains_key(&mod_id) || index.mods.iter().any(|n| n.1.name == self.name) {
             return None;
         }
 

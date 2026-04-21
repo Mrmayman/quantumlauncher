@@ -1,11 +1,11 @@
 use crate::auth::alt::OauthError;
 use keyring;
-use ql_core::file_utils::check_for_success;
-use ql_core::{IntoJsonError, CLIENT};
+use ql_core::request::check_for_success;
+use ql_core::{CLIENT, IntoJsonError};
 use serde::{Deserialize, Serialize};
 use tokio::task::spawn_blocking;
 
-use super::{Error, CLIENT_ID};
+use super::{CLIENT_ID, Error};
 
 pub const SCOPE: &str =
     "Yggdrasil.PlayerProfiles.Read Yggdrasil.Server.Join Yggdrasil.MinecraftToken.Create User.Read";
@@ -179,7 +179,7 @@ async fn get_device_token(
     interval: u64,
     expires_in: u64,
 ) -> Result<DeviceTokenResponse, Error> {
-    use tokio::time::{sleep, Duration, Instant};
+    use tokio::time::{Duration, Instant, sleep};
     let start = Instant::now();
     loop {
         if start.elapsed().as_secs() > expires_in {

@@ -37,7 +37,7 @@
 //!   whose jar file is extracted to the `natives` folder.
 //! - `classifiers: *` - Once again, part of main library
 //!   but have separate jar files for each OS. Just formatted
-//!   differently in the json.
+//!   differently in the JSON.
 //!
 //! For whatever reason, natives are arranged in an
 //! **extremely** messy way in the JSONs.
@@ -54,22 +54,8 @@ pub mod auth;
 mod download;
 mod instance;
 mod json_profiles;
-mod launcher_update_detector;
 
-pub use download::{create_instance, repeat_stage, DownloadError};
+pub use download::{DownloadError, create_instance, repeat_stage};
 pub use instance::{launch::launch, list_versions::list_versions, notes};
-pub use launcher_update_detector::{
-    check_for_launcher_updates, install_launcher_update, UpdateCheckInfo, UpdateError,
-};
 pub use ql_core::jarmod;
 pub use ql_java_handler::delete_java_installs;
-
-use semver::{BuildMetadata, Prerelease};
-
-const LAUNCHER_VERSION: semver::Version = semver::Version {
-    major: 0,
-    minor: 5,
-    patch: 0,
-    pre: Prerelease::EMPTY,
-    build: BuildMetadata::EMPTY,
-};
