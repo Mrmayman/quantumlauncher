@@ -1,60 +1,33 @@
-<div align="center">
+<!-- <div align="center"> -->
+<img align="left" style="width: 140px" width="140" src="https://github.com/Mrmayman/quantumlauncher/raw/main/assets/icon/ql_logo.png" />
 
-# <img src="https://github.com/Mrmayman/quantumlauncher/raw/main/assets/icon/ql_logo.png" style="height: 1.4em; vertical-align: middle;" /> QuantumLauncher
-
-## [Website](https://mrmayman.github.io/quantumlauncher) | [Discord](https://discord.gg/bWqRaSXar5) | [Changelogs](https://github.com/Mrmayman/quantumlauncher/tree/main/changelogs/)
+<b>QuantumLauncher</b> ([Website](https://mrmayman.github.io/quantumlauncher) | [Discord](https://discord.gg/bWqRaSXar5) | [Changelogs](https://github.com/Mrmayman/quantumlauncher/tree/main/changelogs/))
 
 ![GPL3 License](https://img.shields.io/github/license/Mrmayman/quantumlauncher)
 ![Downloads](https://img.shields.io/github/downloads/Mrmayman/quantumlauncher/total)
-![Discord Online](https://img.shields.io/discord/1280474064540012619?label=&labelColor=6A7EC2&logo=discord&logoColor=ffffff&color=7389D8)
 [![Made with iced](https://iced.rs/badge.svg)](https://github.com/iced-rs/iced)
+[![Discord Online](https://img.shields.io/discord/1280474064540012619?label=&labelColor=6A7EC2&logo=discord&logoColor=ffffff&color=7389D8)](https://discord.gg/bWqRaSXar5)
+[![Matrix Server](https://img.shields.io/matrix/quantumgroup:matrix.org)](https://matrix.to/#/#quantumgroup:matrix.org)
 
-A minimalistic Minecraft launcher for Windows, macOS and Linux.
+A simple, powerful, cross platform Minecraft launcher.
+<br><br>
 
-![Quantum Launcher running a Minecraft Instance](https://github.com/Mrmayman/quantumlauncher/raw/main/quantum_launcher.png)
-
-QuantumLauncher offers a lightweight and responsive experience.
-It's designed to be simple and easy to use, with a focus on performance and features.
+![Quantum Launcher running RL Craft modpack](https://github.com/Mrmayman/quantumlauncher/raw/main/quantum_launcher.png)
 
 # Features
 
-## Lightweight and responsive
-
-![](https://github.com/Mrmayman/quantumlauncher/raw/main/assets/screenshots/lightweight.png)
-
-## Install Fabric, Forge, NeoForge, Quilt, or OptiFine with ease
-
-![](https://github.com/Mrmayman/quantumlauncher/raw/main/assets/screenshots/install_loader.png)
-
-## Built-in mod store to download your favorite mods!
-
-![](https://github.com/Mrmayman/quantumlauncher/raw/main/assets/screenshots/mod_store.png)
-
-## Isolate your different game versions with instances!
-
-![](https://github.com/Mrmayman/quantumlauncher/raw/main/assets/screenshots/new.png)
-
-## Full support for old Minecraft versions (via Omniarchive). Includes skin and sound fixes!
-
-![](https://github.com/Mrmayman/quantumlauncher/raw/main/assets/screenshots/old_mc.png)
-
-## Manage your hundreds of mods conveniently!
-
-![](https://github.com/Mrmayman/quantumlauncher/raw/main/assets/screenshots/mod_manage.png)
-
-## Make your launcher yours
-
-![](https://github.com/Mrmayman/quantumlauncher/raw/main/assets/screenshots/themes.png)
-<br><br>
-
-</div>
+| | |
+|---|:--|
+| <img src="https://github.com/Mrmayman/quantumlauncher/raw/main/assets/screenshots/lightweight.png"> | <h2>Incredibly Lightweight</h2> Uses minimal CPU and RAM! Lighter than the vanilla launcher, common alternatives and even Task Manager! |
+| <img src="https://github.com/Mrmayman/quantumlauncher/raw/main/assets/screenshots/mod_store.png"> | <h2>Built-in mod store</h2> Install your favorite <b>mods</b> and <b>mod loaders</b> from the comfort of one window.<br><br>Isolate your game versions with instances, so clashes never happen! |
+| <img src="https://github.com/Mrmayman/quantumlauncher/raw/main/assets/screenshots/old_mc.png"> | <h2>Support for old Minecraft versions (via Omniarchive)</h2> Includes skin and sound fixes, and adds rare versions to the list |
+| <img src="https://github.com/Mrmayman/quantumlauncher/raw/main/assets/screenshots/mod_manage.png"> | Manage hundreds of mods conveniently!<br>Package and share them with friends. |
 
 # Downloads and Building
 
-You can download the stable version from the website linked above, or from the *Releases* button
+Download stable versions from [the website](https://mrmayman.github.io/quantumlauncher/#downloads), or from [Releases](http://github.com/Mrmayman/quantumlauncher/releases/latest)
 
-Or, you can compile the launcher to get the latest experimental version (with potentially broken and untested features).
-To compile the launcher:
+Or, compile the launcher to get the latest experimental version:
 
 ```sh
 git clone https://github.com/Mrmayman/quantumlauncher.git
@@ -62,7 +35,7 @@ cd quantum-launcher
 cargo run --release
 ```
 
-You can omit the `--release` flag for faster compile times, but *slightly* worse performance and MUCH larger build file
+You can omit the `--release` flag for faster compile times, but slightly worse performance and MUCH larger build file
 size.
 
 # Why QuantumLauncher?
@@ -73,29 +46,28 @@ size.
 What about the others? Well...
 
 - The official Minecraft launcher is slow, unstable, buggy and frustrating to use,
-  with barely any modding features.
-- Prism Launcher is a great launcher overall, but it does not support
-  offline accounts. Same for MultiMC.
-- Legacy Launcher isn't as feature rich as this
-- TLauncher is *suspected* to be malware
+  with barely any modding features
+- Legacy Launcher lacks *many* features
+- TLauncher is suspected to be malware
 
 # File Locations
 
-- On *Windows*, the launcher files are at `C:/Users/YOUR_USERNAME/AppData/Roaming/QuantumLauncher/`
-  - You probably won't see the `AppData` folder. Press Windows + R and paste this path, and hit enter
-- On *Linux*, the launcher files are at `~/.local/share/QuantumLauncher/`. (`~` refers to your home directory)
+- **Windows**: `C:/Users/YOUR_USERNAME/AppData/Roaming/QuantumLauncher/`
+  - You probably won't see the `AppData` folder (hidden). Press Windows + R and paste this path, and hit enter
+- **macOS**: `/Users/YOURNAME/Library/Application Support/QuantumLauncher/`
+- **Linux/BSD**: `~/.local/share/QuantumLauncher/` (`~` refers to your home directory)
 
 Structure:
 
-- Launcher logs are located at `QuantumLauncher/logs/`
 - Instances located at `QuantumLauncher/instances/YOUR_INSTANCE/`
-- `.minecraft` located at `YOUR_INSTANCE/.minecraft/`
+  - `.minecraft` located at `YOUR_INSTANCE/.minecraft/`
+- Logs in `QuantumLauncher/logs/`
 
 <br>
 
 # More info
 
-- **MSRV** (Minimum Supported Rust Version): `1.82.0`
+- **MSRV** (Minimum Supported Rust Version): Follows [Debian stable](https://packages.debian.org/en/stable/rustc) (currently `1.85.0`)
   - Any mismatch is considered a bug, please report if found
 - [**Roadmap/Plans**](docs/ROADMAP.md)
 - [**Contributing**](CONTRIBUTING.md)

@@ -1,7 +1,8 @@
 [package]
 name = "ql_core"
 version = "0.0.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 
 [features]
 default = []
@@ -11,7 +12,7 @@ simulate_linux_arm32 = []
 
 [dependencies]
 chrono.workspace = true
-dirs = "6"
+dirs.workspace = true
 futures.workspace = true
 owo-colors.workspace = true
 cfg-if.workspace = true
@@ -26,8 +27,13 @@ tokio-util = "0.7"
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+semver.workspace = true
 sha2 = "0.10"
 
-quick-xml = { version = "0.37", features = ["encoding", "serialize"] }
+# TODO: Look into `async-tokio` feature, might make log reading cleaner
+quick-xml = { version = "0.39.*", features = ["encoding", "serialize"] }
 # Removing UNICODE characters from XML log
 any_ascii = "0.3"
+
+flate2 = "1"
+tar = "0.4"

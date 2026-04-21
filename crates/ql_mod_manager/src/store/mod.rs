@@ -1,37 +1,39 @@
-use std::{collections::HashSet, fmt::Display, path::PathBuf, sync::mpsc::Sender, time::Instant};
+use std::{collections::HashSet, path::PathBuf, sync::mpsc::Sender};
 
 use chrono::DateTime;
 use ql_core::{
-    json::VersionDetails, GenericProgress, InstanceSelection, IntoIoError, Loader, ModId,
-    StoreBackendType,
+    GenericProgress, Instance, IntoIoError, Loader, do_jobs, json::VersionDetails, pt,
 };
 
 mod add_file;
 mod curseforge;
 mod delete;
 mod error;
-mod image;
+mod id;
+pub mod image;
 mod local_json;
 mod modpack;
 mod modrinth;
 mod recommended;
 mod toggle;
+mod types;
 mod update;
 
 pub use add_file::add_files;
 pub use curseforge::CurseforgeBackend;
 pub use delete::delete_mods;
 pub use error::{GameExpectation, ModError};
-pub use image::{download_image, ImageResult};
+pub use id::ModId;
 pub use local_json::{ModConfig, ModFile, ModIndex};
-pub use modpack::{install_modpack, PackError};
+pub use modpack::{PackError, install_modpack};
 pub use modrinth::ModrinthBackend;
-pub use recommended::{RecommendedMod, RECOMMENDED_MODS};
+pub use recommended::{RECOMMENDED_MODS, RecommendedMod};
 pub use toggle::{flip_filename, toggle_mods, toggle_mods_local};
-pub use update::{apply_updates, check_for_updates};
-
-pub const SOURCE_ID_MODRINTH: &str = "modrinth";
-pub const SOURCE_ID_CURSEFORGE: &str = "curseforge";
+pub use types::{
+    Category, CurseforgeNotAllowed, Query, QueryType, SearchMod, SearchResult, SelectedMod,
+    StoreBackendType,
+};
+pub use update::{ChangelogFile, apply_updates, check_for_updates};
 
 #[allow(async_fn_in_trait)]
 pub trait Backend {
@@ -41,37 +43,108 @@ pub trait Backend {
     /// - Query type (Mod/Resource Pack/Shader/...)
     ///
     /// Returns a search result containing a list of matching items
-    async fn search(
-        query: Query,
-        offset: usize,
-        query_type: QueryType,
-    ) -> Result<SearchResult, ModError>;
+    ///
+    /// Note: Some `SearchResult` fields may be limited in info, such as:
+    /// - Gallery image titles/descriptions/order
+    /// - Project links
+    ///
+    /// For the full info use `get_info` or `get_info_bulk`
+    async fn search(query: Query, offset: usize) -> Result<SearchResult, ModError>;
     /// Gets the description of a mod based on its id.
     /// Returns the id and description `String`.
     ///
-    /// This supports both Markdown and HTML.
+    /// This may use Markdown, HTML, or a mix of both.
     async fn get_description(id: &str) -> Result<(ModId, String), ModError>;
+
+    /// Gets the latest compatible mod version, based on provided Minecraft version and mod loader.
+    ///
+    /// Useful for update checking.
+    ///
+    /// Returns the release date and version name (eg: `v2.0.1`).
     async fn get_latest_version_date(
         id: &str,
         version: &str,
         loader: Loader,
     ) -> Result<(DateTime<chrono::FixedOffset>, String), ModError>;
 
+    /// Downloads a single mod to the `instance`.
+    ///
+    /// Optionally takes in a `sender` to use if it's a modpack.
     async fn download(
         id: &str,
-        instance: &InstanceSelection,
+        instance: &Instance,
         sender: Option<Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError>;
-
+    /// Downloads multiple mods to the `instance`.
+    ///
+    /// Uses efficient batched APIs and concurrent downloading when possible,
+    /// so more efficient than [`Backend::download`] in a loop.
     async fn download_bulk(
         ids: &[String],
-        instance: &InstanceSelection,
+        instance: &Instance,
         ignore_incompatible: bool,
-        set_manually_installed: bool,
+        _set_manually_installed: bool,
         sender: Option<&Sender<GenericProgress>>,
-    ) -> Result<HashSet<CurseforgeNotAllowed>, ModError>;
+    ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
+        // Fallback implementation
+        let mut not_allowed = HashSet::new();
+        for id in ids {
+            // We don't do this concurrently as there's likely a lock on the index
+            match Self::download(id, instance, sender.cloned()).await {
+                Ok(n) => not_allowed.extend(n),
+                Err(ModError::NoCompatibleVersionFound(name)) if ignore_incompatible => {
+                    pt!("No compatible version found for mod {name} {id}, skipping...");
+                }
+                Err(err) => return Err(err),
+            }
+        }
+        Ok(not_allowed)
+    }
+
+    /// Gets all the possible filter categories of content (Adventure, Redstone, QOL, etc).
+    ///
+    /// # Structure
+    ///
+    /// This is a tree structure, each [`Category`] can have subcategories.
+    /// This function returns a list of root nodes.
+    ///
+    /// If you just want a basic list, feel free to just not have any child nodes.
+    ///
+    /// # Caching
+    ///
+    /// Usually this is cached, so fetching it multiple times is not expensive.
+    /// (Note to implementors: **Please cache this with** `LazyLock`, `OnceCell` or similar structures!**)
+    async fn get_categories(_: QueryType) -> Result<Vec<Category>, ModError> {
+        Ok(Vec::new()) // Fallback
+    }
+
+    /// Gets metadata about a mod, such as its title, description, icon, download count, etc.
+    async fn get_info(id: &str) -> Result<SearchMod, ModError>;
+    /// Gets metadata about multiple mods in bulk, such as their title, description, icon, download count, etc.
+    ///
+    /// Uses efficient batched APIs and concurrent fetching when possible,
+    /// so more efficient than [`Backend::get_info`] in a loop.
+    async fn get_info_bulk(ids: &[String]) -> Result<Vec<SearchMod>, ModError> {
+        // Fallback implementation (concurrent)
+        do_jobs(ids.iter().map(|n| Self::get_info(n))).await
+    }
+
+    /// Gets the direct download link for a mod file, based on its id.
+    ///
+    /// Useful for exporting to certain modpack formats (like modrinth).
+    ///
+    /// May return [`ModError::NoFilesFound`] if a Curseforge mod doesn't allow direct downloading.
+    async fn get_download_link(
+        instance: &Instance,
+        id: &str,
+        query_type: QueryType,
+    ) -> Result<String, ModError>;
 }
 
+/// Gets the description of a mod based on its id.
+/// Returns the id and description `String`.
+///
+/// This may use Markdown, HTML, or a mix of both.
 pub async fn get_description(id: ModId) -> Result<(ModId, String), ModError> {
     match &id {
         ModId::Modrinth(n) => ModrinthBackend::get_description(n).await,
@@ -83,17 +156,19 @@ pub async fn search(
     query: Query,
     offset: usize,
     backend: StoreBackendType,
-    query_type: QueryType,
 ) -> Result<SearchResult, ModError> {
     match backend {
-        StoreBackendType::Modrinth => ModrinthBackend::search(query, offset, query_type).await,
-        StoreBackendType::Curseforge => CurseforgeBackend::search(query, offset, query_type).await,
+        StoreBackendType::Modrinth => ModrinthBackend::search(query, offset).await,
+        StoreBackendType::Curseforge => CurseforgeBackend::search(query, offset).await,
     }
 }
 
+/// Downloads a single mod to the `instance`.
+///
+/// Optionally takes in a `sender` to use if it's a modpack.
 pub async fn download_mod(
     id: &ModId,
-    instance: &InstanceSelection,
+    instance: &Instance,
     sender: Option<Sender<GenericProgress>>,
 ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
     match id {
@@ -102,9 +177,13 @@ pub async fn download_mod(
     }
 }
 
+/// Downloads multiple mods to the `instance`.
+///
+/// Uses efficient batched APIs and concurrent downloading when possible,
+/// so more efficient than [`download_mod`] in a loop.
 pub async fn download_mods_bulk(
     ids: Vec<ModId>,
-    instance: InstanceSelection,
+    instance: Instance,
     sender: Option<Sender<GenericProgress>>,
 ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
     let (modrinth, other): (Vec<ModId>, Vec<ModId>) = ids.into_iter().partition(|n| match n {
@@ -137,6 +216,16 @@ pub async fn download_mods_bulk(
     Ok(not_allowed)
 }
 
+/// Gets the latest compatible mod version, based on provided Minecraft version and mod loader.
+///
+/// Returns the release date and version name (eg: `v2.0.1`).
+///
+/// Useful for checking for updates, or checking compatibility.
+///
+/// # Errors
+///
+/// - `NoCompatibleVersionFound` if mod doesn't support version
+/// - Many other errors depending on backend
 pub async fn get_latest_version_date(
     loader: Loader,
     mod_id: &ModId,
@@ -150,131 +239,62 @@ pub async fn get_latest_version_date(
     })
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum QueryType {
-    Mods,
-    ResourcePacks,
-    Shaders,
-    ModPacks,
-    DataPacks,
-    // TODO:
-    // Plugins,
-}
-
-impl Display for QueryType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                QueryType::Mods => "Mods",
-                QueryType::ResourcePacks => "Resource Packs",
-                QueryType::Shaders => "Shaders",
-                QueryType::ModPacks => "Modpacks",
-                QueryType::DataPacks => "Data Packs",
-            }
-        )
+/// Gets categories of content (Adventure, Redstone, QOL, etc)
+/// for a given query type (Mod/Resource Pack/Shader/...) from the backend.
+pub async fn get_categories(
+    query_type: QueryType,
+    backend: StoreBackendType,
+) -> Result<Vec<Category>, ModError> {
+    match backend {
+        StoreBackendType::Modrinth => ModrinthBackend::get_categories(query_type).await,
+        StoreBackendType::Curseforge => CurseforgeBackend::get_categories(query_type).await,
     }
 }
 
-impl QueryType {
-    // use this for the store since datapacks cant be installed globally,
-    // only pre worlds, since you need to copy the datapack file into each world
-    // once the launcher have support for installing datapacks properly delete this
-    // and use ALL in the store too.
-    pub const STORE_QUERIES: &'static [Self] = &[
-        Self::Mods,
-        Self::ResourcePacks,
-        Self::Shaders,
-        Self::ModPacks,
-    ];
-
-    pub const ALL: &'static [Self] = &[
-        Self::DataPacks,
-        Self::ResourcePacks,
-        Self::ModPacks,
-        Self::Mods,
-        Self::Shaders,
-    ];
-
-    #[must_use]
-    pub fn to_modrinth_str(&self) -> &'static str {
-        match self {
-            QueryType::Mods => "mod",
-            QueryType::ResourcePacks => "resourcepack",
-            QueryType::Shaders => "shader",
-            QueryType::ModPacks => "modpack",
-            QueryType::DataPacks => "datapack",
-        }
-    }
-
-    #[must_use]
-    pub fn from_modrinth_str(s: &str) -> Option<Self> {
-        match s {
-            "mod" => Some(QueryType::Mods),
-            "resourcepack" => Some(QueryType::ResourcePacks),
-            "shader" => Some(QueryType::Shaders),
-            "modpack" => Some(QueryType::ModPacks),
-            "datapack" => Some(QueryType::DataPacks),
-            _ => None,
-        }
-    }
-
-    #[must_use]
-    pub fn to_curseforge_str(&self) -> &'static str {
-        match self {
-            QueryType::Mods => "mc-mods",
-            QueryType::ResourcePacks => "texture-packs",
-            QueryType::Shaders => "shaders",
-            QueryType::ModPacks => "modpacks",
-            QueryType::DataPacks => "data-packs",
-        }
-    }
-
-    #[must_use]
-    pub fn from_curseforge_str(s: &str) -> Option<Self> {
-        match s {
-            "mc-mods" => Some(QueryType::Mods),
-            "texture-packs" => Some(QueryType::ResourcePacks),
-            "shaders" => Some(QueryType::Shaders),
-            "modpacks" => Some(QueryType::ModPacks),
-            "data-packs" => Some(QueryType::DataPacks),
-            _ => None,
-        }
+/// Gets metadata about a mod, such as its title, description, icon, download count, etc.
+pub async fn get_info(id: &ModId) -> Result<SearchMod, ModError> {
+    match id {
+        ModId::Modrinth(n) => ModrinthBackend::get_info(n).await,
+        ModId::Curseforge(n) => CurseforgeBackend::get_info(n).await,
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct Query {
-    pub name: String,
-    pub version: String,
-    pub loader: Loader,
-    pub server_side: bool,
+/// Gets metadata about multiple mods in bulk, such as their title, description, icon, download count, etc.
+///
+/// Uses efficient batched APIs and concurrent fetching when possible,
+/// so more efficient than [`get_info`] in a loop.
+pub async fn get_info_bulk(ids: Vec<ModId>) -> Result<Vec<SearchMod>, ModError> {
+    let (modrinth, other): (Vec<ModId>, Vec<ModId>) = ids.into_iter().partition(|n| match n {
+        ModId::Modrinth(_) => true,
+        ModId::Curseforge(_) => false,
+    });
+
+    let modrinth: Vec<String> = modrinth
+        .into_iter()
+        .map(|n| n.get_internal_id().to_owned())
+        .collect();
+
+    let curseforge: Vec<String> = other
+        .into_iter()
+        .map(|n| n.get_internal_id().to_owned())
+        .collect();
+
+    let mut results = Vec::new();
+
+    results.extend(ModrinthBackend::get_info_bulk(&modrinth).await?);
+    results.extend(CurseforgeBackend::get_info_bulk(&curseforge).await?);
+
+    Ok(results)
 }
 
-#[derive(Debug, Clone)]
-pub struct SearchResult {
-    pub mods: Vec<SearchMod>,
-    pub backend: StoreBackendType,
-    pub start_time: Instant,
-    pub offset: usize,
-    pub reached_end: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct SearchMod {
-    pub title: String,
-    pub description: String,
-    pub downloads: usize,
-    pub internal_name: String,
-    pub project_type: String,
-    pub id: String,
-    pub icon_url: String,
-}
-
-impl SearchMod {
-    pub fn get_id(&self, backend: StoreBackendType) -> ModId {
-        ModId::from_pair(&self.id, backend)
+pub async fn get_download_link(
+    instance: &Instance,
+    id: &ModId,
+    query_type: QueryType,
+) -> Result<String, ModError> {
+    match id {
+        ModId::Modrinth(n) => ModrinthBackend::get_download_link(instance, n, query_type).await,
+        ModId::Curseforge(n) => CurseforgeBackend::get_download_link(instance, n, query_type).await,
     }
 }
 
@@ -287,7 +307,7 @@ struct DirStructure {
 
 impl DirStructure {
     pub async fn new(
-        instance_name: &InstanceSelection,
+        instance_name: &Instance,
         version_json: &VersionDetails,
     ) -> Result<Self, ModError> {
         // Minecraft 13w23b release date (1.6.1 snapshot)
@@ -338,14 +358,4 @@ impl DirStructure {
             QueryType::ModPacks => return Err(PackError::ModpackInModpack),
         })
     }
-}
-
-#[must_use]
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct CurseforgeNotAllowed {
-    pub name: String,
-    pub slug: String,
-    pub filename: String,
-    pub project_type: String,
-    pub file_id: usize,
 }

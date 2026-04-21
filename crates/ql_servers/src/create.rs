@@ -1,10 +1,12 @@
 use std::sync::mpsc::Sender;
 
 use ql_core::{
-    file_utils, info,
-    json::{instance_config::VersionInfo, InstanceConfigJson, Manifest, VersionDetails},
-    pt, DownloadProgress, IntoIoError, IntoJsonError, IntoStringError, ListEntry, Loader,
-    LAUNCHER_DIR,
+    DownloadProgress, IntoIoError, IntoJsonError, IntoStringError, LAUNCHER_DIR, ListEntry,
+    download,
+    file_utils::{self, exists},
+    info,
+    json::{InstanceConfigJson, Manifest, VersionDetails, instance_config::VersionInfo},
+    pt, sanitize_instance_name,
 };
 
 use crate::ServerError;
@@ -45,7 +47,15 @@ pub async fn create_server(
     version: ListEntry,
     sender: Option<&Sender<DownloadProgress>>,
 ) -> Result<String, ServerError> {
-    info!("Creating server");
+    let name = sanitize_instance_name(name);
+    if name.is_empty() {
+        return Err(ServerError::InvalidName);
+    }
+
+    info!(
+        "Started creating server: {name} (version: {}, kind: {})",
+        version.name, version.kind
+    );
     progress_manifest(sender);
     let manifest = Manifest::download().await?;
 
@@ -77,7 +87,7 @@ pub async fn create_server(
             .await
             .path(old_path)?;
     } else {
-        file_utils::download_file_to_path(&server.url, false, &server_jar_path).await?;
+        download(&server.url).path(&server_jar_path).await?;
     }
 
     version_json.save_to_dir(&server_dir).await?;
@@ -97,31 +107,11 @@ async fn write_config(
     server_dir: &std::path::Path,
     version_json: &VersionDetails,
 ) -> Result<(), ServerError> {
-    #[allow(deprecated)]
-    let server_config = InstanceConfigJson {
-        mod_type: Loader::Vanilla,
-        java_override: None,
-        ram_in_mb: 2048,
-        enable_logger: Some(true),
-        java_args: None,
-        game_args: None,
-
-        is_server: Some(true),
-        is_classic_server: is_classic_server.then_some(true),
-
-        omniarchive: None,
-        close_on_start: None,
-        global_settings: None,
-        global_java_args_enable: None,
-        custom_jar: None,
-        pre_launch_prefix_mode: None,
-        mod_type_info: None,
-
-        version_info: Some(VersionInfo {
-            is_special_lwjgl3: version_json.id.ends_with("-lwjgl3"),
-        }),
-        main_class_override: None,
-    };
+    let server_config = InstanceConfigJson::new(
+        ql_core::InstanceKind::Server,
+        is_classic_server,
+        VersionInfo::new(&version_json.id),
+    );
     let server_config_path = server_dir.join("config.json");
     tokio::fs::write(
         &server_config_path,
@@ -134,7 +124,7 @@ async fn write_config(
 
 async fn get_server_dir(name: &str) -> Result<std::path::PathBuf, ServerError> {
     let server_dir = LAUNCHER_DIR.join("servers").join(name);
-    if server_dir.exists() {
+    if exists(&server_dir).await {
         return Err(ServerError::ServerAlreadyExists);
     }
     tokio::fs::create_dir_all(&server_dir)

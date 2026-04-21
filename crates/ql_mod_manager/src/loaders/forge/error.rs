@@ -1,6 +1,6 @@
 use std::{num::ParseIntError, path::PathBuf, string::FromUtf8Error};
 
-use ql_core::{impl_3_errs_jri, DownloadFileError, IoError, JsonError, RequestError};
+use ql_core::{DownloadFileError, IoError, JsonError, RequestError, impl_3_errs_jri};
 use ql_java_handler::JavaInstallError;
 use thiserror::Error;
 
@@ -14,7 +14,9 @@ pub enum ForgeInstallError {
     Request(#[from] RequestError),
     #[error("{FORGE_INSTALL_ERR_PREFIX}{0}")]
     Json(#[from] JsonError),
-    #[error("{FORGE_INSTALL_ERR_PREFIX}no compatible forge version found!\n\nForge/NeoForge may be unsupported for this Minecraft version")]
+    #[error(
+        "{FORGE_INSTALL_ERR_PREFIX}no compatible forge version found!\n\nForge/NeoForge may be unsupported for this Minecraft version"
+    )]
     NoForgeVersionFound,
     #[error("{FORGE_INSTALL_ERR_PREFIX}error parsing int number:\n{0}")]
     ParseIntError(#[from] ParseIntError),
@@ -32,9 +34,13 @@ pub enum ForgeInstallError {
     FromUtf8Error(#[from] FromUtf8Error),
     #[error("{FORGE_INSTALL_ERR_PREFIX}couldn't find parent directory of library")]
     LibraryParentError,
-    #[error("{FORGE_INSTALL_ERR_PREFIX}no install json found for Minecraft version: {0}\n\nThis is a bug! Please report!")]
+    #[error(
+        "{FORGE_INSTALL_ERR_PREFIX}no install json found for Minecraft version: {0}\n\nThis is a bug! Please report!"
+    )]
     NoInstallJson(String),
-    #[error("while installing NeoForge:\nwhile checking if NeoForge supports the current version:\ncouldn't parse version release date:\n{0}")]
+    #[error(
+        "while installing NeoForge:\nwhile checking if NeoForge supports the current version:\ncouldn't parse version release date:\n{0}"
+    )]
     ChronoTime(#[from] chrono::ParseError),
     #[error("NeoForge only supports Minecraft 1.20.2 and above, your version is outdated")]
     NeoforgeOutdatedMinecraft,

@@ -15,7 +15,7 @@ pub struct ModVersion {
     // pub featured: bool,
     pub name: String,
     pub version_number: String,
-    // pub changelog: String,
+    // pub changelog: Option<String>,
     // pub changelog_url: Option<String>,
     pub date_published: String,
     // pub downloads: usize,
@@ -29,8 +29,10 @@ pub struct ModVersion {
 impl ModVersion {
     pub async fn download(project_id: &str) -> Result<Vec<Self>, ModError> {
         RATE_LIMITER.lock().await;
-        let url = format!("https://api.modrinth.com/v2/project/{project_id}/version");
-        Ok(file_utils::download_file_to_json(&url, false).await?)
+        let url = format!(
+            "https://api.modrinth.com/v2/project/{project_id}/version?include_changelog=false"
+        );
+        Ok(file_utils::download_file_to_json(&url, true).await?)
     }
 
     // pub async fn is_compatible(

@@ -1,5 +1,7 @@
 use iced::widget;
 
+use crate::stylesheet::styles::BORDER_WIDTH;
+
 use super::{color::Color, styles::LauncherTheme};
 
 #[derive(Default, Clone, Copy)]
@@ -20,6 +22,7 @@ pub enum StyleButton {
     Flat,
     FlatDark,
     FlatExtraDark,
+    FlatExtraDarkDead,
     /// top right, top left,
     /// bottom right, bottom left
     SemiDark([bool; 4]),
@@ -41,6 +44,7 @@ impl IsFlat for StyleButton {
             StyleButton::Flat
             | StyleButton::FlatDark
             | StyleButton::FlatExtraDark
+            | StyleButton::FlatExtraDarkDead
             | StyleButton::SemiDark(_)
             | StyleButton::SemiDarkBorder(_)
             | Self::SemiExtraDark(_) => true,
@@ -53,7 +57,8 @@ impl IsFlat for StyleButton {
             | StyleButton::RoundDark
             | StyleButton::Flat
             | StyleButton::FlatDark
-            | StyleButton::FlatExtraDark => [false; 4],
+            | StyleButton::FlatExtraDark
+            | StyleButton::FlatExtraDarkDead => [false; 4],
             StyleButton::SemiDark(n) | StyleButton::SemiDarkBorder(n) | Self::SemiExtraDark(n) => {
                 *n
             }
@@ -216,25 +221,20 @@ impl widget::pick_list::Catalog for LauncherTheme {
 
     fn style(&self, (): &(), status: widget::pick_list::Status) -> widget::pick_list::Style {
         match status {
-            widget::pick_list::Status::Active => widget::pick_list::Style {
-                text_color: self.get(Color::Light),
-                placeholder_color: self.get(Color::SecondLight),
-                handle_color: self.get(Color::Light),
-                background: self.get_bg(Color::Dark),
-                border: self.get_border(Color::SecondDark),
-            },
+            widget::pick_list::Status::Active | widget::pick_list::Status::Opened => {
+                widget::pick_list::Style {
+                    text_color: self.get(Color::Light),
+                    placeholder_color: self.get(Color::SecondLight),
+                    handle_color: self.get(Color::Light),
+                    background: self.get_bg(Color::Dark),
+                    border: self.get_border(Color::SecondDark),
+                }
+            }
             widget::pick_list::Status::Hovered => widget::pick_list::Style {
                 text_color: self.get(Color::Light),
                 placeholder_color: self.get(Color::SecondLight),
                 handle_color: self.get(Color::Light),
                 background: self.get_bg(Color::SecondDark),
-                border: self.get_border(Color::SecondDark),
-            },
-            widget::pick_list::Status::Opened => widget::pick_list::Style {
-                text_color: self.get(Color::Light),
-                placeholder_color: self.get(Color::SecondLight),
-                handle_color: self.get(Color::Light),
-                background: self.get_bg(Color::Dark),
                 border: self.get_border(Color::SecondDark),
             },
         }
@@ -286,23 +286,23 @@ impl widget::text_input::Catalog for LauncherTheme {
                 icon: self.get(Color::Light),
                 placeholder: self.get(Color::Mid),
                 value: self.get(Color::White),
-                selection: self.get(Color::Light),
+                selection: self.get(Color::Mid),
             },
             widget::text_input::Status::Hovered => widget::text_input::Style {
+                background: self.get_bg(Color::ExtraDark),
+                border: self.get_border(Color::Mid),
+                icon: self.get(Color::Light),
+                placeholder: self.get(Color::Mid),
+                value: self.get(Color::White),
+                selection: self.get(Color::Mid),
+            },
+            widget::text_input::Status::Focused => widget::text_input::Style {
                 background: self.get_bg(Color::Dark),
                 border: self.get_border(Color::Mid),
                 icon: self.get(Color::Light),
                 placeholder: self.get(Color::Mid),
                 value: self.get(Color::White),
-                selection: self.get(Color::Light),
-            },
-            widget::text_input::Status::Focused => widget::text_input::Style {
-                background: self.get_bg(Color::Dark),
-                border: self.get_border(Color::SecondLight),
-                icon: self.get(Color::Light),
-                placeholder: self.get(Color::Mid),
-                value: self.get(Color::White),
-                selection: self.get(Color::Light),
+                selection: self.get(Color::Mid),
             },
             widget::text_input::Status::Disabled => widget::text_input::Style {
                 background: self.get_bg(Color::ExtraDark),
@@ -310,7 +310,7 @@ impl widget::text_input::Catalog for LauncherTheme {
                 icon: self.get(Color::Light),
                 placeholder: self.get(Color::Mid),
                 value: self.get(Color::White),
-                selection: self.get(Color::Light),
+                selection: self.get(Color::Mid),
             },
         }
     }
@@ -484,6 +484,45 @@ impl widget::pane_grid::Catalog for LauncherTheme {
                 color: self.get(Color::Mid),
                 width: 1.0,
             },
+        }
+    }
+}
+
+impl widget::toggler::Catalog for LauncherTheme {
+    type Class<'a> = ();
+
+    fn default<'a>() -> Self::Class<'a> {}
+
+    fn style(
+        &self,
+        (): &<Self as widget::toggler::Catalog>::Class<'_>,
+        status: widget::toggler::Status,
+    ) -> widget::toggler::Style {
+        widget::toggler::Style {
+            background: self.get(match status {
+                widget::toggler::Status::Hovered { is_toggled: false } => Color::Dark,
+                widget::toggler::Status::Active { is_toggled: true }
+                | widget::toggler::Status::Hovered { is_toggled: true } => Color::SecondDark,
+                widget::toggler::Status::Active { is_toggled: false }
+                | widget::toggler::Status::Disabled => Color::ExtraDark,
+            }),
+            background_border_width: BORDER_WIDTH,
+            background_border_color: self.get(match status {
+                widget::toggler::Status::Active { is_toggled: true }
+                | widget::toggler::Status::Hovered { is_toggled: false } => Color::Mid,
+                widget::toggler::Status::Active { is_toggled: false } => Color::SecondDark,
+                widget::toggler::Status::Hovered { is_toggled: true } => Color::SecondLight,
+                widget::toggler::Status::Disabled => Color::Dark,
+            }),
+            foreground: self.get(match status {
+                widget::toggler::Status::Active { is_toggled: true } => Color::SecondLight,
+                widget::toggler::Status::Active { is_toggled: false } => Color::SecondDark,
+                widget::toggler::Status::Hovered { is_toggled: true } => Color::Light,
+                widget::toggler::Status::Hovered { is_toggled: false } => Color::Mid,
+                widget::toggler::Status::Disabled => Color::SecondDark,
+            }),
+            foreground_border_width: BORDER_WIDTH,
+            foreground_border_color: self.get(Color::Mid),
         }
     }
 }

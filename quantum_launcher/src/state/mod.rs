@@ -5,14 +5,17 @@ use std::{
     sync::mpsc::{self, Receiver},
 };
 
+use filthy_rich::PresenceClient;
 use iced::Task;
 use notify::Watcher;
 use ql_core::{
     err, file_utils, read_log::LogLine, GenericProgress, InstanceSelection, IntoIoError,
     IntoStringError, IoError, JsonFileError, LaunchedProcess, ModId, Progress, LAUNCHER_DIR,
-    LAUNCHER_VERSION_NAME,
+    LAUNCHER_VERSION_NAME, Instance, InstanceKind,
+    file_utils::{self, exists},
+    read_log::LogLine,
 };
-use ql_instances::auth::{ms::CLIENT_ID, AccountData};
+use ql_instances::auth::{AccountData, AccountType, ms::CLIENT_ID};
 use tokio::process::ChildStdin;
 
 use crate::{
@@ -45,7 +48,7 @@ pub struct InstanceLog {
 
 pub struct Launcher {
     pub state: State,
-    pub selected_instance: Option<InstanceSelection>,
+    pub selected_instance: Option<Instance>,
     pub config: LauncherConfig,
     pub theme: LauncherTheme,
     pub images: ImageState,
@@ -55,21 +58,25 @@ pub struct Launcher {
     pub tick_timer: usize,
     pub is_launching_game: bool,
 
+    pub discord_ipc_client: Option<PresenceClient>,
+    pub is_presence_running: bool,
+
     pub java_recv: Option<ProgressBar<GenericProgress>>,
     pub custom_jar: Option<CustomJarState>,
-    pub mod_updates_checked: HashMap<InstanceSelection, Vec<(ModId, String, bool)>>,
     /// See [`AutoSaveKind`]
     pub autosave: HashSet<AutoSaveKind>,
 
     pub accounts: HashMap<String, AccountData>,
     pub accounts_dropdown: Vec<String>,
-    pub accounts_selected: Option<String>,
+    pub account_selected: String,
 
     pub client_list: Option<Vec<String>>,
     pub server_list: Option<Vec<String>>,
+    pub client_watcher: Option<DirWatcher>,
+    pub server_watcher: Option<DirWatcher>,
 
-    pub processes: HashMap<InstanceSelection, GameProcess>,
-    pub logs: HashMap<InstanceSelection, InstanceLog>,
+    pub processes: HashMap<Instance, GameProcess>,
+    pub logs: HashMap<Instance, InstanceLog>,
 
     pub window_state: WindowState,
     pub keys_pressed: HashSet<iced::keyboard::Key>,
@@ -88,6 +95,7 @@ pub struct Launcher {
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum AutoSaveKind {
     LauncherConfig,
+    InstanceConfig,
     Jarmods,
 }
 
@@ -99,15 +107,29 @@ pub struct WindowState {
 
 pub struct CustomJarState {
     pub choices: Vec<String>,
-    pub recv: Receiver<notify::Event>,
-    pub _watcher: notify::RecommendedWatcher,
+    pub watcher: DirWatcher,
 }
 
 impl CustomJarState {
     pub fn load() -> Task<Message> {
         Task::perform(load_custom_jars(), |n| {
-            Message::EditInstance(EditInstanceMessage::CustomJarLoaded(n.strerr()))
+            EditInstanceMessage::CustomJarLoaded(n.strerr()).into()
         })
+    }
+}
+
+pub struct DirWatcher {
+    recv: Receiver<notify::Event>,
+    _watcher: notify::RecommendedWatcher,
+}
+
+impl DirWatcher {
+    pub fn has_changed(&self) -> bool {
+        let mut has_changed = false;
+        while let Ok(_event) = self.recv.try_recv() {
+            has_changed = true;
+        }
+        has_changed
     }
 }
 
@@ -119,7 +141,6 @@ pub struct GameProcess {
 
 impl Launcher {
     pub fn load_new(
-        message: Option<String>,
         is_new_user: bool,
         config: Result<LauncherConfig, JsonFileError>,
     ) -> Result<Self, JsonFileError> {
@@ -134,14 +155,8 @@ impl Launcher {
         let theme = config.c_theme();
         let (window_width, window_height) = config.c_window_size();
 
-        let mut launch = if let Some(message) = message {
-            MenuLaunch::with_message(message)
-        } else {
-            MenuLaunch::default()
-        };
-
+        let mut launch = MenuLaunch::default();
         launch.resize_sidebar(SIDEBAR_WIDTH);
-
         let launch = State::Launch(launch);
 
         // The version field was added in 0.3
@@ -153,22 +168,30 @@ impl Launcher {
             launch
         } else {
             if let Err(err) = migration(version) {
-                err!(no_log, "{err}")
+                err!(no_log, "{err}");
             }
             config.version = Some(LAUNCHER_VERSION_NAME.to_owned());
             State::ChangeLog
         };
 
-        let (accounts, accounts_dropdown, selected_account) = init_accounts(&mut config);
+        let (accounts, accounts_dropdown, account_selected) = load_accounts(&mut config);
 
         let persistent = config.c_persistent();
+        let selected_instance = persistent
+            .selected_instance
+            .as_ref()
+            .filter(|_| persistent.selected_remembered)
+            .map(|n| {
+                Instance::new(
+                    n,
+                    persistent
+                        .selected_instance_kind
+                        .unwrap_or(ql_core::InstanceKind::Client),
+                )
+            });
 
         Ok(Self {
-            selected_instance: persistent
-                .selected_instance
-                .as_ref()
-                .filter(|_| persistent.selected_remembered)
-                .map(|n| InstanceSelection::new(n, false)),
+            selected_instance,
             state,
             config,
             theme,
@@ -180,10 +203,12 @@ impl Launcher {
                 mouse_pos: (0.0, 0.0),
                 is_maximized: false,
             },
-            accounts_selected: Some(selected_account),
+            account_selected,
 
             client_list: None,
             server_list: None,
+            client_watcher: None,
+            server_watcher: None,
             java_recv: None,
             custom_jar: None,
 
@@ -191,10 +216,12 @@ impl Launcher {
             processes: HashMap::new(),
 
             keys_pressed: HashSet::new(),
-            mod_updates_checked: HashMap::new(),
 
             is_log_open: false,
             is_launching_game: false,
+
+            discord_ipc_client: None,
+            is_presence_running: false,
 
             log_scroll: 0,
             tick_timer: 0,
@@ -240,6 +267,8 @@ impl Launcher {
             java_recv: None,
             client_list: None,
             server_list: None,
+            client_watcher: None,
+            server_watcher: None,
             selected_instance: None,
             custom_jar: None,
 
@@ -249,11 +278,13 @@ impl Launcher {
             log_scroll: 0,
             tick_timer: 0,
 
+            discord_ipc_client: None,
+            is_presence_running: false,
+
             logs: HashMap::new(),
             processes: HashMap::new(),
             accounts: HashMap::new(),
             keys_pressed: HashSet::new(),
-            mod_updates_checked: HashMap::new(),
 
             images: ImageState::default(),
             window_state: WindowState {
@@ -263,12 +294,12 @@ impl Launcher {
             },
             autosave: HashSet::new(),
             accounts_dropdown: vec![OFFLINE_ACCOUNT_NAME.to_owned(), NEW_ACCOUNT_NAME.to_owned()],
-            accounts_selected: Some(OFFLINE_ACCOUNT_NAME.to_owned()),
+            account_selected: OFFLINE_ACCOUNT_NAME.to_owned(),
             modifiers_pressed: iced::keyboard::Modifiers::empty(),
         }
     }
 
-    pub fn instance(&self) -> &InstanceSelection {
+    pub fn instance(&self) -> &Instance {
         self.selected_instance.as_ref().unwrap()
     }
 
@@ -279,25 +310,17 @@ impl Launcher {
         self.state = State::Error { error }
     }
 
-    pub fn go_to_launch_screen<T: Display>(&mut self, message: Option<T>) -> Task<Message> {
-        let mut menu_launch = match message {
-            Some(message) => MenuLaunch::with_message(message.to_string()),
-            None => MenuLaunch::default(),
-        };
+    pub fn go_to_main_menu(&mut self, message: Option<InfoMessage>) -> Task<Message> {
+        let mut menu_launch = MenuLaunch::new(message);
         menu_launch.resize_sidebar(SIDEBAR_WIDTH);
+        let t = if let Some(inst) = &self.selected_instance {
+            menu_launch.reload_notes(inst.clone())
+        } else {
+            Task::none()
+        };
         self.state = State::Launch(menu_launch);
 
-        let get_entries = Task::perform(get_entries(false), Message::CoreListLoaded);
-        match &self.selected_instance {
-            Some(i @ InstanceSelection::Instance(_)) => {
-                if let State::Launch(menu) = &mut self.state {
-                    return Task::batch([menu.reload_notes(i.clone()), get_entries]);
-                }
-            }
-            Some(InstanceSelection::Server(_)) => self.selected_instance = None,
-            None => {}
-        }
-        get_entries
+        t
     }
 }
 
@@ -316,18 +339,65 @@ fn init_accounts(
     (accounts, accounts_dropdown, selected_account)
 }
 
-pub async fn get_entries(is_server: bool) -> Res<(Vec<String>, bool)> {
-    let dir_path = file_utils::get_launcher_dir().strerr()?.join(if is_server {
-        "servers"
+fn load_account(
+    accounts: &mut HashMap<String, AccountData>,
+    accounts_dropdown: &mut Vec<String>,
+    accounts_to_remove: &mut Vec<String>,
+    username: &str,
+    account: &mut crate::config::ConfigAccount,
+) {
+    let account_type = if username.ends_with(" (elyby)") {
+        AccountType::ElyBy
+    } else if username.ends_with(" (littleskin)") {
+        AccountType::LittleSkin
     } else {
-        "instances"
-    });
-    if !dir_path.exists() {
+        account.account_type.unwrap_or_default()
+    };
+
+    let keyring_username = account.get_keyring_identifier(username);
+    let refresh_token =
+        ql_instances::auth::read_refresh_token(keyring_username, account_type).strerr();
+
+    let keyring_username = account.get_keyring_identifier(username);
+
+    match refresh_token {
+        Ok(refresh_token) => {
+            accounts_dropdown.insert(0, username.to_owned());
+            accounts.insert(
+                username.to_owned(),
+                AccountData {
+                    access_token: None,
+                    uuid: account.uuid.clone(),
+                    refresh_token,
+                    needs_refresh: true,
+                    account_type,
+
+                    username: keyring_username.to_owned(),
+                    nice_username: account
+                        .username_nice
+                        .clone()
+                        .unwrap_or_else(|| username.to_owned()),
+                },
+            );
+        }
+        Err(err) => {
+            err!(
+                "Could not load account: {err}\nUsername: {keyring_username}, Account Type: {}",
+                account_type.to_string()
+            );
+            accounts_to_remove.push(username.to_owned());
+        }
+    }
+}
+
+pub async fn get_entries(kind: InstanceKind) -> Res<(Vec<String>, InstanceKind)> {
+    let dir_path = kind.get_root_directory();
+    if !exists(&dir_path).await {
         tokio::fs::create_dir_all(&dir_path)
             .await
             .path(&dir_path)
             .strerr()?;
-        return Ok((Vec::new(), is_server));
+        return Ok((Vec::new(), kind));
     }
 
     Ok((
@@ -338,7 +408,7 @@ pub async fn get_entries(is_server: bool) -> Res<(Vec<String>, bool)> {
             .filter(|n| !n.is_file)
             .map(|n| n.name)
             .collect(),
-        is_server,
+        kind,
     ))
 }
 
@@ -398,10 +468,8 @@ pub async fn load_custom_jars() -> Result<Vec<String>, IoError> {
     Ok(list)
 }
 
-pub fn dir_watch<P: AsRef<Path>>(
-    path: P,
-) -> notify::Result<(Receiver<notify::Event>, notify::RecommendedWatcher)> {
-    let (tx, rx) = mpsc::channel();
+pub fn dir_watch<P: AsRef<Path>>(path: P) -> notify::Result<DirWatcher> {
+    let (tx, recv) = mpsc::channel();
 
     // `notify` runs callbacks in its own thread.
     let mut watcher: notify::RecommendedWatcher = notify::recommended_watcher(move |res| {
@@ -409,9 +477,13 @@ pub fn dir_watch<P: AsRef<Path>>(
             _ = tx.send(event);
         }
     })?;
-    watcher.watch(path.as_ref(), notify::RecursiveMode::NonRecursive)?;
+    let path = path.as_ref();
+    watcher.watch(path, notify::RecursiveMode::NonRecursive)?;
 
-    Ok((rx, watcher))
+    Ok(DirWatcher {
+        recv,
+        _watcher: watcher,
+    })
 }
 
 fn migration(version: &str) -> Result<(), String> {

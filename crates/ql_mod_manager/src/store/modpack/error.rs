@@ -1,4 +1,4 @@
-use ql_core::{impl_3_errs_jri, IoError, JsonError, Loader, RequestError};
+use ql_core::{IoError, JsonError, Loader, RequestError, impl_3_errs_jri};
 use thiserror::Error;
 
 use crate::store::ModError;
@@ -17,16 +17,26 @@ pub enum PackError {
     Zip(#[from] zip::result::ZipError),
     #[error("{PACK_ERR_PREFIX}while reading file ({1}) from zip:\n{0}")]
     ZipIoError(std::io::Error, String),
-    #[error("This modpack requires loader: {expect}\nbut you have {got} installed.\n\nPlease install {expect} from the Mods menu")]
+
+    #[error(
+        "This modpack requires loader: {expect}\nbut you have {got} installed.\n\nPlease install {expect} from the Mods menu"
+    )]
     Loader { expect: String, got: Loader },
-    #[error("This modpack requires Minecraft {expect}\nbut this instance is Minecraft {got}.\n\nPlease create a {expect} instance.")]
+    #[error(
+        "This modpack requires Minecraft {expect}\nbut this instance is Minecraft {got}.\n\nPlease create a {expect} instance."
+    )]
     GameVersion { expect: String, got: String },
-    #[error("{PACK_ERR_PREFIX}This modpack doesn't have any mod loaders specified.\nIt may be corrupt, unsupported or invalid.\nPlease report this bug in discord.")]
+
+    #[error(
+        "{PACK_ERR_PREFIX}This modpack doesn't have any mod loaders specified.\nIt may be corrupt, unsupported or invalid.\nPlease report this bug in discord."
+    )]
     NoLoadersSpecified,
     #[error("{PACK_ERR_PREFIX}{0}")]
     Mod(#[from] ModError),
     #[error("{PACK_ERR_PREFIX}found modpack inside modpack!")]
     ModpackInModpack,
+    #[error("{PACK_ERR_PREFIX}couldn't identify format (not CurseForge/Modrinth/QMP/...)")]
+    NoBackendFound,
 }
 
 impl_3_errs_jri!(PackError, Json, Request, Io);

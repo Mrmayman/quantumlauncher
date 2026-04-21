@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::{
-    file_utils::find_item_in_dir, IntoIoError, IntoJsonError, IoError, JsonFileError, LAUNCHER_DIR,
+    IntoIoError, IntoJsonError, IoError, JsonFileError, LAUNCHER_DIR, file_utils::find_item_in_dir,
 };
 use serde::Deserialize;
 
@@ -37,13 +37,11 @@ impl JsonOptifine {
 
         let optifine_version_dir = find_subdirectory_with_name(&dot_minecraft_dir, "Opti")
             .await?
-            .ok_or(IoError::Io {
-                error: std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
+            .ok_or_else(|| {
+                not_found(
                     "Could not find OptiFine directory",
+                    dot_minecraft_dir.clone(),
                 )
-                .to_string(),
-                path: dot_minecraft_dir.clone(),
             })?;
 
         let (json, jar) = find_and_read_json_with_jar(&optifine_version_dir).await?;
@@ -81,27 +79,11 @@ async fn find_and_read_json_with_jar(dir_path: &Path) -> Result<(String, PathBuf
     }
 
     // Ehh... should I brutalize std::io::Error like this?
-    let json_content = json_content.ok_or({
-        IoError::Io {
-            error: std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "No JSON file found in the directory",
-            )
-            .to_string(),
-            path: dir_path.to_owned(),
-        }
-    })?;
+    let json_content = json_content
+        .ok_or_else(|| not_found("No JSON file found in the directory", dir_path.to_owned()))?;
 
-    let jar_path = jar_path.ok_or({
-        IoError::Io {
-            error: std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "No Jar file found in the directory",
-            )
-            .to_string(),
-            path: dir_path.to_owned(),
-        }
-    })?;
+    let jar_path = jar_path
+        .ok_or_else(|| not_found("No Jar file found in the directory", dir_path.to_owned()))?;
 
     Ok((json_content, jar_path))
 }
@@ -124,4 +106,11 @@ pub struct OptifineLibrary {
 #[derive(Deserialize)]
 pub struct OptifineArguments {
     pub game: Vec<String>,
+}
+
+fn not_found(m: &str, path: PathBuf) -> IoError {
+    IoError::Io {
+        error: std::io::Error::new(std::io::ErrorKind::NotFound, m),
+        path,
+    }
 }

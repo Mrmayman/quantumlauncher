@@ -4,17 +4,17 @@ use std::{
 };
 
 use ql_core::{
-    do_jobs, file_utils,
+    GenericProgress, Instance, IntoIoError, Loader, do_jobs, download,
     json::{InstanceConfigJson, VersionDetails},
-    pt, GenericProgress, InstanceSelection, IntoIoError, Loader,
+    pt,
 };
 use serde::Deserialize;
 use tokio::sync::Mutex;
 
 use crate::store::{
-    curseforge::{self, get_query_type, CFSearchResult, CurseforgeFileQuery, ModQuery},
-    CurseforgeNotAllowed, DirStructure, ModConfig, ModFile, ModIndex, QueryType,
-    SOURCE_ID_CURSEFORGE,
+    CurseforgeNotAllowed, DirStructure, ModConfig, ModFile, ModId, ModIndex, QueryType,
+    StoreBackendType,
+    curseforge::{self, CFSearchResult, CurseforgeFileQuery, ModQuery, get_query_type},
 };
 
 use super::PackError;
@@ -71,7 +71,7 @@ impl PackFile {
         };
 
         let query = CurseforgeFileQuery::load(&self.projectID, self.fileID as i32).await?;
-        let query_type = get_query_type(mod_info.classId).await?;
+        let query_type = get_query_type(mod_info.class_id).await?;
         let Some(url) = query.data.downloadUrl.clone() else {
             self.add_to_not_allowed(not_allowed, mod_info, query, query_type)
                 .await;
@@ -88,7 +88,7 @@ impl PackFile {
             }
         }
 
-        file_utils::download_file_to_path(&url, true, &path).await?;
+        download(&url).user_agent_ql().path(&path).await?;
         add_to_index(index, self.projectID.to_string(), &mod_info, query, url).await;
 
         send_progress(sender, i, len, &mod_info).await;
@@ -120,6 +120,7 @@ async fn add_to_index(
     url: String,
 ) {
     let mut index = index.lock().await;
+    let project_id = ModId::Curseforge(project_id);
     if !index.mods.contains_key(&project_id) {
         index.mods.insert(
             project_id.clone(),
@@ -131,7 +132,7 @@ async fn add_to_index(
                 enabled: true,
                 description: mod_info.summary.clone(),
                 icon_url: mod_info.logo.clone().map(|n| n.url),
-                project_source: SOURCE_ID_CURSEFORGE.to_owned(),
+                project_source: StoreBackendType::Curseforge,
                 project_id,
                 files: vec![ModFile {
                     url,
@@ -180,7 +181,7 @@ async fn send_progress(
 }
 
 pub async fn install(
-    instance: &InstanceSelection,
+    instance: &Instance,
     config: &InstanceConfigJson,
     json: &VersionDetails,
     index: &PackIndex,

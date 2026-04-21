@@ -65,7 +65,7 @@
 //! # Ok(()) }
 //! ```
 
-use ql_core::{info, pt, retry, GenericProgress, IntoJsonError, JsonError, RequestError, CLIENT};
+use ql_core::{CLIENT, GenericProgress, IntoJsonError, JsonError, RequestError, info, pt, retry};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use serde_json::json;
@@ -175,7 +175,9 @@ pub enum Error {
     Join(#[from] tokio::task::JoinError),
     #[error("{AUTH_ERR_PREFIX}Invalid account access token!")]
     InvalidAccessToken,
-    #[error("{AUTH_ERR_PREFIX}An unknown error has occurred (code: {0})\n\nThis is a major bug! Please report in discord.")]
+    #[error(
+        "{AUTH_ERR_PREFIX}An unknown error has occurred (code: {0})\n\nThis is a major bug! Please report in discord."
+    )]
     UnknownError(StatusCode),
     #[error("{AUTH_ERR_PREFIX}missing JSON field: {0}")]
     MissingField(String),
@@ -186,7 +188,9 @@ pub enum Error {
     #[error("{AUTH_ERR_PREFIX}{0}")]
     Response(MsaResponseError),
 
-    #[error("Your Microsoft account doesn't own Minecraft!\nJust enter the username in the text box instead of logging in.")]
+    #[error(
+        "Your Microsoft account doesn't own Minecraft!\nJust enter the username in the text box instead of logging in."
+    )]
     DoesntOwnGame,
 }
 

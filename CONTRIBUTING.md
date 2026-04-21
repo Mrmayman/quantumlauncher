@@ -13,27 +13,27 @@ There are many ways you can help us out! We're open to any contribution.
 
 # What you can do
 
-If you...
+If you
 
-## ...know how to code
+## a) Know how to code
 
 You can:
 
 - Write code. Add features, fix bugs, improve user experience.
-  - Please do adhere to nice quality standards, although don't worry
+  - Please do adhere to nice quality standards, but don't worry
     about fitting in. We are welcoming!
 - Write documentation/guides
 - Contribute to the website (repo: <https://github.com/Mrmayman/Mrmayman.github.io>)
 - Work on CI/build system/tests
 
-## ...are good at art/design
+## b) Are good at art/design
 
 You can:
 
 - Suggest UI improvements, polish, better design
 - Make mockups or better UI designs
 
-## ...otherwise
+## c) Otherwise
 
 - Find and report issues, give feedback
 - Fix typos/grammar mistakes (English isn't my first language)
@@ -61,9 +61,16 @@ Treat them as helpers, not replacements for thought or design.
 > There’s nothing worse than writing for the sake of writing,
 > with nothing behind it. It's almost intellectually dishonest in a way.
 
+---
+
 # Contributors
 
+In no particular order...
+
 - [**Mrmayman**](https://github.com/Mrmayman) (lead developer)
-- [Sreehari425](https://github.com/Sreehari425) (many features)
+- [Sreehari425](https://github.com/Sreehari425)
 - [apicalshark](https://github.com/apicalshark) (GitHub CI, packaging, distribution)
 - [Aurlt](https://github.com/Aurlt) (designed logo, icons and theme, help with UI design)
+- [0elek](https://github.com/0elek)
+- [hitblast](https://github.com/hitblast/)
+- [Void98](https://github.com/void90user)

@@ -1,8 +1,8 @@
 use std::sync::mpsc::Sender;
 
 use ql_core::{
-    info, json::VersionDetails, DownloadProgress, InstanceSelection, IntoIoError, IntoStringError,
-    ListEntry, LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
+    DownloadProgress, Instance, IntoIoError, IntoStringError, LAUNCHER_DIR,
+    LAUNCHER_VERSION_NAME, ListEntry, info, json::VersionDetails, sanitize_instance_name,
 };
 
 mod downloader;
@@ -26,16 +26,21 @@ pub(crate) use downloader::GameDownloader;
 /// The instance name that you passed in.
 ///
 /// # Errors
-/// Check the [`DownloadError`] documentation (if there is, lol).
-/// This is crap code and you must have standards. (WTF: )
+/// Anything and everything in [`DownloadError`].
+/// Too vast to pin down.
 pub async fn create_instance(
     instance_name: String,
     version: ListEntry,
     progress_sender: Option<Sender<DownloadProgress>>,
     download_assets: bool,
 ) -> Result<String, DownloadError> {
+    let instance_name = sanitize_instance_name(instance_name);
+    if instance_name.is_empty() {
+        return Err(DownloadError::InvalidName);
+    }
+
     info!(
-        "Started creating instance: {} (kind: {})",
+        "Started creating instance: {instance_name} (version: {}, kind: {})",
         version.name, version.kind
     );
 
@@ -88,7 +93,7 @@ pub async fn create_instance(
 }
 
 pub async fn repeat_stage(
-    instance: InstanceSelection,
+    instance: Instance,
     stage: DownloadProgress,
     sender: Option<Sender<DownloadProgress>>,
 ) -> Result<(), String> {
@@ -119,7 +124,7 @@ pub async fn repeat_stage(
             downloader.download_jar().await.strerr()?;
         }
         DownloadProgress::DownloadingJsonManifest | DownloadProgress::DownloadingVersionJson => {
-            unimplemented!()
+            // Can't do anything about that :/
         }
     }
     info!("Finished redownloading");

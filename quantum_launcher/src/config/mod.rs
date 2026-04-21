@@ -2,9 +2,13 @@ use crate::stylesheet::styles::{LauncherTheme, LauncherThemeColor, LauncherTheme
 use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use ql_core::{
     err, json::GlobalSettings, IntoIoError, IntoJsonError, JsonFileError, ListEntryKind,
-    LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
+    LAUNCHER_DIR, LAUNCHER_VERSION_NAME, InstanceKind,
 };
 use serde::{Deserialize, Serialize};
+use crate::config::discord_rpc::RpcConfig;
+use crate::config::sidebar::{SidebarConfig, SidebarNode, SidebarNodeKind};
+use ql_instances::auth::{AccountData, AccountType};
+use std::sync::Arc;
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
@@ -13,6 +17,8 @@ use std::{
 mod accounts;
 
 pub use accounts::ConfigAccount;
+pub mod discord_rpc;
+pub mod sidebar;
 
 pub const SIDEBAR_WIDTH: f32 = 0.33;
 const OPACITY: f32 = 0.9;
@@ -25,7 +31,7 @@ const OPACITY: f32 = 0.9;
 ///
 /// # Why `Option`?
 ///
-/// Many fields are `Option`s for backwards compatibility.
+/// Many fields are `Option`'s for backwards compatibility.
 /// If upgrading from an older version,
 /// `serde` will deserialize missing fields as `None`,
 /// which is treated as a default value.
@@ -99,6 +105,18 @@ pub struct LauncherConfig {
     pub ui: Option<UiSettings>,
     // Since: v0.5.0
     pub persistent: Option<PersistentSettings>,
+    // Since: v0.5.1
+    pub sidebar: Option<SidebarConfig>,
+    // Since: TBD
+    pub discord_rpc: Option<RpcConfig>,
+    /// Time of last auto-update check result, in seconds since the Unix epoch.
+    // Since: TBD
+    #[cfg(feature = "auto_update")]
+    pub last_update_check: Option<u64>,
+
+    /// Preserve fields when downgrading
+    #[serde(flatten)]
+    _extra: HashMap<String, serde_json::Value>,
 }
 
 impl Default for LauncherConfig {
@@ -119,6 +137,11 @@ impl Default for LauncherConfig {
             extra_java_args: None,
             ui: None,
             persistent: None,
+            sidebar: None,
+            discord_rpc: None,
+            _extra: HashMap::new(),
+            #[cfg(feature = "auto_update")]
+            last_update_check: None,
         }
     }
 }
@@ -150,7 +173,9 @@ impl LauncherConfig {
         let mut config: Self = match serde_json::from_str(&config) {
             Ok(config) => config,
             Err(err) => {
-                err!("Invalid launcher config! This may be a sign of corruption! Please report if this happens to you.\nError: {err}");
+                err!(
+                    "Invalid launcher config! This may be a sign of corruption! Please report if this happens to you.\nError: {err}"
+                );
                 let old_path = LAUNCHER_DIR.join("config.json.bak");
                 _ = std::fs::copy(&config_path, &old_path);
                 return LauncherConfig::create(&config_path);
@@ -169,6 +194,33 @@ impl LauncherConfig {
             .await
             .path(config_path)?;
         Ok(())
+    }
+
+    /// Resets the Discord Rich Presence configuration to default.
+    pub fn reset_presence(&mut self) {
+        self.discord_rpc = Some(RpcConfig::default());
+    }
+
+    pub fn update_sidebar(&mut self, instances: &[String], kind: InstanceKind) {
+        let sidebar = self.sidebar.get_or_insert_with(SidebarConfig::default);
+
+        // Remove nonexistent instances
+        sidebar.retain_instances(|node| match &node.kind {
+            SidebarNodeKind::Instance(instance_kind) => {
+                (*instance_kind == kind && instances.iter().any(|n| n == &*node.name))
+                    || (*instance_kind != kind)
+            }
+            SidebarNodeKind::Folder { .. } => true,
+        });
+        // Add new instances
+        for instance in instances {
+            if !sidebar.contains_instance(instance, kind) {
+                sidebar.list.push(SidebarNode::new_instance(
+                    Arc::from(instance.as_str()),
+                    kind,
+                ));
+            }
+        }
     }
 
     fn create(path: &Path) -> Result<Self, JsonFileError> {
@@ -219,11 +271,17 @@ impl LauncherConfig {
         self.ui.as_ref().map_or(OPACITY, |n| n.window_opacity)
     }
 
-    pub fn uses_system_decorations(&self) -> bool {
+    pub fn c_after_launch_behavior(&self) -> AfterLaunchBehavior {
         self.ui
             .as_ref()
-            .map(|n| matches!(n.window_decorations, UiWindowDecorations::System))
-            .unwrap_or(true) // change this to false when enabling the experimental decorations
+            .map_or(AfterLaunchBehavior::default(), |n| n.after_game_opens)
+    }
+
+    pub fn uses_system_decorations(&self) -> bool {
+        // change this to `is_some_and` when enabling the experimental decorations
+        self.ui
+            .as_ref()
+            .is_none_or(|n| matches!(n.window_decorations, UiWindowDecorations::System))
     }
 
     pub fn c_theme(&self) -> LauncherTheme {
@@ -231,24 +289,134 @@ impl LauncherConfig {
             lightness: self.ui_mode.unwrap_or_default(),
             color: self.ui_theme.unwrap_or_default(),
             alpha: self.c_ui_opacity(),
-            system_dark_mode: dark_light::detect()
-                .map(|n| n == dark_light::Mode::Dark)
-                .unwrap_or_default(),
+            system_dark_mode: dark_light::detect().is_ok_and(|n| n == dark_light::Mode::Dark),
         }
     }
 
     pub fn c_window(&mut self) -> &mut WindowProperties {
-        self.window.get_or_insert_with(WindowProperties::default)
+        self.window.get_or_insert_default()
     }
 
     pub fn c_global(&mut self) -> &mut GlobalSettings {
-        self.global_settings
-            .get_or_insert_with(GlobalSettings::default)
+        self.global_settings.get_or_insert_default()
     }
 
     pub fn c_persistent(&mut self) -> &mut PersistentSettings {
-        self.persistent
-            .get_or_insert_with(PersistentSettings::default)
+        self.persistent.get_or_insert_default()
+    }
+
+    pub fn c_sidebar(&mut self) -> &mut SidebarConfig {
+        self.sidebar.get_or_insert_default()
+    }
+
+    pub fn c_idle_fps(&self) -> u64 {
+        const IDLE_FPS: u64 = 6;
+
+        let i = self
+            .ui
+            .as_ref()
+            .and_then(|n| n.idle_fps)
+            .unwrap_or(IDLE_FPS);
+
+        if i > 0 {
+            i
+        } else {
+            debug_assert!(false, "idle FPS shouldn't be zero");
+            IDLE_FPS
+        }
+    }
+
+    pub fn c_rpc_enabled(&self) -> bool {
+        self.discord_rpc.as_ref().is_some_and(|n| n.enable)
+    }
+
+    #[cfg(feature = "auto_update")]
+    pub fn should_update_check(&self) -> bool {
+        const INTERVAL_SECS: u64 = 60 * 60;
+
+        if let Some(last) = self.last_update_check {
+            if let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+                let elapsed = now.as_secs().saturating_sub(last);
+                return elapsed >= INTERVAL_SECS;
+            }
+        }
+        true
+    }
+
+    #[cfg(feature = "auto_update")]
+    pub fn update_set_now(&mut self) {
+        self.last_update_check = Some(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        );
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ConfigAccount {
+    /// UUID of the Minecraft account. Stored as string without dashes
+    ///
+    /// Eg: `2553495fc9094d40a82646cfc92cd7a5`
+    ///
+    /// A UUID is like an alternate username that can be used to identify
+    /// an account. Unlike a username it can't be changed, so it's useful for
+    /// dealing with accounts in a stable manner.
+    ///
+    /// You can find someone's UUID through many online services where you
+    /// input their username.
+    pub uuid: String,
+
+    /// Currently unimplemented, does nothing.
+    pub skin: Option<String>, // TODO: Add skin visualization?
+
+    /// Type of account (default: `Microsoft`)
+    pub account_type: Option<AccountType>,
+
+    /// The original login identifier used for keyring operations.
+    /// This is the email address or username that was used during login.
+    /// For email/password logins, this will be the email.
+    /// For username/password logins, this will be the username.
+    pub keyring_identifier: Option<String>,
+
+    /// A game-readable "nice" username.
+    ///
+    /// This will be identical to the regular
+    /// username of the account in most cases
+    /// except for the case where the user
+    /// has an `ely.by` account with an email.
+    /// In that case, this will be the actual
+    /// username while the regular "username"
+    /// would be an email.
+    pub username_nice: Option<String>,
+
+    #[serde(flatten)]
+    _extra: HashMap<String, serde_json::Value>,
+}
+
+impl ConfigAccount {
+    pub fn from_account(data: &AccountData) -> Self {
+        Self {
+            uuid: data.uuid.clone(),
+            skin: None,
+            account_type: Some(data.account_type),
+            keyring_identifier: Some(data.username.clone()),
+            username_nice: Some(data.nice_username.clone()),
+            _extra: HashMap::new(),
+        }
+    }
+
+    pub fn get_keyring_identifier<'a>(&'a self, key_username: &'a str) -> &'a str {
+        self.keyring_identifier.as_deref().unwrap_or_else(|| {
+            // Fallback to old behavior for backwards compatibility
+            match self.account_type.unwrap_or_default() {
+                AccountType::ElyBy => key_username.strip_suffix(" (elyby)"),
+                AccountType::LittleSkin => key_username.strip_suffix(" (littleskin)"),
+                AccountType::Microsoft => Some(key_username),
+            }
+            .unwrap_or(key_username)
+        })
     }
 }
 
@@ -266,6 +434,9 @@ pub struct WindowProperties {
     /// Used to restore the window size between launches.
     // Since: v0.4.2
     pub height: Option<f32>,
+
+    #[serde(flatten)]
+    _extra: HashMap<String, serde_json::Value>,
 }
 
 impl Default for WindowProperties {
@@ -274,11 +445,12 @@ impl Default for WindowProperties {
             save_window_size: true,
             width: None,
             height: None,
+            _extra: HashMap::new(),
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UiSettings {
     // Since: v0.5.0
     pub window_decorations: UiWindowDecorations,
@@ -286,6 +458,13 @@ pub struct UiSettings {
     pub window_opacity: f32,
     // Since: v0.5.0
     pub idle_fps: Option<u64>,
+    /// When the game is launched, the launcher can either
+    /// minimize itself, close itself, or do nothing (default).
+    // Since: TBD
+    #[serde(default)]
+    pub after_game_opens: AfterLaunchBehavior,
+    #[serde(flatten)]
+    _extra: HashMap<String, serde_json::Value>,
 }
 
 impl Default for UiSettings {
@@ -294,6 +473,8 @@ impl Default for UiSettings {
             window_decorations: UiWindowDecorations::default(),
             window_opacity: OPACITY,
             idle_fps: None,
+            after_game_opens: AfterLaunchBehavior::default(),
+            _extra: HashMap::new(),
         }
     }
 }
@@ -301,6 +482,27 @@ impl Default for UiSettings {
 impl UiSettings {
     pub fn get_idle_fps(&self) -> u64 {
         self.idle_fps.unwrap_or(6)
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum AfterLaunchBehavior {
+    /// Enable to reduce taskbar icons; leaving it open has negligible impact.
+    #[serde(rename = "close_launcher")]
+    CloseLauncher,
+    #[serde(rename = "minimize_launcher")]
+    MinimizeLauncher,
+    #[serde(rename = "do_nothing")]
+    #[default]
+    #[serde(other)]
+    DoNothing,
+}
+
+impl AfterLaunchBehavior {
+    pub const fn desc(self) -> &'static str {
+        match self {
+            Self::CloseLauncher => "Close launcher",
+            Self::MinimizeLauncher => "Minimize launcher",
+            Self::DoNothing => "Do nothing",
+        }
     }
 }
 
@@ -326,28 +528,41 @@ pub enum UiWindowDecorations {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PersistentSettings {
-    pub selected_instance: Option<String>,
-    pub selected_server: Option<String>,
+    pub selected_instance: Option<Arc<str>>,
     pub selected_remembered: bool,
+    // Since: TBD
+    pub selected_instance_kind: Option<InstanceKind>,
+
+    #[serde(default = "default_true")]
+    pub write_mod_update_changelog: bool,
 
     /// Remembers version filters (eg: snapshot, release, etc) in Create Instance
     pub create_instance_filters: Option<HashSet<ListEntryKind>>,
+
+    #[serde(flatten)]
+    _extra: HashMap<String, serde_json::Value>,
 }
 
 impl Default for PersistentSettings {
     fn default() -> Self {
         Self {
             selected_instance: None,
-            selected_server: None,
+            selected_instance_kind: None,
             selected_remembered: true,
+            write_mod_update_changelog: true,
             create_instance_filters: None,
+            _extra: HashMap::new(),
         }
     }
 }
 
+fn default_true() -> bool {
+    true
+}
+
 impl PersistentSettings {
     #[must_use]
-    pub fn get_create_instance_filters(&self) -> std::collections::HashSet<ListEntryKind> {
+    pub fn get_create_instance_filters(&self) -> HashSet<ListEntryKind> {
         self.create_instance_filters
             .clone()
             .filter(|n| !n.is_empty())

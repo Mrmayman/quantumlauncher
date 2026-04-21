@@ -1,3 +1,4 @@
+mod description;
 mod export_mods;
 mod install_loader;
 mod instance_package;

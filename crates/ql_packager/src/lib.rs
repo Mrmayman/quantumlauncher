@@ -1,6 +1,6 @@
 use std::{collections::HashSet, path::PathBuf};
 
-use ql_core::{impl_3_errs_jri, IoError, JsonError, RequestError};
+use ql_core::{IoError, JsonError, RequestError, impl_3_errs_jri};
 use ql_mod_manager::loaders::{fabric::FabricInstallError, forge::ForgeInstallError};
 use ql_servers::ServerError;
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,7 @@ mod export;
 mod import;
 mod multimc;
 
-pub use export::{export_instance, EXCEPTIONS};
+pub use export::{EXCEPTIONS, export_instance};
 pub use import::import_instance;
 
 const PKG_ERR_PREFIX: &str = "while importing/exporting instance:\n";
