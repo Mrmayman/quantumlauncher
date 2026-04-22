@@ -48,13 +48,11 @@ impl Launcher {
             AccountMessage::Initialized(data) => {
                 self.accounts = data.accounts;
                 self.accounts_dropdown = data.accounts_dropdown;
-                self.account_selected = 
-                    self.config.account_selected.clone().unwrap_or(
-                        self.accounts_dropdown
-                            .first()
-                            .cloned()
-                            .unwrap_or_else(|| OFFLINE_ACCOUNT_NAME.to_owned()),
-                    
+                self.account_selected = self.config.account_selected.clone().unwrap_or(
+                    self.accounts_dropdown
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| OFFLINE_ACCOUNT_NAME.to_owned()),
                 );
             }
 
@@ -279,11 +277,7 @@ impl Launcher {
                 self.state = State::AccountLoginProgress(ProgressBar::with_recv(receiver));
 
                 Task::perform(
-                    auth::ms::login_refresh(
-                        account.username.clone(),
-                        refresh_token,
-                        Some(sender),
-                    ),
+                    auth::ms::login_refresh(account.username.clone(), refresh_token, Some(sender)),
                     |n| AccountMessage::RefreshComplete(n.strerr()).into(),
                 )
             }

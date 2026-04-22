@@ -1,9 +1,7 @@
 use std::{collections::HashSet, path::PathBuf, sync::mpsc::Sender};
 
 use chrono::DateTime;
-use ql_core::{
-    GenericProgress, Instance, IntoIoError, Loader, do_jobs, json::VersionDetails, pt,
-};
+use ql_core::{GenericProgress, Instance, IntoIoError, Loader, do_jobs, json::VersionDetails, pt};
 
 mod add_file;
 mod curseforge;

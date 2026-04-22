@@ -9,9 +9,8 @@ use filthy_rich::PresenceClient;
 use iced::Task;
 use notify::Watcher;
 use ql_core::{
-    err, GenericProgress, IntoIoError,
-    IntoStringError, IoError, JsonFileError, LaunchedProcess, Progress, LAUNCHER_DIR,
-    LAUNCHER_VERSION_NAME, Instance, InstanceKind,
+    GenericProgress, Instance, InstanceKind, IntoIoError, IntoStringError, IoError, JsonFileError,
+    LAUNCHER_DIR, LAUNCHER_VERSION_NAME, LaunchedProcess, Progress, err,
     file_utils::{self, exists},
     read_log::LogLine,
 };
@@ -356,7 +355,9 @@ async fn load_account(
 
     let keyring_username = account.get_keyring_identifier(username);
     let refresh_token =
-        ql_instances::auth::read_refresh_token(keyring_username.to_string(), account_type).await.strerr();
+        ql_instances::auth::read_refresh_token(keyring_username.to_string(), account_type)
+            .await
+            .strerr();
 
     let keyring_username = account.get_keyring_identifier(username);
 

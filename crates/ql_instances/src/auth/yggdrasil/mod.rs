@@ -1,7 +1,7 @@
 use crate::auth::alt::AccountResponse;
 
 use super::{AccountData, AccountType};
-use ql_core::{info, pt, IntoJsonError, CLIENT};
+use ql_core::{CLIENT, IntoJsonError, info, pt};
 use tokio::task::spawn_blocking;
 
 pub use super::alt::{Account, AccountResponseError, Error};

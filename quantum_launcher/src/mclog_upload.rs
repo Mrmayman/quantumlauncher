@@ -1,5 +1,5 @@
 use ql_core::{
-    CLIENT, InstanceConfigJson, Instance, IntoJsonError, IntoStringError, Loader,
+    CLIENT, Instance, InstanceConfigJson, IntoJsonError, IntoStringError, Loader,
     json::VersionDetails, request::check_for_success,
 };
 use serde::Deserialize;

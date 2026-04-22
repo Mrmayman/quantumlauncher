@@ -1,11 +1,11 @@
 use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
 
 use crate::{
-    message_handler::{account_load::AccountLoad, ForgeKind},
     config::{
         discord_rpc::RpcText,
         sidebar::{FolderId, SDragLocation, SidebarSelection},
     },
+    message_handler::{ForgeKind, account_load::AccountLoad},
     state::{InfoMessage, LaunchModal, MenuEditModsModal, SidebarScroll},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };

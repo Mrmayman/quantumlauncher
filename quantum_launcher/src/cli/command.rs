@@ -1,19 +1,19 @@
+use super::PrintCmd;
+use crate::config::LauncherConfig;
+use crate::{
+    cli::{QLoader, helpers::render_row},
+    state::get_entries,
+};
 use owo_colors::{OwoColorize, Style};
 use ql_core::{
     Instance, InstanceKind, IntoStringError, ListEntry, Loader, OptifineUniqueVersion, eeprintln,
     err, info,
     json::{InstanceConfigJson, VersionDetails},
 };
-use ql_mod_manager::loaders::LoaderInstallResult;
-use std::{path::PathBuf, process::exit, sync::Arc};
 use ql_instances::auth;
 use ql_instances::auth::AccountType;
-use crate::{
-    cli::{QLoader, helpers::render_row},
-    state::get_entries,
-};
-use crate::config::LauncherConfig;
-use super::PrintCmd;
+use ql_mod_manager::loaders::LoaderInstallResult;
+use std::{path::PathBuf, process::exit, sync::Arc};
 
 pub fn list_available_versions(kind: InstanceKind) {
     use std::io::Write;
