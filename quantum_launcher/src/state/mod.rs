@@ -368,7 +368,7 @@ async fn load_account(
                 AccountData {
                     access_token: None,
                     uuid: account.uuid.clone(),
-                    refresh_token,
+                    refresh_token: Ok(refresh_token),
                     needs_refresh: true,
                     account_type,
 

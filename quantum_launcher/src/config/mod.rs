@@ -406,10 +406,20 @@ impl ConfigAccount {
         }
     }
 
+    pub fn get_account_type(&self, display_username: &str) -> AccountType {
+        if display_username.ends_with(" (elyby)") {
+            AccountType::ElyBy
+        } else if display_username.ends_with(" (littleskin)") {
+            AccountType::LittleSkin
+        } else {
+            self.account_type.unwrap_or_default()
+        }
+    }
+
     pub fn get_keyring_identifier<'a>(&'a self, key_username: &'a str) -> &'a str {
         self.keyring_identifier.as_deref().unwrap_or_else(|| {
             // Fallback to old behavior for backwards compatibility
-            match self.account_type.unwrap_or_default() {
+            match self.get_account_type(key_username) {
                 AccountType::ElyBy => key_username.strip_suffix(" (elyby)"),
                 AccountType::LittleSkin => key_username.strip_suffix(" (littleskin)"),
                 AccountType::Microsoft => Some(key_username),

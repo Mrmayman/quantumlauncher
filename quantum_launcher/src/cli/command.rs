@@ -1,4 +1,4 @@
-use owo_colors::Style;
+use owo_colors::{OwoColorize, Style};
 use ql_core::{
     Instance, InstanceKind, IntoStringError, ListEntry, Loader, OptifineUniqueVersion, eeprintln,
     err, info,
@@ -276,14 +276,10 @@ async fn refresh_account(
             exit(1);
         };
 
-        match account.account_type.as_ref() {
+        match account.account_type.unwrap_or_default() {
             // Hook: Account types
-            Some(kind @ ("ElyBy" | "LittleSkin")) => {
-                let account_type = if kind == "ElyBy" {
-                    AccountType::ElyBy
-                } else {
-                    AccountType::LittleSkin
-                };
+            kind @ (AccountType::ElyBy | AccountType::LittleSkin) => {
+                let account_type = kind;
                 let refresh_token =
                     auth::read_refresh_token(real_name.clone(), account_type).await?;
                 Some(
@@ -295,7 +291,7 @@ async fn refresh_account(
                     .await?,
                 )
             }
-            _ => {
+            AccountType::Microsoft => {
                 let refresh_token =
                     auth::read_refresh_token(real_name.clone(), AccountType::Microsoft).await?;
                 Some(auth::ms::login_refresh(real_name.clone(), refresh_token, None).await?)
