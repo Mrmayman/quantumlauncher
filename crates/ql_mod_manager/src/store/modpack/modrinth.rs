@@ -145,8 +145,8 @@ async fn send_progress(
 fn expect_got_modrinth(index_json: &PackIndex, config: &InstanceConfigJson) -> PackError {
     match index_json
         .dependencies
-        .iter()
-        .filter_map(|(k, _)| (k != "minecraft").then_some(k.clone()))
+        .keys()
+        .filter_map(|k| (k != "minecraft").then_some(k.clone()))
         .map(|loader| {
             loader
                 .strip_suffix("-loader")

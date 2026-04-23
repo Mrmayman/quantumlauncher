@@ -493,17 +493,13 @@ impl Launcher {
             for i in selected {
                 if i < menu.jarmods.mods.len() {
                     match msg {
-                        ManageJarModsMessage::MoveUp => {
-                            if i > 0 {
-                                let removed = menu.jarmods.mods.remove(i);
-                                menu.jarmods.mods.insert(i - 1, removed);
-                            }
+                        ManageJarModsMessage::MoveUp if i > 0 => {
+                            let removed = menu.jarmods.mods.remove(i);
+                            menu.jarmods.mods.insert(i - 1, removed);
                         }
-                        ManageJarModsMessage::MoveDown => {
-                            if i + 1 < menu.jarmods.mods.len() {
-                                let removed = menu.jarmods.mods.remove(i);
-                                menu.jarmods.mods.insert(i + 1, removed);
-                            }
+                        ManageJarModsMessage::MoveDown if i + 1 < menu.jarmods.mods.len() => {
+                            let removed = menu.jarmods.mods.remove(i);
+                            menu.jarmods.mods.insert(i + 1, removed);
                         }
                         _ => {}
                     }

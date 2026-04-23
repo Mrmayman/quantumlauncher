@@ -27,8 +27,12 @@ impl Launcher {
             AccountMessage::Response1 { r: Err(err), .. }
             | AccountMessage::Response2(Err(err))
             | AccountMessage::Response3(Err(err))
-            | AccountMessage::AltLoginResponse(Err(err))
-            | AccountMessage::RefreshComplete(Err(err)) => {
+            | AccountMessage::AltLoginResponse(Err(err)) => {
+                self.set_error(err);
+            }
+            AccountMessage::RefreshComplete(Err(err)) => {
+                self.is_launching_game = false;
+                self.java_recv = None;
                 self.set_error(err);
             }
             AccountMessage::Selected(account) => self.account_selected(account),
