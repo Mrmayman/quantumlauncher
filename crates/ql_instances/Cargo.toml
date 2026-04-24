@@ -32,12 +32,11 @@ indicatif = "0.18.*"
 
 urlencoding = "2"
 
-[target.'cfg(target_os = "windows")'.dependencies]
-keyring = { version = "3", features = ["windows-native"] }
-[target.'cfg(target_os = "macos")'.dependencies]
-keyring = { version = "3", features = ["apple-native"] }
+keyring = { version = "3", features = [
+    "windows-native",
+    "apple-native",
+    "async-secret-service", # Linux/BSDs
 
-[target.'cfg(target_os = "linux")'.dependencies] # Is vendored a good idea?
-keyring = { version = "3", features = ["sync-secret-service", "vendored"] }
-[target.'cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))'.dependencies]
-keyring = { version = "3", features = ["sync-secret-service"] }
+    "tokio",
+    "crypto-rust",
+] }
