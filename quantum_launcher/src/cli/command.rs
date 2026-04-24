@@ -1,5 +1,4 @@
 use super::PrintCmd;
-use crate::config::LauncherConfig;
 use crate::{
     cli::{QLoader, helpers::render_row},
     state::get_entries,
@@ -10,8 +9,6 @@ use ql_core::{
     err, info,
     json::{InstanceConfigJson, VersionDetails},
 };
-use ql_instances::auth;
-use ql_instances::auth::AccountType;
 use ql_mod_manager::loaders::LoaderInstallResult;
 use std::{path::PathBuf, process::exit, sync::Arc};
 
@@ -214,10 +211,11 @@ pub async fn launch_instance(
     use_account: bool,
     kind: InstanceKind,
     show_progress: bool,
-    account_type: Option<&str>,
+    override_account_type: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let account = if matches!(kind, InstanceKind::Client) {
-        refresh_account(&username, use_account).await?
+        super::account::refresh(&username, use_account, show_progress, override_account_type)
+            .await?
     } else {
         None
     };
@@ -257,49 +255,6 @@ pub async fn launch_instance(
         None => {}
     }
     Ok(())
-}
-
-async fn refresh_account(
-    username: &String,
-    use_account: bool,
-) -> Result<Option<auth::AccountData>, Box<dyn std::error::Error>> {
-    Ok(if use_account {
-        let config = LauncherConfig::load_s()?;
-        let Some((real_name, account)) = config.accounts.as_ref().and_then(|accounts| {
-            accounts.get_key_value(username).or_else(|| {
-                accounts
-                    .iter()
-                    .find(|n| n.1.username_nice.as_ref().is_some_and(|n| n == username))
-            })
-        }) else {
-            err!("No logged-in account called {username:?} was found!");
-            exit(1);
-        };
-
-        match account.account_type.unwrap_or_default() {
-            // Hook: Account types
-            kind @ (AccountType::ElyBy | AccountType::LittleSkin) => {
-                let account_type = kind;
-                let refresh_token =
-                    auth::read_refresh_token(real_name.clone(), account_type).await?;
-                Some(
-                    auth::yggdrasil::login_refresh(
-                        real_name.to_owned(),
-                        refresh_token,
-                        account_type,
-                    )
-                    .await?,
-                )
-            }
-            AccountType::Microsoft => {
-                let refresh_token =
-                    auth::read_refresh_token(real_name.clone(), AccountType::Microsoft).await?;
-                Some(auth::ms::login_refresh(real_name.clone(), refresh_token, None).await?)
-            }
-        }
-    } else {
-        None
-    })
 }
 
 pub async fn loader(cmd: QLoader, kind: InstanceKind) -> Result<(), Box<dyn std::error::Error>> {

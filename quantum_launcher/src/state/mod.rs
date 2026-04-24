@@ -14,7 +14,7 @@ use ql_core::{
     file_utils::{self, exists},
     read_log::LogLine,
 };
-use ql_instances::auth::{AccountData, AccountType, ms::CLIENT_ID};
+use ql_instances::auth::{AccountData, ms::CLIENT_ID};
 use tokio::process::ChildStdin;
 
 use crate::{
@@ -336,59 +336,6 @@ fn init_accounts(
             .unwrap_or_else(|| OFFLINE_ACCOUNT_NAME.to_owned()),
     );
     (accounts, accounts_dropdown, selected_account)
-}
-
-async fn load_account(
-    accounts: &mut HashMap<String, AccountData>,
-    accounts_dropdown: &mut Vec<String>,
-    accounts_to_remove: &mut Vec<String>,
-    username: &str,
-    account: &mut crate::config::ConfigAccount,
-) {
-    let account_type = if username.ends_with(" (elyby)") {
-        AccountType::ElyBy
-    } else if username.ends_with(" (littleskin)") {
-        AccountType::LittleSkin
-    } else {
-        account.account_type.unwrap_or_default()
-    };
-
-    let keyring_username = account.get_keyring_identifier(username);
-    let refresh_token =
-        ql_instances::auth::read_refresh_token(keyring_username.to_string(), account_type)
-            .await
-            .strerr();
-
-    let keyring_username = account.get_keyring_identifier(username);
-
-    match refresh_token {
-        Ok(refresh_token) => {
-            accounts_dropdown.insert(0, username.to_owned());
-            accounts.insert(
-                username.to_owned(),
-                AccountData {
-                    access_token: None,
-                    uuid: account.uuid.clone(),
-                    refresh_token: Ok(refresh_token),
-                    needs_refresh: true,
-                    account_type,
-
-                    username: keyring_username.to_owned(),
-                    nice_username: account
-                        .username_nice
-                        .clone()
-                        .unwrap_or_else(|| username.to_owned()),
-                },
-            );
-        }
-        Err(err) => {
-            err!(
-                "Could not load account: {err}\nUsername: {keyring_username}, Account Type: {}",
-                account_type.to_string()
-            );
-            accounts_to_remove.push(username.to_owned());
-        }
-    }
 }
 
 pub async fn get_entries(kind: InstanceKind) -> Res<(Vec<String>, InstanceKind)> {

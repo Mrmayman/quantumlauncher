@@ -9,7 +9,7 @@ use crate::{
     config::{ConfigAccount, LauncherConfig},
 };
 
-pub async fn refresh_account(
+pub async fn refresh(
     username: &String,
     use_account: bool,
     show_progress: bool,

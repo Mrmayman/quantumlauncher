@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use auth::AccountData;
 use iced::Task;
-use ql_core::IntoStringError;
+use ql_core::{IntoStringError, err};
 use ql_instances::auth::{self, AccountType};
 
 use crate::{
@@ -117,14 +117,7 @@ impl Launcher {
                     accounts.remove(&username);
                 }
                 self.accounts.remove(&username);
-                if let Some(idx) = self
-                    .accounts_dropdown
-                    .iter()
-                    .enumerate()
-                    .find_map(|(i, n)| (*n == username).then_some(i))
-                {
-                    self.accounts_dropdown.remove(idx);
-                }
+                self.accounts_dropdown.retain(|n| *n != username);
                 let selected_account = self
                     .accounts_dropdown
                     .first()
@@ -132,7 +125,18 @@ impl Launcher {
                     .unwrap_or_else(|| OFFLINE_ACCOUNT_NAME.to_owned());
                 self.account_selected = selected_account;
 
-                return self.go_to_main_menu(None);
+                return Task::batch([
+                    self.go_to_main_menu(None),
+                    Task::perform(
+                        auth::logout(account_type.strip_name(&username).to_owned(), account_type),
+                        |r| {
+                            if let Err(e) = r {
+                                err!("Failed to logout: {e}");
+                            }
+                            Message::Nothing
+                        },
+                    ),
+                ]);
             }
             AccountMessage::RefreshComplete(Ok(data)) => {
                 self.accounts.insert(data.get_username_modified(), data);
