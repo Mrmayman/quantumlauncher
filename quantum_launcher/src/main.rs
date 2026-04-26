@@ -278,6 +278,16 @@ fn load_fonts() -> Vec<Cow<'static, [u8]>> {
         include_bytes!("../../assets/fonts/Inter-Regular.ttf")
             .as_slice()
             .into(),
+        include_bytes!("../../assets/fonts/Inter-Bold.ttf")
+            .as_slice()
+            .into(),
+        include_bytes!("../../assets/fonts/Inter-Italic.ttf")
+            .as_slice()
+            .into(),
+        include_bytes!("../../assets/fonts/Inter-BoldItalic.ttf")
+            .as_slice()
+            .into(),
+        // Other
         include_bytes!("../../assets/fonts/JetBrainsMono-Regular.ttf")
             .as_slice()
             .into(),
