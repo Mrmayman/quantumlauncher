@@ -275,16 +275,16 @@ fn load_icon() -> Option<iced::window::Icon> {
 
 fn load_fonts() -> Vec<Cow<'static, [u8]>> {
     vec![
-        include_bytes!("../../assets/fonts/Inter-Regular.ttf")
+        include_bytes!("../../assets/fonts/Inter/Inter-Regular.ttf")
             .as_slice()
             .into(),
-        include_bytes!("../../assets/fonts/Inter-Bold.ttf")
+        include_bytes!("../../assets/fonts/Inter/Inter-Bold.ttf")
             .as_slice()
             .into(),
-        include_bytes!("../../assets/fonts/Inter-Italic.ttf")
+        include_bytes!("../../assets/fonts/Inter/Inter-Italic.ttf")
             .as_slice()
             .into(),
-        include_bytes!("../../assets/fonts/Inter-BoldItalic.ttf")
+        include_bytes!("../../assets/fonts/Inter/Inter-BoldItalic.ttf")
             .as_slice()
             .into(),
         // Other
