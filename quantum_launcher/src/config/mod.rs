@@ -501,13 +501,14 @@ impl AfterLaunchBehavior {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
 pub enum UiWindowDecorations {
-    #[serde(rename = "system")]
-    #[default]
-    System,
     #[serde(rename = "left")]
     Left,
     #[serde(rename = "right")]
     Right,
+    #[serde(rename = "system")]
+    #[default]
+    #[serde(other)]
+    System,
 }
 
 /*impl Default for UiWindowDecorations {

@@ -7,10 +7,11 @@ use crate::store::ModId;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StoreBackendType {
-    #[serde(rename = "modrinth")]
-    Modrinth,
     #[serde(rename = "curseforge")]
     Curseforge,
+    #[serde(rename = "modrinth")]
+    #[serde(other)] // Backwards compat (ugly)
+    Modrinth,
 }
 
 impl StoreBackendType {

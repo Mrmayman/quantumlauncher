@@ -23,6 +23,7 @@ pub struct RpcConfig {
     pub basic: RpcText,
     /// The default status display type to use.
     // Since: TBD
+    #[serde(default)]
     pub status_display_type: PresenceStatusDisplayType,
     /// Whether to change rich presence with instance open/exit events.
     // Since: TBD
@@ -35,6 +36,7 @@ pub struct RpcConfig {
     pub on_gameexit: RpcText,
     /// Whether to display "Competing on ..." in the rich presence activity
     // Since: TBD
+    #[serde(default = "competing_default")]
     pub competing: bool,
     #[serde(flatten)]
     _extra: HashMap<String, serde_json::Value>,
@@ -48,6 +50,10 @@ pub struct RpcText {
     pub bottom_text_url: Option<String>,
     #[serde(flatten)]
     _extra: HashMap<String, serde_json::Value>,
+}
+
+const fn competing_default() -> bool {
+    false
 }
 
 impl Default for RpcConfig {
@@ -78,7 +84,7 @@ impl Default for RpcConfig {
                 _extra: HashMap::new(),
             },
             _extra: HashMap::new(),
-            competing: false,
+            competing: competing_default(),
             status_display_type: PresenceStatusDisplayType::Name,
         }
     }
