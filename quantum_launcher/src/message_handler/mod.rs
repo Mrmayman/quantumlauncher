@@ -2,12 +2,11 @@ use crate::{
     Launcher, Message,
     config::AfterLaunchBehavior,
     menu_renderer::back_to_launch_screen,
-    presence_utils::bake_activity,
     state::{
         AutoSaveKind, EditPresetsMessage, GameProcess, InfoMessage, LaunchTab, LogState,
         ManageModsMessage, MenuCreateInstance, MenuCreateInstanceChoosing, MenuEditInstance,
         MenuEditMods, MenuInstallForge, MenuInstallOptifine, MenuLaunch, OFFLINE_ACCOUNT_NAME,
-        ProgressBar, SelectedState, State,
+        ProgressBar, RpcMessage, SelectedState, State,
     },
     tick::sort_dependencies,
 };
@@ -41,17 +40,6 @@ pub const SIDEBAR_LIMIT_LEFT: f32 = 135.0;
 
 mod arrow_keys;
 mod iced_event;
-
-trait StringPresenceExt {
-    fn substitute(&self, instance: &str, minecraft_vers: &str) -> String;
-}
-
-impl StringPresenceExt for str {
-    fn substitute(&self, instance: &str, minecraft_vers: &str) -> String {
-        self.replace("${version}", minecraft_vers)
-            .replace("${instance}", instance)
-    }
-}
 
 impl Launcher {
     pub fn on_selecting_instance(&mut self) -> Task<Message> {
@@ -192,56 +180,6 @@ impl Launcher {
             Err(err) => self.set_error(err),
         }
         Task::none()
-    }
-
-    fn rpc_game_update(&mut self, selected_instance: Instance, exited: bool) -> Task<Message> {
-        if !self.config.c_rpc_enabled() {
-            return Task::none();
-        }
-        let rpc_config = self.config.discord_rpc.get_or_insert_default();
-        let info = if exited {
-            &rpc_config.on_gameexit
-        } else {
-            &rpc_config.on_gameopen
-        };
-
-        if info.top_text.is_none() && info.bottom_text.is_none() {
-            return Task::none();
-        }
-
-        let name = rpc_config.name.clone();
-        let competing = rpc_config.competing;
-        let details = info.top_text.clone();
-        let details_url = info.top_text_url.clone();
-        let state = info.bottom_text.clone();
-        let state_url = info.bottom_text_url.clone();
-        let sdt = rpc_config.status_display_type;
-
-        let client = self.discord_ipc_client.clone();
-
-        Task::perform(
-            async move {
-                if let Ok(version_details) = VersionDetails::load(&selected_instance).await {
-                    if let Some(c) = client {
-                        let instance = selected_instance.get_name();
-                        let minecraft_vers = version_details.get_id();
-
-                        _ = c
-                            .set_activity(bake_activity(
-                                name,
-                                sdt,
-                                competing,
-                                details.map(|f| f.substitute(instance, minecraft_vers)),
-                                details_url,
-                                state.map(|f| f.substitute(instance, minecraft_vers)),
-                                state_url,
-                            ))
-                            .await;
-                    }
-                }
-            },
-            |()| Message::Nothing,
-        )
     }
 
     pub fn delete_instance_confirm(&mut self) -> Task<Message> {
@@ -431,52 +369,14 @@ impl Launcher {
             });
 
         Task::perform(
-            {
-                async move {
-                    if runner.run(true).await.is_ok() {
-                        Some(runner.clone_handle())
-                    } else {
-                        None
-                    }
+            async move {
+                if runner.run(true).await.is_ok() {
+                    Some(runner.clone_handle())
+                } else {
+                    None
                 }
             },
-            Message::DiscordIPCRunStarted,
-        )
-    }
-
-    pub fn set_custom_discord_presence(&self) -> Task<Message> {
-        let Some(c) = self.discord_ipc_client.clone() else {
-            return Task::none();
-        };
-        let rpc_config = self.config.discord_rpc.clone().unwrap_or_default();
-
-        if rpc_config.basic.top_text.is_none() && rpc_config.basic.bottom_text.is_none() {
-            return Task::none();
-        }
-
-        let name = rpc_config.name.clone();
-        let competing = rpc_config.competing;
-        let details = rpc_config.basic.top_text.clone();
-        let details_url = rpc_config.basic.top_text_url.clone();
-        let state = rpc_config.basic.bottom_text.clone();
-        let state_url = rpc_config.basic.bottom_text_url.clone();
-        let sdt = rpc_config.status_display_type;
-
-        Task::perform(
-            async move {
-                _ = c
-                    .set_activity(bake_activity(
-                        name,
-                        sdt,
-                        competing,
-                        details,
-                        details_url,
-                        state,
-                        state_url,
-                    ))
-                    .await;
-            },
-            |_| Message::Nothing,
+            |c| RpcMessage::RunStarted(c).into(),
         )
     }
 

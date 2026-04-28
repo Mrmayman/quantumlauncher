@@ -8,11 +8,10 @@ use iced::{
 use crate::{
     config::{
         LauncherConfig,
-        discord_rpc::{RpcConfig, RpcText},
+        discord_rpc::{PresenceStatusDisplayType, RpcConfig, RpcText},
     },
     icons,
     menu_renderer::{Column, button_with_icon, checkered_list, tsubtitle},
-    presence_utils::PresenceStatusDisplayType,
     state::{MenuLauncherSettings, Message, RpcInnerMessage, RpcMessage},
     stylesheet::{styles::LauncherTheme, widgets::StyleButton},
 };
@@ -82,20 +81,6 @@ impl MenuLauncherSettings {
                             ]
                         },
                     ].spacing(20),
-
-                    column![
-                        widget::text("App/Activity Name"),
-                        widget::text("Replace the default 'QuantumLauncher' name with something else: ").size(12).style(tsubtitle),
-                        widget::Space::with_height(2),
-                        widget::text_input("(e.g. epic game)", rpc_config.name.as_deref().unwrap_or_default())
-                            .size(21)
-                            .on_input(|v| RpcMessage::SetName(v).into()),
-                        widget::Space::with_height(10),
-                        widget::text("Status Display Type"),
-                        widget::text("Choose which one to display in your profile banner as status:").size(12).style(tsubtitle),
-                        widget::Space::with_height(5),
-                        get_sdt_selector(&rpc_config)
-                    ].spacing(5),
                 ].spacing(20),
             ].spacing(5),
 
@@ -131,7 +116,21 @@ impl MenuLauncherSettings {
                 ].spacing(5)
             } else {
                 widget::column![]
-            }
+            },
+
+            column![
+                widget::text("App/Activity Name"),
+                widget::text("Replace the default 'QuantumLauncher' name with something else: ").size(12).style(tsubtitle),
+                widget::Space::with_height(2),
+                widget::text_input("(e.g. epic game)", rpc_config.name.as_deref().unwrap_or_default())
+                    .size(21)
+                    .on_input(|v| RpcMessage::SetName(v).into()),
+                widget::Space::with_height(10),
+                widget::text("Status Display Type"),
+                widget::text("Choose which one to display in your profile banner as status:").size(12).style(tsubtitle),
+                widget::Space::with_height(5),
+                get_sdt_selector(&rpc_config)
+            ].spacing(5),
         ])
     }
 }

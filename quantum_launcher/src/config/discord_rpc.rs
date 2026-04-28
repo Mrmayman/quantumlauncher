@@ -2,8 +2,6 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::presence_utils::PresenceStatusDisplayType;
-
 const BASIC_DETAILS: &str = "Opened Launcher";
 const GAMEOPEN_DETAILS: &str = "Minecraft v${version}";
 const GAMEOPEN_STATE: &str = "Instance name: ${instance}";
@@ -87,5 +85,32 @@ impl Default for RpcConfig {
             competing: competing_default(),
             status_display_type: PresenceStatusDisplayType::Name,
         }
+    }
+}
+
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum PresenceStatusDisplayType {
+    Details,
+    State,
+    #[default]
+    #[serde(other)]
+    Name,
+}
+
+impl PresenceStatusDisplayType {
+    pub const ALL: &'static [Self] = &[
+        PresenceStatusDisplayType::Name,
+        PresenceStatusDisplayType::Details,
+        PresenceStatusDisplayType::State,
+    ];
+}
+
+impl std::fmt::Display for PresenceStatusDisplayType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            PresenceStatusDisplayType::Name => "App Name",
+            PresenceStatusDisplayType::Details => "Top Text",
+            PresenceStatusDisplayType::State => "Bottom Text",
+        })
     }
 }

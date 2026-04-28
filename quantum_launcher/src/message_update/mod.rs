@@ -1,5 +1,4 @@
 use std::path::Path;
-use std::sync::atomic::Ordering;
 
 use frostmark::MarkState;
 use iced::{Task, futures::executor::block_on, widget::text_editor};
@@ -8,22 +7,22 @@ use ql_mod_manager::{loaders, store};
 
 mod accounts;
 mod create_instance;
+mod discord_rpc;
 mod edit_instance;
 mod launch;
 mod manage_mods;
 mod mod_store;
 mod presets;
 mod recommended;
+mod shortcuts;
 
 use crate::config::UiWindowDecorations;
 use crate::state::{
     self, AutoSaveKind, GameLogMessage, InfoMessage, InstallFabricMessage, InstallOptifineMessage,
     InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsMessage, LauncherSettingsTab,
     MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLaunch, MenuModDescription,
-    Message, ModDescriptionMessage, NotesMessage, ProgressBar, RpcMessage, State, WindowMessage,
+    Message, ModDescriptionMessage, NotesMessage, ProgressBar, State, WindowMessage,
 };
-
-mod shortcuts;
 
 pub const MSG_RESIZE: &str = "Resize your window to apply the changes.";
 
@@ -358,53 +357,6 @@ impl Launcher {
                 }
             },
             LauncherSettingsMessage::Rpc(msg) => return self.update_rpc(msg),
-        }
-        Task::none()
-    }
-
-    fn update_rpc(&mut self, msg: RpcMessage) -> Task<Message> {
-        let rpc = self.config.discord_rpc.get_or_insert_default();
-
-        match msg {
-            RpcMessage::Toggle(enable) => {
-                rpc.enable = enable;
-
-                if enable {
-                    // Start on enable
-                    return self.start_discord_ipc_run();
-                }
-
-                // On disable
-                block_on(async {
-                    if let Some(c) = &self.discord_ipc_client {
-                        let _ = c.close().await;
-                    }
-                });
-
-                self.is_presence_running.store(false, Ordering::Relaxed);
-                self.discord_ipc_client = None;
-            }
-            RpcMessage::DefaultChanged(op) => {
-                rpc.basic.apply(op);
-            }
-            RpcMessage::SetName(name) => rpc.name = (!name.is_empty()).then_some(name),
-            RpcMessage::TogglePresenceOnGameEvent(t) => {
-                rpc.update_on_game_open = t;
-            }
-            RpcMessage::ToggleCompeting(t) => {
-                rpc.competing = t;
-            }
-            RpcMessage::GameOpen(op) => {
-                rpc.on_gameopen.apply(op);
-            }
-            RpcMessage::GameExit(op) => {
-                rpc.on_gameexit.apply(op);
-            }
-            RpcMessage::SetPresenceNow => return self.set_custom_discord_presence(),
-            RpcMessage::ResetPresence => {
-                self.config.reset_presence();
-            }
-            RpcMessage::StatusDisplayTypePicked(dt) => rpc.status_display_type = dt,
         }
         Task::none()
     }

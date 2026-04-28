@@ -82,8 +82,6 @@ mod message_handler;
 /// This module has functions for handling each of
 /// these "child messages".
 mod message_update;
-/// Extra utilities for social features (Discord Rich Presence).
-mod presence_utils;
 /// Stylesheet definitions (launcher themes)
 mod stylesheet;
 /// Code to tick every frame

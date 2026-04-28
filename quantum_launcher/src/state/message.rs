@@ -2,11 +2,10 @@ use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
 
 use crate::{
     config::{
-        discord_rpc::RpcText,
+        discord_rpc::{PresenceStatusDisplayType, RpcText},
         sidebar::{FolderId, SDragLocation, SidebarSelection},
     },
     message_handler::ForgeKind,
-    presence_utils::PresenceStatusDisplayType,
     state::{InfoMessage, LaunchModal, MenuEditModsModal, SidebarScroll},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
@@ -306,6 +305,7 @@ pub enum LauncherSettingsMessage {
 
 #[derive(Debug, Clone)]
 pub enum RpcMessage {
+    RunStarted(Option<PresenceClient>),
     Toggle(bool),
     DefaultChanged(RpcInnerMessage),
     TogglePresenceOnGameEvent(bool),
@@ -476,8 +476,6 @@ pub enum Message {
     GameLog(GameLogMessage),
     Window(WindowMessage),
     Shortcut(ShortcutMessage),
-
-    DiscordIPCRunStarted(Option<PresenceClient>),
 
     ManageMods(ManageModsMessage),
     ManageJarMods(ManageJarModsMessage),
