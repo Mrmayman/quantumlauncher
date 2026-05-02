@@ -4,7 +4,7 @@ use iced::{
     Alignment, Length,
     widget::{self, column, row, tooltip::Position},
 };
-use ql_core::{InstanceKind, ListEntryKind};
+use ql_core::{InstanceKind, ListEntryKind, Loader};
 
 use crate::{
     cli::{EXPERIMENTAL_MMC_IMPORT, EXPERIMENTAL_SERVERS},
@@ -227,6 +227,15 @@ impl MenuCreateInstanceChoosing {
                 || (self.instance_name.is_empty() && n.contains(&self.selected_version.name))
         });
 
+        let loader = |loader: Loader| {
+            widget::radio(loader.to_string(), loader, Some(self.loader), |l| {
+                CreateInstanceMessage::ChangeLoader(l).into()
+            })
+            .size(12)
+            .text_size(12)
+            .spacing(4)
+        };
+
         let main_part = column![
             widget::text!("Create {}", match self.kind {
                 InstanceKind::Client => "Instance",
@@ -243,17 +252,30 @@ impl MenuCreateInstanceChoosing {
 
             ].spacing(10).align_y(Alignment::Center),
         ]
-
+        .push(row![
+            widget::text("Mod Loader:").size(14),
+            row![
+                widget::radio("None", Loader::Vanilla, Some(self.loader), |l| CreateInstanceMessage::ChangeLoader(l).into())
+                    .text_size(12).size(12).spacing(4),
+                loader(Loader::Fabric),
+                loader(Loader::Quilt),
+                loader(Loader::Forge),
+                loader(Loader::Neoforge),
+                // TODO: Add more
+            ].push_maybe(
+                matches!(self.kind, InstanceKind::Client).then(|| loader(Loader::OptiFine))
+            ).push_maybe(
+                matches!(self.kind, InstanceKind::Server).then(|| loader(Loader::Paper))
+            ).spacing(5).align_y(Alignment::Center).wrap()
+        ].spacing(10))
+        .push(widget::horizontal_rule(1))
         .push_maybe(matches!(self.kind, InstanceKind::Client).then(|| tooltip(
             row![
-                widget::Space::with_width(5),
-                widget::checkbox("Download assets?", self.download_assets).text_size(14).size(14).on_toggle(|t| Message::CreateInstance(CreateInstanceMessage::ChangeAssetToggle(t)))
+                widget::checkbox("DEBUG: Download assets?", self.download_assets).text_size(12).size(12).on_toggle(|t| Message::CreateInstance(CreateInstanceMessage::ChangeAssetToggle(t)))
             ],
             widget::text("If disabled, creating instance will be MUCH faster\nbut no sound or music will play").size(12),
             Position::FollowCursor
         )))
-        .push(widget::horizontal_rule(1))
-
         .push(
             widget::text("To sideload your own custom JARs, create an instance with a similar version, then go to \"Edit->Custom Jar File\"").size(12).style(tsubtitle),
         )
@@ -307,9 +329,7 @@ impl MenuCreateInstanceChoosing {
         .into()
     }
 
-    fn get_category_dropdown(
-        selected_categories: &HashSet<ListEntryKind>,
-    ) -> widget::Column<'static, Message, LauncherTheme> {
+    fn get_category_dropdown(selected_categories: &HashSet<ListEntryKind>) -> Column<'static> {
         let mut col = column![widget::text("Version Types:").size(14)].spacing(5);
 
         for kind in ListEntryKind::ALL {

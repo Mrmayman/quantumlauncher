@@ -88,15 +88,22 @@ impl Launcher {
                     config.java_override_version = Some(n);
                 });
             }
-            EditInstanceMessage::BrowseJavaOverride => {
-                if let Some(file) = rfd::FileDialog::new()
+            EditInstanceMessage::BrowseJavaOverrideStart => {
+                let f = rfd::AsyncFileDialog::new()
                     .set_title("Select Java Executable (./bin/java)")
-                    .pick_file()
-                {
-                    iflet_config!(&mut self.state, config <- {
-                        config.java_override = Some(file.to_string_lossy().to_string());
-                    });
-                }
+                    .pick_file();
+                return Ok(Task::perform(f, |p| {
+                    if let Some(p) = p {
+                        EditInstanceMessage::BrowseJavaOverrideEnd(p.path().to_owned()).into()
+                    } else {
+                        Message::Nothing
+                    }
+                }));
+            }
+            EditInstanceMessage::BrowseJavaOverrideEnd(path) => {
+                iflet_config!(&mut self.state, config <- {
+                    config.java_override = Some(path.to_string_lossy().to_string());
+                });
             }
             EditInstanceMessage::MemoryChanged(new_slider_value) => {
                 if let State::Launch(MenuLaunch {
@@ -428,7 +435,8 @@ impl EditInstanceMessage {
             EditInstanceMessage::RenameEdit(_) |
             EditInstanceMessage::RenameApply | // ?
             EditInstanceMessage::CustomJarLoaded(_) |
-            EditInstanceMessage::ConfigSaved(_) => false,
+            EditInstanceMessage::ConfigSaved(_) |
+            EditInstanceMessage::BrowseJavaOverrideStart => false,
 
             EditInstanceMessage::MemoryChanged(_) |
             EditInstanceMessage::MemoryInputChanged(_) |
@@ -444,7 +452,7 @@ impl EditInstanceMessage {
             EditInstanceMessage::WindowWidthChanged(_) |
             EditInstanceMessage::WindowHeightChanged(_) |
             EditInstanceMessage::CustomJarPathChanged(_) |
-            EditInstanceMessage::BrowseJavaOverride => true,
+            EditInstanceMessage::BrowseJavaOverrideEnd(_) => true,
         }
     }
 }

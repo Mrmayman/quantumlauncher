@@ -11,7 +11,7 @@ use crate::{
         sidebar::{FolderId, SDragLocation, SidebarSelection},
     },
     message_handler::get_locally_installed_mods,
-    state::NotesMessage,
+    state::{InstallModsMessage, NotesMessage},
 };
 use ezshortcut::Shortcut;
 use frostmark::MarkState;
@@ -20,25 +20,21 @@ use iced::{
     widget::{self, scrollable::AbsoluteOffset},
 };
 use ql_core::{
-    DownloadProgress, GenericProgress, Instance, InstanceKind, IntoStringError, ListEntry,
+    DownloadProgress, GenericProgress, Instance, InstanceKind, IntoStringError, ListEntry, Loader,
     OptifineUniqueVersion,
     file_utils::DirItem,
     jarmod::JarMods,
     json::{InstanceConfigJson, VersionDetails, instance_config::MainClassMode},
 };
 use ql_mod_manager::{
-    loaders::paper::PaperVersion,
-    store::{Category, SearchMod},
-};
-use ql_mod_manager::{
-    loaders::{self, forge::ForgeInstallProgress, optifine::OptifineInstallProgress},
+    loaders::{
+        self, forge::ForgeInstallProgress, optifine::OptifineInstallProgress, paper::PaperVersion,
+    },
     store::{
-        CurseforgeNotAllowed, ModConfig, ModId, ModIndex, QueryType, RecommendedMod, SearchResult,
-        SelectedMod, StoreBackendType,
+        self, Category, CurseforgeNotAllowed, ModConfig, ModId, ModIndex, QueryType,
+        RecommendedMod, SearchMod, SearchResult, SearchSortBy, SelectedMod, StoreBackendType,
     },
 };
-
-use crate::state::ImageState;
 
 use super::{ManageModsMessage, Message, ProgressBar};
 
@@ -430,6 +426,7 @@ pub struct MenuCreateInstanceChoosing {
     pub selected_version: ListEntry,
     pub instance_name: String,
     pub download_assets: bool,
+    pub loader: Loader,
 }
 
 pub enum MenuInstallFabric {
@@ -486,10 +483,9 @@ pub enum ModOperation {
 }
 
 pub struct MenuModsDownload {
-    pub query: String,
+    pub search: ModsDownloadSearch,
     pub results: Option<SearchResult>,
     pub description: Option<MarkState>,
-    pub categories: ModCategoryState,
 
     pub mod_descriptions: HashMap<ModId, String>,
     pub mods_download_in_progress: HashMap<ModId, (String, ModOperation)>,
@@ -501,40 +497,44 @@ pub struct MenuModsDownload {
     pub config: InstanceConfigJson,
     pub mod_index: ModIndex,
 
-    pub backend: StoreBackendType,
-    pub query_type: QueryType,
-    pub force_open_source: bool,
-
     /// This is for the loading of continuation of the search,
     /// i.e. when you scroll down and more stuff appears
-    pub is_loading_continuation: bool,
-    pub has_continuation_ended: bool,
+    pub continuation_is_loading: bool,
+    pub continuation_has_ended: bool,
 }
 
-impl MenuModsDownload {
-    pub fn reload_description(&mut self, images: &mut ImageState) {
-        let (Some(selection), Some(results)) = (self.opened_mod, &self.results) else {
-            return;
-        };
-        let Some(hit) = results.mods.get(selection) else {
-            return;
-        };
-        let Some(info) = self
-            .mod_descriptions
-            .get(&ModId::from_pair(&hit.id, results.backend))
-        else {
-            return;
-        };
-        let description = match results.backend {
-            StoreBackendType::Modrinth => MarkState::with_html_and_markdown(info),
-            StoreBackendType::Curseforge => MarkState::with_html(info), // Optimization, curseforge only has HTML
-        };
-        let imgs = description.find_image_links();
-        self.description = Some(description);
+pub struct ModsDownloadSearch {
+    pub categories: ModCategoryState,
+    pub term: String,
+    pub query_type: QueryType,
 
-        for img in imgs {
-            images.queue(&img, false);
+    pub sort_by: SearchSortBy,
+    pub sort_ascending: bool,
+    pub force_open_source: bool,
+    pub backend: StoreBackendType,
+}
+
+impl Default for ModsDownloadSearch {
+    fn default() -> Self {
+        let backend = StoreBackendType::Modrinth;
+        Self {
+            term: String::new(),
+            query_type: QueryType::Mods,
+            sort_by: SearchSortBy::default_option(backend),
+            sort_ascending: false,
+            force_open_source: false,
+            categories: ModCategoryState::default(),
+            backend,
         }
+    }
+}
+
+impl ModsDownloadSearch {
+    pub fn load_categories(&self) -> Task<Message> {
+        let backend = self.backend;
+        Task::perform(store::get_categories(self.query_type, backend), move |n| {
+            InstallModsMessage::CategoriesLoaded(n.strerr(), backend).into()
+        })
     }
 }
 
@@ -694,7 +694,6 @@ pub struct MenuLoginMS {
 pub struct MenuModDescription {
     pub description: Result<Option<MarkState>, String>,
     pub details: Option<SearchMod>,
-    pub mod_id: ModId,
     pub _handle: [iced::task::Handle; 2],
 }
 
@@ -851,6 +850,7 @@ impl std::fmt::Display for LicenseTab {
 pub enum MenuInstallOptifine {
     Choosing {
         optifine_unique_version: Option<OptifineUniqueVersion>,
+        version: String,
         delete_installer: bool,
         drag_and_drop_hovered: bool,
     },

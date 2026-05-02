@@ -14,6 +14,17 @@ pub enum StoreBackendType {
 }
 
 impl StoreBackendType {
+    /// Human readable description
+    ///
+    /// Zero-allocations, unlike `std::fmt::Display`
+    #[must_use]
+    pub const fn desc(self) -> &'static str {
+        match self {
+            StoreBackendType::Modrinth => "Modrinth",
+            StoreBackendType::Curseforge => "Curseforge",
+        }
+    }
+
     #[must_use]
     pub fn can_pick_any_or_all(self) -> bool {
         matches!(self, StoreBackendType::Modrinth)
@@ -22,6 +33,11 @@ impl StoreBackendType {
     #[must_use]
     pub fn can_filter_open_source(self) -> bool {
         matches!(self, StoreBackendType::Modrinth)
+    }
+
+    #[must_use]
+    pub fn can_sort_ascending(self) -> bool {
+        matches!(self, StoreBackendType::Curseforge)
     }
 }
 
@@ -179,6 +195,13 @@ pub struct Query {
 
     pub server_side: bool,
     pub kind: QueryType,
+
+    pub sort_by: SearchSortBy,
+    /// Whether to sort in ascending order instead of descending.
+    ///
+    /// Only supported on Curseforge, see [`StoreBackendType::can_sort_ascending`]
+    pub sort_ascending: bool,
+
     /// Used if supported (modrinth supports it, curseforge doesn't).
     /// Use [`StoreBackendType::can_filter_open_source`] for checking this.
     pub open_source: bool,
@@ -205,12 +228,13 @@ pub struct SearchMod {
     pub title: String,
     pub description: String,
     pub downloads: usize,
-    pub internal_name: String,
-    pub project_type: String,
-    pub id: String,
-    pub icon_url: Option<String>,
+
+    pub slug: String,
+    pub project_type: String, // used for building page URL
+    pub internal_id: String,
     pub backend: StoreBackendType,
 
+    pub icon_url: Option<String>,
     pub gallery: Vec<GalleryItem>,
     pub urls: Vec<(UrlKind, String)>,
 }
@@ -218,7 +242,20 @@ pub struct SearchMod {
 impl SearchMod {
     #[must_use]
     pub fn get_id(&self) -> ModId {
-        ModId::from_pair(&self.id, self.backend)
+        ModId::from_pair(&self.internal_id, self.backend)
+    }
+
+    #[must_use]
+    pub fn get_page_url(&self) -> String {
+        format!(
+            "{base}{ty}/{slug}",
+            base = match self.backend {
+                StoreBackendType::Modrinth => "https://modrinth.com/",
+                StoreBackendType::Curseforge => "https://www.curseforge.com/minecraft/",
+            },
+            ty = self.project_type,
+            slug = self.slug
+        )
     }
 }
 
@@ -251,6 +288,113 @@ impl Display for UrlKind {
             UrlKind::Website => "Website",
             UrlKind::Discord => "Discord",
             UrlKind::Donation(n) => return f.write_fmt(format_args!("Donation ({n})")),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SearchSortBy {
+    TotalDownloads,
+    LastUpdated,
+    ReleasedDate,
+
+    // Modrinth-only
+    Relevance,
+    Follows,
+    // Curseforge-only
+    Featured,
+    Popularity,
+    Name,
+    Author,
+    Category,
+    GameVersion,
+    EarlyAccess,
+    FeaturedReleased,
+    Rating,
+}
+
+impl SearchSortBy {
+    pub const fn default_option(backend: StoreBackendType) -> Self {
+        match backend {
+            StoreBackendType::Modrinth => Self::Relevance,
+            StoreBackendType::Curseforge => Self::TotalDownloads,
+        }
+    }
+
+    pub const fn default_choices(backend: StoreBackendType) -> &'static [Self] {
+        match backend {
+            StoreBackendType::Modrinth => &[
+                Self::TotalDownloads,
+                Self::LastUpdated,
+                Self::ReleasedDate,
+                Self::Relevance,
+                Self::Follows,
+            ],
+            StoreBackendType::Curseforge => &[
+                Self::TotalDownloads,
+                Self::LastUpdated,
+                Self::ReleasedDate,
+                Self::Featured,
+                Self::Popularity,
+                Self::Name,
+                Self::Author,
+                Self::Category,
+                Self::GameVersion,
+                Self::EarlyAccess,
+                Self::FeaturedReleased,
+                Self::Rating,
+            ],
+        }
+    }
+
+    pub const fn get_curseforge_id(self) -> Option<usize> {
+        Some(match self {
+            Self::Featured => 1,
+            Self::Popularity => 2,
+            Self::LastUpdated => 3,
+            Self::Name => 4,
+            Self::Author => 5,
+            Self::TotalDownloads => 6,
+            Self::Category => 7,
+            Self::GameVersion => 8,
+            Self::EarlyAccess => 9,
+            Self::FeaturedReleased => 10,
+            Self::ReleasedDate => 11,
+            Self::Rating => 12,
+            Self::Relevance => return None,
+            Self::Follows => return None,
+        })
+    }
+
+    pub const fn get_modrinth_id(self) -> Option<&'static str> {
+        match self {
+            Self::Relevance => Some("relevance"),
+            Self::Follows => Some("follows"),
+            Self::LastUpdated => Some("updated"),
+            Self::ReleasedDate => Some("newest"),
+            Self::TotalDownloads => Some("downloads"),
+            _ => None,
+        }
+    }
+}
+
+impl Display for SearchSortBy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::TotalDownloads => "Total Downloads",
+            Self::LastUpdated => "Last Updated",
+            Self::ReleasedDate => "Release Date",
+            Self::Relevance => "Relevance",
+            Self::Follows => "Follows",
+            Self::Featured => "Featured",
+            Self::Popularity => "Popularity",
+            Self::Name => "Name",
+            Self::Author => "Author",
+            Self::Category => "Category",
+            Self::GameVersion => "Game Version",
+            Self::EarlyAccess => "Early Access",
+            Self::FeaturedReleased => "Featured Released",
+            Self::Rating => "Rating",
         })
     }
 }

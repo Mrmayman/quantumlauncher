@@ -537,6 +537,9 @@ pub fn open_file_explorer<S: AsRef<OsStr>>(path: S) {
     }
 }
 
+/// Special-case Optifine versions
+/// (not shown directly on their website)
+/// that have special download links (see [`OptifineUniqueVersion::get_url`])
 #[derive(Debug, Clone, Copy)]
 pub enum OptifineUniqueVersion {
     V1_5_2,
@@ -547,12 +550,19 @@ pub enum OptifineUniqueVersion {
 }
 
 impl OptifineUniqueVersion {
-    #[must_use]
-    pub async fn get(instance: &Instance) -> Option<Self> {
-        VersionDetails::load(instance)
-            .await
-            .ok()
-            .and_then(|n| Self::from_version(n.get_id()))
+    /// Checks if the instance needs a special version of Optifine,
+    /// that's installed in a unique way. Also returns the instance version.
+    ///
+    /// Returns:
+    ///
+    /// - `Ok((Some(_), _))`: Needs a special version of Optifine
+    /// - `Ok((None, _))`: Normal Optifine is used
+    /// - `Err(_)`: The [`VersionDetails`] JSON couldn't be loaded
+    ///   (corrupted/invalid instance)
+    pub async fn get(instance: &Instance) -> Result<(Option<Self>, String), JsonFileError> {
+        let details = VersionDetails::load(instance).await?;
+        let version = details.get_id();
+        Ok((Self::from_version(version), version.to_owned()))
     }
 
     #[must_use]
@@ -566,6 +576,14 @@ impl OptifineUniqueVersion {
         }
     }
 
+    /// Returns the override URL for the special Optifine version.
+    ///
+    /// Also returns a `bool` saying if it's a direct file download (`true`) or
+    /// a webpage link (`false`)
+    ///
+    /// # Panics
+    ///
+    /// **Panics if [`OptifineUniqueVersion::Forge`] is passed, which doesn't have a special URL**
     #[must_use]
     pub fn get_url(&self) -> (&'static str, bool) {
         match self {
@@ -574,7 +592,7 @@ impl OptifineUniqueVersion {
                 false,
             ),
             OptifineUniqueVersion::V1_2_5 => (
-                "https://optifine.net/adloadx?f=OptiFine_1.5.2_HD_U_D2.zip",
+                "https://optifine.net/adloadx?f=OptiFine_1.2.5_HD_U_D2.zip",
                 false,
             ),
             OptifineUniqueVersion::B1_7_3 => (
@@ -586,7 +604,7 @@ impl OptifineUniqueVersion {
                 false,
             ),
             OptifineUniqueVersion::Forge => {
-                unreachable!("There isn't a direct URL for Optifine+Forge")
+                panic!("There isn't a direct URL for Optifine+Forge")
             }
         }
     }
@@ -642,6 +660,8 @@ pub async fn find_forge_shim_file(dir: &Path) -> Option<PathBuf> {
 
 #[derive(Debug, Clone)]
 pub struct LaunchedProcess {
+    // `Arc<Mutex<T>>` because iced needs everything
+    // to be cloneable, and we also need thread-safe interior mutability.
     pub child: Arc<tokio::sync::Mutex<Child>>,
     pub instance: Instance,
     /// Present because Minecraft classic servers

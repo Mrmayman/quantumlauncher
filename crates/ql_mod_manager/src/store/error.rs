@@ -3,7 +3,7 @@ use std::{fmt::Display, num::ParseIntError};
 use ql_core::{IoError, JsonError, RequestError, impl_3_errs_jri};
 use thiserror::Error;
 
-use crate::store::QueryType;
+use crate::store::{QueryType, types::SearchSortBy};
 
 use super::modpack::PackError;
 
@@ -39,6 +39,8 @@ pub enum ModError {
         "{MOD_ERR_PREFIX}no category {0} found in curseforge API\n\nThis is a bug, please report in discord!"
     )]
     CfCategoryNotFound(QueryType),
+    #[error("{MOD_ERR_PREFIX}search result sorting by {0:?} is not supported in this backend")]
+    SortByNotSupported(SearchSortBy),
 
     #[error("{MOD_ERR_PREFIX}couldn't add entry {1} to zip: {0}")]
     ZipIoError(std::io::Error, String),

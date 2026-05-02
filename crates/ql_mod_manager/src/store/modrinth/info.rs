@@ -1,4 +1,4 @@
-use ql_core::{err, file_utils};
+use ql_core::request::download;
 use serde::Deserialize;
 use std::fmt::Write;
 
@@ -66,14 +66,7 @@ impl ProjectInfo {
     pub async fn download(id: &str) -> Result<Self, ModError> {
         RATE_LIMITER.lock().await;
         let url = format!("https://api.modrinth.com/v2/project/{id}");
-        let file: Self = match file_utils::download_file_to_json(&url, true).await {
-            Ok(file) => file,
-            Err(err) => {
-                err!("Could not parse mod project json from url: {url}");
-                return Err(err.into());
-            }
-        };
-        Ok(file)
+        Ok(download(&url).user_agent_ql().json::<Self>().await?)
     }
 
     pub async fn download_bulk(ids: &[String]) -> Result<Vec<Self>, ModError> {
@@ -88,7 +81,7 @@ impl ProjectInfo {
         }
         url.push(']');
 
-        Ok(file_utils::download_file_to_json(&url, false).await?)
+        Ok(download(&url).user_agent_ql().json().await?)
     }
 
     pub fn build_urls(&self) -> Vec<(UrlKind, String)> {

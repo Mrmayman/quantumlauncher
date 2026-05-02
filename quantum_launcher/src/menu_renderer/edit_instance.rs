@@ -320,7 +320,7 @@ Heavy modpacks / High settings: 4-8 GB+"
                 button_with_icon(icons::folder_s(14), "", 13)
                     .padding([5, 10])
                     .on_press(Message::EditInstance(
-                        EditInstanceMessage::BrowseJavaOverride
+                        EditInstanceMessage::BrowseJavaOverrideStart
                     ))
             )
             .spacing(5)
@@ -400,7 +400,7 @@ Heavy modpacks / High settings: 4-8 GB+"
     }
 }
 
-fn item_footer(kind: InstanceKind) -> widget::Column<'static, Message, LauncherTheme> {
+fn item_footer(kind: InstanceKind) -> Column<'static> {
     match kind {
         InstanceKind::Client => column![
             row![

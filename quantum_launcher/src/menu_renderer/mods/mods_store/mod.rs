@@ -3,7 +3,7 @@ use iced::{
     widget::{self, column, row},
 };
 use ql_core::Loader;
-use ql_mod_manager::store::{Category, ModId, QueryType, SearchMod, StoreBackendType};
+use ql_mod_manager::store::{ModId, QueryType, SearchMod, SearchSortBy, StoreBackendType};
 
 use crate::{
     icons,
@@ -11,14 +11,17 @@ use crate::{
         Column, Element, barthin, button_with_icon, mods::description::view_project_description,
         tooltip, tsubtitle,
     },
-    state::{
-        ImageState, InstallModsMessage, ManageModsMessage, MenuModsDownload, Message,
-        ModCategoryState, ModOperation,
+    state::{ImageState, InstallModsMessage, ManageModsMessage, MenuModsDownload, Message},
+    stylesheet::{
+        color::Color,
+        styles::{BORDER_RADIUS, BORDER_WIDTH, LauncherTheme},
+        widgets::StyleButton,
     },
-    stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
 
 const MOD_HEIGHT: u16 = 55;
+
+mod sidebar;
 
 impl MenuModsDownload {
     /// Renders the main store page, with the search bar,
@@ -36,33 +39,38 @@ impl MenuModsDownload {
     }
 
     fn get_top_bar(&self) -> widget::Container<'_, Message, LauncherTheme> {
+        let s = &self.search;
+
         widget::container(
             row![
                 button_with_icon(icons::back_s(12), "Back", 13)
                     .padding([5, 8])
-                    .on_press(ManageModsMessage::Open.into()),
-                widget::text_input("Search...", &self.query)
+                    .on_press_maybe(
+                        self.mods_download_in_progress
+                            .is_empty()
+                            .then_some(ManageModsMessage::Open.into())
+                    ),
+                widget::text_input("Search...", &s.term)
                     .size(14)
                     .on_input(|n| InstallModsMessage::SearchInput(n).into()),
-                widget::text("Store:").size(14).style(tsubtitle),
-                column![
-                    widget::radio(
-                        "Modrinth",
-                        StoreBackendType::Modrinth,
-                        Some(self.backend),
-                        |v| InstallModsMessage::ChangeBackend(v).into()
+                row![
+                    widget::text("Sort by:").size(14).style(tsubtitle),
+                    widget::pick_list(
+                        SearchSortBy::default_choices(s.backend),
+                        Some(s.sort_by),
+                        |s| InstallModsMessage::ChangeSortBy(s).into()
                     )
-                    .text_size(10)
-                    .size(10),
-                    widget::radio(
-                        "CurseForge",
-                        StoreBackendType::Curseforge,
-                        Some(self.backend),
-                        |v| InstallModsMessage::ChangeBackend(v).into()
-                    )
-                    .text_size(10)
-                    .size(10),
-                ],
+                    .text_size(12)
+                    .width(130)
+                    .padding([4, 6])
+                ]
+                .push_maybe(
+                    s.backend
+                        .can_sort_ascending()
+                        .then(|| sort_ascending_button(s)),
+                )
+                .spacing(5)
+                .align_y(Alignment::Center)
             ]
             .align_y(Alignment::Center)
             .spacing(10),
@@ -74,24 +82,74 @@ impl MenuModsDownload {
     fn mods_display<'a>(&'a self, images: &'a ImageState, tick_timer: usize) -> Column<'a> {
         let mods_list = self.get_mods_list(images, tick_timer);
 
-        self.mods_view_warnings().push(
-            widget::scrollable(mods_list.spacing(5))
-                .style(|theme: &LauncherTheme, status| theme.style_scrollable_flat_dark(status))
-                .id(widget::scrollable::Id::new(
-                    "MenuModsDownload:main:mods_list",
-                ))
-                .height(Length::Fill)
-                .width(Length::Fill)
-                .spacing(0)
-                .on_scroll(|viewport| InstallModsMessage::Scrolled(viewport).into()),
-        )
+        self.mods_view_warnings()
+            .push(self.get_store_selector())
+            .push(
+                widget::scrollable(mods_list.spacing(5))
+                    .style(|theme: &LauncherTheme, status| theme.style_scrollable_flat_dark(status))
+                    .id(widget::scrollable::Id::new(
+                        "MenuModsDownload:main:mods_list",
+                    ))
+                    .height(Length::Fill)
+                    .width(Length::Fill)
+                    .spacing(0)
+                    .on_scroll(|viewport| InstallModsMessage::Scrolled(viewport).into()),
+            )
     }
 
-    fn mods_view_warnings(&self) -> widget::Column<'static, Message, LauncherTheme> {
+    fn get_store_selector(&self) -> widget::Row<'static, Message, LauncherTheme> {
+        let selector = |b: StoreBackendType, color: iced::Color| {
+            let is_selected = self.search.backend == b;
+
+            widget::button(
+                widget::Row::new()
+                    .push_maybe(is_selected.then_some(icons::checkmark_s(12)))
+                    .push(widget::text(b.desc()).size(12))
+                    .spacing(5),
+            )
+            .padding([4, 8])
+            .style(move |t: &LauncherTheme, s| widget::button::Style {
+                background: Some(iced::Background::Color(color.scale_alpha(match s {
+                    // Unselected
+                    widget::button::Status::Active => 0.0,
+                    widget::button::Status::Hovered => 0.04,
+                    widget::button::Status::Pressed => 0.1,
+                    // Selected
+                    widget::button::Status::Disabled => 0.2,
+                }))),
+                text_color: t.get(Color::Light),
+                border: iced::Border {
+                    color,
+                    width: BORDER_WIDTH,
+                    radius: BORDER_RADIUS.into(),
+                },
+                shadow: iced::Shadow::default(),
+            })
+            .on_press_maybe((!is_selected).then_some(InstallModsMessage::ChangeBackend(b).into()))
+        };
+
+        row![
+            widget::text("Store:").size(14),
+            selector(
+                StoreBackendType::Modrinth,
+                iced::Color::from_rgb8(0x19, 0x7d, 0x43)
+            ),
+            selector(
+                StoreBackendType::Curseforge,
+                iced::Color::from_rgb8(0xeb, 0x62, 0x2b)
+            ),
+        ]
+        .padding([5, 10])
+        .spacing(10)
+        .align_y(Alignment::Center)
+    }
+
+    fn mods_view_warnings(&self) -> Column<'static> {
+        let q = self.search.query_type;
         // WARN: various mod-related stuff
         widget::Column::new()
             .push_maybe(
-                (self.query_type == QueryType::Shaders
+                (q == QueryType::Shaders
                     && self.config.mod_type != Loader::OptiFine
                     // Iris Shaders Mod
                     && !self.mod_index.mods.contains_key(&ModId::Modrinth("YL57xq9U".to_owned())) // Modrinth ID
@@ -105,8 +163,7 @@ impl MenuModsDownload {
                 )
             )
             .push_maybe(
-                (self.query_type == QueryType::Mods
-                    && self.config.mod_type.is_vanilla())
+                (q == QueryType::Mods && self.config.mod_type.is_vanilla())
                 .then_some(
                     widget::container(
                         widget::text(
@@ -114,7 +171,7 @@ impl MenuModsDownload {
                         ).size(12)
                     ).padding(10).width(Length::Fill).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
                 )
-            ).push_maybe((self.query_type == QueryType::Mods && self.version_json.is_legacy_version())
+            ).push_maybe((q == QueryType::Mods && self.version_json.is_legacy_version())
                 .then_some(
                     widget::container(
                         widget::text(
@@ -123,70 +180,6 @@ impl MenuModsDownload {
                     ).padding(10).width(Length::Fill).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
                 )
             )
-    }
-
-    fn get_side_panel(
-        &'_ self,
-        tick_timer: usize,
-    ) -> widget::Scrollable<'_, Message, LauncherTheme> {
-        if !self.mods_download_in_progress.is_empty() {
-            // Mod operations (installing/uninstalling) are in progress.
-            // Can't back out. Show list of operations in progress.
-
-            let operations = self
-                .mods_download_in_progress
-                .values()
-                .map(|(title, operation)| {
-                    const SIZE: u16 = 12;
-                    widget::container(
-                        widget::row![
-                            match operation {
-                                ModOperation::Downloading => icons::download_s(SIZE),
-                                ModOperation::Deleting => icons::bin_s(SIZE),
-                            },
-                            widget::text(title).size(SIZE)
-                        ]
-                        .spacing(4),
-                    )
-                    .padding(8)
-                    .into()
-                });
-
-            return widget::scrollable(
-                column!["In progress:"]
-                    .extend(operations)
-                    .spacing(5)
-                    .padding(10),
-            )
-            .width(180)
-            .height(Length::Fill)
-            .style(LauncherTheme::style_scrollable_flat_extra_dark);
-        }
-
-        widget::scrollable(
-            column![
-                row![icons::download_s(14), widget::text("Type:").size(18)]
-                    .align_y(Alignment::Center)
-                    .spacing(5),
-                widget::column(QueryType::STORE_QUERIES.iter().map(|n| {
-                    widget::radio(n.to_string(), *n, Some(self.query_type), |v| {
-                        InstallModsMessage::ChangeQueryType(v).into()
-                    })
-                    .spacing(5)
-                    .text_size(14)
-                    .size(12)
-                    .into()
-                })),
-                widget::Space::with_height(5),
-                self.categories
-                    .view(self.backend, self.force_open_source, tick_timer),
-            ]
-            .spacing(5)
-            .padding(10),
-        )
-        .width(180)
-        .height(Length::Fill)
-        .style(LauncherTheme::style_scrollable_flat_extra_dark)
     }
 
     fn get_mods_list<'a>(&'a self, images: &'a ImageState, tick_timer: usize) -> Column<'a> {
@@ -224,9 +217,7 @@ impl MenuModsDownload {
                 .mods
                 .values()
                 .any(|n| n.name == hit.title && n.project_source != backend);
-        let is_downloading = self
-            .mods_download_in_progress
-            .contains_key(&ModId::from_pair(&hit.id, backend));
+        let is_downloading = self.mods_download_in_progress.contains_key(&hit.get_id());
 
         let action_button: Element = action_button(i, hit, is_installed, is_downloading);
 
@@ -273,7 +264,6 @@ impl MenuModsDownload {
         // If a specific mod was selected, show the mod description page
         view_project_description(
             Ok::<_, &str>(&self.description),
-            self.backend,
             InstallModsMessage::BackToMainScreen,
             hit,
             images,
@@ -282,74 +272,24 @@ impl MenuModsDownload {
     }
 }
 
-impl ModCategoryState {
-    fn view(&self, backend: StoreBackendType, open_source: bool, tick_timer: usize) -> Column<'_> {
-        let category_view: Element = match &self.categories {
-            Ok(n) if n.is_empty() => {
-                let dots = ".".repeat((tick_timer % 3) + 1);
-                widget::text!("Loading{dots}").into()
-            }
-            Ok(n) => widget::column(n.iter().map(|n| self.view_category(n).into())).into(),
-            Err(err) => widget::text(err).size(12).style(tsubtitle).into(),
-        };
-
-        let show_any_all = backend.can_pick_any_or_all();
-        let m = |n| InstallModsMessage::CategoriesUseAll(n).into();
-
-        column![
-            row![icons::filter_s(14), widget::text("Filters:").size(18)]
-                // TODO
-                .push_maybe(show_any_all.then(|| {
-                    widget::radio("All", true, Some(self.use_all), m)
-                        .spacing(4)
-                        .text_size(13)
-                        .size(11)
-                }))
-                .push_maybe(show_any_all.then(|| {
-                    widget::radio("Any", false, Some(self.use_all), m)
-                        .spacing(4)
-                        .text_size(13)
-                        .size(11)
-                }))
-                .spacing(5)
-                .align_y(Alignment::Center),
-        ]
-        .push_maybe(backend.can_filter_open_source().then(|| {
-            widget::checkbox("Open-source only", open_source)
-                .size(12)
-                .text_size(12)
-                .style(|n: &LauncherTheme, s| n.style_checkbox(s, Some(Color::SecondLight)))
-                .on_toggle(|n| InstallModsMessage::ForceOpenSource(n).into())
-        }))
-        .push(category_view)
-        .spacing(5)
-    }
-
-    fn view_category<'a>(&'a self, category: &'a Category) -> Column<'a> {
-        widget::Column::new()
-            .push_maybe(category.is_usable.then(|| {
-                widget::checkbox(&category.name, self.selected.contains(&category.slug))
-                    .on_toggle(|_| {
-                        InstallModsMessage::CategoriesToggle(category.slug.clone()).into()
-                    })
-                    .size(12)
-                    .text_size(14)
-                    .style(|n: &LauncherTheme, s| n.style_checkbox(s, Some(Color::SecondLight)))
-            }))
-            .push_maybe((!category.is_usable).then(|| widget::text(&category.name).size(14)))
-            .push(widget::stack!(
-                row![
-                    widget::Space::with_width(10),
-                    widget::column(
-                        category
-                            .children
-                            .iter()
-                            .map(|n| self.view_category(n).into())
-                    )
-                ],
-                widget::vertical_rule(1).style(barthin)
-            ))
-    }
+fn sort_ascending_button(
+    s: &crate::state::ModsDownloadSearch,
+) -> widget::Tooltip<'_, Message, LauncherTheme> {
+    tooltip(
+        widget::button(if s.sort_ascending {
+            icons::sort_ascend_s(12)
+        } else {
+            icons::sort_descend_s(12)
+        })
+        .padding([4, 8])
+        .on_press(InstallModsMessage::ChangeSortAscending(!s.sort_ascending).into()),
+        if s.sort_ascending {
+            "Ascending"
+        } else {
+            "Descending"
+        },
+        widget::tooltip::Position::Bottom,
+    )
 }
 
 fn format_downloads(downloads: usize) -> String {

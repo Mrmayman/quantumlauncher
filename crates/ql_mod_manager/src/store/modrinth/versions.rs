@@ -1,4 +1,4 @@
-use ql_core::file_utils;
+use ql_core::download;
 use serde::Deserialize;
 
 use crate::{rate_limiter::RATE_LIMITER, store::local_json::ModFile};
@@ -32,7 +32,7 @@ impl ModVersion {
         let url = format!(
             "https://api.modrinth.com/v2/project/{project_id}/version?include_changelog=false"
         );
-        Ok(file_utils::download_file_to_json(&url, true).await?)
+        Ok(download(&url).user_agent_ql().json().await?)
     }
 
     // pub async fn is_compatible(

@@ -261,17 +261,25 @@ pub struct CurseforgeBackend;
 
 impl Backend for CurseforgeBackend {
     async fn search(query: super::Query, offset: usize) -> Result<SearchResult, ModError> {
-        const TOTAL_DOWNLOADS: &str = "6";
-
         RATE_LIMITER.lock().await;
         let instant = Instant::now();
 
         let mut params = HashMap::from([
             ("gameId", get_mc_id().await?.to_string()),
-            ("sortField", TOTAL_DOWNLOADS.to_owned()),
-            ("sortOrder", "desc".to_owned()),
+            (
+                "sortOrder",
+                if query.sort_ascending { "asc" } else { "desc" }.to_owned(),
+            ),
             ("index", offset.to_string()),
         ]);
+        params.insert(
+            "sortField",
+            query
+                .sort_by
+                .get_curseforge_id()
+                .ok_or(ModError::SortByNotSupported(query.sort_by))?
+                .to_string(),
+        );
 
         if let QueryType::Mods | QueryType::ModPacks = query.kind {
             if !query.loader.is_vanilla() {
@@ -315,8 +323,8 @@ impl Backend for CurseforgeBackend {
                     title: n.name,
                     description: n.summary,
                     downloads: n.download_count,
-                    internal_name: n.slug,
-                    id: n.id.to_string(),
+                    slug: n.slug,
+                    internal_id: n.id.to_string(),
                     project_type: query_type_str.to_owned(),
                     icon_url: n.logo.map(|n| n.url),
                     backend: StoreBackendType::Curseforge,
@@ -485,8 +493,8 @@ impl Backend for CurseforgeBackend {
             title: query.data.name,
             description: query.data.summary,
             downloads: query.data.download_count,
-            internal_name: query.data.slug,
-            id: query.data.id.to_string(),
+            slug: query.data.slug,
+            internal_id: query.data.id.to_string(),
             project_type: get_query_type(query.data.class_id)
                 .await
                 .unwrap_or(QueryType::Mods)
@@ -512,8 +520,8 @@ impl Backend for CurseforgeBackend {
                 title: query.name,
                 description: query.summary,
                 downloads: query.download_count,
-                internal_name: query.slug,
-                id: query.id.to_string(),
+                slug: query.slug,
+                internal_id: query.id.to_string(),
                 project_type: get_query_type(query.class_id)
                     .await
                     .unwrap_or(QueryType::Mods)

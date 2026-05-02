@@ -6,8 +6,7 @@ use std::{
 
 use chrono::DateTime;
 use ql_core::{
-    GenericProgress, Instance, InstanceConfigJson, download, err, file_utils, info,
-    json::VersionDetails, pt,
+    GenericProgress, Instance, InstanceConfigJson, download, err, info, json::VersionDetails, pt,
 };
 
 use crate::store::{
@@ -274,7 +273,7 @@ impl ModDownloader {
         file: &crate::store::ModFile,
     ) -> Result<(), ModError> {
         if let QueryType::ModPacks = project_type {
-            let bytes = file_utils::download_file_to_bytes(&file.url, true).await?;
+            let bytes = download(&file.url).user_agent_ql().bytes().await?;
             let incompatible = install_modpack(bytes, self.instance.clone(), self.sender.as_ref())
                 .await
                 .map_err(Box::new)?;

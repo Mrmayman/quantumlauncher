@@ -1,8 +1,7 @@
-use std::path::Path;
-
 use frostmark::MarkState;
-use iced::{Task, futures::executor::block_on, widget::text_editor};
-use ql_core::{IntoStringError, Loader, OptifineUniqueVersion, err};
+use iced::futures::executor::block_on;
+use iced::{Task, widget::text_editor};
+use ql_core::{IntoStringError, err};
 use ql_mod_manager::{loaders, store};
 
 mod accounts;
@@ -11,15 +10,16 @@ mod edit_instance;
 mod launch;
 mod manage_mods;
 mod mod_store;
+mod optifine;
 mod presets;
 mod recommended;
 
 use crate::config::UiWindowDecorations;
 use crate::state::{
-    self, AutoSaveKind, GameLogMessage, InfoMessage, InstallFabricMessage, InstallOptifineMessage,
-    InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsMessage, LauncherSettingsTab,
-    MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLaunch, MenuModDescription,
-    Message, ModDescriptionMessage, NotesMessage, ProgressBar, RpcMessage, State, WindowMessage,
+    self, AutoSaveKind, GameLogMessage, InfoMessage, InstallFabricMessage, InstallPaperMessage,
+    InstanceNotes, Launcher, LauncherSettingsMessage, LauncherSettingsTab, MenuInstallFabric,
+    MenuInstallPaper, MenuLaunch, MenuModDescription, Message, ModDescriptionMessage, NotesMessage,
+    ProgressBar, RpcMessage, State, WindowMessage,
 };
 
 mod shortcuts;
@@ -126,129 +126,6 @@ impl Launcher {
             }
         }
         Task::none()
-    }
-
-    pub fn update_install_optifine(&mut self, message: InstallOptifineMessage) -> Task<Message> {
-        match message {
-            InstallOptifineMessage::ScreenOpen => {
-                let is_forge_installed = if let State::EditMods(menu) = &self.state {
-                    menu.config.mod_type == Loader::Forge
-                } else {
-                    false
-                };
-                let optifine_unique_version = if is_forge_installed {
-                    Some(OptifineUniqueVersion::Forge)
-                } else {
-                    block_on(OptifineUniqueVersion::get(self.instance()))
-                };
-
-                if let Some(version @ OptifineUniqueVersion::B1_7_3) = optifine_unique_version {
-                    self.state = State::InstallOptifine(MenuInstallOptifine::InstallingB173);
-
-                    let selected_instance = self.selected_instance.clone().unwrap();
-                    let url = version.get_url().0;
-                    return Task::perform(
-                        loaders::optifine::install_b173(selected_instance, url),
-                        |n| InstallOptifineMessage::End(n.strerr()).into(),
-                    );
-                }
-
-                self.state = State::InstallOptifine(MenuInstallOptifine::Choosing {
-                    optifine_unique_version,
-                    delete_installer: true,
-                    drag_and_drop_hovered: false,
-                });
-            }
-            InstallOptifineMessage::DeleteInstallerToggle(t) => {
-                if let State::InstallOptifine(MenuInstallOptifine::Choosing {
-                    delete_installer,
-                    ..
-                }) = &mut self.state
-                {
-                    *delete_installer = t;
-                }
-            }
-            InstallOptifineMessage::SelectInstallerStart => {
-                if let Some(path) = rfd::FileDialog::new()
-                    .add_filter("jar/zip", &["jar", "zip"])
-                    .set_title("Select OptiFine Installer")
-                    .pick_file()
-                {
-                    return self.install_optifine_confirm(&path);
-                }
-            }
-            InstallOptifineMessage::End(result) => {
-                if let Err(err) = result {
-                    self.set_error(err);
-                } else {
-                    return self
-                        .go_to_edit_mods_menu(Some(InfoMessage::success("Installed Optifine")));
-                }
-            }
-        }
-        Task::none()
-    }
-
-    pub fn install_optifine_confirm(&mut self, installer_path: &Path) -> Task<Message> {
-        let (p_sender, p_recv) = std::sync::mpsc::channel();
-        let (j_sender, j_recv) = std::sync::mpsc::channel();
-
-        let instance = self.instance().clone();
-        debug_assert!(!instance.is_server());
-
-        let optifine_unique_version =
-            if let State::InstallOptifine(MenuInstallOptifine::Choosing {
-                optifine_unique_version,
-                ..
-            }) = &self.state
-            {
-                *optifine_unique_version
-            } else {
-                block_on(OptifineUniqueVersion::get(&instance))
-            };
-
-        let delete_installer = if let State::InstallOptifine(MenuInstallOptifine::Choosing {
-            delete_installer,
-            ..
-        }) = &self.state
-        {
-            *delete_installer
-        } else {
-            false
-        };
-
-        self.state = State::InstallOptifine(MenuInstallOptifine::Installing {
-            optifine_install_progress: ProgressBar::with_recv(p_recv),
-            java_install_progress: Some(ProgressBar::with_recv(j_recv)),
-            is_java_being_installed: false,
-        });
-
-        let installer_path = installer_path.to_owned();
-        Task::perform(
-            // OptiFine does not support servers
-            // so it's safe to assume we've selected an instance.
-            loaders::optifine::install(
-                instance,
-                installer_path.clone(),
-                Some(p_sender),
-                Some(j_sender),
-                optifine_unique_version,
-            ),
-            |n| InstallOptifineMessage::End(n.strerr()).into(),
-        )
-        .chain(Task::perform(
-            async move {
-                if delete_installer
-                    && installer_path.extension().is_some_and(|n| {
-                        let n = n.to_ascii_lowercase();
-                        n == "jar" || n == "zip"
-                    })
-                {
-                    _ = tokio::fs::remove_file(installer_path).await;
-                }
-            },
-            |()| Message::Nothing,
-        ))
     }
 
     pub fn update_launcher_settings(&mut self, msg: LauncherSettingsMessage) -> Task<Message> {
@@ -653,17 +530,16 @@ impl Launcher {
 
     pub fn update_mod_description(&mut self, msg: ModDescriptionMessage) -> Task<Message> {
         match msg {
-            ModDescriptionMessage::Open(mod_id) => {
+            ModDescriptionMessage::Open(id) => {
                 // Load metadata/details
-                let id = mod_id.clone();
+                let id2 = id.clone();
                 let (load_details, h1) =
-                    Task::perform(async move { store::get_info(&id).await }, |res| {
+                    Task::perform(async move { store::get_info(&id2).await }, |res| {
                         ModDescriptionMessage::LoadedDetails(res.strerr()).into()
                     })
                     .abortable();
 
                 // Load long description (HTML/Markdown)
-                let id = mod_id.clone();
                 let (load_description, h2) =
                     Task::perform(async move { store::get_description(id).await }, |res| {
                         ModDescriptionMessage::LoadedDescription(res.map(|n| n.1).strerr()).into()
@@ -673,7 +549,6 @@ impl Launcher {
                 self.state = State::ModDescription(MenuModDescription {
                     description: Ok(None),
                     details: None,
-                    mod_id,
                     _handle: [h1.abort_on_drop(), h2.abort_on_drop()],
                 });
 

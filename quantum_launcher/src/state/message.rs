@@ -26,7 +26,7 @@ use ql_mod_manager::{
     loaders::{fabric, paper::PaperVersion},
     store::{
         Category, CurseforgeNotAllowed, ModId, ModIndex, QueryType, RecommendedMod, SearchMod,
-        SearchResult, StoreBackendType,
+        SearchResult, SearchSortBy, StoreBackendType,
     },
 };
 
@@ -61,6 +61,7 @@ pub enum CreateInstanceMessage {
     NameInput(String),
     ChangeAssetToggle(bool),
     ChangeKind(InstanceKind),
+    ChangeLoader(Loader),
 
     SearchInput(String),
     SearchSubmit,
@@ -68,7 +69,7 @@ pub enum CreateInstanceMessage {
     CategoryToggle(ql_core::ListEntryKind),
 
     Start,
-    End(Res<Instance>),
+    End(Res<(Instance, Loader)>),
 
     #[allow(unused)]
     Import,
@@ -80,7 +81,8 @@ pub enum EditInstanceMessage {
     ConfigSaved(Res),
     ReinstallLibraries,
     UpdateAssets,
-    BrowseJavaOverride,
+    BrowseJavaOverrideStart,
+    BrowseJavaOverrideEnd(PathBuf),
 
     JavaOverride(String),
     JavaOverrideVersion(usize),
@@ -189,19 +191,22 @@ pub enum InstallModsMessage {
     Uninstall(usize),
     UninstallComplete(Res<Vec<ModId>>),
 
-    CategoriesLoaded(Res<Vec<Category>>),
+    CategoriesLoaded(Res<Vec<Category>>, StoreBackendType),
     CategoriesToggle(String),
     CategoriesUseAll(bool),
 
     ForceOpenSource(bool),
     ChangeBackend(StoreBackendType),
     ChangeQueryType(QueryType),
+    ChangeSortBy(SearchSortBy),
+    ChangeSortAscending(bool),
 }
 
 #[derive(Debug, Clone)]
 pub enum InstallOptifineMessage {
     ScreenOpen,
     SelectInstallerStart,
+    SelectInstaller(PathBuf),
     DeleteInstallerToggle(bool),
     End(Res),
 }
@@ -351,10 +356,10 @@ impl ListMessage {
             ListMessage::Edit(msg, idx) => {
                 if split && msg.contains(' ') {
                     l.remove(idx);
-                    let mut insert_idx = idx;
-                    for s in msg.split(' ').filter(|n| !n.is_empty()) {
-                        l.insert(insert_idx, s.to_owned());
-                        insert_idx += 1;
+
+                    let entries = msg.split(' ').filter(|n| !n.is_empty());
+                    for (insert_idx, entry) in (idx..).zip(entries) {
+                        l.insert(insert_idx, entry.to_owned());
                     }
                 } else if let Some(entry) = l.get_mut(idx) {
                     *entry = msg;
@@ -572,6 +577,7 @@ from_m!(GameLog, GameLogMessage);
 from_m!(Window, WindowMessage);
 from_m!(Shortcut, ShortcutMessage);
 from_m!(ModDescription, ModDescriptionMessage);
+from_m!(InstallPaper, InstallPaperMessage);
 
 impl From<RpcMessage> for LauncherSettingsMessage {
     fn from(value: RpcMessage) -> Self {

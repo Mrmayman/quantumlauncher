@@ -3,7 +3,7 @@ use iced::{
     Alignment, Length,
     widget::{self, column, row, text::Wrapping},
 };
-use ql_mod_manager::store::{SearchMod, StoreBackendType};
+use ql_mod_manager::store::SearchMod;
 
 use crate::{
     icons,
@@ -23,7 +23,6 @@ impl MenuModDescription {
 
         view_project_description(
             self.description.as_ref(),
-            self.mod_id.get_backend(),
             ManageModsMessage::Open,
             details,
             images,
@@ -35,7 +34,6 @@ impl MenuModDescription {
 /// Renders the mod description page
 pub fn view_project_description<'a, T: iced::advanced::text::IntoFragment<'a>>(
     description: Result<&'a Option<MarkState>, T>,
-    backend: StoreBackendType,
     back_msg: impl Into<Message>,
     hit: &'a SearchMod,
     images: &'a ImageState,
@@ -65,15 +63,7 @@ pub fn view_project_description<'a, T: iced::advanced::text::IntoFragment<'a>>(
         .into(),
     };
 
-    let url = format!(
-        "{}{}/{}",
-        match backend {
-            StoreBackendType::Modrinth => "https://modrinth.com/",
-            StoreBackendType::Curseforge => "https://www.curseforge.com/minecraft/",
-        },
-        hit.project_type,
-        hit.internal_name
-    );
+    let url = hit.get_page_url();
 
     let top_bar = widget::container(
         row![
@@ -96,7 +86,7 @@ pub fn view_project_description<'a, T: iced::advanced::text::IntoFragment<'a>>(
             .style(|n| n.style_container_sharp_box(0.0, Color::ExtraDark)),
             widget::button(widget::text("Copy ID").size(13).wrapping(Wrapping::None))
                 .padding([5, 8])
-                .on_press(Message::CoreCopyText(hit.id.clone())),
+                .on_press_with(|| Message::CoreCopyText(hit.internal_id.clone())),
         ]
         .align_y(Alignment::Center)
         .spacing(10),
