@@ -191,7 +191,7 @@ pub enum InstallModsMessage {
     Uninstall(usize),
     UninstallComplete(Res<Vec<ModId>>),
 
-    CategoriesLoaded(Res<Vec<Category>>),
+    CategoriesLoaded(Res<Vec<Category>>, StoreBackendType),
     CategoriesToggle(String),
     CategoriesUseAll(bool),
 

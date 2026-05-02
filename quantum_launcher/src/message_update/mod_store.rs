@@ -205,9 +205,11 @@ impl Launcher {
                 }
             }
 
-            InstallModsMessage::CategoriesLoaded(res) => {
+            InstallModsMessage::CategoriesLoaded(res, backend) => {
                 if let State::ModsDownload(menu) = &mut self.state {
-                    menu.search.categories.categories = res;
+                    if menu.search.backend == backend {
+                        menu.search.categories.categories = res;
+                    }
                 }
             }
             InstallModsMessage::CategoriesToggle(slug) => {

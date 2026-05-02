@@ -12,7 +12,11 @@ use crate::{
         tooltip, tsubtitle,
     },
     state::{ImageState, InstallModsMessage, ManageModsMessage, MenuModsDownload, Message},
-    stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
+    stylesheet::{
+        color::Color,
+        styles::{BORDER_RADIUS, BORDER_WIDTH, LauncherTheme},
+        widgets::StyleButton,
+    },
 };
 
 const MOD_HEIGHT: u16 = 55;
@@ -78,17 +82,66 @@ impl MenuModsDownload {
     fn mods_display<'a>(&'a self, images: &'a ImageState, tick_timer: usize) -> Column<'a> {
         let mods_list = self.get_mods_list(images, tick_timer);
 
-        self.mods_view_warnings().push(
-            widget::scrollable(mods_list.spacing(5))
-                .style(|theme: &LauncherTheme, status| theme.style_scrollable_flat_dark(status))
-                .id(widget::scrollable::Id::new(
-                    "MenuModsDownload:main:mods_list",
-                ))
-                .height(Length::Fill)
-                .width(Length::Fill)
-                .spacing(0)
-                .on_scroll(|viewport| InstallModsMessage::Scrolled(viewport).into()),
-        )
+        self.mods_view_warnings()
+            .push(self.get_store_selector())
+            .push(
+                widget::scrollable(mods_list.spacing(5))
+                    .style(|theme: &LauncherTheme, status| theme.style_scrollable_flat_dark(status))
+                    .id(widget::scrollable::Id::new(
+                        "MenuModsDownload:main:mods_list",
+                    ))
+                    .height(Length::Fill)
+                    .width(Length::Fill)
+                    .spacing(0)
+                    .on_scroll(|viewport| InstallModsMessage::Scrolled(viewport).into()),
+            )
+    }
+
+    fn get_store_selector(&self) -> widget::Row<'static, Message, LauncherTheme> {
+        let selector = |b: StoreBackendType, color: iced::Color| {
+            let is_selected = self.search.backend == b;
+
+            widget::button(
+                widget::Row::new()
+                    .push_maybe(is_selected.then_some(icons::checkmark_s(12)))
+                    .push(widget::text(b.desc()).size(12))
+                    .spacing(5),
+            )
+            .padding([4, 8])
+            .style(move |t: &LauncherTheme, s| widget::button::Style {
+                background: Some(iced::Background::Color(color.scale_alpha(match s {
+                    // Unselected
+                    widget::button::Status::Active => 0.0,
+                    widget::button::Status::Hovered => 0.04,
+                    widget::button::Status::Pressed => 0.1,
+                    // Selected
+                    widget::button::Status::Disabled => 0.2,
+                }))),
+                text_color: t.get(Color::Light),
+                border: iced::Border {
+                    color,
+                    width: BORDER_WIDTH,
+                    radius: BORDER_RADIUS.into(),
+                },
+                shadow: iced::Shadow::default(),
+            })
+            .on_press_maybe((!is_selected).then_some(InstallModsMessage::ChangeBackend(b).into()))
+        };
+
+        row![
+            widget::text("Store:").size(14),
+            selector(
+                StoreBackendType::Modrinth,
+                iced::Color::from_rgb8(0x19, 0x7d, 0x43)
+            ),
+            selector(
+                StoreBackendType::Curseforge,
+                iced::Color::from_rgb8(0xeb, 0x62, 0x2b)
+            ),
+        ]
+        .padding([5, 10])
+        .spacing(10)
+        .align_y(Alignment::Center)
     }
 
     fn mods_view_warnings(&self) -> Column<'static> {

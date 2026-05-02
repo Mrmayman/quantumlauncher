@@ -33,6 +33,7 @@ pub struct RpcConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RpcText {
     pub top_text: Option<String>,
+    #[serde(deserialize_with = "deserialize_null_default")]
     pub bottom_text: String,
     #[serde(flatten)]
     _extra: HashMap<String, serde_json::Value>,
@@ -61,4 +62,13 @@ impl Default for RpcConfig {
             _extra: HashMap::new(),
         }
     }
+}
+
+fn deserialize_null_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    T: Default + Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_default())
 }

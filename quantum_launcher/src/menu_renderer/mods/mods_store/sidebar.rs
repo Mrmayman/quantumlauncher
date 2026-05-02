@@ -8,8 +8,7 @@ use crate::{
     icons,
     menu_renderer::{Column, Element, barthin, tsubtitle},
     state::{
-        InstallModsMessage, MenuModsDownload, Message, ModCategoryState, ModOperation,
-        ModsDownloadSearch,
+        InstallModsMessage, MenuModsDownload, ModCategoryState, ModOperation, ModsDownloadSearch,
     },
     stylesheet::{color::Color, styles::LauncherTheme},
 };
@@ -19,9 +18,7 @@ impl MenuModsDownload {
         column![
             widget::scrollable(
                 column![
-                    self.get_store_selector(),
-                    widget::horizontal_rule(1).style(barthin),
-                    row![icons::download_s(14), widget::text("Type:").size(18)]
+                    row![icons::download(), widget::text("Type:").size(20)]
                         .align_y(Alignment::Center)
                         .spacing(5),
                     widget::column(QueryType::STORE_QUERIES.iter().map(|n| {
@@ -29,8 +26,8 @@ impl MenuModsDownload {
                             InstallModsMessage::ChangeQueryType(v).into()
                         })
                         .spacing(5)
-                        .text_size(14)
                         .size(12)
+                        .text_size(14)
                         .into()
                     })),
                     widget::Space::with_height(5),
@@ -47,26 +44,6 @@ impl MenuModsDownload {
             self.get_ongoing_operations()
                 .map(|n| column![widget::horizontal_rule(1).style(barthin), n].width(180)),
         )
-    }
-
-    fn get_store_selector(&self) -> widget::Row<'static, Message, LauncherTheme> {
-        let radio = |b: StoreBackendType| {
-            widget::radio(b.desc(), b, Some(self.search.backend), |v| {
-                InstallModsMessage::ChangeBackend(v).into()
-            })
-            .text_size(12)
-            .size(12)
-        };
-
-        row![
-            widget::text("Store:").size(14),
-            column![
-                radio(StoreBackendType::Modrinth),
-                radio(StoreBackendType::Curseforge),
-            ],
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center)
     }
 
     fn get_ongoing_operations(&'_ self) -> Option<Element<'_>> {
@@ -130,42 +107,43 @@ impl ModCategoryState {
         let m = |n| InstallModsMessage::CategoriesUseAll(n).into();
 
         column![
-            row![icons::filter_s(14), widget::text("Filters:").size(18)]
-                // TODO
+            row![icons::filter(), widget::text("Filters:").size(20)]
                 .push_maybe(show_any_all.then(|| {
-                    widget::radio("All", true, Some(self.use_all), m)
-                        .spacing(4)
-                        .text_size(13)
-                        .size(11)
+                    column![
+                        widget::radio("All", true, Some(self.use_all), m)
+                            .spacing(5)
+                            .text_size(12)
+                            .size(10),
+                        widget::radio("Any", false, Some(self.use_all), m)
+                            .spacing(5)
+                            .text_size(12)
+                            .size(10)
+                    ]
                 }))
-                .push_maybe(show_any_all.then(|| {
-                    widget::radio("Any", false, Some(self.use_all), m)
-                        .spacing(4)
-                        .text_size(13)
-                        .size(11)
-                }))
-                .spacing(5)
+                .spacing(10)
                 .align_y(Alignment::Center),
         ]
         .push_maybe(backend.can_filter_open_source().then(|| {
             widget::checkbox("Open-source only", open_source)
-                .size(12)
-                .text_size(12)
+                .size(14)
+                .text_size(14)
                 .style(|n: &LauncherTheme, s| n.style_checkbox(s, Some(Color::SecondLight)))
                 .on_toggle(|n| InstallModsMessage::ForceOpenSource(n).into())
         }))
+        .push(widget::Space::new(0, 0))
         .push(category_view)
         .spacing(5)
     }
 
     fn view_category<'a>(&'a self, category: &'a Category) -> Column<'a> {
         widget::Column::new()
+            .spacing(2)
             .push_maybe(category.is_usable.then(|| {
                 widget::checkbox(&category.name, self.selected.contains(&category.slug))
                     .on_toggle(|_| {
                         InstallModsMessage::CategoriesToggle(category.slug.clone()).into()
                     })
-                    .size(12)
+                    .size(14)
                     .text_size(14)
                     .style(|n: &LauncherTheme, s| n.style_checkbox(s, Some(Color::SecondLight)))
             }))

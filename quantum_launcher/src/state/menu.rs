@@ -531,8 +531,9 @@ impl Default for ModsDownloadSearch {
 
 impl ModsDownloadSearch {
     pub fn load_categories(&self) -> Task<Message> {
-        Task::perform(store::get_categories(self.query_type, self.backend), |n| {
-            InstallModsMessage::CategoriesLoaded(n.strerr()).into()
+        let backend = self.backend;
+        Task::perform(store::get_categories(self.query_type, backend), move |n| {
+            InstallModsMessage::CategoriesLoaded(n.strerr(), backend).into()
         })
     }
 }
