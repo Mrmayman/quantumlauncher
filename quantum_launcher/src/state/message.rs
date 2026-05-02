@@ -356,10 +356,10 @@ impl ListMessage {
             ListMessage::Edit(msg, idx) => {
                 if split && msg.contains(' ') {
                     l.remove(idx);
-                    let mut insert_idx = idx;
-                    for s in msg.split(' ').filter(|n| !n.is_empty()) {
-                        l.insert(insert_idx, s.to_owned());
-                        insert_idx += 1;
+
+                    let entries = msg.split(' ').filter(|n| !n.is_empty());
+                    for (insert_idx, entry) in (idx..).zip(entries) {
+                        l.insert(insert_idx, entry.to_owned());
                     }
                 } else if let Some(entry) = l.get_mut(idx) {
                     *entry = msg;
