@@ -9,7 +9,7 @@ async fn create_hard_links(links: Vec<(&Path, &Path)>) -> Result<(), IoError> {
     Ok(())
 }
 
-pub async fn file_linking(
+pub async fn hard_link_files(
     sources: Vec<&Path>,
     destinations: Vec<&Path>
     ){
