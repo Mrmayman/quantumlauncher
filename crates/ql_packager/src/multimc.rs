@@ -24,15 +24,15 @@ use tokio::fs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MmcPack {
-    pub components: Vec<MmcPackComponent>,
+    components: Vec<MmcPackComponent>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct MmcPackComponent {
-    pub cachedName: String,
-    pub cachedVersion: Option<String>,
-    pub uid: String,
+    cachedName: String,
+    cachedVersion: Option<String>,
+    uid: String,
 }
 
 #[derive(Debug, Clone)]

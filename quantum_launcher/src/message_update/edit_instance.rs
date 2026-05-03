@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use iced::Task;
 use ql_core::{
-    IntoIoError, IntoStringError, LAUNCHER_DIR, err,
+    Instance, IntoIoError, IntoJsonError, IntoStringError, JsonFileError, LAUNCHER_DIR, err,
     json::{
         InstanceConfigJson,
         instance_config::{CustomJarConfig, MainClassMode},
@@ -12,7 +12,6 @@ use ql_core::{
 
 use crate::{
     config::sidebar::SidebarSelection,
-    message_handler::format_memory,
     state::{
         ADD_JAR_NAME, AutoSaveKind, CustomJarState, EditInstanceMessage, LaunchTab, Launcher,
         MainMenuMessage, MenuCreateInstance, MenuEditInstance, MenuLaunch, Message, NONE_JAR_NAME,
@@ -272,6 +271,63 @@ impl Launcher {
         Ok(Task::none())
     }
 
+    pub fn load_edit_instance(&mut self, new_tab: Option<LaunchTab>) {
+        fn load_edit_instance_inner(
+            edit_instance: &mut Option<MenuEditInstance>,
+            selected_instance: &Instance,
+        ) -> Result<(), JsonFileError> {
+            let config_path = selected_instance.get_instance_path().join("config.json");
+
+            let config_json = std::fs::read_to_string(&config_path).path(config_path)?;
+            let config_json: InstanceConfigJson =
+                serde_json::from_str(&config_json).json(config_json)?;
+
+            let slider_value = f32::log2(config_json.ram_in_mb as f32);
+            let memory_mb = config_json.ram_in_mb;
+
+            // Use this to check for performance impact
+            // std::thread::sleep(std::time::Duration::from_millis(500));
+
+            *edit_instance = Some(MenuEditInstance {
+                main_class_mode: config_json.get_main_class_mode(),
+                config: config_json,
+                slider_value,
+                instance_name: selected_instance.name.to_string(),
+                old_instance_name: selected_instance.name.clone(),
+                slider_text: format_memory(memory_mb),
+                memory_input: memory_mb.to_string(),
+                is_editing_name: false,
+                arg_split_by_space: true,
+            });
+            Ok(())
+        }
+
+        if let State::Launch(_) = &self.state {
+        } else {
+            _ = self.go_to_main_menu(None);
+        }
+
+        if let State::Launch(MenuLaunch {
+            tab, edit_instance, ..
+        }) = &mut self.state
+        {
+            if let (LaunchTab::Edit, Some(selected_instance)) =
+                (new_tab.unwrap_or(*tab), self.selected_instance.as_ref())
+            {
+                self.autosave.insert(AutoSaveKind::InstanceConfig); // prevent it from saving *right now*
+                if let Err(err) = load_edit_instance_inner(edit_instance, selected_instance) {
+                    err!("Could not open edit instance menu: {err}");
+                    *edit_instance = None;
+                }
+            } else {
+                *edit_instance = None;
+            }
+            if let Some(new_tab) = new_tab {
+                *tab = new_tab;
+            }
+        }
+    }
+
     fn instance_redownload_stage(&mut self, stage: ql_core::DownloadProgress) -> Task<Message> {
         let (sender, receiver) = std::sync::mpsc::channel();
         let bar = ProgressBar::with_recv(receiver);
@@ -446,5 +502,15 @@ impl EditInstanceMessage {
             EditInstanceMessage::CustomJarPathChanged(_) |
             EditInstanceMessage::BrowseJavaOverride => true,
         }
+    }
+}
+
+fn format_memory(memory_bytes: usize) -> String {
+    const MB_TO_GB: usize = 1024;
+
+    if memory_bytes >= MB_TO_GB {
+        format!("{:.2} GB", memory_bytes as f64 / MB_TO_GB as f64)
+    } else {
+        format!("{memory_bytes} MB")
     }
 }

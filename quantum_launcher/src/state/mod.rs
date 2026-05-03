@@ -2,7 +2,10 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
     path::Path,
-    sync::mpsc::{self, Receiver},
+    sync::{
+        Arc, Mutex,
+        mpsc::{self, Receiver},
+    },
 };
 
 use filthy_rich::PresenceClient;
@@ -19,6 +22,7 @@ use tokio::process::ChildStdin;
 
 use crate::{
     config::{LauncherConfig, SIDEBAR_WIDTH},
+    message_update::PresenceConnectionState,
     stylesheet::styles::LauncherTheme,
 };
 
@@ -58,7 +62,7 @@ pub struct Launcher {
     pub is_launching_game: bool,
 
     pub discord_ipc_client: Option<PresenceClient>,
-    pub is_presence_running: bool,
+    pub discord_connection_state: Arc<Mutex<PresenceConnectionState>>,
 
     pub java_recv: Option<ProgressBar<GenericProgress>>,
     pub custom_jar: Option<CustomJarState>,
@@ -220,7 +224,7 @@ impl Launcher {
             is_launching_game: false,
 
             discord_ipc_client: None,
-            is_presence_running: false,
+            discord_connection_state: Arc::new(Mutex::new(PresenceConnectionState::Uninitialized)),
 
             log_scroll: 0,
             tick_timer: 0,
@@ -278,7 +282,7 @@ impl Launcher {
             tick_timer: 0,
 
             discord_ipc_client: None,
-            is_presence_running: false,
+            discord_connection_state: Arc::new(Mutex::new(PresenceConnectionState::Uninitialized)),
 
             logs: HashMap::new(),
             processes: HashMap::new(),

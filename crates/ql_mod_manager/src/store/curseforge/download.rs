@@ -20,14 +20,14 @@ use super::Mod;
 pub struct ModDownloader<'a> {
     version: String,
     instance: Instance,
-    pub loader: Option<&'static str>,
+    loader: Option<&'static str>,
     pub index: ModIndex,
 
     dirs: DirStructure,
 
     pub query_cache: HashMap<String, Mod>,
     pub not_allowed: HashSet<CurseforgeNotAllowed>,
-    pub already_installed: HashSet<String>,
+    already_installed: HashSet<String>,
     pub sender: Option<&'a Sender<GenericProgress>>,
 }
 

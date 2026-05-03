@@ -1,4 +1,4 @@
-use std::sync::LazyLock;
+use std::sync::{LazyLock, Mutex};
 
 use iced::{Length, widget};
 
@@ -6,6 +6,7 @@ use super::{Element, back_button, back_to_launch_screen, sidebar, sidebar_button
 use crate::{
     config::LauncherConfig,
     icons,
+    message_update::PresenceConnectionState,
     state::{LauncherSettingsMessage, LauncherSettingsTab, MenuLauncherSettings, Message},
     stylesheet::{
         styles::{LauncherTheme, LauncherThemeColor},
@@ -29,7 +30,7 @@ impl MenuLauncherSettings {
     pub fn view<'a>(
         &'a self,
         config: &'a LauncherConfig,
-        is_presence_running: bool,
+        discord_connection_state: &Mutex<PresenceConnectionState>,
     ) -> Element<'a> {
         widget::row![
             sidebar(
@@ -58,10 +59,13 @@ impl MenuLauncherSettings {
                 border: iced::Border::default(),
                 shadow: iced::Shadow::default()
             }),
-            widget::scrollable(self.selected_tab.view(config, self, is_presence_running))
-                .width(Length::Fill)
-                .spacing(0)
-                .style(LauncherTheme::style_scrollable_flat_dark)
+            widget::scrollable(
+                self.selected_tab
+                    .view(config, self, discord_connection_state)
+            )
+            .width(Length::Fill)
+            .spacing(0)
+            .style(LauncherTheme::style_scrollable_flat_dark)
         ]
         .into()
     }
@@ -97,15 +101,17 @@ pub fn get_theme_selector() -> widget::Row<'static, Message, LauncherTheme> {
 }
 
 impl LauncherSettingsTab {
-    pub fn view<'a>(
+    fn view<'a>(
         &'a self,
         config: &'a LauncherConfig,
         menu: &'a MenuLauncherSettings,
-        is_presence_running: bool,
+        discord_connection_state: &Mutex<PresenceConnectionState>,
     ) -> Element<'a> {
         match self {
             LauncherSettingsTab::UserInterface => menu.view_ui_tab(config),
-            LauncherSettingsTab::Presence => menu.view_presence_tab(config, is_presence_running),
+            LauncherSettingsTab::Presence => {
+                menu.view_presence_tab(config, discord_connection_state)
+            }
             LauncherSettingsTab::Game => menu.view_game_tab(config),
             LauncherSettingsTab::About => tab_about::view(),
         }

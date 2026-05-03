@@ -131,7 +131,7 @@ pub async fn check() -> Result<UpdateCheckInfo, UpdateError> {
 /// The launcher will be backed up, the new version
 /// will be downloaded and extracted.
 ///
-/// The new version will be started and the current process will exit.
+/// The new version will be started. You must exit the current process manually.
 ///
 /// # Arguments
 /// - `url`: The url to the zip file containing the new version of the launcher.
@@ -198,7 +198,7 @@ pub async fn install(url: String, progress: Sender<GenericProgress>) -> Result<(
     let new_path = exe_location.join(extract_name);
     _ = Command::new(&new_path).spawn().path(new_path)?;
 
-    std::process::exit(0);
+    Ok(())
 }
 
 async fn clean_file(parent: &Path, name: &str) -> Result<(), UpdateError> {

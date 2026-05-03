@@ -306,11 +306,6 @@ impl Instance {
     pub const fn is_server(&self) -> bool {
         self.kind.is_server()
     }
-
-    #[must_use]
-    pub fn get_pair(&self) -> (&str, bool) {
-        (self.get_name(), self.is_server())
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -472,20 +467,6 @@ impl ListEntryKind {
         } else {
             ListEntryKind::Release
         }
-    }
-
-    /// Returns true if this is an "old" version category
-    #[must_use]
-    pub const fn is_old(&self) -> bool {
-        matches!(
-            self,
-            ListEntryKind::Alpha
-                | ListEntryKind::Beta
-                | ListEntryKind::Classic
-                | ListEntryKind::Preclassic
-                | ListEntryKind::Indev
-                | ListEntryKind::Infdev
-        )
     }
 }
 

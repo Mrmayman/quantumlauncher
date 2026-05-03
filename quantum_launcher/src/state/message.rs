@@ -2,7 +2,7 @@ use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
 
 use crate::{
     config::{
-        discord_rpc::RpcText,
+        discord_rpc::{PresenceStatusDisplayType, RpcText},
         sidebar::{FolderId, SDragLocation, SidebarSelection},
     },
     message_handler::{ForgeKind, account_load::AccountLoad},
@@ -306,9 +306,13 @@ pub enum LauncherSettingsMessage {
 
 #[derive(Debug, Clone)]
 pub enum RpcMessage {
+    RunStarted(Option<PresenceClient>),
     Toggle(bool),
     DefaultChanged(RpcInnerMessage),
     TogglePresenceOnGameEvent(bool),
+    StatusDisplayTypePicked(PresenceStatusDisplayType),
+    SetName(String),
+    ToggleCompeting(bool),
     GameOpen(RpcInnerMessage),
     GameExit(RpcInnerMessage),
     SetPresenceNow,
@@ -317,18 +321,26 @@ pub enum RpcMessage {
 
 #[derive(Debug, Clone)]
 pub enum RpcInnerMessage {
-    TopTextChanged(String),
-    BottomTextChanged(String),
+    TopText(String),
+    TopTextURL(String),
+    BottomText(String),
+    BottomTextURL(String),
 }
 
 impl RpcText {
     pub fn apply(&mut self, msg: RpcInnerMessage) {
         match msg {
-            RpcInnerMessage::TopTextChanged(text) => {
+            RpcInnerMessage::TopText(text) => {
                 self.top_text = (!text.is_empty()).then_some(text);
             }
-            RpcInnerMessage::BottomTextChanged(text) => {
-                self.bottom_text = text;
+            RpcInnerMessage::TopTextURL(text) => {
+                self.top_text_url = (!text.is_empty()).then_some(text);
+            }
+            RpcInnerMessage::BottomText(text) => {
+                self.bottom_text = (!text.is_empty()).then_some(text);
+            }
+            RpcInnerMessage::BottomTextURL(text) => {
+                self.bottom_text_url = (!text.is_empty()).then_some(text);
             }
         }
     }
@@ -448,6 +460,14 @@ pub enum ModDescriptionMessage {
 }
 
 #[derive(Debug, Clone)]
+pub enum LaunchMessage {
+    Start,
+    End(Res<LaunchedProcess>),
+    Kill,
+    GameExited(Res<(ExitStatus, Instance, Option<Diagnostic>)>),
+}
+
+#[derive(Debug, Clone)]
 pub enum Message {
     Nothing,
     Error(String),
@@ -457,6 +477,7 @@ pub enum Message {
     WelcomeContinueToTheme,
     WelcomeContinueToAuth,
 
+    Launch(LaunchMessage),
     Account(AccountMessage),
     CreateInstance(CreateInstanceMessage),
     EditInstance(EditInstanceMessage),
@@ -465,10 +486,6 @@ pub enum Message {
     GameLog(GameLogMessage),
     Window(WindowMessage),
     Shortcut(ShortcutMessage),
-
-    DiscordIPCRunStarted(Option<PresenceClient>),
-    DiscordIPCPresenceSet,
-
     ManageMods(ManageModsMessage),
     ManageJarMods(ManageJarModsMessage),
     InstallMods(InstallModsMessage),
@@ -485,10 +502,6 @@ pub enum Message {
         message: Option<InfoMessage>,
         clear_selection: bool,
     },
-    LaunchStart,
-    LaunchEnd(Res<LaunchedProcess>),
-    LaunchKill,
-    LaunchGameExited(Res<(ExitStatus, Instance, Option<Diagnostic>)>),
 
     DeleteInstanceMenu,
     DeleteInstance,
@@ -554,6 +567,7 @@ macro_rules! from_m {
     };
 }
 
+from_m!(Launch, LaunchMessage);
 from_m!(MainMenu, MainMenuMessage);
 from_m!(Sidebar, SidebarMessage);
 from_m!(ManageMods, ManageModsMessage);

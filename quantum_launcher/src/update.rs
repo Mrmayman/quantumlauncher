@@ -1,5 +1,5 @@
 use iced::{Task, futures::executor::block_on};
-use ql_core::{InstanceKind, IntoIoError, IntoStringError, err, file_utils::DirItem, info, pt};
+use ql_core::{InstanceKind, IntoIoError, IntoStringError, err, file_utils::DirItem, info};
 use std::fmt::Write;
 use tokio::io::AsyncWriteExt;
 
@@ -10,9 +10,9 @@ use owo_colors::OwoColorize;
 use crate::launcher_update::UpdateCheckInfo;
 use crate::{
     state::{
-        AutoSaveKind, CustomJarState, DirWatcher, GameProcess, InfoMessage, LaunchTab, Launcher,
-        LauncherSettingsMessage, ManageModsMessage, MenuExportInstance, MenuLaunch, MenuLicense,
-        MenuWelcome, Message, ProgressBar, State, dir_watch, get_entries,
+        AutoSaveKind, CustomJarState, DirWatcher, GameProcess, InfoMessage, Launcher,
+        LauncherSettingsMessage, ManageModsMessage, MenuExportInstance, MenuLicense, MenuWelcome,
+        Message, ProgressBar, State, dir_watch, get_entries,
     },
     stylesheet::styles::LauncherThemeLightness,
 };
@@ -36,7 +36,7 @@ impl Launcher {
 
                 if safe_to_exit {
                     info!(no_log, "CTRL-Q pressed, closing launcher...");
-                    std::process::exit(1);
+                    self.close_launcher();
                 }
             }
 
@@ -46,7 +46,6 @@ impl Launcher {
 
             Message::UninstallLoaderEnd(Err(err))
             | Message::InstallForgeEnd(Err(err))
-            | Message::LaunchGameExited(Err(err))
             | Message::CoreListLoaded(Err(err)) => self.set_error(err),
 
             Message::WelcomeContinueToTheme => {
@@ -56,6 +55,7 @@ impl Launcher {
                 self.state = State::Welcome(MenuWelcome::P3Auth);
             }
 
+            Message::Launch(msg) => return self.update_launch(msg),
             Message::MainMenu(msg) => return self.update_main_menu(msg),
             Message::Sidebar(msg) => return self.update_sidebar(msg),
             Message::Account(msg) => return self.update_account(msg),
@@ -66,43 +66,18 @@ impl Launcher {
             Message::Window(msg) => return self.update_window_msg(msg),
             Message::Notes(msg) => return self.update_notes(msg),
             Message::GameLog(msg) => return self.update_game_log(msg),
+            Message::LauncherSettings(msg) => return self.update_launcher_settings(msg),
+            Message::InstallOptifine(msg) => return self.update_install_optifine(msg),
+            Message::InstallPaper(msg) => return self.update_install_paper(msg),
+            Message::ModDescription(msg) => return self.update_mod_description(msg),
+            Message::CreateInstance(msg) => return self.update_create_instance(msg),
             Message::Shortcut(msg) => match self.update_shortcut(msg) {
                 Ok(n) => return n,
                 Err(e) => self.set_error(e),
             },
 
-            Message::LauncherSettings(msg) => return self.update_launcher_settings(msg),
-            Message::InstallOptifine(msg) => return self.update_install_optifine(msg),
-            Message::InstallPaper(msg) => return self.update_install_paper(msg),
-            Message::ModDescription(msg) => return self.update_mod_description(msg),
-
-            Message::LaunchStart => return self.launch_start(),
-            Message::LaunchEnd(result) => return self.finish_launching(result),
-            Message::CreateInstance(message) => return self.update_create_instance(message),
             Message::DeleteInstanceMenu => self.go_to_delete_instance_menu(),
             Message::DeleteInstance => return self.delete_instance_confirm(),
-
-            Message::DiscordIPCRunStarted(c) => {
-                if let Some(c) = c {
-                    if !self.config.c_rpc_enabled() {
-                        if let Err(err) = block_on(c.close()) {
-                            err!(no_log, "{err}");
-                        }
-                        return Task::none();
-                    }
-                    self.discord_ipc_client = Some(c);
-                    return self.set_custom_discord_presence();
-                } else {
-                    pt!(
-                        no_log,
-                        "Rich presence couldn't be set as client wasn't found post-run."
-                    )
-                }
-            }
-            Message::DiscordIPCPresenceSet => {
-                self.is_presence_running = true;
-                pt!(no_log, "Rich presence has been set.");
-            }
 
             Message::MScreenOpen {
                 message,
@@ -200,10 +175,6 @@ impl Launcher {
             Message::UninstallLoaderEnd(Ok(())) => {
                 return self.go_to_edit_mods_menu(Some(InfoMessage::success("Uninstalled loader")));
             }
-            Message::LaunchGameExited(Ok((status, instance, diagnostic))) => {
-                return self.set_game_exited(status, &instance, diagnostic);
-            }
-            Message::LaunchKill => return self.kill_selected_instance(),
 
             #[cfg(feature = "auto_update")]
             Message::UpdateCheckResult(res) => match res {
@@ -228,6 +199,8 @@ impl Launcher {
             Message::UpdateDownloadEnd(result) => {
                 if let Err(err) = result {
                     self.set_error(format!("Update installation failed! Try going to the website at\nmrmayman.github.io/quantumlauncher\nAnd download from there\n\n{err}"));
+                } else {
+                    self.close_launcher();
                 }
             }
 
@@ -474,7 +447,6 @@ impl Launcher {
             .config
             .ui_mode
             .is_none_or(|n| n == LauncherThemeLightness::Auto);
-        #[allow(clippy::manual_is_multiple_of)] // Maintain Rust MSRV
         let interval = self.tick_timer % INTERVAL == 0;
 
         if is_auto_theme && interval {
@@ -486,33 +458,6 @@ impl Launcher {
             })
         } else {
             Task::none()
-        }
-    }
-
-    pub fn load_edit_instance(&mut self, new_tab: Option<LaunchTab>) {
-        if let State::Launch(_) = &self.state {
-        } else {
-            _ = self.go_to_main_menu(None);
-        }
-
-        if let State::Launch(MenuLaunch {
-            tab, edit_instance, ..
-        }) = &mut self.state
-        {
-            if let (LaunchTab::Edit, Some(selected_instance)) =
-                (new_tab.unwrap_or(*tab), self.selected_instance.as_ref())
-            {
-                self.autosave.insert(AutoSaveKind::InstanceConfig); // prevent it from saving *right now*
-                if let Err(err) = Self::load_edit_instance_inner(edit_instance, selected_instance) {
-                    err!("Could not open edit instance menu: {err}");
-                    *edit_instance = None;
-                }
-            } else {
-                *edit_instance = None;
-            }
-            if let Some(new_tab) = new_tab {
-                *tab = new_tab;
-            }
         }
     }
 

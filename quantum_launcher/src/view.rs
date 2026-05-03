@@ -9,7 +9,9 @@ use crate::{
         Element, FONT_MONO, tooltip, view_account_login, view_changelog, view_confirm, view_error,
         view_log_upload_result,
     },
-    state::{Launcher, Message, State, WindowMessage},
+    state::{
+        Launcher, MenuCreateInstance, MenuCreateInstanceChoosing, Message, State, WindowMessage,
+    },
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
 
@@ -105,13 +107,25 @@ impl Launcher {
                 &self.images,
                 self.window_state.size.1,
             ),
-            State::Create(menu) => menu.view(
-                match self.selected_kind() {
-                    Some(InstanceKind::Server) => self.server_list.as_deref(),
-                    Some(InstanceKind::Client) | None => self.client_list.as_deref(),
-                },
-                self.tick_timer,
-            ),
+            State::Create(menu) => {
+                let kind = if let MenuCreateInstance::Choosing(MenuCreateInstanceChoosing {
+                    kind,
+                    ..
+                }) = menu
+                {
+                    *kind
+                } else {
+                    self.selected_instance
+                        .as_ref()
+                        .map(|n| n.kind)
+                        .unwrap_or(InstanceKind::Client)
+                };
+                let list = match kind {
+                    InstanceKind::Server => self.server_list.as_deref(),
+                    InstanceKind::Client => self.client_list.as_deref(),
+                };
+                menu.view(list, self.tick_timer)
+            }
             State::ConfirmAction {
                 msg1,
                 msg2,
@@ -127,7 +141,9 @@ impl Launcher {
                 .into(),
             State::ModsDownload(menu) => menu.view(&self.images, self.tick_timer),
             State::ModDescription(menu) => menu.view(&self.images, self.tick_timer),
-            State::LauncherSettings(menu) => menu.view(&self.config, self.is_presence_running),
+            State::LauncherSettings(menu) => {
+                menu.view(&self.config, &self.discord_connection_state)
+            }
             State::InstallPaper(menu) => menu.view(self.tick_timer),
             State::ChangeLog => view_changelog(&self.config),
             State::Welcome(menu) => menu.view(&self.config),
@@ -188,7 +204,7 @@ impl Launcher {
         .into()
     }
 
-    pub fn view_window_decorations(&self) -> widget::Row<'_, Message, LauncherTheme> {
+    fn view_window_decorations(&self) -> widget::Row<'_, Message, LauncherTheme> {
         const ICON_SIZE: u16 = 10;
 
         fn win_button(icon: widget::Text<'_, LauncherTheme>, m: Message) -> Element<'_> {

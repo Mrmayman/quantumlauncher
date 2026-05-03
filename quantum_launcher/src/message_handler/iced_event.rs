@@ -1,11 +1,11 @@
 use crate::message_handler::arrow_keys::InstSelectOperation;
 use crate::message_update::MSG_RESIZE;
 use crate::state::{
-    AutoSaveKind, CreateInstanceMessage, InfoMessage, LaunchTab, Launcher, LauncherSettingsMessage,
-    LauncherSettingsTab, MainMenuMessage, ManageModsMessage, MenuCreateInstance,
-    MenuCreateInstanceChoosing, MenuEditMods, MenuEditPresets, MenuExportInstance,
-    MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLoginAlternate, MenuLoginMS,
-    MenuRecommendedMods, MenuWelcome, Message, State,
+    AutoSaveKind, CreateInstanceMessage, InfoMessage, LaunchMessage, LaunchTab, Launcher,
+    LauncherSettingsMessage, LauncherSettingsTab, MainMenuMessage, ManageModsMessage,
+    MenuCreateInstance, MenuCreateInstanceChoosing, MenuEditMods, MenuEditPresets,
+    MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper,
+    MenuLoginAlternate, MenuLoginMS, MenuRecommendedMods, MenuWelcome, Message, State,
 };
 use iced::{
     Task,
@@ -25,7 +25,7 @@ impl Launcher {
             iced::Event::Window(event) => match event {
                 iced::window::Event::CloseRequested => {
                     pt!(no_log, "Closing...");
-                    std::process::exit(0);
+                    self.close_launcher();
                 }
                 iced::window::Event::Resized(size) => {
                     self.window_state.size = (size.width, size.height);
@@ -196,11 +196,11 @@ impl Launcher {
                 return self.select_instance_recursive(InstSelectOperation::Down);
             } else if let Key::Named(Named::Enter) = key {
                 if modifiers.command() {
-                    return self.launch_start();
+                    return Task::done(LaunchMessage::Start.into());
                 }
             } else if let Key::Named(Named::Backspace) = key {
                 if modifiers.command() {
-                    return Task::done(Message::LaunchKill);
+                    return Task::done(LaunchMessage::Kill.into());
                 }
             }
         } else if let State::Create(MenuCreateInstance::Choosing(MenuCreateInstanceChoosing {

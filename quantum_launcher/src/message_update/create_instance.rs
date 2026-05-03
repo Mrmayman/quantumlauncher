@@ -173,7 +173,7 @@ then go to "Mods->Add File""#,
         });
     }
 
-    pub fn go_to_create_screen(&mut self, kind: InstanceKind) -> Task<Message> {
+    fn go_to_create_screen(&mut self, kind: InstanceKind) -> Task<Message> {
         let (task, handle) = Task::perform(ql_instances::list_versions(), |n| {
             CreateInstanceMessage::VersionsLoaded(n.strerr()).into()
         })

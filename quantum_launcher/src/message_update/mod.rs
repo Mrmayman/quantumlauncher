@@ -7,22 +7,24 @@ use ql_mod_manager::{loaders, store};
 
 mod accounts;
 mod create_instance;
+mod discord_rpc;
 mod edit_instance;
-mod launch;
+mod main_menu;
 mod manage_mods;
 mod mod_store;
 mod presets;
 mod recommended;
+mod shortcuts;
 
 use crate::config::UiWindowDecorations;
 use crate::state::{
     self, AutoSaveKind, GameLogMessage, InfoMessage, InstallFabricMessage, InstallOptifineMessage,
     InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsMessage, LauncherSettingsTab,
     MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLaunch, MenuModDescription,
-    Message, ModDescriptionMessage, NotesMessage, ProgressBar, RpcMessage, State, WindowMessage,
+    Message, ModDescriptionMessage, NotesMessage, ProgressBar, State, WindowMessage,
 };
 
-mod shortcuts;
+pub use discord_rpc::PresenceConnectionState;
 
 pub const MSG_RESIZE: &str = "Resize your window to apply the changes.";
 
@@ -361,54 +363,7 @@ impl Launcher {
         Task::none()
     }
 
-    fn update_rpc(&mut self, msg: RpcMessage) -> Task<Message> {
-        match msg {
-            RpcMessage::Toggle(enable) => {
-                let rpc = self.config.discord_rpc.get_or_insert_default();
-                rpc.enable = enable;
-
-                if enable {
-                    // Start on enable
-                    return self.start_discord_ipc_run();
-                }
-
-                // On disable
-                let client = self.discord_ipc_client.clone();
-
-                block_on(async {
-                    if let Some(c) = client {
-                        let _ = c.close().await;
-                    }
-                });
-
-                self.is_presence_running = false;
-                self.discord_ipc_client = None;
-            }
-            RpcMessage::DefaultChanged(op) => {
-                let rpc = self.config.discord_rpc.get_or_insert_default();
-                rpc.basic.apply(op);
-            }
-            RpcMessage::TogglePresenceOnGameEvent(t) => {
-                let rpc = self.config.discord_rpc.get_or_insert_default();
-                rpc.update_on_game_open = t;
-            }
-            RpcMessage::GameOpen(op) => {
-                let rpc = self.config.discord_rpc.get_or_insert_default();
-                rpc.on_gameopen.apply(op);
-            }
-            RpcMessage::GameExit(op) => {
-                let rpc = self.config.discord_rpc.get_or_insert_default();
-                rpc.on_gameexit.apply(op);
-            }
-            RpcMessage::SetPresenceNow => return self.set_custom_discord_presence(),
-            RpcMessage::ResetPresence => {
-                self.config.reset_presence();
-            }
-        }
-        Task::none()
-    }
-
-    pub fn should_split_args(&self) -> bool {
+    fn should_split_args(&self) -> bool {
         if let State::Launch(MenuLaunch {
             edit_instance: Some(menu),
             ..
@@ -517,7 +472,7 @@ impl Launcher {
                     .map(Some)
                     .and_then(move |max| iced::window::maximize(id, !max))
             }),
-            WindowMessage::ClickClose => std::process::exit(0),
+            WindowMessage::ClickClose => self.close_launcher(),
             // WindowMessage::IsMaximized(n) => {
             //     self.window_state.is_maximized = n;
             //     Task::none()

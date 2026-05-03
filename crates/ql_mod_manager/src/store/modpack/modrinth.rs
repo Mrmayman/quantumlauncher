@@ -12,8 +12,8 @@ use super::PackError;
 
 #[derive(Deserialize)]
 pub struct PackIndex {
-    pub name: String,
-    pub files: Vec<PackFile>,
+    name: String,
+    files: Vec<PackFile>,
 
     /// Info about which Minecraft version
     /// and Loader version is required. May contain:
@@ -23,20 +23,20 @@ pub struct PackIndex {
     /// - `neoforge`
     /// - `fabric-loader`
     /// - `quilt-loader`
-    pub dependencies: HashMap<String, String>,
+    dependencies: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
 pub struct PackFile {
-    pub path: String,
-    pub env: PackEnv,
-    pub downloads: Vec<String>,
+    path: String,
+    env: PackEnv,
+    downloads: Vec<String>,
 }
 
 #[derive(Deserialize)]
 pub struct PackEnv {
-    pub client: String,
-    pub server: String,
+    client: String,
+    server: String,
 }
 
 pub async fn install(

@@ -62,7 +62,7 @@ impl MenuInstallOptifine {
         .into()
     }
 
-    pub fn install_optifine_screen<'a>(
+    fn install_optifine_screen<'a>(
         &self,
         delete_installer: bool,
     ) -> widget::Column<'a, Message, LauncherTheme, iced::Renderer> {

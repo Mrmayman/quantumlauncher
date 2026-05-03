@@ -69,14 +69,17 @@ type ProcessExitResult = Option<
 
 async fn handle_process_exit(handle: tokio::task::JoinHandle<ProcessExitResult>) -> bool {
     let out = handle.await;
-    match out
-        .strerr()
-        .map(|n| {
+
+    match {
+        let this = out.strerr().map(|n| {
             n.expect("stdout/stderr should exist, unless you turned switched off logging")
                 .strerr()
-        })
-        .flatten()
-    {
+        });
+        match this {
+            Ok(inner) => inner,
+            Err(e) => Err(e),
+        }
+    } {
         Ok((code, _, diag)) => {
             if let Some(Diagnostic::MacOSPixelFormat) = diag {
                 println!("\nmacOS VM lacks GPU acceleration, test successful");

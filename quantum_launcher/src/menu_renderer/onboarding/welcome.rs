@@ -67,7 +67,7 @@ impl MenuWelcome {
                     widget::toggler(config.c_rpc_enabled())
                         .label("Enable Discord Rich Presence")
                         .on_toggle(|t| RpcMessage::Toggle(t).into()),
-                    widget::text("Allow others to see your gameplay activity in Discord")
+                    widget::text("Allow others to see your gameplay activity on Discord")
                         .size(12)
                         .style(tsubtitle),
                 ]
