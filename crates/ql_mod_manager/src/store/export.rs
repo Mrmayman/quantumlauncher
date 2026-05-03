@@ -618,3 +618,74 @@ fn create_override_mods_full_path(
 
     override_mods_full_path_string
 }
+
+async fn write_modlist_json(path: PathBuf, json: &str) -> StdResult<()> {
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+    tokio::fs::write(path, json.as_bytes()).await?;
+    Ok(())
+}
+
+
+pub async fn create_modlist(
+    modlist_path: PathBuf,
+    mod_ids: HashSet<ModId>,
+    instance: InstanceSelection,
+) {
+    let index = ModIndex::load(&instance).await.unwrap();
+
+    let mut urls: Vec<String> = Vec::new();
+    let mut filenames: Vec<String> = Vec::new();
+
+    for id in &mod_ids {
+
+        let Some(config) = index.mods.get(id) else {
+            continue;
+        };
+        let Some(primary_file) = config
+            .files
+            .iter()
+            .find(|file| file.primary)
+            .or_else(|| config.files.first())
+        else {
+            continue;
+        };
+
+        urls.push(primary_file.url.clone());
+        filenames.push(primary_file.filename.clone());
+    }
+
+    let mods_folder_path = instance.get_dot_minecraft_path().join("mods");
+
+    let full_path: Vec<PathBuf> = filenames
+        .iter()
+        .map(|rel_path| mods_folder_path.join(rel_path))
+        .collect();
+
+    let mut sha1s = Vec::new();
+    let mut sha512s = Vec::new();
+    let mut file_sizes = Vec::new();
+
+    for path in &full_path {
+        let hashes = hash_file(path).await.unwrap();
+        sha1s.push(hashes.sha1);
+        sha512s.push(hashes.sha512);
+        file_sizes.push(hashes.file_size);
+    }
+
+    let files: Vec<FormatMQFileEntry> = format_1_file_entry(
+        filenames.iter()
+            .map(|name| format!("mods/{}", name))
+            .collect::<Vec<String>>(),
+        sha1s,
+        sha512s,
+        urls,
+        file_sizes
+    ).unwrap();
+
+    let json_data = serde_json::to_string_pretty(&files).unwrap();
+
+    write_modlist_json(modlist_path, &json_data).await.unwrap();
+}
+
