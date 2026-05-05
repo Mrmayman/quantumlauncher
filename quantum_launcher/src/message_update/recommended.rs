@@ -150,7 +150,7 @@ impl Launcher {
 }
 
 impl MenuRecommendedMods {
-    pub fn get_config(&self, instance: &Instance) -> Result<InstanceConfigJson, JsonFileError> {
+    fn get_config(&self, instance: &Instance) -> Result<InstanceConfigJson, JsonFileError> {
         if let MenuRecommendedMods::Loaded { config, .. }
         | MenuRecommendedMods::Loading { config, .. } = self
         {

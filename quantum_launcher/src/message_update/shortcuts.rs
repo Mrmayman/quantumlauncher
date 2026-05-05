@@ -116,7 +116,7 @@ impl Launcher {
         });
     }
 
-    pub fn shortcut_prepare(&mut self) -> Result<Shortcut, String> {
+    fn shortcut_prepare(&mut self) -> Result<Shortcut, String> {
         let State::CreateShortcut(menu) = &self.state else {
             self.shortcut_open();
             return self.shortcut_prepare();

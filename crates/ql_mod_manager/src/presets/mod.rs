@@ -52,12 +52,12 @@ pub struct PresetOutput {
 ///   to the `.minecraft/config/` folder
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Preset {
-    pub launcher_version: String,
-    pub minecraft_version: String,
-    pub instance_type: Loader,
+    launcher_version: String,
+    minecraft_version: String,
+    instance_type: Loader,
     #[serde(rename = "entries_modrinth")]
-    pub entries_downloaded: HashMap<ModId, ModConfig>,
-    pub entries_local: Vec<String>,
+    entries_downloaded: HashMap<ModId, ModConfig>,
+    entries_local: Vec<String>,
 }
 
 impl Preset {

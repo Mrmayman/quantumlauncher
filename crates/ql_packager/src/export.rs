@@ -15,10 +15,7 @@ pub const EXCEPTIONS: &[&str] = &[
     "forge",
 ];
 
-fn create_instance_info(
-    instance: &Instance,
-    mut exceptions: HashSet<String>,
-) -> InstanceInfo {
+fn create_instance_info(instance: &Instance, mut exceptions: HashSet<String>) -> InstanceInfo {
     exceptions.extend(EXCEPTIONS.iter().map(|n| (*n).to_owned()));
     InstanceInfo {
         instance_name: instance.get_name().to_owned(),

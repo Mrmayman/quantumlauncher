@@ -11,8 +11,9 @@ use crate::menu_renderer::{
     view_info_message,
 };
 use crate::state::{
-    GameLogMessage, InstanceNotes, LaunchModal, MainMenuMessage, NotesMessage,
-    PackageInstanceMessage, ShortcutMessage, SidebarMessage, SidebarScroll, WindowMessage,
+    GameLogMessage, InstanceNotes, LaunchMessage, LaunchModal, LauncherSettingsTab,
+    MainMenuMessage, NotesMessage, PackageInstanceMessage, ShortcutMessage, SidebarMessage,
+    SidebarScroll, WindowMessage,
 };
 use crate::{
     icons,
@@ -262,7 +263,7 @@ impl Launcher {
             .width(98)
     }
 
-    pub fn get_tab_logs<'element>(
+    fn get_tab_logs<'element>(
         &'element self,
         menu: &'element MenuLaunch,
         kind: InstanceKind,
@@ -484,7 +485,7 @@ impl Launcher {
         } else if self.processes.contains_key(selected) {
             tooltip(
                 button_with_icon(icons::play(), "Kill", 16)
-                    .on_press(Message::LaunchKill)
+                    .on_press(LaunchMessage::Kill.into())
                     .width(98),
                 shortcut_ctrl("Backspace"),
                 Position::Bottom,
@@ -497,7 +498,7 @@ impl Launcher {
             )
         } else {
             tooltip(
-                play_button.on_press(Message::LaunchStart),
+                play_button.on_press(LaunchMessage::Start.into()),
                 shortcut_ctrl("Enter"),
                 Position::Bottom,
             )
@@ -522,7 +523,7 @@ impl Launcher {
             tooltip(
                 button_with_icon(icons::play(), "Stop", 16)
                     .width(98)
-                    .on_press(Message::LaunchKill),
+                    .on_press(LaunchMessage::Kill.into()),
                 shortcut_ctrl("Escape"),
                 Position::Bottom,
             )
@@ -536,7 +537,7 @@ impl Launcher {
             tooltip(
                 button_with_icon(icons::play(), "Start", 16)
                     .width(98)
-                    .on_press(Message::LaunchStart),
+                    .on_press(LaunchMessage::Start.into()),
                 "By starting the server, you agree to the EULA",
                 Position::Bottom,
             )
@@ -562,7 +563,7 @@ impl MenuLaunch {
         )
         .padding(0)
         .style(|n, status| n.style_button(status, StyleButton::FlatExtraDark))
-        .on_press(LauncherSettingsMessage::Open.into());
+        .on_press(LauncherSettingsMessage::Open(LauncherSettingsTab::default()).into());
 
         widget::mouse_area(
             widget::container(

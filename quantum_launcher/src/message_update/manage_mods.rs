@@ -101,7 +101,7 @@ impl Launcher {
                 }
             }
             ManageModsMessage::DeleteOptiforge(name) => {
-                let mods_dir = self.get_selected_dot_minecraft_dir().unwrap().join("mods");
+                let mods_dir = self.instance().get_dot_minecraft_path().join("mods");
                 if let State::EditMods(menu) = &mut self.state {
                     menu.locally_installed_mods.remove(&name);
                     if let Some(mod_info) = &mut menu.config.mod_type_info {
@@ -135,7 +135,7 @@ impl Launcher {
 
             ManageModsMessage::ToggleFinished(Ok(())) => self.update_mod_index(),
 
-            ManageModsMessage::UpdatePerform => return self.update_mods(),
+            ManageModsMessage::UpdatePerform => return self.apply_mod_updates(),
             ManageModsMessage::UpdatePerformDone(Ok((file, should_write_changelog))) => {
                 self.update_mod_index();
                 if let State::EditMods(menu) = &mut self.state {
@@ -319,6 +319,40 @@ impl Launcher {
         Task::none()
     }
 
+    fn apply_mod_updates(&mut self) -> Task<Message> {
+        if let State::EditMods(menu) = &mut self.state {
+            let updates = menu
+                .available_updates
+                .clone()
+                .into_iter()
+                .map(|(id, version, _)| (id, version))
+                .collect();
+            let write_changelog = self.config.c_persistent().write_mod_update_changelog;
+            let (sender, receiver) = std::sync::mpsc::channel();
+            menu.mod_update_progress = Some(ProgressBar::with_recv_and_msg(
+                receiver,
+                "Deleting Mods".to_owned(),
+            ));
+            let selected_instance = self.selected_instance.clone().unwrap();
+            Task::perform(
+                ql_mod_manager::store::apply_updates(
+                    selected_instance,
+                    updates,
+                    Some(sender),
+                    write_changelog,
+                ),
+                move |n| {
+                    ManageModsMessage::UpdatePerformDone(
+                        n.strerr().map(|res| (res, write_changelog)),
+                    )
+                    .into()
+                },
+            )
+        } else {
+            Task::none()
+        }
+    }
+
     fn manage_mods_toggle_selected(&mut self) -> Task<Message> {
         let State::EditMods(menu) = &mut self.state else {
             return Task::none();
@@ -493,17 +527,13 @@ impl Launcher {
             for i in selected {
                 if i < menu.jarmods.mods.len() {
                     match msg {
-                        ManageJarModsMessage::MoveUp => {
-                            if i > 0 {
-                                let removed = menu.jarmods.mods.remove(i);
-                                menu.jarmods.mods.insert(i - 1, removed);
-                            }
+                        ManageJarModsMessage::MoveUp if i > 0 => {
+                            let removed = menu.jarmods.mods.remove(i);
+                            menu.jarmods.mods.insert(i - 1, removed);
                         }
-                        ManageJarModsMessage::MoveDown => {
-                            if i + 1 < menu.jarmods.mods.len() {
-                                let removed = menu.jarmods.mods.remove(i);
-                                menu.jarmods.mods.insert(i + 1, removed);
-                            }
+                        ManageJarModsMessage::MoveDown if i + 1 < menu.jarmods.mods.len() => {
+                            let removed = menu.jarmods.mods.remove(i);
+                            menu.jarmods.mods.insert(i + 1, removed);
                         }
                         _ => {}
                     }
@@ -727,12 +757,7 @@ async fn delete_file_wrapper(path: PathBuf) -> Result<(), String> {
 }
 
 impl MenuEditMods {
-    pub fn select_mod(
-        &mut self,
-        selected_mod: SelectedMod,
-        pressed_ctrl: bool,
-        pressed_shift: bool,
-    ) {
+    fn select_mod(&mut self, selected_mod: SelectedMod, pressed_ctrl: bool, pressed_shift: bool) {
         self.modal = None;
 
         match (pressed_ctrl, pressed_shift) {

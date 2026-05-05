@@ -31,11 +31,11 @@ pub struct SidebarWalker<'a> {
     shift_pressed: bool,
     op: InstSelectOperation,
 
-    pub state: WalkState,
+    state: WalkState,
 
     current_selected_idx: usize,
-    pub next_selected_idx: usize,
-    pub total_len: usize,
+    next_selected_idx: usize,
+    total_len: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -46,7 +46,7 @@ pub enum WalkState {
 }
 
 impl<'a> SidebarWalker<'a> {
-    pub fn new(
+    fn new(
         selected_instance: &'a mut Option<Instance>,
         shift_pressed: bool,
         op: InstSelectOperation,
@@ -62,7 +62,7 @@ impl<'a> SidebarWalker<'a> {
         }
     }
 
-    pub fn walk(&mut self, nodes: &mut [SidebarNode]) {
+    fn walk(&mut self, nodes: &mut [SidebarNode]) {
         if nodes.is_empty() {
             return;
         }

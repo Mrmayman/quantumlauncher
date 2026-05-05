@@ -21,37 +21,37 @@ use super::PackError;
 
 #[derive(Deserialize)]
 pub struct PackIndex {
-    pub minecraft: PackMinecraft,
-    pub name: String,
-    pub files: Vec<PackFile>,
+    minecraft: PackMinecraft,
+    name: String,
+    files: Vec<PackFile>,
     pub overrides: String,
 }
 
 #[derive(Deserialize)]
 #[allow(non_snake_case)]
 pub struct PackMinecraft {
-    pub version: String,
-    pub modLoaders: Vec<PackLoader>,
+    version: String,
+    modLoaders: Vec<PackLoader>,
     // No one asked for your recommendation bro:
     // pub recommendedRam: usize
 }
 
 #[derive(Deserialize)]
 pub struct PackLoader {
-    pub id: String,
+    id: String,
     // pub primary: bool,
 }
 
 #[derive(Deserialize)]
 #[allow(non_snake_case)]
 pub struct PackFile {
-    pub projectID: i32,
-    pub fileID: usize,
-    pub required: bool,
+    projectID: i32,
+    fileID: usize,
+    required: bool,
 }
 
 impl PackFile {
-    pub async fn download(
+    async fn download(
         &self,
         not_allowed: &Mutex<HashSet<CurseforgeNotAllowed>>,
         dirs: &DirStructure,

@@ -8,10 +8,7 @@ use std::{
     path::Path,
 };
 
-pub async fn delete_mods(
-    ids: Vec<ModId>,
-    instance: Instance,
-) -> Result<Vec<ModId>, ModError> {
+pub async fn delete_mods(ids: Vec<ModId>, instance: Instance) -> Result<Vec<ModId>, ModError> {
     let _guard = lock().await;
 
     if ids.is_empty() {

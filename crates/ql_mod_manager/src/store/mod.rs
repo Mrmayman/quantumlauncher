@@ -1,9 +1,7 @@
 use std::{collections::HashSet, path::PathBuf, sync::mpsc::Sender};
 
 use chrono::DateTime;
-use ql_core::{
-    GenericProgress, Instance, IntoIoError, Loader, do_jobs, json::VersionDetails, pt,
-};
+use ql_core::{GenericProgress, Instance, IntoIoError, Loader, do_jobs, json::VersionDetails, pt};
 
 mod add_file;
 mod curseforge;
@@ -306,7 +304,7 @@ struct DirStructure {
 }
 
 impl DirStructure {
-    pub async fn new(
+    async fn new(
         instance_name: &Instance,
         version_json: &VersionDetails,
     ) -> Result<Self, ModError> {
@@ -349,7 +347,7 @@ impl DirStructure {
         })
     }
 
-    pub fn get(&self, query_type: QueryType) -> Result<PathBuf, PackError> {
+    fn get(&self, query_type: QueryType) -> Result<PathBuf, PackError> {
         Ok(match query_type {
             QueryType::DataPacks => self.data_packs.clone(),
             QueryType::ResourcePacks => self.resource_packs.clone(),

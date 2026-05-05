@@ -125,6 +125,12 @@ impl Launcher {
             Task::none()
         };
 
+        let presence_task = if launcher.config.c_rpc_enabled() {
+            launcher.start_discord_ipc_run()
+        } else {
+            Task::none()
+        };
+
         (
             launcher,
             Task::batch([
@@ -132,6 +138,7 @@ impl Launcher {
                 Task::perform(get_entries(InstanceKind::Client), Message::CoreListLoaded),
                 Task::perform(get_entries(InstanceKind::Server), Message::CoreListLoaded),
                 load_notes_command,
+                presence_task,
                 Task::perform(ql_core::clean::dir("logs"), |n| {
                     Message::CoreCleanComplete(n.strerr())
                 }),
