@@ -11,7 +11,7 @@ use crate::{
         DISCORD, Element, button_with_icon, center_x, get_mode_selector, onboarding::x86_warning,
         settings::get_theme_selector, tsubtitle,
     },
-    state::{AccountMessage, MainMenuMessage, MenuWelcome, Message},
+    state::{AccountMessage, MainMenuMessage, MenuWelcome, Message, RpcMessage},
 };
 
 use super::IMG_LOGO;
@@ -63,6 +63,16 @@ impl MenuWelcome {
                 .width(350)
                 .spacing(10),
                 widget::Space::with_height(5),
+                column![
+                    widget::toggler(config.c_rpc_enabled())
+                        .label("Enable Discord Rich Presence")
+                        .on_toggle(|t| RpcMessage::Toggle(t).into()),
+                    widget::text("Allow others to see your gameplay activity on Discord")
+                        .size(12)
+                        .style(tsubtitle),
+                ]
+                .spacing(5),
+                widget::Space::with_height(5),
                 button_with_icon(icons::discord(), "Join our Discord", 14)
                     .padding([4, 8])
                     .on_press(Message::CoreOpenLink(DISCORD.to_owned())),
@@ -78,7 +88,6 @@ impl MenuWelcome {
                 let next = Message::MScreenOpen {
                     message: None,
                     clear_selection: true,
-                    is_server: Some(false),
                 };
                 widget::column![
                     widget::vertical_space(),

@@ -9,8 +9,9 @@ use crate::{
     config::LauncherConfig,
     icons,
     state::{
-        AccountMessage, InfoMessageKind, InstallModsMessage, LauncherSettingsMessage, LicenseTab,
-        ManageModsMessage, MenuCurseforgeManualDownload, MenuLicense, Message, ProgressBar,
+        AccountMessage, InfoMessageKind, InstallModsMessage, LauncherSettingsMessage,
+        LauncherSettingsTab, LicenseTab, ManageModsMessage, MenuCurseforgeManualDownload,
+        MenuLicense, Message, ProgressBar,
     },
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
@@ -322,7 +323,7 @@ impl crate::state::MenuLauncherUpdate {
                 button_with_icon(icons::download(), "Download", 16)
                     .on_press(Message::UpdateDownloadStart))
             )
-            .push(back_button().on_press(back_to_launch_screen(None, None)))
+            .push(back_button().on_press(back_to_launch_screen(None)))
             .push(button_with_icon(icons::globe(), "Open Website", 16)
                 .on_press(Message::CoreOpenLink(ql_core::WEBSITE.to_owned())))
             .spacing(5).wrap(),
@@ -365,9 +366,7 @@ pub fn get_mode_selector(config: &LauncherConfig) -> Element<'static> {
                 .into()
         } else {
             widget::button(row![icon, name].spacing(5))
-                .on_press(Message::LauncherSettings(
-                    LauncherSettingsMessage::ThemePicked(*n),
-                ))
+                .on_press(LauncherSettingsMessage::ThemePicked(*n).into())
                 .into()
         }
     }))
@@ -376,11 +375,10 @@ pub fn get_mode_selector(config: &LauncherConfig) -> Element<'static> {
     .into()
 }
 
-pub fn back_to_launch_screen(message: Option<InfoMessage>, is_server: Option<bool>) -> Message {
+pub fn back_to_launch_screen(message: Option<InfoMessage>) -> Message {
     Message::MScreenOpen {
         message,
         clear_selection: false,
-        is_server,
     }
 }
 
@@ -443,11 +441,7 @@ impl MenuLicense {
                 "MenuLicense:sidebar",
                 Some(
                     back_button()
-                        .on_press(Message::LauncherSettings(
-                            LauncherSettingsMessage::ChangeTab(
-                                crate::state::LauncherSettingsTab::About
-                            ),
-                        ))
+                        .on_press(LauncherSettingsMessage::Open(LauncherSettingsTab::About).into())
                         .into()
                 ),
                 LicenseTab::ALL.iter().map(|tab| {
@@ -473,7 +467,7 @@ impl MenuLicense {
 
 pub fn view_account_login<'a>() -> Element<'a> {
     column![
-        back_button().on_press(back_to_launch_screen(None, None)),
+        back_button().on_press(back_to_launch_screen(None)),
         widget::vertical_space(),
         row![
             widget::horizontal_space(),
@@ -514,7 +508,7 @@ pub fn view_error(error: &'_ str) -> Element<'_> {
         column![
             widget::text!("Error: {error}"),
             row![
-                widget::button("Back").on_press(back_to_launch_screen(None, None)),
+                widget::button("Back").on_press(back_to_launch_screen(None)),
                 widget::button("Copy Error").on_press(Message::CoreCopyError),
                 widget::button("Copy Error + Log").on_press(Message::CoreCopyLog),
                 widget::button("Join Discord for help")
@@ -532,16 +526,12 @@ pub fn view_error(error: &'_ str) -> Element<'_> {
     .into()
 }
 
-pub fn view_log_upload_result(url: &'_ str, is_server: bool) -> Element<'_> {
+pub fn view_log_upload_result(url: &'_ str) -> Element<'_> {
     column![
-        back_button().on_press(back_to_launch_screen(None, Some(is_server))),
+        back_button().on_press(back_to_launch_screen(None)),
         column![
             widget::vertical_space(),
-            widget::text(format!(
-                "{} log uploaded successfully!",
-                if is_server { "Server" } else { "Game" }
-            ))
-            .size(20),
+            widget::text("Log uploaded successfully!").size(20),
             widget::text("Your log has been uploaded to mclo.gs. You can share the link below:")
                 .size(14),
             widget::container(
@@ -643,16 +633,15 @@ fn style_button_color(
     }
 }
 
-pub fn view_changelog() -> Element<'static> {
+pub fn view_changelog(config: &LauncherConfig) -> Element<'static> {
     let back_msg = Message::MScreenOpen {
         message: None,
         clear_selection: true,
-        is_server: None,
     };
     widget::scrollable(
         widget::column!(
             button_with_icon(icons::back(), "Skip", 16).on_press(back_msg.clone()),
-            changelog(),
+            changelog(config),
             button_with_icon(icons::back(), "Continue", 16).on_press(back_msg),
         )
         .padding(10)

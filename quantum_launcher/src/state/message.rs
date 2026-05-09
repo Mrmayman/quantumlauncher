@@ -1,14 +1,18 @@
 use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
 
 use crate::{
-    config::sidebar::{FolderId, SDragLocation, SidebarSelection},
+    config::{
+        discord_rpc::{PresenceStatusDisplayType, RpcText},
+        sidebar::{FolderId, SDragLocation, SidebarSelection},
+    },
     message_handler::ForgeKind,
-    state::{InfoMessage, LaunchModal, MenuEditModsModal},
+    state::{InfoMessage, LaunchModal, MenuEditModsModal, SidebarScroll},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
+use filthy_rich::PresenceClient;
 use iced::widget::{self, scrollable::AbsoluteOffset};
 use ql_core::{
-    InstanceSelection, LaunchedProcess, ListEntry, Loader,
+    Instance, InstanceKind, LaunchedProcess, ListEntry, Loader,
     file_utils::DirItem,
     jarmod::JarMods,
     json::instance_config::{MainClassMode, PreLaunchPrefixMode},
@@ -49,15 +53,14 @@ pub enum InstallPaperMessage {
 
 #[derive(Debug, Clone)]
 pub enum CreateInstanceMessage {
-    ScreenOpen {
-        is_server: bool,
-    },
+    ScreenOpen(InstanceKind),
     SidebarResize(f32),
 
     VersionsLoaded(Res<(Vec<ListEntry>, String)>),
     VersionSelected(ListEntry),
     NameInput(String),
     ChangeAssetToggle(bool),
+    ChangeKind(InstanceKind),
 
     SearchInput(String),
     SearchSubmit,
@@ -65,11 +68,11 @@ pub enum CreateInstanceMessage {
     CategoryToggle(ql_core::ListEntryKind),
 
     Start,
-    End(Res<InstanceSelection>),
+    End(Res<Instance>),
 
     #[allow(unused)]
     Import,
-    ImportResult(Res<Option<InstanceSelection>>),
+    ImportResult(Res<Option<Instance>>),
 }
 
 #[derive(Debug, Clone)]
@@ -274,7 +277,7 @@ pub enum AccountMessage {
 
 #[derive(Debug, Clone)]
 pub enum LauncherSettingsMessage {
-    Open,
+    Open(LauncherSettingsTab),
     LoadedSystemTheme(Res<dark_light::Mode>),
     ThemePicked(LauncherThemeLightness),
     ColorSchemePicked(LauncherThemeColor),
@@ -284,9 +287,9 @@ pub enum LauncherSettingsMessage {
     UiIdleFps(f64),
     ClearJavaInstalls,
     ClearJavaInstallsConfirm,
-    ChangeTab(LauncherSettingsTab),
     DefaultMinecraftWidthChanged(String),
     DefaultMinecraftHeightChanged(String),
+    Rpc(RpcMessage),
 
     ToggleAntialiasing(bool),
     ToggleWindowSize(bool),
@@ -298,6 +301,48 @@ pub enum LauncherSettingsMessage {
 
     GlobalJavaArgs(ListMessage),
     GlobalPreLaunchPrefix(ListMessage),
+}
+
+#[derive(Debug, Clone)]
+pub enum RpcMessage {
+    RunStarted(Option<PresenceClient>),
+    Toggle(bool),
+    DefaultChanged(RpcInnerMessage),
+    TogglePresenceOnGameEvent(bool),
+    StatusDisplayTypePicked(PresenceStatusDisplayType),
+    SetName(String),
+    ToggleCompeting(bool),
+    GameOpen(RpcInnerMessage),
+    GameExit(RpcInnerMessage),
+    SetPresenceNow,
+    ResetPresence,
+}
+
+#[derive(Debug, Clone)]
+pub enum RpcInnerMessage {
+    TopText(String),
+    TopTextURL(String),
+    BottomText(String),
+    BottomTextURL(String),
+}
+
+impl RpcText {
+    pub fn apply(&mut self, msg: RpcInnerMessage) {
+        match msg {
+            RpcInnerMessage::TopText(text) => {
+                self.top_text = (!text.is_empty()).then_some(text);
+            }
+            RpcInnerMessage::TopTextURL(text) => {
+                self.top_text_url = (!text.is_empty()).then_some(text);
+            }
+            RpcInnerMessage::BottomText(text) => {
+                self.bottom_text = (!text.is_empty()).then_some(text);
+            }
+            RpcInnerMessage::BottomTextURL(text) => {
+                self.bottom_text_url = (!text.is_empty()).then_some(text);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -366,11 +411,7 @@ pub enum GameLogMessage {
 #[derive(Debug, Clone)]
 pub enum SidebarMessage {
     Resize(f32),
-    Scroll {
-        total: f32,
-        offset: f32,
-        bounds: iced::Rectangle,
-    },
+    Scroll(SidebarScroll),
     FolderRenameConfirm,
 
     NewFolder(Option<SidebarSelection>),
@@ -387,7 +428,7 @@ pub enum SidebarMessage {
 pub enum MainMenuMessage {
     ChangeTab(LaunchTab),
     Modal(Option<LaunchModal>),
-    InstanceSelected(InstanceSelection),
+    InstanceSelected(Instance),
     UsernameSet(String),
     SetInfoMessage(Option<InfoMessage>),
 }
@@ -418,6 +459,14 @@ pub enum ModDescriptionMessage {
 }
 
 #[derive(Debug, Clone)]
+pub enum LaunchMessage {
+    Start,
+    End(Res<LaunchedProcess>),
+    Kill,
+    GameExited(Res<(ExitStatus, Instance, Option<Diagnostic>)>),
+}
+
+#[derive(Debug, Clone)]
 pub enum Message {
     Nothing,
     Error(String),
@@ -427,6 +476,7 @@ pub enum Message {
     WelcomeContinueToTheme,
     WelcomeContinueToAuth,
 
+    Launch(LaunchMessage),
     Account(AccountMessage),
     CreateInstance(CreateInstanceMessage),
     EditInstance(EditInstanceMessage),
@@ -435,7 +485,6 @@ pub enum Message {
     GameLog(GameLogMessage),
     Window(WindowMessage),
     Shortcut(ShortcutMessage),
-
     ManageMods(ManageModsMessage),
     ManageJarMods(ManageJarModsMessage),
     InstallMods(InstallModsMessage),
@@ -451,12 +500,7 @@ pub enum Message {
     MScreenOpen {
         message: Option<InfoMessage>,
         clear_selection: bool,
-        is_server: Option<bool>,
     },
-    LaunchStart,
-    LaunchEnd(Res<LaunchedProcess>),
-    LaunchKill,
-    LaunchGameExited(Res<(ExitStatus, InstanceSelection, Option<Diagnostic>)>),
 
     DeleteInstanceMenu,
     DeleteInstance,
@@ -482,7 +526,7 @@ pub enum Message {
     CoreOpenPath(PathBuf),
     CoreCopyText(String),
     CoreTick,
-    CoreListLoaded(Res<(Vec<String>, bool)>),
+    CoreListLoaded(Res<(Vec<String>, InstanceKind)>),
     CoreOpenChangeLog,
     CoreOpenIntro,
     CoreEvent(iced::Event, iced::event::Status),
@@ -522,6 +566,7 @@ macro_rules! from_m {
     };
 }
 
+from_m!(Launch, LaunchMessage);
 from_m!(MainMenu, MainMenuMessage);
 from_m!(Sidebar, SidebarMessage);
 from_m!(ManageMods, ManageModsMessage);
@@ -541,3 +586,15 @@ from_m!(GameLog, GameLogMessage);
 from_m!(Window, WindowMessage);
 from_m!(Shortcut, ShortcutMessage);
 from_m!(ModDescription, ModDescriptionMessage);
+
+impl From<RpcMessage> for LauncherSettingsMessage {
+    fn from(value: RpcMessage) -> Self {
+        Self::Rpc(value)
+    }
+}
+
+impl From<RpcMessage> for Message {
+    fn from(value: RpcMessage) -> Self {
+        Self::LauncherSettings(value.into())
+    }
+}

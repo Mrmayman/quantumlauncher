@@ -1,11 +1,11 @@
 use owo_colors::{OwoColorize, Style};
 use ql_core::{
-    InstanceSelection, IntoStringError, LAUNCHER_DIR, ListEntry, Loader, OptifineUniqueVersion,
-    eeprintln, err, info,
+    Instance, InstanceKind, IntoStringError, ListEntry, Loader, OptifineUniqueVersion, eeprintln,
+    err, info,
     json::{InstanceConfigJson, VersionDetails},
 };
 use ql_mod_manager::loaders::LoaderInstallResult;
-use std::{path::PathBuf, process::exit};
+use std::{path::PathBuf, process::exit, sync::Arc};
 
 use crate::{
     cli::{QLoader, account::refresh_account, helpers::render_row},
@@ -14,7 +14,7 @@ use crate::{
 
 use super::PrintCmd;
 
-pub fn list_available_versions() {
+pub fn list_available_versions(kind: InstanceKind) {
     use std::io::Write;
 
     eeprintln!("Listing downloadable versions...");
@@ -31,13 +31,21 @@ pub fn list_available_versions() {
 
     let mut stdout = std::io::stdout().lock();
     for version in versions {
+        match kind {
+            InstanceKind::Client => {}
+            InstanceKind::Server => {
+                if !version.supports_server {
+                    continue;
+                }
+            }
+        }
         writeln!(stdout, "{version}").unwrap();
     }
 }
 
 pub fn list_instances(
     properties: Option<&[String]>,
-    is_server: bool,
+    kind: InstanceKind,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use std::fmt::Write;
 
@@ -57,15 +65,14 @@ pub fn list_instances(
 
     let runtime = tokio::runtime::Runtime::new()?;
 
-    let dirname = if is_server { "servers" } else { "instances" };
-    let (instances, _) = tokio::runtime::Runtime::new()?.block_on(get_entries(is_server))?;
+    let (instances, _) = tokio::runtime::Runtime::new()?.block_on(get_entries(kind))?;
 
     let mut cmds_name = String::new();
     let mut cmds_version = String::new();
     let mut cmds_loader = String::new();
 
     for instance in instances {
-        let instance_dir = LAUNCHER_DIR.join(dirname).join(&instance);
+        let instance_dir = kind.get_root_directory().join(&instance);
         for cmd in &cmds {
             match cmd {
                 PrintCmd::Name => {
@@ -134,21 +141,26 @@ pub async fn create_instance(
     instance_name: String,
     version: String,
     skip_assets: bool,
-    servers: bool,
+    kind: InstanceKind,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let entry = ListEntry::new(version);
-    if servers {
-        ql_servers::create_server(instance_name, entry, None).await?;
-    } else {
-        ql_instances::create_instance(instance_name, entry, None, !skip_assets).await?;
+
+    match kind {
+        InstanceKind::Client => {
+            ql_instances::create_instance(instance_name, entry, None, !skip_assets).await?;
+        }
+        InstanceKind::Server => {
+            ql_servers::create_server(instance_name, entry, None).await?;
+        }
     }
 
     Ok(())
 }
 
 pub fn delete_instance(
-    instance_name: String,
+    instance_name: &str,
     force: bool,
+    kind: InstanceKind,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !force {
         println!(
@@ -164,7 +176,7 @@ pub fn delete_instance(
         }
     }
 
-    let instance = InstanceSelection::Instance(instance_name);
+    let instance = Instance::new(instance_name, kind);
     let deleted_instance_dir = instance.get_instance_path();
     std::fs::remove_dir_all(&deleted_instance_dir)?;
     info!("Deleted instance {}", instance.get_name());
@@ -196,32 +208,35 @@ fn confirm_action() -> bool {
 }
 
 pub async fn launch_instance(
-    instance_name: String,
+    instance_name: &str,
     username: String,
     use_account: bool,
-    servers: bool,
+    kind: InstanceKind,
     show_progress: bool,
     account_type: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let account = if servers {
-        None
-    } else {
+    let account = if matches!(kind, InstanceKind::Client) {
         refresh_account(&username, use_account, show_progress, account_type).await?
+    } else {
+        None
     };
 
-    let child = if servers {
+    let instance_name = Arc::from(instance_name);
+
+    let child = match kind {
+        InstanceKind::Client => {
+            ql_instances::launch(
+                instance_name,
+                username,
+                None,
+                account.clone(),
+                None, // No global defaults in CLI mode
+                Vec::new(),
+            )
+            .await?
+        }
         // TODO: stdin input
-        ql_servers::run(instance_name.clone(), None).await?
-    } else {
-        ql_instances::launch(
-            instance_name.clone(),
-            username,
-            None,
-            account.clone(),
-            None, // No global defaults in CLI mode
-            Vec::new(),
-        )
-        .await?
+        InstanceKind::Server => ql_servers::run(instance_name, None).await?,
     };
 
     let mut censors = Vec::new();
@@ -243,11 +258,10 @@ pub async fn launch_instance(
     Ok(())
 }
 
-pub async fn loader(cmd: QLoader, servers: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn loader(cmd: QLoader, kind: InstanceKind) -> Result<(), Box<dyn std::error::Error>> {
     match cmd {
         QLoader::Info { instance } => {
-            let json =
-                InstanceConfigJson::read(&InstanceSelection::new(&instance, servers)).await?;
+            let json = InstanceConfigJson::read(&Instance::new(&instance, kind)).await?;
             println!("Kind: {}", json.mod_type);
             if let Some(info) = json.mod_type_info {
                 if let Some(version) = info.version {
@@ -282,7 +296,7 @@ pub async fn loader(cmd: QLoader, servers: bool) -> Result<(), Box<dyn std::erro
                 exit(1)
             };
 
-            let instance = InstanceSelection::new(&instance, servers);
+            let instance = Instance::new(&instance, kind);
             let mt = InstanceConfigJson::read(&instance).await?.mod_type;
 
             if mt == loader {
@@ -319,7 +333,7 @@ pub async fn loader(cmd: QLoader, servers: bool) -> Result<(), Box<dyn std::erro
             }
         }
         QLoader::Uninstall { instance } => {
-            let instance = InstanceSelection::new(&instance, servers);
+            let instance = Instance::new(&instance, kind);
             ql_mod_manager::loaders::uninstall_loader(instance).await?;
         }
     }
@@ -328,7 +342,7 @@ pub async fn loader(cmd: QLoader, servers: bool) -> Result<(), Box<dyn std::erro
 
 async fn install_optifine(
     more: Option<String>,
-    instance: InstanceSelection,
+    instance: Instance,
 ) -> Result<(), Box<dyn std::error::Error + 'static>> {
     let details = VersionDetails::load(&instance).await?;
     if details.get_id() == "b1.7.3" {
@@ -349,7 +363,7 @@ async fn install_optifine(
     };
 
     ql_mod_manager::loaders::optifine::install(
-        instance.get_name().to_owned(),
+        instance,
         PathBuf::from(more),
         None,
         None,

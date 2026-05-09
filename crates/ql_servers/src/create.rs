@@ -107,8 +107,11 @@ async fn write_config(
     server_dir: &std::path::Path,
     version_json: &VersionDetails,
 ) -> Result<(), ServerError> {
-    let server_config =
-        InstanceConfigJson::new(true, is_classic_server, VersionInfo::new(&version_json.id));
+    let server_config = InstanceConfigJson::new(
+        ql_core::InstanceKind::Server,
+        is_classic_server,
+        VersionInfo::new(&version_json.id),
+    );
     let server_config_path = server_dir.join("config.json");
     tokio::fs::write(
         &server_config_path,

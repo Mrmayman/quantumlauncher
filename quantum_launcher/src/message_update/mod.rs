@@ -7,28 +7,24 @@ use ql_mod_manager::{loaders, store};
 
 mod accounts;
 mod create_instance;
+mod discord_rpc;
 mod edit_instance;
-mod launch;
+mod main_menu;
 mod manage_mods;
 mod mod_store;
 mod presets;
 mod recommended;
+mod shortcuts;
 
 use crate::config::UiWindowDecorations;
 use crate::state::{
-    AutoSaveKind, GameLogMessage, InfoMessage, InstanceNotes, MenuLaunch, MenuModDescription,
-    ModDescriptionMessage, NotesMessage,
-};
-use crate::{
-    config::UiSettings,
-    state::{
-        self, InstallFabricMessage, InstallOptifineMessage, InstallPaperMessage, Launcher,
-        LauncherSettingsMessage, MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, Message,
-        ProgressBar, State, WindowMessage,
-    },
+    self, AutoSaveKind, GameLogMessage, InfoMessage, InstallFabricMessage, InstallOptifineMessage,
+    InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsMessage, LauncherSettingsTab,
+    MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLaunch, MenuModDescription,
+    Message, ModDescriptionMessage, NotesMessage, ProgressBar, State, WindowMessage,
 };
 
-mod shortcuts;
+pub use discord_rpc::PresenceConnectionState;
 
 pub const MSG_RESIZE: &str = "Resize your window to apply the changes.";
 
@@ -199,8 +195,7 @@ impl Launcher {
         let (p_sender, p_recv) = std::sync::mpsc::channel();
         let (j_sender, j_recv) = std::sync::mpsc::channel();
 
-        let instance = self.instance();
-        let instance_name = instance.get_name().to_owned();
+        let instance = self.instance().clone();
         debug_assert!(!instance.is_server());
 
         let optifine_unique_version =
@@ -211,7 +206,7 @@ impl Launcher {
             {
                 *optifine_unique_version
             } else {
-                block_on(OptifineUniqueVersion::get(instance))
+                block_on(OptifineUniqueVersion::get(&instance))
             };
 
         let delete_installer = if let State::InstallOptifine(MenuInstallOptifine::Choosing {
@@ -231,12 +226,11 @@ impl Launcher {
         });
 
         let installer_path = installer_path.to_owned();
-
         Task::perform(
             // OptiFine does not support servers
             // so it's safe to assume we've selected an instance.
             loaders::optifine::install(
-                instance_name,
+                instance,
                 installer_path.clone(),
                 Some(p_sender),
                 Some(j_sender),
@@ -265,8 +259,8 @@ impl Launcher {
                 self.config.ui_mode = Some(theme);
                 self.theme.lightness = theme;
             }
-            LauncherSettingsMessage::Open => {
-                self.go_to_launcher_settings();
+            LauncherSettingsMessage::Open(tab) => {
+                self.go_to_launcher_settings(tab);
             }
             LauncherSettingsMessage::ColorSchemePicked(color) => {
                 self.config.ui_theme = Some(color);
@@ -278,10 +272,7 @@ impl Launcher {
                 }
             }
             LauncherSettingsMessage::UiOpacity(opacity) => {
-                self.config
-                    .ui
-                    .get_or_insert_with(UiSettings::default)
-                    .window_opacity = opacity;
+                self.config.ui.get_or_insert_default().window_opacity = opacity;
                 self.theme.alpha = opacity;
             }
             LauncherSettingsMessage::UiScaleApply => {
@@ -292,26 +283,15 @@ impl Launcher {
             }
             LauncherSettingsMessage::UiIdleFps(fps) => {
                 debug_assert!(fps > 0.0);
-                self.config
-                    .ui
-                    .get_or_insert_with(UiSettings::default)
-                    .idle_fps = Some(fps as u64);
+                self.config.ui.get_or_insert_default().idle_fps = Some(fps as u64);
             }
             LauncherSettingsMessage::ClearJavaInstalls => {
                 self.confirm_clear_java_installs();
             }
             LauncherSettingsMessage::ClearJavaInstallsConfirm => {
                 return Task::perform(ql_instances::delete_java_installs(), |()| {
-                    Message::LauncherSettings(LauncherSettingsMessage::ChangeTab(
-                        state::LauncherSettingsTab::Game,
-                    ))
+                    LauncherSettingsMessage::Open(LauncherSettingsTab::Game).into()
                 });
-            }
-            LauncherSettingsMessage::ChangeTab(tab) => {
-                self.go_to_launcher_settings();
-                if let State::LauncherSettings(menu) = &mut self.state {
-                    menu.selected_tab = tab;
-                }
             }
             LauncherSettingsMessage::ToggleAntialiasing(t) => {
                 self.config.ui_antialiasing = Some(t);
@@ -324,17 +304,14 @@ impl Launcher {
                 persistent.selected_remembered = t;
                 if !t {
                     persistent.selected_instance = None;
-                    persistent.selected_server = None;
+                    persistent.selected_instance_kind = None;
                 }
             }
             LauncherSettingsMessage::ToggleModUpdateChangelog(t) => {
                 self.config.c_persistent().write_mod_update_changelog = t;
             }
             LauncherSettingsMessage::AfterLaunchBehaviorChanged(behavior) => {
-                self.config
-                    .ui
-                    .get_or_insert_with(UiSettings::default)
-                    .after_game_opens = behavior;
+                self.config.ui.get_or_insert_default().after_game_opens = behavior;
                 self.autosave.remove(&AutoSaveKind::LauncherConfig);
             }
             LauncherSettingsMessage::DefaultMinecraftWidthChanged(input) => {
@@ -345,10 +322,7 @@ impl Launcher {
             }
             LauncherSettingsMessage::GlobalJavaArgs(msg) => {
                 let split = self.should_split_args();
-                msg.apply(
-                    self.config.extra_java_args.get_or_insert_with(Vec::new),
-                    split,
-                );
+                msg.apply(self.config.extra_java_args.get_or_insert_default(), split);
             }
             LauncherSettingsMessage::GlobalPreLaunchPrefix(msg) => {
                 let split = self.should_split_args();
@@ -356,7 +330,7 @@ impl Launcher {
                     self.config
                         .c_global()
                         .pre_launch_prefix
-                        .get_or_insert_with(Vec::new),
+                        .get_or_insert_default(),
                     split,
                 );
             }
@@ -366,10 +340,7 @@ impl Launcher {
                 } else {
                     UiWindowDecorations::System
                 };
-                self.config
-                    .ui
-                    .get_or_insert_with(UiSettings::default)
-                    .window_decorations = decor;
+                self.config.ui.get_or_insert_default().window_decorations = decor;
             }
             LauncherSettingsMessage::LoadedSystemTheme(res) => match res {
                 Ok(mode) => {
@@ -387,11 +358,12 @@ impl Launcher {
                     err!(no_log, "while loading system theme: {err}");
                 }
             },
+            LauncherSettingsMessage::Rpc(msg) => return self.update_rpc(msg),
         }
         Task::none()
     }
 
-    pub fn should_split_args(&self) -> bool {
+    fn should_split_args(&self) -> bool {
         if let State::Launch(MenuLaunch {
             edit_instance: Some(menu),
             ..
@@ -410,17 +382,14 @@ impl Launcher {
             msg1: "delete auto-installed Java files".to_owned(),
             msg2: "They will get reinstalled automatically as needed".to_owned(),
             yes: LauncherSettingsMessage::ClearJavaInstallsConfirm.into(),
-            no: LauncherSettingsMessage::ChangeTab(state::LauncherSettingsTab::Game).into(),
+            no: LauncherSettingsMessage::Open(LauncherSettingsTab::Game).into(),
         }
     }
 
-    pub fn go_to_launcher_settings(&mut self) {
-        if let State::LauncherSettings(_) = &self.state {
-            return;
-        }
+    pub fn go_to_launcher_settings(&mut self, selected_tab: LauncherSettingsTab) {
         self.state = State::LauncherSettings(state::MenuLauncherSettings {
             temp_scale: self.config.ui_scale.unwrap_or(1.0),
-            selected_tab: state::LauncherSettingsTab::UserInterface,
+            selected_tab,
             arg_split_by_space: true,
         });
     }
@@ -503,7 +472,7 @@ impl Launcher {
                     .map(Some)
                     .and_then(move |max| iced::window::maximize(id, !max))
             }),
-            WindowMessage::ClickClose => std::process::exit(0),
+            WindowMessage::ClickClose => self.close_launcher(),
             // WindowMessage::IsMaximized(n) => {
             //     self.window_state.is_maximized = n;
             //     Task::none()

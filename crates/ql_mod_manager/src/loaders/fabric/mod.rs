@@ -4,8 +4,8 @@ use std::{
 };
 
 use ql_core::{
-    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, LAUNCHER_DIR, Loader, do_jobs,
-    download,
+    GenericProgress, Instance, InstanceKind, IntoIoError, IntoJsonError, LAUNCHER_DIR, Loader,
+    do_jobs, download,
     file_utils::exists,
     info,
     json::{FabricJSON, V_1_12_2, VersionDetails, instance_config::ModTypeInfo},
@@ -35,7 +35,7 @@ const CURSED_LEGACY_JSON: &str =
 
 pub async fn install_server(
     loader_version: String,
-    server_name: String,
+    server_name: &str,
     progress: Option<&Sender<GenericProgress>>,
     backend: BackendType,
 ) -> Result<(), FabricInstallError> {
@@ -154,7 +154,7 @@ async fn download_library(
 
 pub async fn install_client(
     loader_version: String,
-    instance_name: String,
+    instance_name: &str,
     progress: Option<&Sender<GenericProgress>>,
     backend: BackendType,
 ) -> Result<(), FabricInstallError> {
@@ -316,7 +316,7 @@ fn send_progress(
 /// - `backend` - Backend fabric implementation (Fabric/Quilt/Babric/OrnitheMC/...)
 pub async fn install(
     loader_version: Option<String>,
-    instance: InstanceSelection,
+    instance: Instance,
     progress: Option<&Sender<GenericProgress>>,
     mut backend: BackendType,
 ) -> Result<(), FabricInstallError> {
@@ -333,10 +333,9 @@ pub async fn install(
             .version
             .clone()
     };
-    match instance {
-        InstanceSelection::Instance(n) => {
-            install_client(loader_version, n, progress, backend).await
-        }
-        InstanceSelection::Server(n) => install_server(loader_version, n, progress, backend).await,
+    let name = instance.get_name();
+    match instance.kind {
+        InstanceKind::Client => install_client(loader_version, name, progress, backend).await,
+        InstanceKind::Server => install_server(loader_version, name, progress, backend).await,
     }
 }

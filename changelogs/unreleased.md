@@ -10,6 +10,11 @@
 
 TODO: Add screenshots
 
+# Discord Rich Presence
+
+- Added support for displaying your status in Discord through Rich Presence
+- Customizable, can display any text or info (game version/instance name) of your choice
+
 # UX
 
 - You can now automatically create changelogs after updating mods,
@@ -21,6 +26,13 @@ TODO: Add screenshots
 - Added option to minimize launcher on game open
 - Improved design of Launcher Settings page
 
+# Server Manager
+
+(still experimental, enable with `--enable-server-manager`)
+
+- Now servers and instances are unified in one list
+  - The list now reloads in real time if your instances change on disk
+
 # Fixes
 
 - Fixed "system theme" error spam on Raspberry Pi OS, LXDE, Openbox, etc
@@ -30,3 +42,9 @@ TODO: Add screenshots
 - Fixed mods installed through Curseforge modpacks internally being
   stored as Modrinth mods
 - Fixed Java binary not being found on Linux ARM
+- Fixed switching to server manager messing up folder organization
+- Fixed Logs tab not being updated when switching instances
+- Fixed one instance's log output showing up in another
+- Fixed up/down arrow key instance selection following creation date order
+  rather than the order shown in sidebar
+- Reduced clashing between sidebar resizing and scrollbar in main menu

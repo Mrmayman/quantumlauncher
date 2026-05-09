@@ -4,7 +4,8 @@ use std::{
 };
 
 use ql_core::{
-    GenericProgress, InstanceSelection, download, err, file_utils, info, json::VersionDetails, pt,
+    GenericProgress, Instance, InstanceConfigJson, download, err, file_utils, info,
+    json::VersionDetails, pt,
 };
 
 use crate::store::{
@@ -18,32 +19,29 @@ use super::Mod;
 
 pub struct ModDownloader<'a> {
     version: String,
-    instance: InstanceSelection,
-    pub loader: Option<&'static str>,
+    instance: Instance,
+    loader: Option<&'static str>,
     pub index: ModIndex,
 
     dirs: DirStructure,
 
     pub query_cache: HashMap<String, Mod>,
     pub not_allowed: HashSet<CurseforgeNotAllowed>,
-    pub already_installed: HashSet<String>,
+    already_installed: HashSet<String>,
     pub sender: Option<&'a Sender<GenericProgress>>,
 }
 
 impl<'a> ModDownloader<'a> {
     pub async fn new(
-        instance: InstanceSelection,
+        instance: Instance,
         sender: Option<&'a Sender<GenericProgress>>,
     ) -> Result<Self, ModError> {
         let version_json = VersionDetails::load(&instance).await?;
+        let config = InstanceConfigJson::read(&instance).await?;
 
         Ok(Self {
             version: version_json.get_id().to_owned(),
-            loader: instance
-                .get_loader()
-                .await?
-                .not_vanilla()
-                .map(|n| n.to_curseforge_num()),
+            loader: config.mod_type.not_vanilla().map(|n| n.to_curseforge_num()),
             index: ModIndex::load(&instance).await?,
             dirs: DirStructure::new(&instance, &version_json).await?,
             already_installed: HashSet::new(),
@@ -54,16 +52,13 @@ impl<'a> ModDownloader<'a> {
         })
     }
 
-    pub async fn basic(instance: InstanceSelection) -> Result<Self, ModError> {
+    pub async fn basic(instance: Instance) -> Result<Self, ModError> {
         let version_json = VersionDetails::load(&instance).await?;
+        let config = InstanceConfigJson::read(&instance).await?;
 
         Ok(Self {
             version: version_json.get_id().to_owned(),
-            loader: instance
-                .get_loader()
-                .await?
-                .not_vanilla()
-                .map(|n| n.to_curseforge_num()),
+            loader: config.mod_type.not_vanilla().map(|n| n.to_curseforge_num()),
             index: ModIndex::default(),
             dirs: DirStructure::new(&instance, &version_json).await?,
             already_installed: HashSet::new(),

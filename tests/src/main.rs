@@ -116,10 +116,10 @@ async fn try_version<'a>(
     fails: &mut Vec<(&'a str, Option<Loader>)>,
     cli: &Cli,
 ) {
-    let instance = ql_core::InstanceSelection::new(name, false);
+    let instance = ql_core::Instance::client(name);
     attempt(ql_mod_manager::loaders::uninstall_loader(instance.clone()).await);
     set_terminal(cli.verbose);
-    if !launch::launch(name.to_owned(), cli.timeout.unwrap_or(60.0), cli).await {
+    if !launch::launch(name, cli.timeout.unwrap_or(60.0), cli).await {
         fails.push((name, None));
     }
     for loader in loaders {
@@ -134,7 +134,7 @@ async fn try_version<'a>(
         }
 
         println!("Done");
-        if !launch::launch((*name).to_owned(), cli.timeout.unwrap_or(60.0), cli).await {
+        if !launch::launch(name, cli.timeout.unwrap_or(60.0), cli).await {
             fails.push((name, Some(*loader)));
         }
         set_terminal(cli.verbose);

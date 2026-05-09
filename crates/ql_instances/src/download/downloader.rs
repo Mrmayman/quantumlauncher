@@ -311,8 +311,11 @@ impl GameDownloader {
     }
 
     pub async fn create_config_json(&self) -> Result<(), DownloadError> {
-        let config_json =
-            InstanceConfigJson::new(false, false, VersionInfo::new(&self.version_json.id));
+        let config_json = InstanceConfigJson::new(
+            ql_core::InstanceKind::Client,
+            false,
+            VersionInfo::new(&self.version_json.id),
+        );
         let config_json = serde_json::to_string(&config_json).json_to()?;
 
         let config_json_path = self.instance_dir.join("config.json");

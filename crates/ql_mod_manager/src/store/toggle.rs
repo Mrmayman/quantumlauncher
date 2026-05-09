@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use ql_core::{InstanceSelection, IoError, err};
+use ql_core::{Instance, IoError, err};
 
 use crate::store::{ModId, ModIndex};
 
@@ -15,10 +15,7 @@ pub fn flip_filename(name: &str) -> String {
     }
 }
 
-pub async fn toggle_mods_local(
-    names: Vec<String>,
-    instance: InstanceSelection,
-) -> Result<(), ModError> {
+pub async fn toggle_mods_local(names: Vec<String>, instance: Instance) -> Result<(), ModError> {
     let mods_dir = instance.get_dot_minecraft_path().join("mods");
 
     for file in names {
@@ -28,7 +25,7 @@ pub async fn toggle_mods_local(
     Ok(())
 }
 
-pub async fn toggle_mods(ids: Vec<ModId>, instance: InstanceSelection) -> Result<(), ModError> {
+pub async fn toggle_mods(ids: Vec<ModId>, instance: Instance) -> Result<(), ModError> {
     let mut index = ModIndex::load(&instance).await?;
 
     let mods_dir = instance.get_dot_minecraft_path().join("mods");

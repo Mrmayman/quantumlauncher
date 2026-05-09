@@ -30,7 +30,9 @@ use iced::{Settings, Task};
 use owo_colors::OwoColorize;
 use state::{Launcher, Message, get_entries};
 
-use ql_core::{IntoStringError, JsonFileError, constants::OS_NAME, err, file_utils, info, pt};
+use ql_core::{
+    InstanceKind, IntoStringError, JsonFileError, constants::OS_NAME, err, file_utils, info, pt,
+};
 
 use crate::{
     menu_renderer::FONT_DEFAULT,
@@ -93,14 +95,24 @@ impl Launcher {
         config: Result<LauncherConfig, JsonFileError>,
     ) -> (Self, Task<Message>) {
         #[cfg(feature = "auto_update")]
-        let check_for_updates_command = Task::perform(
-            async move { launcher_update::check().await.strerr() },
-            Message::UpdateCheckResult,
-        );
+        let check_for_updates_command = {
+            let should_check = if let Ok(c) = &config {
+                c.should_update_check()
+            } else {
+                true
+            };
+            if should_check {
+                Task::perform(
+                    async move { launcher_update::check().await.strerr() },
+                    Message::UpdateCheckResult,
+                )
+            } else {
+                Task::none()
+            }
+        };
         #[cfg(not(feature = "auto_update"))]
         let check_for_updates_command = Task::none();
 
-        let get_entries_command = Task::perform(get_entries(false), Message::CoreListLoaded);
         let mut launcher =
             Launcher::load_new(is_new_user, config).unwrap_or_else(Launcher::with_error);
         // let mut launcher = Launcher::with_error("test");
@@ -113,12 +125,20 @@ impl Launcher {
             Task::none()
         };
 
+        let presence_task = if launcher.config.c_rpc_enabled() {
+            launcher.start_discord_ipc_run()
+        } else {
+            Task::none()
+        };
+
         (
             launcher,
             Task::batch([
                 check_for_updates_command,
-                get_entries_command,
+                Task::perform(get_entries(InstanceKind::Client), Message::CoreListLoaded),
+                Task::perform(get_entries(InstanceKind::Server), Message::CoreListLoaded),
                 load_notes_command,
+                presence_task,
                 Task::perform(ql_core::clean::dir("logs"), |n| {
                     Message::CoreCleanComplete(n.strerr())
                 }),
@@ -188,6 +208,7 @@ fn main() {
         .scale_factor(Launcher::scale_factor)
         .theme(Launcher::theme)
         .settings(Settings {
+            id: Some("io.github.Mrmayman.QuantumLauncher".to_owned()),
             fonts: load_fonts(),
             default_font: FONT_DEFAULT,
             antialiasing: config
@@ -207,6 +228,11 @@ fn main() {
             }),
             decorations,
             transparent: true,
+            platform_specific: iced::window::settings::PlatformSpecific {
+                #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+                application_id: "io.github.Mrmayman.QuantumLauncher".to_owned(),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .run_with(move || Launcher::new(is_new_user, config))

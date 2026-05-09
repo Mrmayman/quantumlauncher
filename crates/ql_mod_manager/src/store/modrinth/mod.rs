@@ -4,7 +4,7 @@ use chrono::DateTime;
 use download::version_sort;
 use indexmap::IndexMap;
 use info::ProjectInfo;
-use ql_core::{GenericProgress, InstanceSelection, Loader, download, pt};
+use ql_core::{GenericProgress, Instance, Loader, download, pt};
 use serde::Deserialize;
 use versions::ModVersion;
 
@@ -109,7 +109,7 @@ impl Backend for ModrinthBackend {
 
     async fn download(
         id: &str,
-        instance: &InstanceSelection,
+        instance: &Instance,
         sender: Option<Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
         let _guard = lock().await;
@@ -126,7 +126,7 @@ impl Backend for ModrinthBackend {
 
     async fn download_bulk(
         ids: &[String],
-        instance: &InstanceSelection,
+        instance: &Instance,
         ignore_incompatible: bool,
         set_manually_installed: bool,
         sender: Option<&Sender<GenericProgress>>,
@@ -234,7 +234,7 @@ impl Backend for ModrinthBackend {
 
     async fn get_info(id: &str) -> Result<SearchMod, ModError> {
         let mut info = ProjectInfo::download(id).await?;
-        info.gallery.sort_by(|a, b| a.ordering.cmp(&b.ordering));
+        info.gallery.sort_by_key(|a| a.ordering);
 
         Ok(SearchMod {
             urls: info.build_urls(),
@@ -255,7 +255,7 @@ impl Backend for ModrinthBackend {
         Ok(infos
             .into_iter()
             .map(|mut info| {
-                info.gallery.sort_by(|a, b| a.ordering.cmp(&b.ordering));
+                info.gallery.sort_by_key(|a| a.ordering);
                 SearchMod {
                     urls: info.build_urls(),
                     title: info.title,
@@ -273,7 +273,7 @@ impl Backend for ModrinthBackend {
     }
 
     async fn get_download_link(
-        instance: &InstanceSelection,
+        instance: &Instance,
         id: &str,
         query_type: QueryType,
     ) -> Result<String, ModError> {

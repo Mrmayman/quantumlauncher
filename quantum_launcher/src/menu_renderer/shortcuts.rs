@@ -35,7 +35,7 @@ impl MenuShortcut {
         widget::scrollable(
             column![
                 row![
-                    back_button().on_press(back_to_launch_screen(None, None)),
+                    back_button().on_press(back_to_launch_screen(None)),
                     widget::text("Create Launch Shortcut").size(20),
                     widget::horizontal_space(),
                     open_folder_button(),
