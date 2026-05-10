@@ -103,7 +103,7 @@ pub async fn export_modrinth_modpack(
     mod_ids: HashSet<ModId>,
     overrides: Vec<String>, // MUST BE FULL PATH!!
     instance: InstanceSelection,
-    ) {
+) {
     let index = ModIndex::load(&instance).await.unwrap();
 
     let mut urls: Vec<String> = Vec::new();
@@ -138,15 +138,16 @@ pub async fn export_modrinth_modpack(
     let config = ql_core::InstanceConfigJson::read(&instance).await;
     let loader_name = match config.as_ref().unwrap().mod_type.to_modrinth_str() {
         // Modrinth only supports these for modpacks
-        "fabric" => {"fabric-loader"},
-        "quilt" => {"quilt-loader"},
-        "forge" => {"forge"},
-        "neoforge" => {"neoforge"},
+        "fabric" => "fabric-loader",
+        "quilt" => "quilt-loader",
+        "forge" => "forge",
+        "neoforge" => "neoforge",
         _ => panic!("Unsupported loader type"),
     };
     let loader_version = config.unwrap().mod_type_info.unwrap().version;
     let mods_folder_path = instance.get_dot_minecraft_path().join("mods");
-    let override_mods_full_path_string: Vec<String> = create_override_mods_full_path(override_filenames, &mods_folder_path);
+    let override_mods_full_path_string: Vec<String> =
+        create_override_mods_full_path(override_filenames, &mods_folder_path);
 
     let full_path: Vec<PathBuf> = filenames
         .iter()
@@ -172,21 +173,28 @@ pub async fn export_modrinth_modpack(
         loader_name.to_string(),
         loader_version.unwrap(),
         minecraft_version.to_string(),
-        filenames.iter()
+        filenames
+            .iter()
             .map(|name| format!("mods/{}", name))
             .collect::<Vec<String>>(),
         sha1s,
         sha512s,
         urls,
         file_sizes,
-    ).unwrap();
+    )
+    .unwrap();
 
     let zip_path = PathBuf::from(&modpack_path)
-        .join(format!("{}.mrpack", modpack_file_name)).to_string_lossy().to_string();
+        .join(format!("{}.mrpack", modpack_file_name))
+        .to_string_lossy()
+        .to_string();
 
-    let overrides: Vec<(String, String)> = overrides_fn(override_mods_full_path_string, overrides, instance);
+    let overrides: Vec<(String, String)> =
+        overrides_fn(override_mods_full_path_string, overrides, instance);
 
-    package_format1_pack("modrinth.index".to_string(), json_data, zip_path, overrides).await.unwrap();
+    package_format1_pack("modrinth.index".to_string(), json_data, zip_path, overrides)
+        .await
+        .unwrap();
 }
 
 fn create_modrinth_index_json(
@@ -233,9 +241,8 @@ pub async fn export_curseforge_modpack(
     modpack_path: String,
     overrides: Vec<String>, // MUST BE FULL PATH!!
     icon_url: String,
-    instance: InstanceSelection
-    ) {
-
+    instance: InstanceSelection,
+) {
     let index = ModIndex::load(&instance).await.unwrap();
 
     let mut override_filenames: Vec<String> = Vec::new();
@@ -256,7 +263,7 @@ pub async fn export_curseforge_modpack(
         };
 
         if is_curseforge {
-            continue
+            continue;
         } else {
             override_filenames.push(primary_file.filename.clone());
         }
@@ -266,30 +273,34 @@ pub async fn export_curseforge_modpack(
     let minecraft_version = details.get_id().to_string();
     let config = ql_core::InstanceConfigJson::read(&instance).await;
     let loader_name = match config.as_ref().unwrap().mod_type.to_curseforge_num() {
-        "1" => {"forge"},
-        "4" => {"fabric"},
-        "5" => {"quilt"},
-        "6" => {"neoforge"},
-        "3" => {"lightloader"},
-        _ => panic!()
+        "1" => "forge",
+        "4" => "fabric",
+        "5" => "quilt",
+        "6" => "neoforge",
+        "3" => "lightloader",
+        _ => panic!(),
     };
     let loader_version = config.unwrap().mod_type_info.unwrap().version;
     let loader = loader_name.to_string() + "-" + loader_version.unwrap().as_str();
 
     let file_ids: Vec<&str> = vec!["temp"]; // TODO: get FileIds here!!
 
-    let mod_ids: Vec<String>= mod_ids
+    let mod_ids: Vec<String> = mod_ids
         .into_iter()
         .map(|map| serde_json::to_string(&map).unwrap())
         .collect();
 
     let mods_folder_path = instance.get_dot_minecraft_path().join("mods");
-    let override_mods_full_path_string: Vec<String> = create_override_mods_full_path(override_filenames, &mods_folder_path);
+    let override_mods_full_path_string: Vec<String> =
+        create_override_mods_full_path(override_filenames, &mods_folder_path);
 
     let zip_path = PathBuf::from(&modpack_path)
-        .join(format!("{}.zip", modpack_file_name)).to_string_lossy().to_string();
+        .join(format!("{}.zip", modpack_file_name))
+        .to_string_lossy()
+        .to_string();
 
-    let overrides: Vec<(String, String)> = overrides_fn(override_mods_full_path_string, overrides, instance);
+    let overrides: Vec<(String, String)> =
+        overrides_fn(override_mods_full_path_string, overrides, instance);
 
     let json_data = write_curseforge_manifest_json(
         mod_ids,
@@ -299,12 +310,13 @@ pub async fn export_curseforge_modpack(
         modpack_name,
         loader,
         minecraft_version,
-        icon_url
+        icon_url,
     )
     .unwrap();
 
-    package_format1_pack("manifest".to_string(), json_data, zip_path, overrides).await.unwrap();
-
+    package_format1_pack("manifest".to_string(), json_data, zip_path, overrides)
+        .await
+        .unwrap();
 }
 
 fn write_curseforge_manifest_json(
@@ -315,9 +327,8 @@ fn write_curseforge_manifest_json(
     name: String,
     loader_id: String,
     version: String,
-    image: String
-    ) -> StdResult<String> {
-
+    image: String,
+) -> StdResult<String> {
     let primary = true;
 
     let files: Vec<CurseForgeFileEntry> = mod_id
@@ -333,7 +344,10 @@ fn write_curseforge_manifest_json(
     let manifest = CurseForgeModpackManifest {
         minecraft: CurseForgeMinecraftConfig {
             version,
-            mod_loaders: vec![CurseForgeModLoader { id: loader_id, primary }],
+            mod_loaders: vec![CurseForgeModLoader {
+                id: loader_id,
+                primary,
+            }],
         },
         manifest_type: "minecraftModpack".to_string(),
         manifest_version: 1,
@@ -350,7 +364,6 @@ fn write_curseforge_manifest_json(
     Ok(manifest_json)
 }
 
-
 pub async fn export_qlmp_modpack(
     author: String,
     icon: String,
@@ -361,9 +374,8 @@ pub async fn export_qlmp_modpack(
     modpack_file_name: String,
     mod_ids: HashSet<ModId>,
     overrides: Vec<String>,
-    instance: InstanceSelection
-    )  {
-
+    instance: InstanceSelection,
+) {
     let index = ModIndex::load(&instance).await.unwrap();
 
     let mut urls: Vec<String> = Vec::new();
@@ -371,7 +383,6 @@ pub async fn export_qlmp_modpack(
     let mut override_filenames: Vec<String> = Vec::new();
 
     for id in &mod_ids {
-
         let modrinth_or_curseforge = matches!(id, ModId::Modrinth(_) | ModId::Curseforge(_));
 
         let Some(config) = index.mods.get(id) else {
@@ -400,7 +411,8 @@ pub async fn export_qlmp_modpack(
     let loader_name = config.as_ref().unwrap().mod_type.to_modrinth_str();
     let loader_version = config.unwrap().mod_type_info.unwrap().version;
     let mods_folder_path = instance.get_dot_minecraft_path().join("mods");
-    let override_mods_full_path_string: Vec<String> = create_override_mods_full_path(override_filenames, &mods_folder_path);
+    let override_mods_full_path_string: Vec<String> =
+        create_override_mods_full_path(override_filenames, &mods_folder_path);
 
     let full_path: Vec<PathBuf> = filenames
         .iter()
@@ -428,7 +440,8 @@ pub async fn export_qlmp_modpack(
         author,
         modpack_summary,
         icon,
-        filenames.iter()
+        filenames
+            .iter()
             .map(|name| format!("mods/{}", name))
             .collect::<Vec<String>>(),
         sha1s,
@@ -439,14 +452,17 @@ pub async fn export_qlmp_modpack(
     .unwrap();
 
     let zip_path = PathBuf::from(&modpack_path)
-        .join(format!("{}.qlmp", modpack_file_name)).to_string_lossy().to_string();
+        .join(format!("{}.qlmp", modpack_file_name))
+        .to_string_lossy()
+        .to_string();
 
-    let overrides: Vec<(String, String)> = overrides_fn(override_mods_full_path_string, overrides, instance);
+    let overrides: Vec<(String, String)> =
+        overrides_fn(override_mods_full_path_string, overrides, instance);
 
-
-    package_format1_pack("qlmp.index".to_string(), json_data, zip_path, overrides).await.unwrap();
+    package_format1_pack("qlmp.index".to_string(), json_data, zip_path, overrides)
+        .await
+        .unwrap();
 }
-
 
 fn create_qlmp_index_json(
     format_version: u8,
@@ -463,7 +479,7 @@ fn create_qlmp_index_json(
     sha512: Vec<String>,
     links: Vec<String>,
     file_size: Vec<u64>,
-    ) -> StdResult<String> {
+) -> StdResult<String> {
     let mut loader = Map::new();
     loader.insert(loader_id.to_string(), Value::String(loader_version));
 
@@ -495,14 +511,13 @@ enum PackageError {
     Io(#[from] std::io::Error),
 }
 
-
 async fn package_format1_pack(
     //  Used for Modrinth, QLMP and CurseForge packs
     json_name: String,
     json_data: String,
     zip_path: String,
     overrides: Vec<(String, String)>,
-    ) -> Result<(), PackageError> {
+) -> Result<(), PackageError> {
     let parent_dir = Path::new(&zip_path).parent().unwrap();
     tokio::fs::create_dir_all(parent_dir).await?;
 
@@ -527,7 +542,7 @@ async fn add_file_to_zip<W: tokio::io::AsyncWrite + Unpin>(
     writer: &mut ZipFileWriter<W>,
     original_file_path: &str,
     zip_relative_path: &str,
-    ) -> Result<(), PackageError> {
+) -> Result<(), PackageError> {
     let data = read(original_file_path).await?;
     let builder = ZipEntryBuilder::new(zip_relative_path.into(), Compression::Deflate);
     writer.write_entry_whole(builder, &data).await?;
@@ -541,7 +556,7 @@ fn format_1_file_entry(
     sha512: Vec<String>,
     links: Vec<String>,
     file_size: Vec<u64>,
-    ) -> StdResult<Vec<FormatMQFileEntry>> {
+) -> StdResult<Vec<FormatMQFileEntry>> {
     let sha1: Vec<&str> = sha1.iter().map(|s| s.as_str()).collect();
     let sha512: Vec<&str> = sha512.iter().map(|s| s.as_str()).collect();
 
@@ -570,9 +585,8 @@ fn format_1_file_entry(
 fn overrides_fn(
     override_mods_full_path_string: Vec<String>,
     overrides: Vec<String>,
-    instance: InstanceSelection
-    ) -> Vec<(String, String)> {
-
+    instance: InstanceSelection,
+) -> Vec<(String, String)> {
     let overrides: Vec<(String, String)> = overrides
         .into_iter()
         .chain(override_mods_full_path_string)
@@ -609,7 +623,6 @@ fn create_override_mods_full_path(
     override_filenames: Vec<String>,
     mods_folder_path: &PathBuf,
 ) -> Vec<String> {
-
     let override_mods_full_path_string: Vec<String> = override_filenames
         .iter()
         .map(|rel_path| mods_folder_path.join(rel_path))
@@ -627,7 +640,6 @@ async fn write_modlist_json(path: PathBuf, json: &str) -> StdResult<()> {
     Ok(())
 }
 
-
 pub async fn create_modlist(
     modlist_path: PathBuf,
     mod_ids: HashSet<ModId>,
@@ -639,7 +651,6 @@ pub async fn create_modlist(
     let mut filenames: Vec<String> = Vec::new();
 
     for id in &mod_ids {
-
         let Some(config) = index.mods.get(id) else {
             continue;
         };
@@ -675,17 +686,18 @@ pub async fn create_modlist(
     }
 
     let files: Vec<FormatMQFileEntry> = format_1_file_entry(
-        filenames.iter()
+        filenames
+            .iter()
             .map(|name| format!("mods/{}", name))
             .collect::<Vec<String>>(),
         sha1s,
         sha512s,
         urls,
-        file_sizes
-    ).unwrap();
+        file_sizes,
+    )
+    .unwrap();
 
     let json_data = serde_json::to_string_pretty(&files).unwrap();
 
     write_modlist_json(modlist_path, &json_data).await.unwrap();
 }
-

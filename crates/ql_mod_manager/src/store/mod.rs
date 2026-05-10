@@ -8,6 +8,7 @@ mod add_file;
 mod curseforge;
 mod delete;
 mod error;
+mod export;
 mod id;
 pub mod image;
 mod local_json;
@@ -17,7 +18,6 @@ mod recommended;
 mod toggle;
 mod types;
 mod update;
-mod export;
 
 pub use add_file::add_files;
 pub use curseforge::CurseforgeBackend;
