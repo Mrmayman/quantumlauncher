@@ -1,6 +1,9 @@
-use windows::Win32::{
-    Foundation::{BOOL, HWND, LPARAM},
-    UI::WindowsAndMessaging::{EnumWindows, GetWindowThreadProcessId},
+use windows::{
+    Win32::{
+        Foundation::{HWND, LPARAM},
+        UI::WindowsAndMessaging::{EnumWindows, GetWindowThreadProcessId},
+    },
+    core::BOOL,
 };
 
 use crate::search::kill_proc;

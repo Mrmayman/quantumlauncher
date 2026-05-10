@@ -16,7 +16,7 @@
 
 use crate::{
     json::manifest::Version,
-    read_log::{read_logs, Diagnostic, LogLine, ReadError},
+    read_log::{Diagnostic, LogLine, ReadError, read_logs},
 };
 use futures::StreamExt;
 use json::VersionDetails;
@@ -27,9 +27,8 @@ use std::{
     fmt::{Debug, Display},
     future::Future,
     path::{Path, PathBuf},
-    pin::Pin,
     process::ExitStatus,
-    sync::{mpsc::Sender, Arc, LazyLock, Mutex},
+    sync::{Arc, LazyLock, mpsc::Sender},
 };
 use tokio::process::Child;
 
@@ -41,12 +40,13 @@ pub mod file_utils;
 pub mod jarmod;
 /// JSON structs for version, instance config, Fabric, Forge, Optifine, Quilt, Neoforge, etc.
 pub mod json;
-mod loader;
 /// Logging macros.
 pub mod print;
 mod progress;
 pub mod read_log;
-mod urlcache;
+pub mod request;
+mod structs;
+pub mod urlcache;
 
 pub use crate::json::InstanceConfigJson;
 pub use constants::*;
@@ -54,11 +54,21 @@ pub use error::{
     DownloadFileError, IntoIoError, IntoJsonError, IntoStringError, IoError, JsonDownloadError,
     JsonError, JsonFileError,
 };
-pub use file_utils::{RequestError, LAUNCHER_DIR};
-pub use loader::Loader;
-pub use print::{logger_finish, LogType, LoggingState, LOGGER};
+pub use file_utils::{LAUNCHER_DIR, RequestError};
+pub use print::{LOGGER, LogType, LoggingState, logger_finish};
 pub use progress::{DownloadProgress, GenericProgress, Progress};
-pub use urlcache::url_cache_get;
+pub use request::download;
+pub use structs::{JavaVersion, Loader};
+
+pub const LAUNCHER_VERSION_NAME: &str = "0.5.1";
+
+pub const LAUNCHER_VERSION: semver::Version = semver::Version {
+    major: 0,
+    minor: 5,
+    patch: 1,
+    pre: semver::Prerelease::EMPTY,
+    build: semver::BuildMetadata::EMPTY,
+};
 
 pub static REGEX_SNAPSHOT: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\d{2}w\d*[a-zA-Z]+").unwrap());
@@ -68,7 +78,8 @@ pub const CLASSPATH_SEPARATOR: char = if cfg!(unix) { ':' } else { ';' };
 /// Redact sensitive info like username, UUID, session ID, etc.
 ///
 /// Default: `true`. Use `--no-redact-info` in CLI to set `false`.
-pub static REDACT_SENSITIVE_INFO: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(true));
+pub static REDACT_SENSITIVE_INFO: LazyLock<std::sync::Mutex<bool>> =
+    LazyLock::new(|| std::sync::Mutex::new(true));
 
 pub const WEBSITE: &str = "https://mrmayman.github.io/quantumlauncher";
 
@@ -171,7 +182,7 @@ pub async fn do_jobs_with_limit<T, E>(
 
     for result in results {
         tasks.push(result);
-        if tasks.len() > limit {
+        if tasks.len() >= limit {
             if let Some(task) = tasks.next().await {
                 outputs.push(task?);
             }
@@ -235,19 +246,28 @@ where
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub enum InstanceSelection {
-    Instance(String),
-    Server(String),
+pub struct Instance {
+    pub name: Arc<str>,
+    pub kind: InstanceKind,
 }
 
-impl InstanceSelection {
+impl Instance {
     #[must_use]
-    pub fn new(name: &str, is_server: bool) -> Self {
-        if is_server {
-            Self::Server(name.to_owned())
-        } else {
-            Self::Instance(name.to_owned())
+    pub fn new(name: &str, kind: InstanceKind) -> Self {
+        Self {
+            name: Arc::from(name),
+            kind,
         }
+    }
+
+    #[must_use]
+    pub fn client(name: &str) -> Self {
+        Self::new(name, InstanceKind::Client)
+    }
+
+    #[must_use]
+    pub fn server(name: &str) -> Self {
+        Self::new(name, InstanceKind::Server)
     }
 
     /// Gets the path where launcher-specific things are stored.
@@ -256,53 +276,58 @@ impl InstanceSelection {
     /// - Servers: `QuantumLauncher/servers/<Name>/` (identical to `dot_minecraft_path`)
     #[must_use]
     pub fn get_instance_path(&self) -> PathBuf {
-        match self {
-            Self::Instance(name) => LAUNCHER_DIR.join("instances").join(name),
-            Self::Server(name) => LAUNCHER_DIR.join("servers").join(name),
-        }
+        let name = &*self.name;
+        self.kind.get_root_directory().join(name)
     }
 
-    /// Gets the path where files used by the game itself are stored,
-    /// also called the `.minecraft` folder.
+    /// Gets the path where files used by the game itself are stored.
+    ///
+    /// For clients this is the `.minecraft` folder. It can vary,
+    /// the only requirement is that it must be equal to, or a subdirectory of,
+    /// the instance path ([`Instance::get_instance_path`]).
     ///
     /// - Instances: `QuantumLauncher/instances/<NAME>/.minecraft/`
     /// - Servers: `QuantumLauncher/servers/<NAME>/` (identical to `instance_path`)
     #[must_use]
     pub fn get_dot_minecraft_path(&self) -> PathBuf {
-        match self {
-            InstanceSelection::Instance(name) => {
-                LAUNCHER_DIR.join("instances").join(name).join(".minecraft")
-            }
-            InstanceSelection::Server(name) => LAUNCHER_DIR.join("servers").join(name),
+        let name = &*self.name;
+        match self.kind {
+            InstanceKind::Client => LAUNCHER_DIR.join("instances").join(name).join(".minecraft"),
+            InstanceKind::Server => LAUNCHER_DIR.join("servers").join(name),
         }
     }
 
     #[must_use]
     pub fn get_name(&self) -> &str {
-        match self {
-            Self::Instance(name) | Self::Server(name) => name,
-        }
+        &self.name
     }
 
     #[must_use]
-    pub fn is_server(&self) -> bool {
-        matches!(self, Self::Server(_))
+    pub const fn is_server(&self) -> bool {
+        self.kind.is_server()
     }
+}
 
-    pub fn set_name(&mut self, name: &str) {
-        match self {
-            Self::Instance(ref mut n) | Self::Server(ref mut n) => name.clone_into(n),
-        }
-    }
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum InstanceKind {
+    Server,
+    #[serde(other)]
+    Client,
+}
 
+impl InstanceKind {
     #[must_use]
-    pub fn get_pair(&self) -> (&str, bool) {
-        (self.get_name(), self.is_server())
+    pub const fn is_server(self) -> bool {
+        matches!(self, Self::Server)
     }
 
-    pub async fn get_loader(&self) -> Result<Loader, JsonFileError> {
-        let config_json = InstanceConfigJson::read(self).await?;
-        Ok(config_json.mod_type)
+    pub fn get_root_directory(&self) -> PathBuf {
+        let name = match self {
+            InstanceKind::Client => "instances",
+            InstanceKind::Server => "servers",
+        };
+        LAUNCHER_DIR.join(name)
     }
 }
 
@@ -356,7 +381,7 @@ pub enum ListEntryKind {
     Special,
 }
 
-impl std::fmt::Display for ListEntryKind {
+impl Display for ListEntryKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ListEntryKind::Release => write!(f, "Release"),
@@ -443,103 +468,6 @@ impl ListEntryKind {
             ListEntryKind::Release
         }
     }
-
-    /// Returns true if this is a "old" version category
-    #[must_use]
-    pub const fn is_old(&self) -> bool {
-        matches!(
-            self,
-            ListEntryKind::Alpha
-                | ListEntryKind::Beta
-                | ListEntryKind::Classic
-                | ListEntryKind::Preclassic
-                | ListEntryKind::Indev
-                | ListEntryKind::Infdev
-        )
-    }
-}
-
-pub const LAUNCHER_VERSION_NAME: &str = "0.5.0";
-
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ModId {
-    Modrinth(String),
-    Curseforge(String),
-}
-
-impl ModId {
-    #[must_use]
-    pub fn get_internal_id(&self) -> &str {
-        match self {
-            ModId::Modrinth(n) | ModId::Curseforge(n) => n,
-        }
-    }
-
-    #[must_use]
-    pub fn get_index_str(&self) -> String {
-        match self {
-            ModId::Modrinth(n) => n.clone(),
-            ModId::Curseforge(n) => format!("CF:{n}"),
-        }
-    }
-
-    #[must_use]
-    pub fn get_backend(&self) -> StoreBackendType {
-        match self {
-            ModId::Modrinth(_) => StoreBackendType::Modrinth,
-            ModId::Curseforge(_) => StoreBackendType::Curseforge,
-        }
-    }
-
-    #[must_use]
-    pub fn from_index_str(n: &str) -> Self {
-        if n.starts_with("CF:") {
-            ModId::Curseforge(n.strip_prefix("CF:").unwrap_or(n).to_owned())
-        } else {
-            ModId::Modrinth(n.to_owned())
-        }
-    }
-
-    #[must_use]
-    pub fn from_pair(n: &str, t: StoreBackendType) -> Self {
-        let n = n.to_owned();
-        match t {
-            StoreBackendType::Modrinth => Self::Modrinth(n),
-            StoreBackendType::Curseforge => Self::Curseforge(n),
-        }
-    }
-
-    #[must_use]
-    pub fn to_pair(self) -> (String, StoreBackendType) {
-        let backend = match self {
-            ModId::Modrinth(_) => StoreBackendType::Modrinth,
-            ModId::Curseforge(_) => StoreBackendType::Curseforge,
-        };
-
-        (self.get_internal_id().to_owned(), backend)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StoreBackendType {
-    Modrinth,
-    Curseforge,
-}
-
-#[derive(Hash, PartialEq, Eq, Clone)]
-pub enum SelectedMod {
-    Downloaded { name: String, id: ModId },
-    Local { file_name: String },
-}
-
-impl SelectedMod {
-    #[must_use]
-    pub fn from_pair(name: String, id: Option<ModId>) -> Self {
-        match id {
-            Some(id) => Self::Downloaded { name, id },
-            None => Self::Local { file_name: name },
-        }
-    }
 }
 
 /// Opens the file explorer or browser
@@ -601,7 +529,7 @@ pub enum OptifineUniqueVersion {
 
 impl OptifineUniqueVersion {
     #[must_use]
-    pub async fn get(instance: &InstanceSelection) -> Option<Self> {
+    pub async fn get(instance: &Instance) -> Option<Self> {
         VersionDetails::load(instance)
             .await
             .ok()
@@ -622,11 +550,25 @@ impl OptifineUniqueVersion {
     #[must_use]
     pub fn get_url(&self) -> (&'static str, bool) {
         match self {
-            OptifineUniqueVersion::V1_5_2 => ("https://optifine.net/adloadx?f=OptiFine_1.5.2_HD_U_D5.zip", false),
-            OptifineUniqueVersion::V1_2_5 => ("https://optifine.net/adloadx?f=OptiFine_1.5.2_HD_U_D2.zip", false),
-            OptifineUniqueVersion::B1_7_3 => ("https://b2.mcarchive.net/file/mcarchive/47df260a369eb2f79750ec24e4cfd9da93b9aac076f97a1332302974f19e6024/OptiFine_1_7_3_HD_G.zip", true),
-            OptifineUniqueVersion::B1_6_6 => ("https://optifine.net/adloadx?f=beta_OptiFog_Optimine_1.6.6.zip", false),
-            OptifineUniqueVersion::Forge => unreachable!("There isn't a direct URL for Optifine+Forge"),
+            OptifineUniqueVersion::V1_5_2 => (
+                "https://optifine.net/adloadx?f=OptiFine_1.5.2_HD_U_D5.zip",
+                false,
+            ),
+            OptifineUniqueVersion::V1_2_5 => (
+                "https://optifine.net/adloadx?f=OptiFine_1.5.2_HD_U_D2.zip",
+                false,
+            ),
+            OptifineUniqueVersion::B1_7_3 => (
+                "https://b2.mcarchive.net/file/mcarchive/47df260a369eb2f79750ec24e4cfd9da93b9aac076f97a1332302974f19e6024/OptiFine_1_7_3_HD_G.zip",
+                true,
+            ),
+            OptifineUniqueVersion::B1_6_6 => (
+                "https://optifine.net/adloadx?f=beta_OptiFog_Optimine_1.6.6.zip",
+                false,
+            ),
+            OptifineUniqueVersion::Forge => {
+                unreachable!("There isn't a direct URL for Optifine+Forge")
+            }
         }
     }
 }
@@ -681,32 +623,52 @@ pub async fn find_forge_shim_file(dir: &Path) -> Option<PathBuf> {
 
 #[derive(Debug, Clone)]
 pub struct LaunchedProcess {
-    pub child: Arc<Mutex<Child>>,
-    pub instance: InstanceSelection,
+    pub child: Arc<tokio::sync::Mutex<Child>>,
+    pub instance: Instance,
+    /// Present because Minecraft classic servers
+    /// have some special properties
+    ///
+    /// - Launched differently
+    /// - Downloaded and extracted from zip
+    /// - Don't have a stop command (?), need to be killed
     pub is_classic_server: bool,
 }
 
-type ReadLogOut = Result<(ExitStatus, InstanceSelection, Option<Diagnostic>), ReadError>;
+type ReadLogOut = Result<(ExitStatus, Instance, Option<Diagnostic>), ReadError>;
 
 impl LaunchedProcess {
+    /// Reads log output from the game process.
+    ///
+    /// Runs until the process exits, then returns exit status
+    /// and returns an optional [`Diagnostic`] (for troubleshooting common issues)
+    ///
+    /// # Arguments
+    /// - `censors`: Any strings to censor (like session id, password, etc.).
+    ///   Leave blank if not needed
+    /// - `sender`: Sender to send [`LogLine`]s to
+    ///   (pretty printed in terminal if not present)
+    ///
+    /// # Errors
+    /// - `details.json` couldn't be read or parsed into JSON
+    ///   (for checking if XML logs are used)
+    /// - Tokio *somehow* fails to read the `stdout`/`stderr`
+    /// - And many more
     #[must_use]
-    pub fn read_logs(
+    pub async fn read_logs(
         &self,
         censors: Vec<String>,
         sender: Option<Sender<LogLine>>,
-    ) -> Option<Pin<Box<dyn Future<Output = ReadLogOut> + Send>>> {
-        let mut c = self.child.lock().unwrap();
-        let (Some(stdout), Some(stderr)) = (c.stdout.take(), c.stderr.take()) else {
-            return None;
-        };
-
-        Some(Box::pin(read_logs(
-            stdout,
-            stderr,
-            self.child.clone(),
-            sender,
-            self.instance.clone(),
-            censors,
-        )))
+    ) -> Option<ReadLogOut> {
+        Some(read_logs(self.child.clone(), sender, self.instance.clone(), censors).await)
     }
+}
+
+#[must_use]
+pub fn sanitize_instance_name(mut name: String) -> String {
+    let mut disallowed = vec![
+        '/', '\\', ':', '*', '?', '"', '<', '>', '|', '\'', '\0', '\u{7F}',
+    ];
+    disallowed.extend('\u{1}'..='\u{1F}');
+    name.retain(|c| !disallowed.contains(&c));
+    name.trim().to_owned()
 }

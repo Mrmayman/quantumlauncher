@@ -65,7 +65,7 @@ jobs:
           mv "assets/freedesktop/debian" "build/DEBIAN"
           fakeroot dpkg-deb --build build dist/$PROJECT_NAME-${{ matrix.build }}.deb
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: quantum-launcher-ubuntu-${{ matrix.arch }}
           path: dist

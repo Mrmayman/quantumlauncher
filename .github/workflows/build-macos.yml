@@ -9,24 +9,27 @@ env:
   REPO_NAME: Mrmayman/quantum-launcher
   FINAL_NAME: quantum_launcher
   CARGO_TERM_COLOR: always # Tell cargo to always use colors
-  MACOSX_DEPLOYMENT_TARGET: 10.15
 
 jobs:
   dist:
     name: Dist
     runs-on: ${{ matrix.os }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: ${{ matrix.dep_target }}
     strategy:
       fail-fast: false
       matrix:
         build: [x86_64-macos, aarch64-macos]
         include:
           - build: x86_64-macos
+            dep_target: 10.15 # all pre-M1 devices
             os: macos-latest
             rust: stable
             target: x86_64-apple-darwin
             cross: false
             final_name: macos_x86_64
           - build: aarch64-macos
+            dep_target: 11 # M1 & post-M1
             os: macos-latest
             rust: stable
             target: aarch64-apple-darwin
@@ -62,7 +65,7 @@ jobs:
         shell: bash
         run: |
           mkdir dist
-          APP_DIR="build/quantum-launcher.app"
+          APP_DIR="build/QuantumLauncher.app"
           MACOS_DIR="$APP_DIR/Contents/MacOS"
           RESOURCES_DIR="$APP_DIR/Contents/Resources"
           mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
@@ -72,7 +75,7 @@ jobs:
           hdiutil create -volname "${{ env.BIN_NAME}}" -srcfolder "$APP_DIR" -ov -format UDZO "dist/${{ env.BIN_NAME }}.dmg"
 
       - name: Upload DMG
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{env.FINAL_NAME}}_${{ matrix.final_name }}
           path: dist

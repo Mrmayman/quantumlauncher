@@ -1,17 +1,17 @@
 use std::{
     path::{Path, PathBuf},
     process::Stdio,
-    sync::{mpsc::Sender, Arc, Mutex},
+    sync::{Arc, mpsc::Sender},
 };
 
 use ql_core::{
+    GenericProgress, Instance, IntoIoError, LAUNCHER_DIR, LaunchedProcess, Loader,
     find_forge_shim_file, info,
     json::{InstanceConfigJson, VersionDetails},
-    no_window, pt, GenericProgress, InstanceSelection, IntoIoError, LaunchedProcess, Loader,
-    LAUNCHER_DIR,
+    no_window, pt,
 };
-use ql_java_handler::{get_java_binary, JavaVersion};
-use tokio::process::Command;
+use ql_java_handler::{JavaVersion, get_java_binary};
+use tokio::{process::Command, sync::Mutex};
 
 use crate::ServerError;
 
@@ -35,7 +35,7 @@ use crate::ServerError;
 /// - Forge shim file (`forge-*-shim.jar`) couldn't be found
 /// - Other stuff I'm too dumb to see
 pub async fn run(
-    name: String,
+    name: Arc<str>,
     java_install_progress: Option<Sender<GenericProgress>>,
 ) -> Result<LaunchedProcess, ServerError> {
     let launcher = ServerLauncher::new(&name).await?;
@@ -74,7 +74,7 @@ pub async fn run(
     }
     Ok(LaunchedProcess {
         child: Arc::new(Mutex::new(child)),
-        instance: InstanceSelection::Server(name),
+        instance: Instance::server(&name),
         is_classic_server: launcher.is_classic_server(),
     })
 }
@@ -86,7 +86,7 @@ struct ServerLauncher {
 }
 
 impl ServerLauncher {
-    pub async fn new(name: &str) -> Result<Self, ServerError> {
+    async fn new(name: &str) -> Result<Self, ServerError> {
         let dir = LAUNCHER_DIR.join("servers").join(name);
         Ok(Self {
             version_json: VersionDetails::load_from_path(&dir).await?,
@@ -95,15 +95,15 @@ impl ServerLauncher {
         })
     }
 
-    pub fn is_neoforge(&self) -> bool {
+    fn is_neoforge(&self) -> bool {
         self.config.mod_type == Loader::Neoforge
     }
 
-    pub fn is_classic_server(&self) -> bool {
+    fn is_classic_server(&self) -> bool {
         self.config.is_classic_server.unwrap_or_default()
     }
 
-    pub async fn get_java(
+    async fn get_java(
         &self,
         java_install_progress: Option<&Sender<GenericProgress>>,
     ) -> Result<PathBuf, ServerError> {
@@ -120,9 +120,9 @@ impl ServerLauncher {
         Ok(path)
     }
 
-    pub async fn get_server_jar(&self) -> Result<PathBuf, ServerError> {
+    async fn get_server_jar(&self) -> Result<PathBuf, ServerError> {
         Ok(if let Some(custom_jar) = &self.config.custom_jar {
-            // Should I prioritise Fabric/Forge/Paper over a custom JAR?
+            // Should I prioritize Fabric/Forge/Paper over a custom JAR?
             PathBuf::from(&custom_jar.name)
         } else {
             let regular = self.dir.join("server.jar");
@@ -145,7 +145,7 @@ impl ServerLauncher {
         })
     }
 
-    pub async fn get_java_args(&self, jar: &Path) -> Result<Vec<String>, ServerError> {
+    async fn get_java_args(&self, jar: &Path) -> Result<Vec<String>, ServerError> {
         let mut java_args: Vec<String> = self.config.get_java_args(&[]);
         java_args.push(self.config.get_ram_argument());
         if self.config.mod_type == Loader::Forge {

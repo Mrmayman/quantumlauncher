@@ -4,12 +4,13 @@ use std::{
 };
 
 use ql_core::{
-    info, json::version::LibraryDownloads, IntoIoError, CLASSPATH_SEPARATOR, LAUNCHER_VERSION_NAME,
+    CLASSPATH_SEPARATOR, IntoIoError, LAUNCHER_DIR, LAUNCHER_VERSION, LAUNCHER_VERSION_NAME,
+    file_utils::exists, info, json::version::LibraryDownloads,
 };
 
-use crate::{download::GameDownloader, LAUNCHER_VERSION};
+use crate::download::GameDownloader;
 
-use super::launch::{error::GameLaunchError, GameLauncher};
+use super::launch::{GameLauncher, error::GameLaunchError};
 
 impl GameLauncher {
     pub async fn migrate_old_instances(&self) -> Result<(), GameLaunchError> {
@@ -19,6 +20,13 @@ impl GameLauncher {
 
         self.migrate_natives(&version).await?;
         self.migrate_classpath_to_relative(&version).await?;
+
+        if version <= ver(0, 5, 0) {
+            // Force it to download the new version (1.2.7),
+            // upgrading from 1.2.5
+            let old_authlib_version = LAUNCHER_DIR.join("downloads/authlib_injector.jar");
+            _ = tokio::fs::remove_file(&old_authlib_version).await;
+        }
 
         Ok(())
     }
@@ -33,7 +41,7 @@ impl GameLauncher {
     /// before the version value gets overwritten.
     async fn migrate_get_version(&self) -> Result<semver::Version, GameLaunchError> {
         let launcher_version_path = self.instance_dir.join("launcher_version.txt");
-        let mut version = if launcher_version_path.exists() {
+        let mut version = if exists(&launcher_version_path).await {
             tokio::fs::read_to_string(&launcher_version_path)
                 .await
                 .path(&launcher_version_path)?
@@ -72,7 +80,7 @@ impl GameLauncher {
         let v0_4_0 = ver(0, 4, 0);
 
         let c_path = self.instance_dir.join("forge/classpath.txt");
-        if !c_path.exists() {
+        if !exists(&c_path).await {
             return Ok(()); // Forge isn't installed
         }
 

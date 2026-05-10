@@ -1,4 +1,4 @@
-use iced::{widget, Alignment, Length};
+use iced::{Alignment, Length, widget};
 
 use crate::{
     icons,
@@ -6,7 +6,7 @@ use crate::{
     state::{AccountMessage, MenuLoginAlternate, MenuLoginMS, Message, NEW_ACCOUNT_NAME},
 };
 
-use super::{back_button, button_with_icon, center_x, Element};
+use super::{Element, back_button, button_with_icon, center_x};
 
 impl MenuLoginAlternate {
     pub fn view(&'_ self, tick_timer: usize) -> Element<'_> {
@@ -21,8 +21,10 @@ impl MenuLoginAlternate {
                     .padding(8)
                     .into()
             } else {
-                widget::column![button_with_icon(icons::checkmark(), "Login", 16)
-                    .on_press(Message::Account(AccountMessage::AltLogin))]
+                widget::column![
+                    button_with_icon(icons::checkmark(), "Login", 16)
+                        .on_press(AccountMessage::AltLogin.into())
+                ]
                 .align_x(Alignment::Center)
                 .push_maybe(self.is_littleskin.then_some(
                     widget::button("Login with OAuth").on_press(Message::Account(
@@ -42,7 +44,7 @@ impl MenuLoginAlternate {
 
         let password_input = widget::text_input("Enter Password...", &self.password)
             .padding(padding)
-            .on_input(|n| Message::Account(AccountMessage::AltPasswordInput(n)));
+            .on_input(|n| AccountMessage::AltPasswordInput(n).into());
         let password_input = if self.password.is_empty() || self.show_password {
             password_input
         } else {
@@ -53,7 +55,7 @@ impl MenuLoginAlternate {
             back_button().on_press(if self.is_from_welcome_screen {
                 Message::WelcomeContinueToAuth
             } else {
-                Message::Account(AccountMessage::Selected(NEW_ACCOUNT_NAME.to_owned()))
+                AccountMessage::Selected(NEW_ACCOUNT_NAME.to_owned()).into()
             }),
             widget::column![
                 widget::text(if self.is_littleskin {
@@ -67,14 +69,14 @@ impl MenuLoginAlternate {
                 center_x(
                     widget::text_input("Enter Username/Email...", &self.username)
                         .padding(padding)
-                        .on_input(|n| Message::Account(AccountMessage::AltUsernameInput(n)))
+                        .on_input(|n| AccountMessage::AltUsernameInput(n).into())
                 ),
                 widget::row![
                     widget::text("Password:").size(12),
                     widget::checkbox("Show", self.show_password)
                         .size(12)
                         .text_size(12)
-                        .on_toggle(|t| Message::Account(AccountMessage::AltShowPassword(t))),
+                        .on_toggle(|t| AccountMessage::AltShowPassword(t).into()),
                 ]
                 .spacing(16),
                 center_x(password_input),
@@ -84,7 +86,7 @@ impl MenuLoginAlternate {
                             widget::text("OTP:").size(12),
                             widget::text_input("Enter Username/Email...", otp)
                                 .padding(padding)
-                                .on_input(|n| Message::Account(AccountMessage::AltOtpInput(n))),
+                                .on_input(|n| AccountMessage::AltOtpInput(n).into()),
                         ]
                         .spacing(5)
                     }))
@@ -174,7 +176,7 @@ impl MenuLoginMS {
             back_button().on_press(if self.is_from_welcome_screen {
                 Message::WelcomeContinueToAuth
             } else {
-                Message::Account(AccountMessage::Selected(NEW_ACCOUNT_NAME.to_owned()))
+                AccountMessage::Selected(NEW_ACCOUNT_NAME.to_owned()).into()
             }),
             widget::row!(
                 widget::horizontal_space(),

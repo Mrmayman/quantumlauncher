@@ -1,4 +1,4 @@
-use ql_core::{file_utils, pt, DownloadFileError, IntoIoError, LAUNCHER_DIR};
+use ql_core::{DownloadFileError, IntoIoError, LAUNCHER_DIR, download, pt};
 
 /// Gets the java argument to start the authlib injector.
 ///
@@ -10,7 +10,7 @@ use ql_core::{file_utils, pt, DownloadFileError, IntoIoError, LAUNCHER_DIR};
 /// and sets it up if not present, and then returns
 /// `-javaagent:YOUR_LAUNCHER_DIR/downloads/authlib_injector.jar=ely.by`
 pub async fn get_authlib_injector(url: &str) -> Result<String, DownloadFileError> {
-    const URL: &str = "https://github.com/yushijinhun/authlib-injector/releases/download/v1.2.5/authlib-injector-1.2.5.jar";
+    const URL: &str = "https://github.com/yushijinhun/authlib-injector/releases/download/v1.2.7/authlib-injector-1.2.7.jar";
 
     let dir = LAUNCHER_DIR.join("downloads");
     tokio::fs::create_dir_all(&dir).await.path(&dir)?;
@@ -18,7 +18,7 @@ pub async fn get_authlib_injector(url: &str) -> Result<String, DownloadFileError
     let path = dir.join("authlib_injector.jar");
     if !path.is_file() {
         pt!("Downloading authlib-injector...");
-        file_utils::download_file_to_path(URL, false, &path).await?;
+        download(URL).path(&path).await?;
     }
 
     Ok(format!("-javaagent:{}={url}", path.to_string_lossy()))

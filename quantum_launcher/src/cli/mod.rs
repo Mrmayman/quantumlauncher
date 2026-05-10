@@ -1,14 +1,18 @@
-use std::sync::{LazyLock, RwLock};
+use std::{
+    path::PathBuf,
+    sync::{Arc, LazyLock, RwLock},
+};
 
 use clap::{Parser, Subcommand};
 use owo_colors::{OwoColorize, Style};
-use ql_core::{err, LAUNCHER_VERSION_NAME, REDACT_SENSITIVE_INFO, WEBSITE};
+use ql_core::{InstanceKind, LAUNCHER_VERSION_NAME, REDACT_SENSITIVE_INFO, WEBSITE, err};
 
 use crate::{
     cli::helpers::render_row,
     menu_renderer::{DISCORD, GITHUB},
 };
 
+mod account;
 mod command;
 mod helpers;
 
@@ -36,6 +40,8 @@ struct Cli {
     #[arg(help = "Operate on servers, not instances")]
     #[arg(hide = true)]
     server: bool,
+    #[arg(long)]
+    dir: Option<PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -51,12 +57,21 @@ enum QSubCommand {
     },
     #[command(about = "Launches an instance")]
     Launch {
-        instance_name: String,
+        instance_name: Arc<str>,
         #[arg(help = "Username to play with")]
         username: String,
+
+        // Used by shortcuts, do not break
         #[arg(short, long, short_alias = 'a')]
         #[arg(help = "Whether to use a logged in account of the given username (if any)")]
         use_account: bool,
+        // Used by shortcuts
+        #[arg(long)]
+        show_progress: bool,
+        // Used by shortcuts
+        #[arg(long)]
+        #[arg(help = "microsoft/elyby/littleskin")]
+        account_type: Option<String>,
     },
     #[command(aliases = ["list", "list-instances"], short_flag = 'l')]
     #[command(about = "Lists installed instances")]
@@ -128,7 +143,7 @@ enum PrintCmd {
 
 /// Prints the "intro" to the screen
 /// consisting of the **ASCII art logo**, as well as
-/// **stylised text saying `QuantumLauncher`**
+/// **stylized text saying `QuantumLauncher`**
 ///
 /// The actual data is `include_str!()`ed from
 /// - `assets/ascii/icon.txt` for the ASCII art
@@ -186,13 +201,26 @@ fn get_right_text() -> String {
     message
 }
 
-pub fn start_cli(is_dir_err: bool) {
+pub fn start_cli(is_dir_err: bool, launcher_dir: &mut Option<PathBuf>) {
     let cli = Cli::parse();
     *REDACT_SENSITIVE_INFO.lock().unwrap() = !cli.no_redact_info;
     *EXPERIMENTAL_SERVERS.write().unwrap() = cli.enable_server_manager;
     *EXPERIMENTAL_MMC_IMPORT.write().unwrap() = cli.enable_mmc_import;
+
+    if let Some(p) = &cli.dir {
+        *launcher_dir = Some(p.clone());
+        // Safety: Other threads will not write to this right now
+        unsafe { std::env::set_var("QLDIR", p) };
+    }
+
+    let kind = if cli.server {
+        InstanceKind::Server
+    } else {
+        InstanceKind::Client
+    };
+
     if let Some(subcommand) = cli.command {
-        if is_dir_err {
+        if is_dir_err && cli.dir.is_none() {
             std::process::exit(1);
         }
         let runtime = tokio::runtime::Runtime::new().unwrap();
@@ -207,38 +235,77 @@ pub fn start_cli(is_dir_err: bool) {
                     instance_name,
                     version,
                     skip_assets,
-                    cli.server,
+                    kind,
                 )));
             }
             QSubCommand::Launch {
                 instance_name,
                 username,
                 use_account,
+                show_progress,
+                account_type,
             } => {
-                quit(runtime.block_on(command::launch_instance(
-                    instance_name,
+                let res = runtime.block_on(command::launch_instance(
+                    &instance_name,
                     username,
                     use_account,
-                    cli.server,
-                )));
+                    kind,
+                    show_progress,
+                    account_type.as_deref(),
+                ));
+                std::process::exit(if let Err(err) = res {
+                    err!("{err}");
+                    if show_progress {
+                        let err = err.to_string();
+                        show_notification(
+                            "Error launching game",
+                            err.strip_prefix("while launching game:\n").unwrap_or(&err),
+                        );
+                    }
+                    1
+                } else {
+                    0
+                });
             }
+
             QSubCommand::ListAvailableVersions => {
-                command::list_available_versions();
+                command::list_available_versions(kind);
                 std::process::exit(0);
             }
             QSubCommand::Delete {
                 instance_name,
                 force,
-            } => quit(command::delete_instance(instance_name, force)),
+            } => quit(command::delete_instance(&instance_name, force, kind)),
             QSubCommand::ListInstalled { properties } => {
-                quit(command::list_instances(properties.as_deref(), cli.server))
+                quit(command::list_instances(properties.as_deref(), kind));
             }
             QSubCommand::Loader(cmd) => {
-                quit(runtime.block_on(command::loader(cmd, cli.server)));
+                quit(runtime.block_on(command::loader(cmd, kind)));
             }
         }
     } else {
         print_intro();
+    }
+}
+
+fn show_notification(title: &str, body: &str) {
+    #[cfg(not(target_os = "macos"))]
+    {
+        _ = notify_rust::Notification::new()
+            .summary(title)
+            .body(body)
+            .show();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        _ = std::process::Command::new("osascript")
+            .args([
+                "-e",
+                &format!("display notification {body:?} with title {title:?}"),
+                "-e",
+                "delay 5",
+            ])
+            .spawn();
     }
 }
 

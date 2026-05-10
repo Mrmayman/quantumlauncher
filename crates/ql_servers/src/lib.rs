@@ -8,7 +8,7 @@
 
 use std::path::PathBuf;
 
-use ql_core::{impl_3_errs_jri, IoError, JsonError, RequestError};
+use ql_core::{IoError, JsonError, RequestError, impl_3_errs_jri};
 use ql_java_handler::JavaInstallError;
 
 mod create;
@@ -40,6 +40,8 @@ pub enum ServerError {
         "{SERVER_ERR_PREFIX}couldn't find download field:\n(details.json).downloads.server is null"
     )]
     NoServerDownload,
+    #[error("server name is invalid (empty/disallowed characters)")]
+    InvalidName,
     #[error("A server with that name already exists!")]
     ServerAlreadyExists,
     #[error("{SERVER_ERR_PREFIX}zip extract error:\n{0}")]

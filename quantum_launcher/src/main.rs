@@ -28,9 +28,11 @@ use std::{borrow::Cow, time::Duration};
 use config::LauncherConfig;
 use iced::{Settings, Task};
 use owo_colors::OwoColorize;
-use state::{get_entries, Launcher, Message};
+use state::{Launcher, Message, get_entries};
 
-use ql_core::{constants::OS_NAME, err, file_utils, info, pt, IntoStringError, JsonFileError};
+use ql_core::{
+    InstanceKind, IntoStringError, JsonFileError, constants::OS_NAME, err, file_utils, info, pt,
+};
 
 use crate::{
     menu_renderer::FONT_DEFAULT,
@@ -65,6 +67,9 @@ mod view;
 /// (called by [`view`]).
 mod menu_renderer;
 
+/// Checking/installing app updates
+#[cfg(feature = "auto_update")]
+mod launcher_update;
 /// Handles `mclo.gs` log uploads
 mod mclog_upload;
 /// Child functions of the
@@ -73,13 +78,11 @@ mod message_handler;
 /// Handlers for "child messages".
 ///
 /// The [`Message`] enum is split into
-/// categories (like `Message::Account(AccountMessage)`).
+/// categories (like `Message::Account(AccountMessage::*)`).
 ///
 /// This module has functions for handling each of
 /// these "child messages".
 mod message_update;
-/// Handles mod store
-mod mods_store;
 /// Stylesheet definitions (launcher themes)
 mod stylesheet;
 /// Code to tick every frame
@@ -93,36 +96,55 @@ impl Launcher {
         config: Result<LauncherConfig, JsonFileError>,
     ) -> (Self, Task<Message>) {
         #[cfg(feature = "auto_update")]
-        let check_for_updates_command = Task::perform(
-            async move { ql_instances::check_for_launcher_updates().await.strerr() },
-            Message::UpdateCheckResult,
-        );
+        let check_for_updates_task = {
+            let should_check = if let Ok(c) = &config {
+                c.should_update_check()
+            } else {
+                true
+            };
+            if should_check {
+                Task::perform(
+                    async move { launcher_update::check().await.strerr() },
+                    Message::UpdateCheckResult,
+                )
+            } else {
+                Task::none()
+            }
+        };
         #[cfg(not(feature = "auto_update"))]
         let check_for_updates_command = Task::none();
 
-        let get_entries_command = Task::perform(get_entries(false), Message::CoreListLoaded);
         let mut launcher =
-            Launcher::load_new(None, is_new_user, config).unwrap_or_else(Launcher::with_error);
+            Launcher::load_new(is_new_user, config).unwrap_or_else(Launcher::with_error);
+        // let mut launcher = Launcher::with_error("test");
 
-        let load_notes_command = if let (Some(instance), State::Launch(menu)) =
+        let load_notes_task = if let (Some(instance), State::Launch(menu)) =
             (launcher.selected_instance.clone(), &mut launcher.state)
         {
             menu.reload_notes(instance)
         } else {
             Task::none()
         };
-        let accounts_load_command = Task::perform(
+        let accounts_load_task = Task::perform(
             load_all_accounts(launcher.config.accounts.clone().unwrap_or_default()),
             |n| Message::Account(AccountMessage::Initialized(n)),
         );
 
+        let presence_task = if launcher.config.c_rpc_enabled() {
+            launcher.start_discord_ipc_run()
+        } else {
+            Task::none()
+        };
+
         (
             launcher,
             Task::batch([
-                check_for_updates_command,
-                get_entries_command,
-                load_notes_command,
-                accounts_load_command,
+                check_for_updates_task,
+                Task::perform(get_entries(InstanceKind::Client), Message::CoreListLoaded),
+                Task::perform(get_entries(InstanceKind::Server), Message::CoreListLoaded),
+                load_notes_task,
+                accounts_load_task,
+                presence_task,
                 Task::perform(ql_core::clean::dir("logs"), |n| {
                     Message::CoreCleanComplete(n.strerr())
                 }),
@@ -136,10 +158,8 @@ impl Launcher {
 
     #[allow(clippy::unused_self)]
     fn subscription(&self) -> iced::Subscription<Message> {
-        let tick = iced::time::every(Duration::from_millis(
-            1000 / self.config.ui.unwrap_or_default().get_idle_fps(),
-        ))
-        .map(|_| Message::CoreTick);
+        let tick = iced::time::every(Duration::from_millis(1000 / self.tick_interval()))
+            .map(|_| Message::CoreTick);
         let events = iced::event::listen_with(|a, b, _| Some(Message::CoreEvent(a, b)));
 
         iced::Subscription::batch(vec![tick, events])
@@ -170,8 +190,8 @@ fn main() {
     let is_new_user = file_utils::is_new_user();
     // let is_new_user = true; // Uncomment to test the intro screen.
 
-    let (launcher_dir, is_dir_err) = load_launcher_dir();
-    cli::start_cli(is_dir_err);
+    let (mut launcher_dir, is_dir_err) = load_launcher_dir();
+    cli::start_cli(is_dir_err, &mut launcher_dir);
 
     info!(no_log, "Starting up the launcher... (OS: {OS_NAME})");
     if let Some(dir) = &launcher_dir {
@@ -194,6 +214,7 @@ fn main() {
         .scale_factor(Launcher::scale_factor)
         .theme(Launcher::theme)
         .settings(Settings {
+            id: Some("io.github.Mrmayman.QuantumLauncher".to_owned()),
             fonts: load_fonts(),
             default_font: FONT_DEFAULT,
             antialiasing: config
@@ -213,6 +234,11 @@ fn main() {
             }),
             decorations,
             transparent: true,
+            platform_specific: iced::window::settings::PlatformSpecific {
+                #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+                application_id: "io.github.Mrmayman.QuantumLauncher".to_owned(),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .run_with(move || Launcher::new(is_new_user, config))
@@ -270,19 +296,18 @@ fn load_fonts() -> Vec<Cow<'static, [u8]>> {
     ]
 }
 
-/// This is the only `unsafe` Rust code in the entire launcher.
-/// It tweaks Windows terminal behaviour so that:
+/// Tweaks Windows terminal behaviour so that:
 ///
 /// - If launcher is opened from terminal,
 ///   it shows output in terminal
 /// - If it's opened normally from GUI,
 ///   no terminal window pops up
 ///
-/// Basically Linux-default behaviour.
+/// Basically Linux-default behavior.
 #[cfg(windows)]
 fn attach_to_console() {
-    use windows::Win32::System::Console::AttachConsole;
     use windows::Win32::System::Console::ATTACH_PARENT_PROCESS;
+    use windows::Win32::System::Console::AttachConsole;
 
     unsafe {
         // No one cares if it fails. Ignore the `Result<()>`
@@ -333,7 +358,9 @@ fn do_migration() {
         } else if let Err(e) = file_utils::create_symlink(&new_dir, &legacy_dir) {
             eprintln!("Migration successful but couldn't create symlink to the legacy dir: {e}");
         } else {
-            ql_core::info!("Migration successful!\nYour launcher files are now in ~./local/share/QuantumLauncher");
+            println!(
+                "Migration successful!\nYour launcher files are now in ~./local/share/QuantumLauncher"
+            );
         }
     }
 }

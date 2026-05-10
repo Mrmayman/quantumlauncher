@@ -1,4 +1,6 @@
-use ql_instances::auth::AccountType;
+use std::collections::HashMap;
+
+use ql_instances::auth::{AccountData, AccountType};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -14,15 +16,12 @@ pub struct ConfigAccount {
     /// You can find someone's UUID through many online services where you
     /// input their username.
     pub uuid: String,
+
     /// Currently unimplemented, does nothing.
     pub skin: Option<String>, // TODO: Add skin visualization?
 
-    /// Type of account:
-    ///
-    /// - `"Microsoft"`
-    /// - `"ElyBy"`
-    /// - `"LittleSkin"`
-    pub account_type: Option<String>,
+    /// Type of account (default: `Microsoft`)
+    pub account_type: Option<AccountType>,
 
     /// The original login identifier used for keyring operations.
     /// This is the email address or username that was used during login.
@@ -40,18 +39,35 @@ pub struct ConfigAccount {
     /// username while the regular "username"
     /// would be an email.
     pub username_nice: Option<String>,
+
+    #[serde(flatten)]
+    _extra: HashMap<String, serde_json::Value>,
 }
 
 impl ConfigAccount {
     pub fn get_account_type(&self, display_username: &str) -> AccountType {
-        if self.account_type.as_deref() == Some("ElyBy") || display_username.ends_with(" (elyby)") {
-            AccountType::ElyBy
-        } else if self.account_type.as_deref() == Some("LittleSkin")
-            || display_username.ends_with(" (littleskin)")
-        {
-            AccountType::LittleSkin
-        } else {
-            AccountType::Microsoft
+        match self.account_type {
+            Some(AccountType::Microsoft) | None => {
+                if display_username.ends_with(" (elyby)") {
+                    AccountType::ElyBy
+                } else if display_username.ends_with(" (littleskin)") {
+                    AccountType::LittleSkin
+                } else {
+                    AccountType::Microsoft
+                }
+            }
+            Some(a @ (AccountType::LittleSkin | AccountType::ElyBy)) => a,
+        }
+    }
+
+    pub fn from_account(data: &AccountData) -> Self {
+        Self {
+            uuid: data.uuid.clone(),
+            skin: None,
+            account_type: Some(data.account_type),
+            keyring_identifier: Some(data.username.clone()),
+            username_nice: Some(data.nice_username.clone()),
+            _extra: HashMap::new(),
         }
     }
 

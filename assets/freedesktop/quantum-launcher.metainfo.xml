@@ -76,7 +76,46 @@
     </screenshots>
 
     <releases>
-        <release version="0.5.0" date="2025-05-23">
+        <release version="0.5.1" date="2025-12-30">
+            <description>
+                <ul><b
+                    >Instance folders</b>: Drag-and-drop, nesting, renaming, and more</ul>
+                <ul><b
+                    >One-click shortcuts</b>: Launch without opening the launcher</ul>
+                <ul>Many improvements and critical fixes</ul>
+            </description>
+        </release>
+
+        <release version="0.5.0" date="2025-12-30">
+            <description>
+                <ul><b
+                    >Mod loaders</b>: OptiFine + Forge together, plus legacy Fabric support</ul>
+                <ul><b
+                    >UI and themes</b>: major overhauls, polish, keyboard navigation and new themes</ul>
+                <ul><b
+                    >Experimental</b>: early Server Manager and MultiMC/PrismLauncher import</ul>
+                <ul><b
+                    >Power users</b>: global Java args, pre-launch commands, custom jar/main class</ul>
+                <ul>Lots of fixes and improvements</ul>
+            </description>
+        </release>
+
+        <release version="0.4.2" date="2025-08-19">
+            <description>
+                <ul>
+                    <li
+                    >Revamped and improved many menus, plus a new Teal theme!</li>
+                    <li>Added `ely.by` and `littleskin` account integration</li>
+                    <li
+                    >Switched to BetterJSONs and LaunchWrapper, fixing many issues</li>
+                    <li>Better CLI interface</li>
+                    <li
+                    >Many, many bug-fixes and performance improvements! (for real)</li>
+                </ul>
+            </description>
+        </release>
+
+        <release version="0.4.1" date="2025-05-23">
             <description>
                 <ul>
                     <li>Added shaders, resource packs and modpack stores</li>

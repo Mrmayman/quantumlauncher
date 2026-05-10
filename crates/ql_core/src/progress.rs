@@ -4,8 +4,8 @@ use std::fmt::Display;
 /// a Minecraft instance.
 ///
 /// # Order
-/// 1) Manifest Json
-/// 2) Version Json
+/// 1) Manifest JSON
+/// 2) Version JSON
 /// 3) Logging config
 /// 4) Jar
 /// 5) Libraries

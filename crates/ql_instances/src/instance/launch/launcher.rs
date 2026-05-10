@@ -1,23 +1,26 @@
 use crate::{
-    auth::{ms::CLIENT_ID, AccountData, AccountType},
+    auth::{AccountData, AccountType, ms::CLIENT_ID},
     download::GameDownloader,
     jarmod,
 };
 use ql_core::{
-    err, file_utils, info,
+    CLASSPATH_SEPARATOR, GenericProgress, Instance, IntoIoError, IntoJsonError, IoError,
+    JsonFileError, LAUNCHER_DIR, Loader, err,
+    file_utils::{self, exists},
+    info,
     json::{
-        forge, version::Library, FabricJSON, GlobalSettings, InstanceConfigJson, JsonOptifine,
-        VersionDetails, V_1_12_2, V_1_5_2, V_PAULSCODE_LAST, V_PRECLASSIC_LAST,
+        FabricJSON, GlobalSettings, InstanceConfigJson, JsonOptifine, V_1_5_2, V_1_12_2,
+        V_PAULSCODE_LAST, V_PRECLASSIC_LAST, VersionDetails, forge, version::Library,
     },
-    pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError, JsonFileError,
-    Loader, CLASSPATH_SEPARATOR, LAUNCHER_DIR,
+    pt,
 };
-use ql_java_handler::{get_java_binary, JavaVersion};
+use ql_java_handler::{JavaVersion, get_java_binary};
 use std::{
     collections::HashSet,
+    io::ErrorKind,
     path::{Path, PathBuf},
     process::Stdio,
-    sync::mpsc::Sender,
+    sync::{Arc, mpsc::Sender},
 };
 use tokio::process::Command;
 
@@ -25,7 +28,7 @@ use super::{error::GameLaunchError, replace_var};
 
 pub struct GameLauncher {
     username: String,
-    instance_name: String,
+    instance_name: Arc<str>,
 
     /// If Java isn't installed, it will be auto-installed by the launcher.
     /// This field allows you to send progress updates
@@ -37,9 +40,9 @@ pub struct GameLauncher {
     pub instance_dir: PathBuf,
     /// Client: `QuantumLauncher/instances/NAME/.minecraft/`
     /// Server: `QuantumLauncher/servers/NAME/`
-    pub minecraft_dir: PathBuf,
+    minecraft_dir: PathBuf,
 
-    pub config_json: InstanceConfigJson,
+    config: InstanceConfigJson,
     pub version_json: VersionDetails,
     /// Launcher-wide instance settings. These
     /// can be overridden by `config_json.global_settings`.
@@ -49,7 +52,7 @@ pub struct GameLauncher {
 
 impl GameLauncher {
     pub async fn new(
-        instance_name: String,
+        instance_name: Arc<str>,
         username: String,
         java_install_progress_sender: Option<Sender<GenericProgress>>,
         global_settings: Option<GlobalSettings>,
@@ -62,9 +65,16 @@ impl GameLauncher {
             .await
             .path(&minecraft_dir)?;
 
-        let config_json = InstanceConfigJson::read_from_dir(&instance_dir).await?;
+        let config = match InstanceConfigJson::read_from_dir(&instance_dir).await {
+            Err(JsonFileError::Io(IoError::Io { error, .. }))
+                if error.kind() == ErrorKind::NotFound =>
+            {
+                return Err(GameLaunchError::InstanceIncomplete);
+            }
+            c => c?,
+        };
 
-        let instance = InstanceSelection::Instance(instance_name.clone());
+        let instance = Instance::client(&instance_name);
         let mut version_json = VersionDetails::load(&instance).await?;
         version_json.apply_tweaks(&instance).await?;
 
@@ -74,7 +84,7 @@ impl GameLauncher {
             java_install_progress_sender,
             instance_dir,
             minecraft_dir,
-            config_json,
+            config,
             version_json,
             global_settings,
             extra_java_args,
@@ -113,9 +123,8 @@ impl GameLauncher {
 
         // Add custom resolution arguments if specified
         // Priority: Instance-specific setting > Global default > Minecraft default
-        let (width_to_use, height_to_use) = self
-            .config_json
-            .get_window_size(self.global_settings.as_ref());
+        let (width_to_use, height_to_use) =
+            self.config.get_window_size(self.global_settings.as_ref());
 
         if let Some(width) = width_to_use {
             game_arguments.push("--width".to_owned());
@@ -126,7 +135,7 @@ impl GameLauncher {
             game_arguments.push(height.to_string());
         }
 
-        game_arguments.extend(self.config_json.game_args.clone().unwrap_or_default());
+        game_arguments.extend(self.config.game_args.clone().unwrap_or_default());
 
         Ok(game_arguments)
     }
@@ -194,7 +203,7 @@ impl GameLauncher {
         let old_assets_path_v1 = self.instance_dir.join("assets");
         let assets_path = launcher_dir.join("assets/dir");
 
-        if old_assets_path_v2.exists() {
+        if exists(&old_assets_path_v2).await {
             info!("Migrating old assets to new path...");
             file_utils::copy_dir_recursive(&old_assets_path_v2, &assets_path).await?;
             tokio::fs::remove_dir_all(&old_assets_path_v2)
@@ -202,11 +211,11 @@ impl GameLauncher {
                 .path(old_assets_path_v2)?;
         }
 
-        if old_assets_path_v1.exists() {
+        if exists(&old_assets_path_v1).await {
             migrate_to_new_assets_path(&old_assets_path_v1, &assets_path).await?;
         }
 
-        let assets_path_fixed = if assets_path.exists() {
+        let assets_path_fixed = if exists(&assets_path).await {
             assets_path
         } else {
             launcher_dir.join("assets/null")
@@ -236,7 +245,7 @@ impl GameLauncher {
 
         // TODO: deal with self.version_json.arguments.jvm (currently ignored)
         let mut args: Vec<String> = self
-            .config_json
+            .config
             .get_java_args(&self.extra_java_args)
             .into_iter()
             .filter(|arg| !arg.trim().is_empty())
@@ -247,7 +256,7 @@ impl GameLauncher {
                 format!("-Djna.tmpdir={natives_path}"),
                 format!("-Dorg.lwjgl.system.SharedLibraryExtractPath={natives_path}"),
                 format!("-Dio.netty.native.workdir={natives_path}"),
-                self.config_json.get_ram_argument(),
+                self.config.get_ram_argument(),
             ])
             .collect();
 
@@ -286,7 +295,7 @@ impl GameLauncher {
 
         // Backwards compatibility with Quantum Launcher v0.3.1 - v0.4.1
         #[allow(deprecated)]
-        if self.config_json.omniarchive.is_some() {
+        if self.config.omniarchive.is_some() {
             args.push("-Dhttp.proxyHost=betacraft.uk".to_owned());
             if self.version_json.id.starts_with("c0.") {
                 // Classic
@@ -315,7 +324,7 @@ impl GameLauncher {
         java_arguments: &mut Vec<String>,
         game_arguments: &mut Vec<String>,
     ) -> Result<Option<FabricJSON>, GameLaunchError> {
-        if !matches!(self.config_json.mod_type, Loader::Fabric | Loader::Quilt) {
+        if !matches!(self.config.mod_type, Loader::Fabric | Loader::Quilt) {
             return Ok(None);
         }
 
@@ -336,7 +345,7 @@ impl GameLauncher {
         java_arguments: &mut Vec<String>,
         game_arguments: &mut Vec<String>,
     ) -> Result<Option<forge::JsonDetails>, GameLaunchError> {
-        if !matches!(self.config_json.mod_type, Loader::Forge | Loader::Neoforge) {
+        if !matches!(self.config.mod_type, Loader::Forge | Loader::Neoforge) {
             return Ok(None);
         }
         if self.version_json.is_legacy_version() && self.version_json.get_id() != "1.5.2" {
@@ -398,7 +407,7 @@ impl GameLauncher {
         &self,
         game_arguments: &mut Vec<String>,
     ) -> Result<Option<(JsonOptifine, PathBuf)>, GameLaunchError> {
-        if !matches!(self.config_json.mod_type, Loader::OptiFine) {
+        if !matches!(self.config.mod_type, Loader::OptiFine) {
             return Ok(None);
         }
 
@@ -492,11 +501,12 @@ impl GameLauncher {
         // classpath_entries is a HashSet that determines if an overridden
         // version of a library has already been loaded.
 
-        let instance = InstanceSelection::Instance(self.instance_name.clone());
+        let instance = Instance::client(&self.instance_name);
         let jar_path = jarmod::build(&instance).await?;
         debug_assert!(
             jar_path.is_file(),
-            "Minecraft JAR file should exist\nPath: {jar_path:?}"
+            "Minecraft JAR file should exist\nPath: {}",
+            jar_path.display()
         );
         let jar_path = jar_path
             .to_str()
@@ -514,13 +524,13 @@ impl GameLauncher {
         } else {
             "net.minecraft.client.main.Main"
         };
-        self.config_json
+        self.config
             .custom_jar
             .as_ref()
             .is_some_and(|n| n.autoset_main_class)
             .then(|| forced_main_class.to_owned())
             .or_else(|| {
-                self.config_json
+                self.config
                     .main_class_override
                     .clone()
                     .filter(|n| !n.is_empty())
@@ -557,7 +567,8 @@ impl GameLauncher {
                 let library_path = self.instance_dir.join("libraries").join(library.get_path());
                 debug_assert!(
                     library_path.is_file(),
-                    "Couldn't find library {library_path:?}"
+                    "Couldn't find library {}",
+                    library_path.display()
                 );
                 class_path.push_str(
                     library_path
@@ -707,7 +718,7 @@ impl GameLauncher {
             .join("libraries")
             .join(artifact.get_path());
 
-        if !library_path.exists() {
+        if !exists(&library_path).await {
             pt!("library {library_path:?} not found! Downloading...");
             if let Err(err) = downloader.download_library(library, Some(&artifact)).await {
                 err!("Couldn't download library! Skipping...\n{err}");
@@ -742,12 +753,27 @@ impl GameLauncher {
         Ok(())
     }
 
-    pub async fn get_java_command(&mut self) -> Result<(Command, PathBuf), GameLaunchError> {
-        if let Some(java_override) = self.config_json.get_java_override() {
+    async fn get_java_command(&mut self) -> Result<(Command, PathBuf), GameLaunchError> {
+        let which_java = if cfg!(target_os = "windows") && self.config.enable_logger.unwrap_or(true)
+        {
+            "javaw"
+        } else {
+            "java"
+        };
+
+        if let Some(java_override) = self.config.get_java_override() {
             info!("Java (override): {java_override:?}\n");
-            return Ok((Command::new(&java_override), java_override));
+            return Ok((
+                Command::new(
+                    ql_java_handler::find_java_bin_in_dir(which_java, &java_override).await?,
+                ),
+                java_override,
+            ));
         }
-        let version = if let Some(version) = self.version_json.javaVersion.clone() {
+
+        let version = if let Some(version) = self.config.java_override_version {
+            version.into()
+        } else if let Some(version) = self.version_json.javaVersion.clone() {
             version.into()
         } else {
             JavaVersion::Java8
@@ -755,11 +781,7 @@ impl GameLauncher {
 
         let program = get_java_binary(
             version,
-            if cfg!(target_os = "windows") && self.config_json.enable_logger.unwrap_or(true) {
-                "javaw"
-            } else {
-                "java"
-            },
+            which_java,
             self.java_install_progress_sender.take().as_ref(),
         )
         .await?;
@@ -770,7 +792,7 @@ impl GameLauncher {
     pub async fn cleanup_junk_files(&self) -> Result<(), GameLaunchError> {
         let forge_dir = self.instance_dir.join("forge");
 
-        if forge_dir.exists() {
+        if exists(&forge_dir).await {
             delete_junk_file(&forge_dir, "ClientInstaller.class").await?;
             delete_junk_file(&forge_dir, "ClientInstaller.java").await?;
             delete_junk_file(&forge_dir, "ForgeInstaller.class").await?;
@@ -793,7 +815,7 @@ impl GameLauncher {
     ) -> Result<(Command, PathBuf), GameLaunchError> {
         let (mut command, mut path) = self.get_java_command().await?;
 
-        let prefix_commands = self.config_json.build_launch_prefix(
+        let prefix_commands = self.config.build_launch_prefix(
             self.global_settings
                 .as_ref()
                 .and_then(|n| n.pre_launch_prefix.as_deref())
@@ -829,7 +851,7 @@ impl GameLauncher {
         }
 
         command.current_dir(&self.minecraft_dir);
-        if self.config_json.enable_logger.unwrap_or(true) {
+        if self.config.enable_logger.unwrap_or(true) {
             command.stdout(Stdio::piped()).stderr(Stdio::piped());
         }
 
@@ -859,7 +881,7 @@ impl GameLauncher {
 
 async fn get_instance_dir(instance_name: &str) -> Result<PathBuf, GameLaunchError> {
     if instance_name.is_empty() {
-        return Err(GameLaunchError::InstanceNotFound);
+        return Err(GameLaunchError::InstanceNotFound(String::new()));
     }
 
     let launcher_dir = &*LAUNCHER_DIR;
@@ -873,15 +895,15 @@ async fn get_instance_dir(instance_name: &str) -> Result<PathBuf, GameLaunchErro
         .path(&instances_folder_dir)?;
 
     let instance_dir = instances_folder_dir.join(instance_name);
-    if !instance_dir.exists() {
-        return Err(GameLaunchError::InstanceNotFound);
+    if !exists(&instance_dir).await {
+        return Err(GameLaunchError::InstanceNotFound(instance_name.to_owned()));
     }
     Ok(instance_dir)
 }
 
 async fn delete_junk_file(forge_dir: &Path, path: &str) -> Result<(), GameLaunchError> {
     let path = forge_dir.join(path);
-    if path.exists() {
+    if exists(&path).await {
         tokio::fs::remove_file(&path).await.path(path)?;
     }
     Ok(())

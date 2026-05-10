@@ -1,7 +1,8 @@
 [package]
 name = "quantum_launcher"
-version = "0.5.0"
-edition = "2021"
+version = "0.5.1"
+edition = "2024"
+rust-version = "1.85"
 
 authors = ["Mrmayman <navneetkrishna22@gmail.com>"]
 description = "A simple, powerful Minecraft Launcher"
@@ -37,6 +38,7 @@ ql_mod_manager.path = "../crates/ql_mod_manager"
 ql_core.path = "../crates/ql_core"
 ql_servers.path = "../crates/ql_servers"
 ql_packager.path = "../crates/ql_packager"
+ezshortcut.path = "../crates/ezshortcut"
 
 # For the GUI
 iced = { version = "0.13", default-features = false, features = [
@@ -47,40 +49,42 @@ iced = { version = "0.13", default-features = false, features = [
     "advanced",
 ] }
 # The HTML/Markdown renderer
-# There is a "0.1.0" version, but it's outdated.
-frostmark = { git = "https://github.com/Mrmayman/frostmark.git", rev = "94a4e90456fcc31479c6d58e3b3ca89c8ec5e6c4", default-features = false, features = ["markdown"] } # TOML is a terrible language
+frostmark = { version = "0.2", default-features = false, features = ["markdown"] }
 # For table widget, I don't need this
 # tabular = { git = "https://github.com/Mrmayman/tabular.git" }
 
 serde.workspace = true
 serde_json.workspace = true
+tokio.workspace = true
 cfg-if.workspace = true
 semver.workspace = true
 
-# For URL encoding in log uploads
-urlencoding = "2"
+chrono.workspace = true # Logging time/date
+paste = "1" # Icon widget macro
+rfd.workspace = true # File picker
+constcat = "0.6"
+rand = "0.10" # Instance folder unique id
 
-# For managing async tasks
-tokio.workspace = true
-# For managing the logging time/date
-chrono.workspace = true
-# For the icon widget macro
-paste = "1"
-# For the file picker
-rfd.workspace = true
+# For Discord Rich Presence management
+filthy-rich = "0.13.2"
+# Launcher Update
+thiserror.workspace = true
+zip.workspace = true
 
 # Terminal
 owo-colors.workspace = true
-clap = { version = "4", features = ["help", "derive"] }
+clap.workspace = true
 terminal_size = "0.4"
 
 # OS APIs
 notify = "8"
 open = "5.3.2"
-dark-light = "2"
+# Less dependencies than the stable one
+dark-light = { git = "https://github.com/rust-dark-light/dark-light", rev = "0f18d2fbcaa5d1c175db8aae7d53428988d7e961" }
+dirs.workspace = true
 
-# iced::widget::markdown doesn't have inline
-# HTML support, so I made my own renderer.
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+notify-rust = { version = "4", default-features = false, features = ["z-with-tokio"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows = { version = "0.61", features = ["Win32_System_Console"] }
+windows = { version = "0.62.*", features = ["Win32_System_Console"] }

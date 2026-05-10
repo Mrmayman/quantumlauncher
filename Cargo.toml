@@ -1,46 +1,43 @@
 [workspace]
 members = [
-    "quantum_launcher",
+    "crates/ql_core",
     "crates/ql_instances",
     "crates/ql_mod_manager",
-    "crates/ql_core",
     "crates/ql_servers",
-    "crates/ql_java_handler",
     "crates/ql_packager",
+    # Binaries
+    "quantum_launcher",
     "tests",
+    # Utility Libraries
+    "crates/ql_java_handler",
+    "crates/ezshortcut",
 ]
 default-members = ["quantum_launcher"]
 resolver = "2"
 
 [workspace.dependencies]
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 semver = "1"
+dirs = "6"
 
-reqwest = { version = "0.12", default-features = false, features = [
-    "json",
-    "stream",
-    "rustls-tls",
-    # Default features
-    "charset",
-    "http2",
-] }
+reqwest = { version = "0.13.*", features = ["json", "stream", "query", "form"] }
 
-tokio = { version = "1", features = ["fs", "macros", "process"] }
+tokio = { version = "1", features = ["fs", "macros", "process", "rt", "rt-multi-thread"] }
 futures = { version = "0.3", default-features = false, features = ["executor"] }
 cfg-if = "1"
 
-owo-colors = "3"
+owo-colors = "4"
 chrono = "0.4"
 thiserror = "2"
-rfd = { version = "0.15", default-features = false, features = [
+rfd = { version = "0.16.*", default-features = false, features = [
     "xdg-portal",
-    "tokio",
+    "wayland",
+    "tokio"
 ] }
 clap = { version = "4", features = ["help", "derive"] }
 
-# Note: 5.1 not used because of MSRV
-zip = { version = "5.0.1", default-features = false, features = ["deflate"] }
+zip = { version = "=7.2", default-features = false, features = ["deflate"] } # MSRV
 
 walkdir = "2.3"
 image = { version = "0.24", default-features = false, features = [

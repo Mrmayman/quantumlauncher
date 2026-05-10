@@ -1,19 +1,20 @@
+use crate::message_handler::arrow_keys::InstSelectOperation;
 use crate::message_update::MSG_RESIZE;
 use crate::state::{
-    AutoSaveKind, CreateInstanceMessage, LaunchTab, Launcher, LauncherSettingsMessage,
-    LauncherSettingsTab, MenuCreateInstance, MenuCreateInstanceChoosing, MenuEditMods,
-    MenuEditPresets, MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper,
-    MenuLauncherSettings, MenuLauncherUpdate, MenuLoginAlternate, MenuLoginMS, MenuRecommendedMods,
-    Message, State,
+    AutoSaveKind, CreateInstanceMessage, InfoMessage, LaunchMessage, LaunchTab, Launcher,
+    LauncherSettingsMessage, LauncherSettingsTab, MainMenuMessage, ManageModsMessage,
+    MenuCreateInstance, MenuCreateInstanceChoosing, MenuEditMods, MenuEditPresets,
+    MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper,
+    MenuLoginAlternate, MenuLoginMS, MenuRecommendedMods, MenuWelcome, Message, State,
 };
 use iced::{
-    keyboard::{self, key::Named, Key},
     Task,
+    keyboard::{self, Key, key::Named},
 };
 use ql_core::{
-    err,
+    Instance, err,
     jarmod::{JarMod, JarMods},
-    pt, InstanceSelection,
+    pt,
 };
 use std::ffi::OsStr;
 use std::path::Path;
@@ -24,13 +25,13 @@ impl Launcher {
             iced::Event::Window(event) => match event {
                 iced::window::Event::CloseRequested => {
                     pt!(no_log, "Closing...");
-                    std::process::exit(0);
+                    self.close_launcher();
                 }
                 iced::window::Event::Resized(size) => {
                     self.window_state.size = (size.width, size.height);
 
                     // Remember window height
-                    let window = self.config.window.get_or_insert_with(Default::default);
+                    let window = self.config.window.get_or_insert_default();
                     window.width = Some(size.width);
                     window.height = Some(size.height);
                     if window.save_window_size {
@@ -41,11 +42,10 @@ impl Launcher {
                     // after changing UI scale
                     if let State::GenericMessage(msg) = &self.state {
                         if msg == MSG_RESIZE {
-                            return self.update(Message::LauncherSettings(
-                                LauncherSettingsMessage::ChangeTab(
-                                    LauncherSettingsTab::UserInterface,
-                                ),
-                            ));
+                            return self.update(
+                                LauncherSettingsMessage::Open(LauncherSettingsTab::UserInterface)
+                                    .into(),
+                            );
                         }
                     }
                 }
@@ -131,64 +131,57 @@ impl Launcher {
                 // ========
                 // MANAGE MODS MENU
                 // ========
-                ("a", true, _, true, State::EditMods(_)) => {
-                    Message::ManageMods(crate::state::ManageModsMessage::SelectAll)
-                }
+                ("a", true, _, true, State::EditMods(_)) => ManageModsMessage::SelectAll.into(),
                 // Ctrl-F search in mods list (with toggling)
                 #[rustfmt::skip]
                 ("f", true, _, _, State::EditMods(MenuEditMods { search: Some(_), .. })) => {
-                    Message::ManageMods(crate::state::ManageModsMessage::SetSearch(None))
+                    ManageModsMessage::SetSearch(None).into()
                 },
                 ("f", true, _, _, State::EditMods(_)) => Message::Multiple(vec![
-                    Message::ManageMods(crate::state::ManageModsMessage::SetSearch(Some(
-                        String::new(),
-                    ))),
+                    ManageModsMessage::SetSearch(Some(String::new())).into(),
                     Message::CoreFocusNext,
                 ]),
 
                 // Search Action (general)
-                ("f", true, _, _, State::Create(MenuCreateInstance::Choosing { .. }))
-                | ("/", _, _, true, State::Create(MenuCreateInstance::Choosing { .. }))
-                | ("f", true, _, _, State::ModsDownload(_))
-                | ("/", _, _, true, State::ModsDownload(_)) => Message::CoreFocusNext,
+                #[rustfmt::skip]
+                ("f", true, _, _,
+                    State::Create(MenuCreateInstance::Choosing { .. }) | State::ModsDownload(_))
+                | ("/", _, _, true,
+                    State::Create(MenuCreateInstance::Choosing { .. }) | State::ModsDownload(_))
+                => Message::CoreFocusNext,
 
                 // Misc
                 ("a", true, _, true, State::EditJarMods(_)) => {
-                    Message::ManageJarMods(crate::state::ManageJarModsMessage::SelectAll)
+                    crate::state::ManageJarModsMessage::SelectAll.into()
                 }
 
                 // ========
                 // MAIN MENU
                 // ========
-                ("n", true, _, _, State::Launch(n)) => {
-                    Message::CreateInstance(CreateInstanceMessage::ScreenOpen {
-                        is_server: n.is_viewing_server,
-                    })
+                ("n", true, _, _, State::Launch(_)) => {
+                    CreateInstanceMessage::ScreenOpen(ql_core::InstanceKind::Client).into()
                 }
                 ("1", ctrl, alt, _, State::Launch(_)) if ctrl | alt => {
-                    Message::MChangeTab(LaunchTab::Buttons)
+                    MainMenuMessage::ChangeTab(LaunchTab::Buttons).into()
                 }
                 ("2", ctrl, alt, _, State::Launch(_)) if ctrl | alt => {
-                    Message::MChangeTab(LaunchTab::Edit)
+                    MainMenuMessage::ChangeTab(LaunchTab::Edit).into()
                 }
                 ("3", ctrl, alt, _, State::Launch(_)) if ctrl | alt => {
-                    Message::MChangeTab(LaunchTab::Log)
+                    MainMenuMessage::ChangeTab(LaunchTab::Log).into()
                 }
                 (",", true, _, _, State::Launch(_)) => {
-                    Message::LauncherSettings(LauncherSettingsMessage::Open)
+                    LauncherSettingsMessage::Open(LauncherSettingsTab::default()).into()
                 }
+
                 _ => Message::Nothing,
             };
             return Task::done(msg);
         } else if let State::LauncherSettings(menu) = &mut self.state {
             if let Key::Named(Named::ArrowUp) = key {
-                return Task::done(Message::LauncherSettings(
-                    LauncherSettingsMessage::ChangeTab(menu.selected_tab.prev()),
-                ));
+                return Task::done(LauncherSettingsMessage::Open(menu.selected_tab.prev()).into());
             } else if let Key::Named(Named::ArrowDown) = key {
-                return Task::done(Message::LauncherSettings(
-                    LauncherSettingsMessage::ChangeTab(menu.selected_tab.next()),
-                ));
+                return Task::done(LauncherSettingsMessage::Open(menu.selected_tab.next()).into());
             }
         } else if let State::License(menu) = &mut self.state {
             if let Key::Named(Named::ArrowUp) = key {
@@ -198,27 +191,42 @@ impl Launcher {
             }
         } else if let (State::Launch(_), true) = (&self.state, ignored) {
             if let Key::Named(Named::ArrowUp) = key {
-                return self.key_change_selected_instance(false);
+                return self.select_instance_recursive(InstSelectOperation::Up);
             } else if let Key::Named(Named::ArrowDown) = key {
-                return self.key_change_selected_instance(true);
+                return self.select_instance_recursive(InstSelectOperation::Down);
             } else if let Key::Named(Named::Enter) = key {
                 if modifiers.command() {
-                    return self.launch_start();
+                    return Task::done(LaunchMessage::Start.into());
                 }
             } else if let Key::Named(Named::Backspace) = key {
                 if modifiers.command() {
-                    return Task::done(Message::LaunchKill);
+                    return Task::done(LaunchMessage::Kill.into());
                 }
             }
         } else if let State::Create(MenuCreateInstance::Choosing(MenuCreateInstanceChoosing {
-            list: Some(_),
+            list: Ok(Some(_)),
             ..
         })) = &self.state
         {
             if let Key::Named(Named::Enter) = key {
                 if modifiers.command() {
-                    return Task::done(Message::CreateInstance(CreateInstanceMessage::Start));
+                    return Task::done(CreateInstanceMessage::Start.into());
                 }
+            }
+        } else if let State::Welcome(menu) = &mut self.state {
+            if let Key::Named(Named::Enter) = key {
+                *menu = match menu {
+                    MenuWelcome::P1InitialScreen => MenuWelcome::P2Theme,
+                    MenuWelcome::P2Theme => MenuWelcome::P3Auth,
+                    MenuWelcome::P3Auth => {
+                        return Task::done(Message::MScreenOpen {
+                            message: Some(InfoMessage::success(
+                                "Install Minecraft by clicking \"+ New\"",
+                            )),
+                            clear_selection: true,
+                        });
+                    }
+                };
             }
         }
         self.keys_pressed.insert(key);
@@ -269,7 +277,7 @@ impl Launcher {
     }
 
     fn load_jarmods_from_path(
-        selected_instance: &InstanceSelection,
+        selected_instance: &Instance,
         path: &Path,
         filename: &str,
         jarmods: &mut JarMods,
@@ -307,7 +315,6 @@ impl Launcher {
             })
             | State::Create(MenuCreateInstance::Choosing { .. })
             | State::Error { .. }
-            | State::UpdateFound(MenuLauncherUpdate { progress: None, .. })
             | State::LauncherSettings(_)
             | State::LoginMS(MenuLoginMS { .. })
             | State::AccountLogin
@@ -315,19 +322,18 @@ impl Launcher {
             | State::LoginAlternate(MenuLoginAlternate {
                 is_loading: false, ..
             })
+            | State::CreateShortcut(_)
             | State::Welcome(_) => {
                 ret_to_main_screen = true;
             }
+            #[cfg(feature = "auto_update")]
+            State::UpdateFound(crate::state::MenuLauncherUpdate { progress: None, .. }) => {
+                ret_to_main_screen = true;
+            }
+
             State::License(_) => {
                 if affect {
-                    if let State::LauncherSettings(_) = &self.state {
-                    } else {
-                        self.state = State::LauncherSettings(MenuLauncherSettings {
-                            temp_scale: self.config.ui_scale.unwrap_or(1.0),
-                            selected_tab: LauncherSettingsTab::About,
-                            arg_split_by_space: true,
-                        });
-                    }
+                    self.go_to_launcher_settings(LauncherSettingsTab::About);
                 }
                 return (true, Task::none());
             }
@@ -337,8 +343,10 @@ impl Launcher {
                 }
             }
             State::InstallOptifine(MenuInstallOptifine::Choosing { .. })
-            | State::InstallFabric(MenuInstallFabric::Loading { .. })
-            | State::InstallFabric(MenuInstallFabric::Loaded { progress: None, .. })
+            | State::InstallFabric(
+                MenuInstallFabric::Loading { .. }
+                | MenuInstallFabric::Loaded { progress: None, .. },
+            )
             | State::EditJarMods(_)
             | State::ExportMods(_)
             | State::ManagePresets(MenuEditPresets {
@@ -353,7 +361,8 @@ impl Launcher {
             )
             | State::InstallPaper(
                 MenuInstallPaper::Loading { .. } | MenuInstallPaper::Loaded { .. },
-            ) => {
+            )
+            | State::ModDescription(_) => {
                 ret_to_mods = true;
             }
             State::ModsDownload(menu) if menu.opened_mod.is_some() => {
@@ -362,12 +371,13 @@ impl Launcher {
             State::ModsDownload(menu) if menu.mods_download_in_progress.is_empty() => {
                 ret_to_mods = true;
             }
+            #[cfg(feature = "auto_update")]
+            State::UpdateFound(_) => {}
             State::InstallPaper(_)
             | State::ExportInstance(_)
             | State::InstallForge(_)
             | State::InstallJava
             | State::InstallOptifine(_)
-            | State::UpdateFound(_)
             | State::InstallFabric(_)
             | State::EditMods(_)
             | State::Create(_)
@@ -385,10 +395,10 @@ impl Launcher {
 
         if affect {
             if ret_to_main_screen {
-                return (true, self.go_to_main_menu_with_message(None::<String>));
+                return (true, self.go_to_main_menu(None));
             }
             if ret_to_mods {
-                return (true, self.go_to_edit_mods_menu(false));
+                return (true, self.go_to_edit_mods_menu(None));
             }
             if ret_to_mod_store {
                 if let State::ModsDownload(menu) = &mut self.state {
@@ -411,7 +421,7 @@ impl Launcher {
         )
     }
 
-    fn hide_submenu(&mut self) -> bool {
+    pub fn hide_submenu(&mut self) -> bool {
         if let State::EditMods(menu) = &mut self.state {
             if menu.modal.is_some() {
                 menu.modal = None;
@@ -437,81 +447,5 @@ impl Launcher {
             }
         }
         false
-    }
-
-    fn key_change_selected_instance(&mut self, down: bool) -> Task<Message> {
-        let (is_viewing_server, sidebar_height) = {
-            let State::Launch(menu) = &self.state else {
-                return Task::none();
-            };
-            (menu.is_viewing_server, menu.sidebar_scrolled)
-        };
-        let list = if is_viewing_server {
-            self.server_list.clone()
-        } else {
-            self.client_list.clone()
-        };
-
-        let Some(list) = list else {
-            return Task::none();
-        };
-
-        // If the user actually switched instances,
-        // and not hitting top/bottom of the list.
-        let mut did_scroll = false;
-
-        let idx = if let Some(selected_instance) = &mut self.selected_instance {
-            if let Some(idx) = list
-                .iter()
-                .enumerate()
-                .find_map(|(i, n)| (n == selected_instance.get_name()).then_some(i))
-            {
-                if down {
-                    if idx + 1 < list.len() {
-                        did_scroll = true;
-                        *selected_instance =
-                            InstanceSelection::new(list.get(idx + 1).unwrap(), is_viewing_server);
-                        idx + 1
-                    } else {
-                        idx
-                    }
-                } else if idx > 0 {
-                    did_scroll = true;
-                    *selected_instance =
-                        InstanceSelection::new(list.get(idx - 1).unwrap(), is_viewing_server);
-                    idx - 1
-                } else {
-                    idx
-                }
-            } else {
-                debug_assert!(
-                    false,
-                    "Selected instance {selected_instance:?}, not found in list?"
-                );
-                0
-            }
-        } else {
-            did_scroll = true;
-            self.selected_instance = list
-                .first()
-                .map(|n| InstanceSelection::new(n, is_viewing_server));
-            0
-        };
-
-        let scroll_pos = idx as f32 / (list.len() as f32 - 1.0);
-        let scroll_pos = scroll_pos * sidebar_height;
-        let scroll_task = iced::widget::scrollable::scroll_to(
-            iced::widget::scrollable::Id::new("MenuLaunch:sidebar"),
-            iced::widget::scrollable::AbsoluteOffset {
-                x: 0.0,
-                y: scroll_pos,
-            },
-        );
-
-        if did_scroll {
-            Task::batch([scroll_task, self.on_instance_selected()])
-        } else {
-            scroll_task
-        }
     }
 }

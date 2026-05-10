@@ -4,17 +4,18 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use owo_colors::OwoColorize;
 use ql_core::{
-    err, info,
+    Instance, IntoIoError, IntoJsonError, LAUNCHER_VERSION_NAME, Loader, err, info,
     json::{InstanceConfigJson, VersionDetails},
-    pt, InstanceSelection, IntoIoError, IntoJsonError, Loader, ModId, SelectedMod,
-    LAUNCHER_VERSION_NAME,
+    pt,
 };
 use serde::{Deserialize, Serialize};
 use zip::ZipWriter;
 
-use crate::store::{install_modpack, ModConfig, ModError, ModIndex};
+use crate::store::{ModConfig, ModError, ModId, ModIndex, SelectedMod, install_modpack};
 
+#[must_use]
 #[derive(Debug, Clone, Default)]
 pub struct PresetOutput {
     pub local_files: Vec<String>,
@@ -49,13 +50,14 @@ pub struct PresetOutput {
 ///   here, but rather their details should be entered in the `index.json`
 /// - All configuration files in a `config/` folder. This will be extracted
 ///   to the `.minecraft/config/` folder
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Preset {
-    pub launcher_version: String,
-    pub minecraft_version: String,
-    pub instance_type: Loader,
-    pub entries_modrinth: HashMap<String, ModConfig>,
-    pub entries_local: Vec<String>,
+    launcher_version: String,
+    minecraft_version: String,
+    instance_type: Loader,
+    #[serde(rename = "entries_modrinth")]
+    entries_downloaded: HashMap<ModId, ModConfig>,
+    entries_local: Vec<String>,
 }
 
 impl Preset {
@@ -78,7 +80,7 @@ impl Preset {
     /// the bytes of the final `.qmp` file that you can save
     /// anywhere you want.
     pub async fn generate(
-        instance: InstanceSelection,
+        instance: Instance,
         selected_mods: HashSet<SelectedMod>,
         include_config: bool,
     ) -> Result<Vec<u8>, ModError> {
@@ -91,13 +93,13 @@ impl Preset {
 
         let index = ModIndex::load(&instance).await?;
 
-        let mut entries_modrinth = HashMap::new();
+        let mut entries_downloaded = HashMap::new();
         let mut entries_local: Vec<(String, Vec<u8>)> = Vec::new();
 
         for entry in selected_mods {
             match entry {
                 SelectedMod::Downloaded { id, .. } => {
-                    add_downloaded_mod_to_entries(&mut entries_modrinth, &index, &id);
+                    add_downloaded_mod_to_entries(&mut entries_downloaded, &index, &id);
                 }
                 SelectedMod::Local { file_name } => {
                     if is_already_covered(&index, &file_name) {
@@ -115,7 +117,7 @@ impl Preset {
             instance_type,
             launcher_version: LAUNCHER_VERSION_NAME.to_owned(),
             minecraft_version,
-            entries_modrinth,
+            entries_downloaded,
             entries_local: entries_local.iter().map(|(n, _)| n).cloned().collect(),
         };
 
@@ -173,7 +175,7 @@ impl Preset {
     /// ---
     /// - And many other things I probably forgot
     pub async fn load(
-        instance: InstanceSelection,
+        instance: Instance,
         file: Vec<u8>,
         apply: bool,
     ) -> Result<PresetOutput, ModError> {
@@ -189,6 +191,8 @@ impl Preset {
 
         let index: Self = {
             let Ok(mut index) = zip.by_name("index.json") else {
+                // Else this ain't a QMP file!
+                // Install as regular modpack
                 return match install_modpack(file.clone(), instance.clone(), None)
                     .await
                     .map_err(Box::new)?
@@ -197,7 +201,9 @@ impl Preset {
                         if !n.is_empty() {
                             let incompatible =
                                 n.iter().map(|n| n.name.as_str()).collect::<Vec<_>>();
-                            err!("Curseforge has blocked downloading these mods: {incompatible:?}\n\nPlease install them manually");
+                            err!(
+                                "Curseforge has blocked downloading these mods: {incompatible:?}\n\nPlease install them manually"
+                            );
                         }
                         Ok(PresetOutput::default())
                     }
@@ -223,7 +229,9 @@ impl Preset {
                 if !apply {
                     continue;
                 }
-                pt!("Config file: {name}");
+                if !name.ends_with('/') && !name.ends_with('\\') {
+                    pt!("Config: {}", name.bright_black());
+                }
                 let path = main_dir.join(name.replace('\\', "/"));
 
                 if file.is_dir() {
@@ -258,9 +266,9 @@ impl Preset {
         }
 
         let to_install = index
-            .entries_modrinth
+            .entries_downloaded
             .into_iter()
-            .filter_map(|(k, n)| n.manually_installed.then_some(ModId::from_index_str(&k)))
+            .filter_map(|(k, n)| n.manually_installed.then_some(k))
             .collect();
 
         Ok(PresetOutput {
@@ -270,30 +278,29 @@ impl Preset {
     }
 }
 
-async fn get_instance_type(instance_name: &InstanceSelection) -> Result<Loader, ModError> {
+async fn get_instance_type(instance_name: &Instance) -> Result<Loader, ModError> {
     let config = InstanceConfigJson::read(instance_name).await?;
     Ok(config.mod_type)
 }
 
 fn add_downloaded_mod_to_entries(
-    entries_modrinth: &mut HashMap<String, ModConfig>,
+    entries: &mut HashMap<ModId, ModConfig>,
     index: &ModIndex,
     id: &ModId,
 ) {
-    let id_str = id.get_index_str();
-    let Some(config) = index.mods.get(&id_str) else {
-        err!("Could not find id {id:?} ({id_str}) in index!");
+    let Some(config) = index.mods.get(id) else {
+        err!("Could not find id {id:?} in index!");
         return;
     };
 
-    entries_modrinth.insert(id_str, config.clone());
+    entries.insert(id.clone(), config.clone());
 
     for dep in &config.dependencies {
-        add_downloaded_mod_to_entries(entries_modrinth, index, &ModId::from_index_str(dep));
+        add_downloaded_mod_to_entries(entries, index, dep);
     }
 }
 
-async fn get_minecraft_version(instance_name: &InstanceSelection) -> Result<String, ModError> {
+async fn get_minecraft_version(instance_name: &Instance) -> Result<String, ModError> {
     let version_json = VersionDetails::load(instance_name).await?;
     let minecraft_version = version_json.get_id().to_owned();
     Ok(minecraft_version)

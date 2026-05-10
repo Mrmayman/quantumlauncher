@@ -1,7 +1,14 @@
 [package]
 name = "ql_java_handler"
 version = "0.0.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
+
+[features]
+default = []
+simulate_linux_arm64 = []
+simulate_macos_arm64 = []
+simulate_linux_arm32 = []
 
 [dependencies]
 ql_core.path = "../ql_core"
@@ -9,12 +16,8 @@ ql_core.path = "../ql_core"
 thiserror.workspace = true
 tokio.workspace = true
 serde.workspace = true
-serde_json.workspace = true
 owo-colors.workspace = true
 cfg-if.workspace = true
 
-# Avengers assemble
-flate2 = "1"
-tar = "0.4"
 zip.workspace = true
 lzma-rs = "0.3"

@@ -5,9 +5,9 @@ use std::{
 };
 
 use ql_core::{
-    err, info,
+    GenericProgress, Instance, IntoIoError, IntoJsonError, err, info,
     json::{InstanceConfigJson, VersionDetails},
-    pt, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError,
+    pt,
 };
 
 mod curseforge;
@@ -15,6 +15,8 @@ mod error;
 mod modrinth;
 
 pub use error::PackError;
+
+use crate::{Preset, store::download_mods_bulk};
 
 use super::CurseforgeNotAllowed;
 
@@ -42,10 +44,10 @@ use super::CurseforgeNotAllowed;
 /// - `Err` - Any error that occurred.
 pub async fn install_modpack(
     file: Vec<u8>,
-    instance: InstanceSelection,
+    instance: Instance,
     sender: Option<&Sender<GenericProgress>>,
 ) -> Result<Option<HashSet<CurseforgeNotAllowed>>, PackError> {
-    let mut zip = zip::ZipArchive::new(Cursor::new(file))?;
+    let mut zip = zip::ZipArchive::new(Cursor::new(file.as_slice()))?;
 
     info!("Installing modpack");
 
@@ -53,6 +55,26 @@ pub async fn install_modpack(
         read_json_from_zip(&mut zip, "modrinth.index.json")?;
     let index_json_curseforge: Option<curseforge::PackIndex> =
         read_json_from_zip(&mut zip, "manifest.json")?;
+
+    if index_json_modrinth.is_none() && index_json_curseforge.is_none() {
+        if zip.by_name("index.json").is_ok() {
+            // Then it's a QMP preset?
+
+            // Recursion: Won't happen as this function is only called by [`Preset::load`]
+            // if there's no `index.json`
+            let out = Box::pin(Preset::load(instance.clone(), file, true)).await?;
+
+            return Box::pin(download_mods_bulk(
+                out.to_install,
+                instance,
+                sender.cloned(),
+            ))
+            .await
+            .map(|n| if n.is_empty() { None } else { Some(n) })
+            .map_err(PackError::Mod);
+        }
+        return Err(PackError::NoBackendFound);
+    }
 
     let overrides = index_json_curseforge
         .as_ref()
@@ -133,7 +155,7 @@ pub async fn install_modpack(
 }
 
 fn read_json_from_zip<T: serde::de::DeserializeOwned>(
-    zip: &mut zip::ZipArchive<Cursor<Vec<u8>>>,
+    zip: &mut zip::ZipArchive<Cursor<&[u8]>>,
     name: &str,
 ) -> Result<Option<T>, PackError> {
     Ok(if let Ok(mut index_file) = zip.by_name(name) {

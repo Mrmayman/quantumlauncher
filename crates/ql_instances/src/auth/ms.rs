@@ -65,7 +65,7 @@
 //! # Ok(()) }
 //! ```
 
-use ql_core::{info, pt, retry, GenericProgress, IntoJsonError, JsonError, RequestError, CLIENT};
+use ql_core::{CLIENT, GenericProgress, IntoJsonError, JsonError, RequestError, info, pt, retry};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use serde_json::json;
@@ -92,11 +92,11 @@ pub const CLIENT_ID: &str = "43431a16-38f5-4b42-91f9-4bf70c3bee1e";
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct AuthCodeResponse {
     pub user_code: String,
-    pub device_code: String,
+    device_code: String,
     pub verification_uri: String,
-    pub expires_in: isize,
-    pub interval: u64,
-    pub message: String,
+    expires_in: isize,
+    interval: u64,
+    message: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -105,8 +105,8 @@ pub struct AuthTokenResponse {
     // pub scope: String,
     // pub expires_in: i64,
     // pub ext_expires_in: i64,
-    pub access_token: String,
-    pub refresh_token: String,
+    access_token: String,
+    refresh_token: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -130,8 +130,8 @@ struct MinecraftAuthResponse {
 #[derive(Debug, Clone, Deserialize)]
 struct RefreshResponse {
     // pub expires_in: u64,
-    pub access_token: String,
-    pub refresh_token: String,
+    access_token: String,
+    refresh_token: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -142,9 +142,9 @@ struct AuthServiceErrorMessage {
 #[derive(Debug, Clone, Deserialize)]
 #[allow(non_snake_case)]
 pub struct MsaResponseError {
-    pub path: String,
-    pub error: String,
-    pub errorMessage: String,
+    path: String,
+    error: String,
+    errorMessage: String,
 }
 
 impl std::fmt::Display for MsaResponseError {
@@ -175,7 +175,9 @@ pub enum Error {
     Join(#[from] tokio::task::JoinError),
     #[error("{AUTH_ERR_PREFIX}Invalid account access token!")]
     InvalidAccessToken,
-    #[error("{AUTH_ERR_PREFIX}An unknown error has occurred (code: {0})\n\nThis is a major bug! Please report in discord.")]
+    #[error(
+        "{AUTH_ERR_PREFIX}An unknown error has occurred (code: {0})\n\nThis is a major bug! Please report in discord."
+    )]
     UnknownError(StatusCode),
     #[error("{AUTH_ERR_PREFIX}missing JSON field: {0}")]
     MissingField(String),
@@ -186,7 +188,9 @@ pub enum Error {
     #[error("{AUTH_ERR_PREFIX}{0}")]
     Response(MsaResponseError),
 
-    #[error("Your Microsoft account doesn't own Minecraft!\nJust enter the username in the text box instead of logging in.")]
+    #[error(
+        "Your Microsoft account doesn't own Minecraft!\nJust enter the username in the text box instead of logging in."
+    )]
     DoesntOwnGame,
 }
 
