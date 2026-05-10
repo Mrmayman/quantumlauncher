@@ -819,7 +819,7 @@ impl LicenseTab {
             }
             LicenseTab::PasswordAsterisks => {
                 concat!(
-                    include_str!("../../../assets/fonts/password_asterisks/where.txt"),
+                    include_str!("../../../assets/fonts/password_asterisks/README.md"),
                     "\n--------\n",
                     include_str!("../../../assets/licenses/CC_BY_SA_3_0.txt")
                 )
