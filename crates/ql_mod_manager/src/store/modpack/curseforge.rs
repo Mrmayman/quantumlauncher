@@ -21,8 +21,8 @@ use super::PackError;
 
 #[derive(Deserialize)]
 pub struct PackIndex {
-    minecraft: PackMinecraft,
-    name: String,
+    pub minecraft: PackMinecraft,
+    pub name: String,
     files: Vec<PackFile>,
     pub overrides: String,
 }
@@ -37,7 +37,7 @@ pub struct PackMinecraft {
 
 #[derive(Deserialize)]
 pub struct PackLoader {
-    id: String,
+    pub id: String,
     // pub primary: bool,
 }
 

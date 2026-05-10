@@ -95,6 +95,15 @@ struct PresetJson {
     #[serde(rename = "entries_modrinth")]
     entries_downloaded: HashMap<ModId, ModConfig>,
     entries_local: Vec<String>,
+
+    metadata: Option<ExtraMeta>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ExtraMeta {
+    author: Option<String>,
+    summary: Option<String>,
+    icon: Option<String>,
 }
 
 async fn get_instance_type(instance_name: &Instance) -> Result<Loader, ModError> {

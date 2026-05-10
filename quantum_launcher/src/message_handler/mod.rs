@@ -1,16 +1,10 @@
-use crate::config::AfterLaunchBehavior;
-use crate::menu_renderer::back_to_launch_screen;
-use crate::state::{
-    AutoSaveKind, GameProcess, InfoMessage, LaunchTab, LogState, MenuCreateInstance,
-    MenuCreateInstanceChoosing, MenuEditPresets, MenuInstallOptifine,
-};
-use crate::tick::sort_dependencies;
 use crate::{
     Launcher, Message,
     menu_renderer::back_to_launch_screen,
     state::{
         AutoSaveKind, EditPresetsMessage, InfoMessage, LaunchTab, LogState, ManageModsMessage,
-        MenuEditMods, MenuInstallForge, MenuInstallOptifine, ProgressBar, SelectedState, State,
+        MenuEditMods, MenuEditPresets, MenuInstallForge, MenuInstallOptifine, ProgressBar,
+        SelectedState, State,
     },
     tick::sort_dependencies,
 };

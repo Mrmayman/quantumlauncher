@@ -29,6 +29,7 @@ pub async fn generate(
     instance: Instance,
     selected_mods: HashSet<SelectedMod>,
     dotmc_entries: Vec<DirItem>,
+    metadata: Option<super::ExtraMeta>,
 ) -> Result<Vec<u8>, ModError> {
     let opts = zip::write::FileOptions::<()>::default();
 
@@ -68,6 +69,7 @@ pub async fn generate(
         minecraft_version,
         entries_downloaded,
         entries_local: entries_local.iter().map(|(n, _)| n).cloned().collect(),
+        metadata,
     };
 
     let file: Vec<u8> = Vec::new();

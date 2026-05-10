@@ -12,7 +12,7 @@ use super::PackError;
 
 #[derive(Deserialize)]
 pub struct PackIndex {
-    name: String,
+    pub name: String,
     files: Vec<PackFile>,
 
     /// Info about which Minecraft version
@@ -23,7 +23,7 @@ pub struct PackIndex {
     /// - `neoforge`
     /// - `fabric-loader`
     /// - `quilt-loader`
-    dependencies: HashMap<String, String>,
+    pub dependencies: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
