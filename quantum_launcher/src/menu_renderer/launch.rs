@@ -657,7 +657,7 @@ fn get_no_logs_message<'a>() -> Column<'a> {
         .spacing(10)
 }
 
-fn get_footer_text() -> Column<'static> {
+fn get_footer_text() -> widget::Row<'static, Message, LauncherTheme> {
     cfg_if! (
         if #[cfg(feature = "simulate_linux_arm64")] {
             let subtext = "(Simulating Linux aarch64)";
@@ -676,19 +676,36 @@ fn get_footer_text() -> Column<'static> {
         }
     );
 
-    column![
-        row![
-            horizontal_space(),
-            widget::text!("QuantumLauncher v{LAUNCHER_VERSION_NAME}")
+    row![
+        horizontal_space(),
+        tooltip(
+            column![
+                // In iced 0.14 we will need to have some on_clicking_link callback.
+                // Future footgun.
+                widget::rich_text([widget::span(constcat::concat!(
+                    "QuantumLauncher v",
+                    LAUNCHER_VERSION_NAME
+                ))
+                .link(Message::CoreLogToggle)])
                 .size(12)
-                .style(|t: &LauncherTheme| t.style_text(Color::Mid))
-        ],
-        row![
-            horizontal_space(),
-            widget::text(subtext)
+                .style(|t: &LauncherTheme| t.style_text(Color::Mid)),
+                widget::text(subtext)
+                    .size(10)
+                    .style(|t: &LauncherTheme| t.style_text(Color::Mid)),
+            ]
+            .align_x(Alignment::End),
+            column![
+                widget::text("Click to open debug log for troubleshooting").size(12),
+                widget::text(if cfg!(target_os = "macos") {
+                    "Or press Cmd+Option+J"
+                } else {
+                    "Or press Ctrl+Shift+J"
+                })
                 .size(10)
-                .style(|t: &LauncherTheme| t.style_text(Color::Mid))
-        ],
+                .style(tsubtitle),
+            ],
+            Position::Top,
+        ),
     ]
 }
 

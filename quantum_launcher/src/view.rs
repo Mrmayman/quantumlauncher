@@ -1,4 +1,7 @@
-use iced::{Alignment, Length, widget};
+use iced::{
+    Alignment, Length,
+    widget::{self, row},
+};
 use ql_core::InstanceKind;
 
 use crate::{
@@ -15,76 +18,42 @@ use crate::{
 
 impl Launcher {
     pub fn view(&'_ self) -> Element<'_> {
-        let round = !self.config.uses_system_decorations();
-        let toggler = tooltip(
-            widget::button(widget::row![
-                widget::horizontal_space(),
-                widget::text(if self.is_log_open { "v" } else { "^" }).size(10),
-                widget::horizontal_space()
-            ])
-            .padding(0)
-            .height(DEBUG_LOG_BUTTON_HEIGHT)
-            .style(move |n: &LauncherTheme, status| {
-                let round = round && !self.is_log_open;
-                n.style_button(
-                    status,
-                    StyleButton::SemiExtraDark([false, false, round, round]),
-                )
-            })
-            .on_press(Message::CoreLogToggle),
-            widget::text(if self.is_log_open {
-                "Close launcher log"
-            } else {
-                "Open launcher debug log (troubleshooting)"
-            })
-            .size(12),
-            widget::tooltip::Position::Top,
-        );
-
-        let view = widget::column![
-            widget::column![self.view_menu()],
-            widget::row![toggler].push_maybe(self.is_log_open.then(|| {
-                widget::button(widget::text("Copy Log").size(10))
-                    .padding(0)
-                    .height(DEBUG_LOG_BUTTON_HEIGHT)
-                    .style(|n: &LauncherTheme, status| {
-                        n.style_button(status, StyleButton::FlatDark)
-                    })
-                    .on_press(Message::CoreCopyLog)
-            })),
-        ]
-        .push_maybe(self.is_log_open.then(|| {
-            const TEXT_SIZE: f32 = 12.0;
-
-            Self::view_launcher_log(
-                ql_core::print::get(),
-                TEXT_SIZE,
-                self.log_scroll,
-                Message::CoreLogScroll,
-                Message::CoreLogScrollAbsolute,
-                |(msg, kind)| {
-                    widget::row![
-                        widget::rich_text![widget::span(kind.to_string()).color(match kind {
-                            ql_core::LogType::Info => iced::Color::from_rgb8(0xf9, 0xe2, 0xaf),
-                            ql_core::LogType::Error => iced::Color::from_rgb8(0xe3, 0x44, 0x59),
-                            ql_core::LogType::Point => iced::Color::from_rgb8(128, 128, 128),
-                        })]
-                        .size(12)
-                        .font(FONT_MONO),
-                        widget::text!(" {msg}").font(FONT_MONO).size(12)
-                    ]
-                    .width(Length::Fill)
-                    .into()
-                },
-                |(msg, kind)| format!("{kind} {msg}"),
-            )
-        }));
+        let view = widget::column![self.view_menu()]
+            .push_maybe(self.is_log_open.then(log_view_toggler))
+            .push_maybe(self.is_log_open.then(|| self.log_view_main()));
 
         // if self.window_state.is_maximized || self.config.c_window_decorations() {
         view.into()
         // } else {
         // setup_window_borders(view.into())
         // }
+    }
+
+    fn log_view_main(&self) -> Element<'static> {
+        const TEXT_SIZE: f32 = 12.0;
+
+        Self::view_launcher_log(
+            ql_core::print::get(),
+            TEXT_SIZE,
+            self.log_scroll,
+            Message::CoreLogScroll,
+            Message::CoreLogScrollAbsolute,
+            |(msg, kind)| {
+                row![
+                    widget::rich_text![widget::span(kind.to_string()).color(match kind {
+                        ql_core::LogType::Info => iced::Color::from_rgb8(0xf9, 0xe2, 0xaf),
+                        ql_core::LogType::Error => iced::Color::from_rgb8(0xe3, 0x44, 0x59),
+                        ql_core::LogType::Point => iced::Color::from_rgb8(128, 128, 128),
+                    })]
+                    .size(12)
+                    .font(FONT_MONO),
+                    widget::text!(" {msg}").font(FONT_MONO).size(12)
+                ]
+                .width(Length::Fill)
+                .into()
+            },
+            |(msg, kind)| format!("{kind} {msg}"),
+        )
     }
 
     fn view_menu(&'_ self) -> Element<'_> {
@@ -193,9 +162,9 @@ impl Launcher {
 
         fn win_button(icon: widget::Text<'_, LauncherTheme>, m: Message) -> Element<'_> {
             widget::mouse_area(
-                widget::row![
+                row![
                     widget::button(
-                        widget::row![icon.style(|t: &LauncherTheme| t.style_text(Color::Mid))]
+                        row![icon.style(|t: &LauncherTheme| t.style_text(Color::Mid))]
                             .align_y(Alignment::Center)
                             .padding([4, 10]),
                     )
@@ -248,6 +217,36 @@ impl Launcher {
     }
 }
 
+fn log_view_toggler() -> widget::Row<'static, Message, LauncherTheme> {
+    row![
+        tooltip(
+            widget::button(row![
+                widget::horizontal_space(),
+                widget::text("v").size(10),
+                widget::horizontal_space()
+            ])
+            .padding(0)
+            .height(DEBUG_LOG_BUTTON_HEIGHT)
+            .style(move |n: &LauncherTheme, status| {
+                n.style_button(status, StyleButton::FlatExtraDark)
+            })
+            .on_press(Message::CoreLogToggle),
+            widget::text(if cfg!(target_os = "macos") {
+                "Close launcher log (Press Cmd+Option+J to open again)"
+            } else {
+                "Close launcher log (Press Ctrl+Shift+J to open again)"
+            })
+            .size(12),
+            widget::tooltip::Position::Top,
+        ),
+        widget::button(widget::text("Copy Log").size(10))
+            .padding(0)
+            .height(DEBUG_LOG_BUTTON_HEIGHT)
+            .style(|n: &LauncherTheme, status| { n.style_button(status, StyleButton::FlatDark) })
+            .on_press(Message::CoreCopyLog)
+    ]
+}
+
 // HOOK: Decorations
 /*fn setup_window_borders(view: Element<'_>) -> Element<'_> {
     fn m(
@@ -262,7 +261,7 @@ impl Launcher {
 
     widget::stack!(
         widget::column![widget::container(view).padding(1)].padding(2),
-        widget::row![
+        row![
             // Left
             widget::Column::new()
                 .push(m(

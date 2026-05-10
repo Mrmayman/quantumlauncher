@@ -217,11 +217,7 @@ impl LauncherTheme {
             background,
             border,
             scroller: widget::scrollable::Scroller {
-                color: mix(
-                    mix(self.get(Color::SecondDark), self.get(Color::Dark)),
-                    // self.get(Color::Dark),
-                    self.get(Color::SecondDark),
-                ),
+                color: lerp_color(self.get(Color::Dark), self.get(Color::SecondDark), 0.7),
                 border: self.get_border(Color::SecondDark),
             },
         };
@@ -756,12 +752,18 @@ fn radius(t: bool) -> f32 {
 }
 
 pub fn mix(color1: iced::Color, color2: iced::Color) -> iced::Color {
-    // Calculate the average of each RGBA component
-    let r = color1.r.midpoint(color2.r);
-    let g = color1.g.midpoint(color2.g);
-    let b = color1.b.midpoint(color2.b);
-    let a = color1.a.midpoint(color2.a);
+    lerp_color(color1, color2, 0.5)
+}
 
-    // Return a new Color with the blended RGBA values
-    iced::Color::from_rgba(r, g, b, a)
+fn lerp(a: f32, b: f32, t: f32) -> f32 {
+    a + (b - a) * t
+}
+
+pub fn lerp_color(color1: iced::Color, color2: iced::Color, t: f32) -> iced::Color {
+    iced::Color::from_rgba(
+        lerp(color1.r, color2.r, t),
+        lerp(color1.g, color2.g, t),
+        lerp(color1.b, color2.b, t),
+        lerp(color1.a, color2.a, t),
+    )
 }

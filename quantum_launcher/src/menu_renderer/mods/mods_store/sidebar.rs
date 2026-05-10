@@ -2,72 +2,73 @@ use iced::{
     Alignment, Length,
     widget::{self, column, row},
 };
-use ql_mod_manager::store::{Category, QueryType, StoreBackendType};
+use ql_mod_manager::store::{Category, StoreBackendType};
 
 use crate::{
     icons,
-    menu_renderer::{Column, Element, barthin, tsubtitle},
+    menu_renderer::{Column, Element, barthin, mods::mods_store::color_from_backend, tsubtitle},
     state::{
         InstallModsMessage, MenuModsDownload, ModCategoryState, ModOperation, ModsDownloadSearch,
     },
-    stylesheet::{color::Color, styles::LauncherTheme},
+    stylesheet::{
+        color::Color,
+        styles::{LauncherTheme, lerp_color},
+    },
 };
 
 impl MenuModsDownload {
-    pub(super) fn get_side_panel(&'_ self, tick_timer: usize) -> Column<'_> {
-        column![
-            widget::scrollable(
-                column![
-                    row![icons::download(), widget::text("Type:").size(20)]
-                        .align_y(Alignment::Center)
-                        .spacing(5),
-                    widget::column(QueryType::STORE_QUERIES.iter().map(|n| {
-                        widget::radio(n.to_string(), *n, Some(self.search.query_type), |v| {
-                            InstallModsMessage::ChangeQueryType(v).into()
-                        })
-                        .spacing(5)
-                        .size(12)
-                        .text_size(14)
-                        .into()
-                    })),
-                    widget::Space::with_height(5),
-                    self.search.view_categories(tick_timer),
-                ]
-                .spacing(5)
-                .padding(10),
+    pub(super) fn get_side_panel(&self, tick_timer: usize) -> Element<'_> {
+        let s = |t: &LauncherTheme, s| {
+            let mut style = t.style_scrollable_flat_extra_dark(s);
+            style.container.background = Some(iced::Background::Color(lerp_color(
+                style
+                    .container
+                    .background
+                    .map(|n| match n {
+                        iced::Background::Color(color) => color,
+                        iced::Background::Gradient(_) => unreachable!(),
+                    })
+                    .unwrap_or_default(),
+                color_from_backend(self.search.backend),
+                0.07,
+            )));
+            style
+        };
+
+        widget::responsive(move |size| {
+            column![
+                widget::scrollable(self.search.view_categories(tick_timer))
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .style(s),
+            ]
+            .push_maybe(
+                self.get_ongoing_operations(size.height)
+                    .map(|n| column![widget::horizontal_rule(1).style(barthin), n]),
             )
-            .width(180)
-            .height(Length::Fill)
-            .style(LauncherTheme::style_scrollable_flat_extra_dark),
-        ]
-        .push_maybe(
-            self.get_ongoing_operations()
-                .map(|n| column![widget::horizontal_rule(1).style(barthin), n].width(180)),
-        )
+            .into()
+        })
+        .into()
     }
 
-    fn get_ongoing_operations(&'_ self) -> Option<Element<'_>> {
-        if !self.mods_download_in_progress.is_empty() {
-            // Mod operations (installing/uninstalling) are in progress.
-            // Can't back out. Show list of operations in progress.
-
-            let operations = self
-                .mods_download_in_progress
-                .values()
-                .map(|(title, operation)| {
-                    const SIZE: u16 = 12;
-                    widget::row![
-                        match operation {
-                            ModOperation::Downloading => icons::download_s(SIZE),
-                            ModOperation::Deleting => icons::bin_s(SIZE),
-                        },
-                        widget::text(title).size(SIZE)
-                    ]
+    /// Show list of mod operations (installing/uninstalling) in progress.
+    fn get_ongoing_operations(&'_ self, space_y: f32) -> Option<Element<'_>> {
+        let list = &self.mods_download_in_progress;
+        if list.is_empty() {
+            return None;
+        }
+        let operations = list
+            .values()
+            .filter(|(_, op)| matches!(op, ModOperation::Downloading))
+            .map(|(title, _)| {
+                const SIZE: u16 = 12;
+                widget::row![icons::download_s(SIZE), widget::text(title).size(SIZE)]
                     .spacing(4)
                     .into()
-                });
+            });
 
-            Some(
+        Some(
+            widget::container(
                 widget::scrollable(
                     column!["In progress:"]
                         .extend(operations)
@@ -75,13 +76,11 @@ impl MenuModsDownload {
                         .padding(10),
                 )
                 .width(180)
-                .height(Length::Fill)
-                .style(LauncherTheme::style_scrollable_flat_extra_dark)
-                .into(),
+                .style(LauncherTheme::style_scrollable_flat_extra_dark),
             )
-        } else {
-            None
-        }
+            .max_height(space_y / 2.0)
+            .into(),
+        )
     }
 }
 
@@ -99,7 +98,9 @@ impl ModCategoryState {
                 let dots = ".".repeat((tick_timer % 3) + 1);
                 widget::text!("Loading{dots}").into()
             }
-            Ok(n) => widget::column(n.iter().map(|n| self.view_category(n).into())).into(),
+            Ok(n) => widget::column(n.iter().map(|n| self.view_category(n).into()))
+                .spacing(4)
+                .into(),
             Err(err) => widget::text(err).size(12).style(tsubtitle).into(),
         };
 
@@ -133,6 +134,7 @@ impl ModCategoryState {
         .push(widget::Space::new(0, 0))
         .push(category_view)
         .spacing(5)
+        .padding(10)
     }
 
     fn view_category<'a>(&'a self, category: &'a Category) -> Column<'a> {
@@ -145,20 +147,21 @@ impl ModCategoryState {
                     })
                     .size(14)
                     .text_size(14)
-                    .style(|n: &LauncherTheme, s| n.style_checkbox(s, Some(Color::SecondLight)))
+                    .style(|n: &LauncherTheme, s| n.style_checkbox(s, Some(Color::Light)))
             }))
             .push_maybe((!category.is_usable).then(|| widget::text(&category.name).size(14)))
-            .push(widget::stack!(
-                row![
-                    widget::Space::with_width(10),
+            .push_maybe((!category.children.is_empty()).then(|| {
+                widget::stack!(
                     widget::column(
                         category
                             .children
                             .iter()
                             .map(|n| self.view_category(n).into())
                     )
-                ],
-                widget::vertical_rule(1).style(barthin)
-            ))
+                    .spacing(2)
+                    .padding(iced::Padding::new(0.0).left(13.0).top(2.0).bottom(5.0)),
+                    widget::vertical_rule(1).style(barthin)
+                )
+            }))
     }
 }

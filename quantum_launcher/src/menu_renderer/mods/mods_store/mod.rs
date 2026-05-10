@@ -14,7 +14,7 @@ use crate::{
     state::{ImageState, InstallModsMessage, ManageModsMessage, MenuModsDownload, Message},
     stylesheet::{
         color::Color,
-        styles::{BORDER_RADIUS, BORDER_WIDTH, LauncherTheme},
+        styles::{BORDER_RADIUS, BORDER_WIDTH, LauncherTheme, lerp_color},
         widgets::StyleButton,
     },
 };
@@ -31,11 +31,82 @@ impl MenuModsDownload {
             self.get_top_bar(),
             widget::horizontal_rule(1).style(barthin),
             row![
-                self.get_side_panel(tick_timer),
+                widget::container(self.get_side_panel(tick_timer))
+                    .style(|_| widget::container::Style::default())
+                    .width(190),
+                widget::vertical_rule(1).style(barthin),
                 self.mods_display(images, tick_timer)
-            ]
+            ],
+            widget::horizontal_rule(1).style(barthin),
+            self.get_type_selector(),
         ]
         .into()
+    }
+
+    fn get_type_selector(&self) -> widget::Container<'static, Message, LauncherTheme> {
+        let qty = self.search.query_type;
+
+        widget::container(
+            row![widget::text("Type:  ").size(14)]
+                .extend(QueryType::STORE_QUERIES.iter().map(|n| {
+                    const SIZE: u16 = 12;
+
+                    let is_selected = self.search.query_type == *n;
+
+                    let icon = match n {
+                        QueryType::Mods => icons::file_jar_s(SIZE),
+                        QueryType::ResourcePacks => icons::paintbrush_s(SIZE),
+                        QueryType::Shaders => icons::mode_light_s(SIZE),
+                        QueryType::ModPacks => icons::folder_s(SIZE),
+                        QueryType::DataPacks => icons::edit_s(SIZE),
+                    };
+
+                    let color = color_from_querytype(*n);
+
+                    widget::button(row![icon, widget::text(n.to_string()).size(SIZE)].spacing(5))
+                        .padding([4, 8])
+                        .style(move |t: &LauncherTheme, s| widget::button::Style {
+                            background: Some(iced::Background::Color(color.scale_alpha(match s {
+                                // Unselected
+                                widget::button::Status::Active => 0.0,
+                                widget::button::Status::Hovered => 0.04,
+                                widget::button::Status::Pressed => 0.1,
+                                // Selected
+                                widget::button::Status::Disabled => 0.4,
+                            }))),
+                            text_color: t.get(Color::Light),
+                            border: iced::Border {
+                                color: color.scale_alpha(0.7),
+                                width: BORDER_WIDTH,
+                                radius: BORDER_RADIUS.into(),
+                            },
+                            shadow: iced::Shadow::default(),
+                        })
+                        .on_press_maybe(
+                            (!is_selected)
+                                .then_some(InstallModsMessage::ChangeQueryType(*n).into()),
+                        )
+                        .into()
+                }))
+                .spacing(5)
+                .align_y(Alignment::Center)
+                .width(Length::Fill)
+                .wrap(),
+        )
+        .style(move |t: &LauncherTheme| widget::container::Style {
+            border: iced::Border {
+                color: t.get(Color::Mid),
+                width: 0.0,
+                radius: 0.0.into(),
+            },
+            background: Some(iced::Background::Color(lerp_color(
+                t.get(Color::Dark),
+                color_from_querytype(qty),
+                0.1,
+            ))),
+            ..Default::default()
+        })
+        .padding([5, 10])
     }
 
     fn get_top_bar(&self) -> widget::Container<'_, Message, LauncherTheme> {
@@ -97,9 +168,10 @@ impl MenuModsDownload {
             )
     }
 
-    fn get_store_selector(&self) -> widget::Row<'static, Message, LauncherTheme> {
-        let selector = |b: StoreBackendType, color: iced::Color| {
+    fn get_store_selector(&self) -> Element<'static> {
+        let selector = |b: StoreBackendType| {
             let is_selected = self.search.backend == b;
+            let color = color_from_backend(b);
 
             widget::button(
                 widget::Row::new()
@@ -130,18 +202,14 @@ impl MenuModsDownload {
 
         row![
             widget::text("Store:").size(14),
-            selector(
-                StoreBackendType::Modrinth,
-                iced::Color::from_rgb8(0x19, 0x7d, 0x43)
-            ),
-            selector(
-                StoreBackendType::Curseforge,
-                iced::Color::from_rgb8(0xeb, 0x62, 0x2b)
-            ),
+            selector(StoreBackendType::Modrinth),
+            selector(StoreBackendType::Curseforge),
         ]
         .padding([5, 10])
-        .spacing(10)
+        .spacing(5)
         .align_y(Alignment::Center)
+        .wrap()
+        .into()
     }
 
     fn mods_view_warnings(&self) -> Column<'static> {
@@ -269,6 +337,23 @@ impl MenuModsDownload {
             images,
             tick_timer,
         )
+    }
+}
+
+fn color_from_querytype(n: QueryType) -> iced::Color {
+    match n {
+        QueryType::Mods => iced::Color::from_rgb8(0xF5, 0x9E, 0x0B),
+        QueryType::ResourcePacks => iced::Color::from_rgb8(0x22, 0xC5, 0x5E),
+        QueryType::Shaders => iced::Color::from_rgb8(0x8B, 0x5C, 0xF6),
+        QueryType::ModPacks => iced::Color::from_rgb8(0xEF, 0x44, 0x44),
+        QueryType::DataPacks => iced::Color::from_rgb8(0x06, 0xB6, 0xD4),
+    }
+}
+
+fn color_from_backend(n: StoreBackendType) -> iced::Color {
+    match n {
+        StoreBackendType::Modrinth => iced::Color::from_rgb8(0x19, 0x7d, 0x43),
+        StoreBackendType::Curseforge => iced::Color::from_rgb8(0xeb, 0x62, 0x2b),
     }
 }
 

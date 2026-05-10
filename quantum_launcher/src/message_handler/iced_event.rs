@@ -174,7 +174,18 @@ impl Launcher {
                     LauncherSettingsMessage::Open(LauncherSettingsTab::default()).into()
                 }
 
-                _ => Message::Nothing,
+                _ => {
+                    let log_modifier = if cfg!(target_os = "macos") {
+                        modifiers.alt()
+                    } else {
+                        modifiers.shift()
+                    };
+                    if ch == "j" && modifiers.command() && log_modifier {
+                        Message::CoreLogToggle
+                    } else {
+                        Message::Nothing
+                    }
+                }
             };
             return Task::done(msg);
         } else if let State::LauncherSettings(menu) = &mut self.state {
