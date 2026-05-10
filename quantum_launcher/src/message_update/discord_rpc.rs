@@ -1,6 +1,7 @@
 use filthy_rich::{
     PresenceRunner,
-    types::{Activity, ActivityType},
+    errors::ActivitySpecBuildError,
+    types::{Activity, ActivitySpec, ActivityType},
 };
 use iced::{Task, futures::executor::block_on};
 
@@ -25,7 +26,7 @@ impl Launcher {
                 pt!(
                     no_log,
                     "Connected to user: {}; ready for presence",
-                    f.user.username
+                    f.user.username()
                 );
                 *p = PresenceConnectionState::Connected;
             })
@@ -34,7 +35,8 @@ impl Launcher {
                 pt!(
                     no_log,
                     "Presence activity received for app: {}",
-                    f.application_id
+                    f.application_id()
+                        .unwrap_or("(no application ID found in response)")
                 );
                 *p = PresenceConnectionState::Active;
             })
@@ -148,17 +150,15 @@ impl Launcher {
 
         Task::perform(
             async move {
-                _ = c
-                    .set_activity(bake_activity(
-                        name,
-                        sdt,
-                        competing,
-                        details,
-                        details_url,
-                        state,
-                        state_url,
-                    ))
-                    .await;
+                let activity =
+                    bake_activity(name, sdt, competing, details, details_url, state, state_url);
+
+                match activity {
+                    Ok(a) => {
+                        _ = c.set_activity(a).await;
+                    }
+                    Err(e) => err!(no_log, "Failed to bake custom RPC activity: {e}"),
+                }
             },
             |_| Message::Nothing,
         )
@@ -201,17 +201,20 @@ impl Launcher {
                         let instance = selected_instance.get_name();
                         let minecraft_vers = version_details.get_id();
 
-                        _ = c
-                            .set_activity(bake_activity(
-                                name,
-                                sdt,
-                                competing,
-                                details.map(|f| f.substitute(instance, minecraft_vers)),
-                                details_url,
-                                state.map(|f| f.substitute(instance, minecraft_vers)),
-                                state_url,
-                            ))
-                            .await;
+                        let activity = bake_activity(
+                            name,
+                            sdt,
+                            competing,
+                            details.map(|f| f.substitute(instance, minecraft_vers)),
+                            details_url,
+                            state.map(|f| f.substitute(instance, minecraft_vers)),
+                            state_url,
+                        );
+
+                        match activity {
+                            Ok(a) => _ = c.set_activity(a).await,
+                            Err(e) => err!(no_log, "Failed to bake RPC game update activity: {e}"),
+                        }
                     }
                 }
             },
@@ -249,7 +252,7 @@ pub fn bake_activity(
     details_url: Option<String>,
     state: Option<String>,
     state_url: Option<String>,
-) -> Activity {
+) -> Result<ActivitySpec, ActivitySpecBuildError> {
     let mut activity = Activity::new()
         .activity_type(if competing {
             ActivityType::Competing
