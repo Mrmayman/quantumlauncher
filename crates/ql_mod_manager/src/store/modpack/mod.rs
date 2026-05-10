@@ -1,11 +1,10 @@
 use std::{
-    collections::HashSet,
     io::{Cursor, Read},
     sync::mpsc::Sender,
 };
 
 use ql_core::{
-    GenericProgress, Instance, IntoIoError, IntoJsonError, err, info,
+    GenericProgress, Instance, IntoIoError, IntoJsonError, Loader, err, info,
     json::{InstanceConfigJson, VersionDetails},
     pt,
 };
@@ -16,38 +15,38 @@ mod modrinth;
 
 pub use error::PackError;
 
-use crate::{Preset, store::download_mods_bulk};
+use crate::{presets, store::download_mods_bulk};
 
 use super::CurseforgeNotAllowed;
 
-/// Installs a modpack file.
+#[derive(Debug, Clone)]
+pub struct PeekInfo {
+    pub name: String,
+    pub game_version: String,
+    pub loader: Loader,
+    pub recommended_ram_mb: Option<usize>,
+}
+
+/// Installs a modpack file (Curseforge or Modrinth) to the instance.
 ///
-/// Not to be confused with [`crate::Preset`]
-/// (`.qmp` mod presets). Those are QuantumLauncher-only,
-/// but these are found across the internet.
-///
-/// This function supports both Curseforge and Modrinth modpacks,
-/// it doesn't matter which one you put in.
+/// Not to be confused with [`crate::Preset`] (QuantumLauncher-only `.qmp` presets).
 ///
 /// # Arguments
-/// - `file: Vec<u8>`: The bytes of the modpack file.
-/// - `instance: InstanceSelection`: The selected instance you want to download this pack to.
-/// - `sender: Option<&Sender<GenericProgress>>`: Supply a [`Sender`] if you want
-///   to see the progress of installation. Leave `None` if otherwise.
+/// - `file`: Modpack file bytes.
+/// - `instance`: Target instance.
+/// - `sender`: Optional progress notifier.
 ///
 /// # Returns
-/// - `Ok(Some(HashSet<CurseforgeNotAllowed))` - The list of mods that
-///   Curseforge blocked the launcher from automatically downloading. The user must
-///   manually download these from the browser and import them. May be empty
-///   if none present, or if it's a modrinth pack.
-/// - `Ok(None)` - This isn't a modpack.
-/// - `Err` - Any error that occurred.
-pub async fn install_modpack(
-    file: Vec<u8>,
+/// - `Ok(bool, CurseForgeNotAllowed)`:
+///     1) Whether the modpack was recognized and is valid.
+///     2) Mods blocked by Curseforge (must download manually).
+/// - `Err`: Installation error.
+pub async fn install(
+    file: &[u8],
     instance: Instance,
     sender: Option<&Sender<GenericProgress>>,
-) -> Result<Option<HashSet<CurseforgeNotAllowed>>, PackError> {
-    let mut zip = zip::ZipArchive::new(Cursor::new(file.as_slice()))?;
+) -> Result<(bool, CurseforgeNotAllowed), PackError> {
+    let mut zip = zip::ZipArchive::new(Cursor::new(file))?;
 
     info!("Installing modpack");
 
@@ -62,16 +61,12 @@ pub async fn install_modpack(
 
             // Recursion: Won't happen as this function is only called by [`Preset::load`]
             // if there's no `index.json`
-            let out = Box::pin(Preset::load(instance.clone(), file, true)).await?;
+            let out = Box::pin(presets::load(instance.clone(), file, true)).await?;
 
-            return Box::pin(download_mods_bulk(
-                out.to_install,
-                instance,
-                sender.cloned(),
-            ))
-            .await
-            .map(|n| if n.is_empty() { None } else { Some(n) })
-            .map_err(PackError::Mod);
+            return Box::pin(download_mods_bulk(out.to_install, instance, sender))
+                .await
+                .map(|n| (true, n))
+                .map_err(PackError::Mod);
         }
         return Err(PackError::NoBackendFound);
     }
@@ -94,11 +89,11 @@ pub async fn install_modpack(
         is_valid = true;
         curseforge::install(&instance, &config, &json, &index, sender).await?
     } else {
-        HashSet::new()
+        CurseforgeNotAllowed::new()
     };
 
     if !is_valid {
-        return Ok(None);
+        return Ok((false, CurseforgeNotAllowed::new()));
     }
 
     let len = zip.len();
@@ -151,7 +146,81 @@ pub async fn install_modpack(
 
     pt!("Done!");
 
-    Ok(Some(not_allowed))
+    Ok((true, not_allowed))
+}
+
+/// Extracts metadata (name, version, loader) from a modpack file.
+///
+/// # Arguments
+/// - `file`: Modpack file bytes.
+///
+/// # Returns
+/// - `Ok(Some(PeekInfo))`: Modpack metadata.
+/// - `Ok(None)`: Not a recognized modpack.
+/// - `Err`: Parse or read error.
+pub fn peek(file: &[u8]) -> Result<Option<PeekInfo>, PackError> {
+    let mut zip = zip::ZipArchive::new(Cursor::new(file))?;
+
+    let index_json_modrinth: Option<modrinth::PackIndex> =
+        read_json_from_zip(&mut zip, "modrinth.index.json")?;
+    let index_json_curseforge: Option<curseforge::PackIndex> =
+        read_json_from_zip(&mut zip, "manifest.json")?;
+
+    if let Some(index) = index_json_modrinth {
+        // Handle Modrinth modpack
+        let Some(game_version) = index.dependencies.get("minecraft").cloned() else {
+            return Ok(None);
+        };
+
+        let loader = index
+            .dependencies
+            .keys()
+            .filter(|k| *k != "minecraft")
+            .filter_map(|k| match k.as_str() {
+                "forge" => Some(Loader::Forge),
+                "neoforge" => Some(Loader::Neoforge),
+                "fabric-loader" => Some(Loader::Fabric),
+                "quilt-loader" => Some(Loader::Quilt),
+                _ => None,
+            })
+            .next()
+            .unwrap_or(Loader::Vanilla);
+
+        Ok(Some(PeekInfo {
+            name: index.name,
+            game_version,
+            loader,
+            recommended_ram_mb: None,
+        }))
+    } else if let Some(index) = index_json_curseforge {
+        // Handle Curseforge modpack
+        let game_version = index.minecraft.version;
+
+        let loader = index
+            .minecraft
+            .modLoaders
+            .first()
+            .and_then(|l| {
+                let loader_id = l.id.split('-').next().unwrap_or(&l.id);
+                match loader_id {
+                    "forge" => Some(Loader::Forge),
+                    "neoforge" => Some(Loader::Neoforge),
+                    "fabric" => Some(Loader::Fabric),
+                    "quilt" => Some(Loader::Quilt),
+                    _ => None,
+                }
+            })
+            .ok_or(PackError::NoLoadersSpecified)?;
+
+        Ok(Some(PeekInfo {
+            name: index.name,
+            game_version,
+            loader,
+            recommended_ram_mb: index.minecraft.recommendedRam,
+        }))
+    } else {
+        Ok(None)
+    }
 }
 
 fn read_json_from_zip<T: serde::de::DeserializeOwned>(

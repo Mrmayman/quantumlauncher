@@ -640,7 +640,11 @@ impl LauncherTheme {
         }
     }
 
-    pub fn style_radio(&self, status: widget::radio::Status, color: Color) -> widget::radio::Style {
+    pub fn style_radio(
+        &self,
+        status: widget::radio::Status,
+        text_color: Color,
+    ) -> widget::radio::Style {
         widget::radio::Style {
             background: self.get_bg(match status {
                 widget::radio::Status::Active { .. } => Color::Dark,
@@ -652,7 +656,7 @@ impl LauncherTheme {
             }),
             border_width: BORDER_WIDTH,
             border_color: self.get(Color::SecondLight),
-            text_color: Some(self.get(color)),
+            text_color: Some(self.get(text_color)),
         }
     }
 

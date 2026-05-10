@@ -120,7 +120,7 @@ pub async fn assets_dir() -> Result<u64, JsonFileError> {
 
         let mut dir_is_empty = true;
         while let Some(object) = o_dir.next_entry().await.path(&o_dir_path)? {
-            let name = object.file_name().to_string_lossy().to_string();
+            let name = object.file_name().to_string_lossy().into_owned();
             if hashes.contains(&name) {
                 dir_is_empty = false;
             } else {

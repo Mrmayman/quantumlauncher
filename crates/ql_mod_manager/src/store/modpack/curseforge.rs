@@ -12,8 +12,8 @@ use serde::Deserialize;
 use tokio::sync::Mutex;
 
 use crate::store::{
-    CurseforgeNotAllowed, DirStructure, ModConfig, ModFile, ModId, ModIndex, QueryType,
-    StoreBackendType,
+    CurseforgeNotAllowed, CurseforgeNotAllowedEntry, DirStructure, ModConfig, ModFile, ModId,
+    ModIndex, QueryType, StoreBackendType,
     curseforge::{self, CFSearchResult, CurseforgeFileQuery, ModQuery, get_query_type},
 };
 
@@ -30,10 +30,9 @@ pub struct PackIndex {
 #[derive(Deserialize)]
 #[allow(non_snake_case)]
 pub struct PackMinecraft {
-    version: String,
-    modLoaders: Vec<PackLoader>,
-    // No one asked for your recommendation bro:
-    // pub recommendedRam: usize
+    pub version: String,
+    pub modLoaders: Vec<PackLoader>,
+    pub recommendedRam: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -53,7 +52,7 @@ pub struct PackFile {
 impl PackFile {
     async fn download(
         &self,
-        not_allowed: &Mutex<HashSet<CurseforgeNotAllowed>>,
+        not_allowed: &Mutex<CurseforgeNotAllowed>,
         dirs: &DirStructure,
         sender: Option<&Sender<GenericProgress>>,
         (i, len): (&Mutex<usize>, usize),
@@ -97,12 +96,12 @@ impl PackFile {
 
     async fn add_to_not_allowed(
         &self,
-        not_allowed: &Mutex<HashSet<CurseforgeNotAllowed>>,
+        not_allowed: &Mutex<CurseforgeNotAllowed>,
         mod_info: curseforge::Mod,
         query: CurseforgeFileQuery,
         query_type: QueryType,
     ) {
-        not_allowed.lock().await.insert(CurseforgeNotAllowed {
+        not_allowed.lock().await.insert(CurseforgeNotAllowedEntry {
             name: mod_info.name,
             slug: mod_info.slug,
             file_id: self.fileID,
@@ -186,7 +185,7 @@ pub async fn install(
     json: &VersionDetails,
     index: &PackIndex,
     sender: Option<&Sender<GenericProgress>>,
-) -> Result<HashSet<CurseforgeNotAllowed>, PackError> {
+) -> Result<CurseforgeNotAllowed, PackError> {
     if json.get_id() != index.minecraft.version {
         return Err(PackError::GameVersion {
             expect: index.minecraft.version.clone(),
@@ -215,7 +214,7 @@ pub async fn install(
         return Err(expect_got_curseforge(index, config));
     }
 
-    let not_allowed = Mutex::new(HashSet::new());
+    let not_allowed = Mutex::new(CurseforgeNotAllowed::new());
     let len = index.files.len();
 
     let i = Mutex::new(0);

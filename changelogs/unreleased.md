@@ -1,5 +1,6 @@
 # unreleased changelog
 
+
 # Mod Store
 
 - Redesigned, now with a new look and many features
@@ -14,6 +15,17 @@ TODO: Add screenshots
 
 - Added support for displaying your status in Discord through Rich Presence
 - Customizable, can display any text or info (game version/instance name) of your choice
+
+# Import/export
+
+- You can now import instances from:
+  - MultiMC/PrismLauncher (experimental)
+  - Modrinth/Curseforge modpacks
+  - Official Minecraft Launcher, TL Legacy, TLauncher, GDLauncher, ATLauncher (TODO)
+- Export instances to:
+  - QuantumLauncher instance format (experimental)
+  - MultiMC/PrismLauncher (TODO)
+  - Modrinth/Curseforge modpacks (TODO)
 
 # UX
 

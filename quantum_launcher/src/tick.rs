@@ -17,7 +17,7 @@ use crate::state::{
     MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuLaunch, MenuLoginMS,
     MenuModsDownload, MenuRecommendedMods, Message, ModListEntry, State,
 };
-use crate::{config::SIDEBAR_WIDTH, state::InfoMessage};
+use crate::{config::SIDEBAR_WIDTH, state::InfoMessage, state::MenuEditPresets};
 
 impl Launcher {
     pub fn tick(&mut self) -> Task<Message> {
@@ -148,22 +148,14 @@ impl Launcher {
                     }
                 }
             },
-            State::ManagePresets(menu) => {
-                if let Some(progress) = &mut menu.progress {
-                    progress.tick();
-                }
-            }
-            State::RecommendedMods(menu) => {
-                if let MenuRecommendedMods::Loading { progress, .. } = menu {
-                    progress.tick();
-                }
-            }
             State::AccountLoginProgress(progress)
             | State::ImportModpack(progress)
             | State::ExportInstance(MenuExportInstance {
                 progress: Some(progress),
                 ..
-            }) => {
+            })
+            | State::ManagePresets(MenuEditPresets::Installing(progress))
+            | State::RecommendedMods(MenuRecommendedMods::Loading { progress, .. }) => {
                 progress.tick();
             }
 
@@ -183,6 +175,8 @@ impl Launcher {
             | State::InstallPaper(_)
             | State::CreateShortcut(_)
             | State::ModDescription(_)
+            | State::ManagePresets(_)
+            | State::RecommendedMods(_)
             | State::ExportMods(_) => {}
         }
 

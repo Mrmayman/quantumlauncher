@@ -832,7 +832,7 @@ impl GameLauncher {
         } else {
             info!("Prefix: {prefix_commands:?}");
 
-            let original_java_path = path.to_string_lossy().to_string();
+            let original_java_path = path.to_string_lossy().into_owned();
             let mut new_command = Command::new(&prefix_commands[0]);
 
             if prefix_commands.len() > 1 {

@@ -401,7 +401,7 @@ impl ForgeInstaller {
                     .file_name()
                     .unwrap()
                     .to_string_lossy()
-                    .to_string(),
+                    .into_owned(),
                 parent
                     .to_str()
                     .ok_or(ForgeInstallError::PathBufToStr(parent.clone()))?

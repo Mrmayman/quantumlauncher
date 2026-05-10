@@ -7,7 +7,7 @@ use iced::{
 use ql_core::{InstanceKind, ListEntryKind};
 
 use crate::{
-    cli::{EXPERIMENTAL_MMC_IMPORT, EXPERIMENTAL_SERVERS},
+    cli::EXPERIMENTAL_SERVERS,
     icons,
     menu_renderer::{
         Column, Element, back_to_launch_screen, button_with_icon, ctxbox, dots,
@@ -266,25 +266,22 @@ impl MenuCreateInstanceChoosing {
             ])
         }).spacing(12);
 
-        let mmc_import = EXPERIMENTAL_MMC_IMPORT.read().unwrap();
-
         let menu = column![
             main_part,
             widget::vertical_space(),
-            widget::Row::new()
-                .push_maybe(
-                    mmc_import.then_some(tooltip(
-                        widget::button(import_description())
-                            .padding([4, 8])
-                            .on_press(CreateInstanceMessage::Import.into()),
-                        widget::text("Import Instance... (VERY EXPERIMENTAL right now)").size(14),
-                        Position::Top
-                    ))
-                )
-                .push(widget::horizontal_space())
-                .push(get_create_button(already_exists))
-                .align_y(Alignment::End)
-                .spacing(5)
+            row![
+                tooltip(
+                    widget::button(import_description())
+                        .padding([4, 8])
+                        .on_press(CreateInstanceMessage::Import.into()),
+                    widget::text("Import Instance... (VERY EXPERIMENTAL right now)").size(14),
+                    Position::Top
+                ),
+                widget::horizontal_space(),
+                get_create_button(already_exists)
+            ]
+            .align_y(Alignment::End)
+            .spacing(5)
         ]
         .spacing(10)
         .padding(16);

@@ -1,5 +1,0 @@
-{
-  "instance_name": "idk",
-  "exceptions": [".minecraft/versions", "libraries/natives/"],
-  "is_server": false
-}

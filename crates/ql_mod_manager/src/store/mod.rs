@@ -1,5 +1,6 @@
-use std::{collections::HashSet, path::PathBuf, sync::mpsc::Sender};
+use std::{path::PathBuf, sync::mpsc::Sender};
 
+use crate::store::modpack::PackError;
 use chrono::DateTime;
 use ql_core::{GenericProgress, Instance, IntoIoError, Loader, do_jobs, json::VersionDetails, pt};
 
@@ -10,7 +11,7 @@ mod error;
 mod id;
 pub mod image;
 mod local_json;
-mod modpack;
+pub mod modpack;
 mod modrinth;
 mod recommended;
 mod toggle;
@@ -24,15 +25,14 @@ pub use delete::delete_mods;
 pub use error::{GameExpectation, ModError};
 pub use id::ModId;
 pub use local_json::{ModConfig, ModFile, ModIndex};
-pub use modpack::{PackError, install_modpack};
 pub use modrinth::ModrinthBackend;
 pub use recommended::{RECOMMENDED_MODS, RecommendedMod};
 pub use toggle::{flip_filename, toggle_mods, toggle_mods_local};
 pub use types::{
-    Category, CurseforgeNotAllowed, Query, QueryType, SearchMod, SearchResult, SelectedMod,
-    StoreBackendType,
+    Category, CurseforgeNotAllowed, CurseforgeNotAllowedEntry, Query, QueryType, SearchMod,
+    SearchResult, SelectedMod, StoreBackendType,
 };
-pub use update::{ChangelogFile, apply_updates, check_for_updates};
+pub use update::{ChangelogFile, ModUpdateOutput, apply_updates, check_for_updates};
 
 #[allow(async_fn_in_trait)]
 pub trait Backend {
@@ -73,7 +73,7 @@ pub trait Backend {
         id: &str,
         instance: &Instance,
         sender: Option<Sender<GenericProgress>>,
-    ) -> Result<HashSet<CurseforgeNotAllowed>, ModError>;
+    ) -> Result<CurseforgeNotAllowed, ModError>;
     /// Downloads multiple mods to the `instance`.
     ///
     /// Uses efficient batched APIs and concurrent downloading when possible,
@@ -84,9 +84,9 @@ pub trait Backend {
         ignore_incompatible: bool,
         _set_manually_installed: bool,
         sender: Option<&Sender<GenericProgress>>,
-    ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
+    ) -> Result<CurseforgeNotAllowed, ModError> {
         // Fallback implementation
-        let mut not_allowed = HashSet::new();
+        let mut not_allowed = CurseforgeNotAllowed::new();
         for id in ids {
             // We don't do this concurrently as there's likely a lock on the index
             match Self::download(id, instance, sender.cloned()).await {
@@ -169,7 +169,7 @@ pub async fn download_mod(
     id: &ModId,
     instance: &Instance,
     sender: Option<Sender<GenericProgress>>,
-) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
+) -> Result<CurseforgeNotAllowed, ModError> {
     match id {
         ModId::Modrinth(n) => ModrinthBackend::download(n, instance, sender).await,
         ModId::Curseforge(n) => CurseforgeBackend::download(n, instance, sender).await,
@@ -183,8 +183,8 @@ pub async fn download_mod(
 pub async fn download_mods_bulk(
     ids: Vec<ModId>,
     instance: Instance,
-    sender: Option<Sender<GenericProgress>>,
-) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
+    sender: Option<&Sender<GenericProgress>>,
+) -> Result<CurseforgeNotAllowed, ModError> {
     let (modrinth, other): (Vec<ModId>, Vec<ModId>) = ids.into_iter().partition(|n| match n {
         ModId::Modrinth(_) => true,
         ModId::Curseforge(_) => false,
@@ -205,12 +205,11 @@ pub async fn download_mods_bulk(
     // }
 
     let not_allowed =
-        ModrinthBackend::download_bulk(&modrinth, &instance, true, true, sender.as_ref()).await?;
+        ModrinthBackend::download_bulk(&modrinth, &instance, true, true, sender).await?;
     debug_assert!(not_allowed.is_empty());
 
     let not_allowed =
-        CurseforgeBackend::download_bulk(&curseforge, &instance, true, true, sender.as_ref())
-            .await?;
+        CurseforgeBackend::download_bulk(&curseforge, &instance, true, true, sender).await?;
 
     Ok(not_allowed)
 }

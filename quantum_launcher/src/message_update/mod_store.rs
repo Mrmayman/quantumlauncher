@@ -9,8 +9,8 @@ use ql_mod_manager::store::{
 };
 
 use crate::state::{
-    InstallModsMessage, Launcher, MenuCurseforgeManualDownload, MenuModsDownload, Message,
-    ModCategoryState, ModOperation, ProgressBar, State,
+    InstallModsMessage, Launcher, MenuModsDownload, Message, ModCategoryState, ModOperation,
+    ProgressBar, State,
 };
 
 impl Launcher {
@@ -180,10 +180,7 @@ impl Launcher {
                 if not_allowed.is_empty() {
                     return task;
                 }
-                self.state = State::CurseforgeManualDownload(MenuCurseforgeManualDownload {
-                    not_allowed,
-                    delete_mods: true,
-                });
+                self.state = State::curseforge_manual_download(not_allowed);
             }
             InstallModsMessage::IndexUpdated(Ok(idx)) => {
                 if let State::ModsDownload(menu) = &mut self.state {

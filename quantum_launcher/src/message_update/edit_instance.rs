@@ -93,7 +93,7 @@ impl Launcher {
                     .pick_file()
                 {
                     iflet_config!(&mut self.state, config <- {
-                        config.java_override = Some(file.to_string_lossy().to_string());
+                        config.java_override = Some(file.to_string_lossy().into_owned());
                     });
                 }
             }
@@ -394,7 +394,7 @@ impl Launcher {
                 .pick_file()
                 .and_then(|n| n.file_name().map(|f| (n.clone(), f.to_owned()))),
         ) {
-            let file_name = file_name.to_string_lossy().to_string();
+            let file_name = file_name.to_string_lossy().into_owned();
             if !custom_jars.choices.contains(&file_name) {
                 custom_jars.choices.insert(1, file_name.clone());
             }

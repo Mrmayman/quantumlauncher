@@ -3,8 +3,7 @@ use ql_core::{Instance, IntoStringError, JsonFileError, json::InstanceConfigJson
 use ql_mod_manager::store::{ModId, RECOMMENDED_MODS, RecommendedMod};
 
 use crate::state::{
-    InfoMessage, Launcher, MenuCurseforgeManualDownload, MenuRecommendedMods, Message, ProgressBar,
-    RecommendedModMessage, State,
+    InfoMessage, Launcher, MenuRecommendedMods, Message, ProgressBar, RecommendedModMessage, State,
 };
 
 impl Launcher {
@@ -70,7 +69,10 @@ impl Launcher {
                     let instance = self.selected_instance.clone().unwrap();
 
                     return Task::perform(
-                        ql_mod_manager::store::download_mods_bulk(ids, instance, Some(sender)),
+                        async move {
+                            ql_mod_manager::store::download_mods_bulk(ids, instance, Some(&sender))
+                                .await
+                        },
                         |n| RecommendedModMessage::DownloadEnd(n.strerr()).into(),
                     );
                 }
@@ -82,10 +84,7 @@ impl Launcher {
                             "Downloaded recommended mods",
                         )));
                     }
-                    self.state = State::CurseforgeManualDownload(MenuCurseforgeManualDownload {
-                        not_allowed,
-                        delete_mods: true,
-                    });
+                    self.state = State::curseforge_manual_download(not_allowed);
                 }
                 Err(err) => self.set_error(err),
             },

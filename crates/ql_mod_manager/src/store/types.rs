@@ -1,4 +1,4 @@
-use std::{fmt::Display, time::Instant};
+use std::{collections::HashSet, fmt::Display, time::Instant};
 
 use ql_core::Loader;
 use serde::{Deserialize, Serialize};
@@ -44,12 +44,41 @@ impl SelectedMod {
 
 #[must_use]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct CurseforgeNotAllowed {
+pub struct CurseforgeNotAllowedEntry {
     pub name: String,
     pub slug: String,
     pub filename: String,
     pub project_type: String,
     pub file_id: usize,
+}
+
+// I did it this ugly way so that
+// the `must_use` could prevent ugly mistakes (it actually did).
+
+#[must_use = "download these mods too! if you ignore them, game crashes will occur"]
+#[derive(Debug, Clone, Default)]
+pub struct CurseforgeNotAllowed {
+    pub inner: HashSet<CurseforgeNotAllowedEntry>,
+}
+
+impl CurseforgeNotAllowed {
+    pub fn new() -> Self {
+        Self {
+            inner: HashSet::new(),
+        }
+    }
+
+    pub fn extend(&mut self, other: CurseforgeNotAllowed) {
+        self.inner.extend(other.inner);
+    }
+
+    pub fn insert(&mut self, entry: CurseforgeNotAllowedEntry) {
+        self.inner.insert(entry);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

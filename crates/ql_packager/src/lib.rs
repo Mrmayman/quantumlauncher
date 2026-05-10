@@ -1,9 +1,11 @@
-use std::{collections::HashSet, path::PathBuf};
+use std::path::PathBuf;
 
-use ql_core::{IoError, JsonError, RequestError, impl_3_errs_jri};
-use ql_mod_manager::loaders::{fabric::FabricInstallError, forge::ForgeInstallError};
+use ql_core::{impl_3_errs_jri, IoError, JsonError, RequestError};
+use ql_mod_manager::{
+    loaders::{fabric::FabricInstallError, forge::ForgeInstallError},
+    store::{modpack::PackError, ModError},
+};
 use ql_servers::ServerError;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use ql_instances::DownloadError;
@@ -12,7 +14,6 @@ mod export;
 mod import;
 mod multimc;
 
-pub use export::{EXCEPTIONS, export_instance};
 pub use import::import_instance;
 
 const PKG_ERR_PREFIX: &str = "while importing/exporting instance:\n";
@@ -38,6 +39,10 @@ pub enum InstancePackageError {
     Server(#[from] ServerError),
     #[error("{PKG_ERR_PREFIX}while installing packaged loader:\n{0}")]
     Loader(String),
+    #[error("{PKG_ERR_PREFIX}{0}")]
+    Modpack(#[from] PackError),
+    #[error("{PKG_ERR_PREFIX}{0}")]
+    Mod(#[from] ModError),
 
     #[error("{PKG_ERR_PREFIX}{0}")]
     Forge(#[from] ForgeInstallError),
@@ -46,7 +51,6 @@ pub enum InstancePackageError {
 
     #[error("{PKG_ERR_PREFIX}while dealing with zip:\n{0}")]
     Zip(#[from] zip::result::ZipError),
-
     #[error("{PKG_ERR_PREFIX}while creating temporary directory:\n{0}")]
     TempDir(std::io::Error),
     #[error("{PKG_ERR_PREFIX}while adding to zip:\n{0}")]
@@ -59,9 +63,12 @@ pub enum InstancePackageError {
 
 impl_3_errs_jri!(InstancePackageError, Json, Request, Io);
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct InstanceInfo {
-    instance_name: String,
-    exceptions: HashSet<String>,
-    is_server: bool,
+impl InstancePackageError {
+    pub fn already_exists(&self) -> bool {
+        matches!(
+            self,
+            Self::Download(DownloadError::InstanceAlreadyExists(_))
+                | Self::Server(ServerError::ServerAlreadyExists)
+        )
+    }
 }

@@ -36,8 +36,7 @@ impl MenuExportInstance {
                         Message::Nothing
                     })
                     .text_line_height(1.68),
-                    button_with_icon(icons::floppydisk(), "Export", 16)
-                        .on_press(Message::ExportInstanceStart),
+                    button_with_icon(icons::floppydisk(), "Export", 16),
                 ]
                 .spacing(5)
                 .wrap()

@@ -51,6 +51,7 @@ image = { version = "0.24", default-features = false, features = [
 ] }
 tempfile = "3"
 regex = "1"
+constcat = "0.6"
 
 # [profile.dev]
 # opt-level = 1
