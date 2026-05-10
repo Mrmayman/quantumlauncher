@@ -280,6 +280,11 @@ fn load_icon() -> Option<iced::window::Icon> {
 }
 
 fn load_fonts() -> Vec<Cow<'static, [u8]>> {
+    const INTER: &[u8] = include_bytes!("../../assets/fonts/Inter/Inter-Regular.ttf");
+
+    // Safety: No-one's gonna access this right now
+    unsafe { sctk_adwaita::BUNDLED = INTER };
+
     vec![
         include_bytes!("../../assets/fonts/JetBrainsMono-Regular.ttf")
             .as_slice()
@@ -291,9 +296,7 @@ fn load_fonts() -> Vec<Cow<'static, [u8]>> {
             .as_slice()
             .into(),
         // Inter
-        include_bytes!("../../assets/fonts/Inter/Inter-Regular.ttf")
-            .as_slice()
-            .into(),
+        INTER.into(),
         include_bytes!("../../assets/fonts/Inter/Inter-Bold.ttf")
             .as_slice()
             .into(),

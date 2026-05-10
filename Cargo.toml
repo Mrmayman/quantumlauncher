@@ -78,3 +78,4 @@ panic = "abort"
 resvg = { git = "https://github.com/Mrmayman/resvg.git", branch = "no-system-fonts" }
 usvg = { git = "https://github.com/Mrmayman/resvg.git", branch = "no-system-fonts" }
 cosmic-text = { git = "https://github.com/Mrmayman/cosmic-text.git", branch = "no-system-fonts" }
+sctk-adwaita = { git = "https://github.com/Mrmayman/sctk-adwaita.git", branch = "no-system-fonts" }

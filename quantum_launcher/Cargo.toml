@@ -53,6 +53,8 @@ frostmark = { version = "0.2", default-features = false, features = ["markdown"]
 # For table widget, I don't need this
 # tabular = { git = "https://github.com/Mrmayman/tabular.git" }
 
+sctk-adwaita = "0.10.1" # We will override the font selection for performance
+
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
