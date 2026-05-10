@@ -1525,12 +1525,14 @@ dependencies = [
 
 [[package]]
 name = "filthy-rich"
-version = "0.13.2"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "566bf8a107125e82d5bd4728ee67283c836807b102cca76a90dacf317ea5ae27"
+checksum = "25dc6a00a631ae713340eb9bf9a897661defbe55d59057e89e8a44e05a07b3ca"
 dependencies = [
+ "bytes",
  "serde",
  "serde_json",
+ "serde_repr",
  "thiserror 2.0.18",
  "tokio",
  "uuid",
