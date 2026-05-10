@@ -47,4 +47,6 @@ TODO: Add screenshots
 - Fixed one instance's log output showing up in another
 - Fixed up/down arrow key instance selection following creation date order
   rather than the order shown in sidebar
+- Added bold/italic variants of Inter font
+  to fix font inconsistencies in mod descriptions
 - Reduced clashing between sidebar resizing and scrollbar in main menu
