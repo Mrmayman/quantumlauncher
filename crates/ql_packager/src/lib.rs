@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use ql_core::{IoError, JsonError, RequestError, impl_3_errs_jri};
 use ql_mod_manager::{
     loaders::{fabric::FabricInstallError, forge::ForgeInstallError},
-    store::{ModError, modpack::PackError},
+    store::ModError,
 };
 use ql_servers::ServerError;
 use thiserror::Error;
@@ -39,8 +39,6 @@ pub enum InstancePackageError {
     Server(#[from] ServerError),
     #[error("{PKG_ERR_PREFIX}while installing packaged loader:\n{0}")]
     Loader(String),
-    #[error("{PKG_ERR_PREFIX}{0}")]
-    Modpack(#[from] PackError),
     #[error("{PKG_ERR_PREFIX}{0}")]
     Mod(#[from] ModError),
 

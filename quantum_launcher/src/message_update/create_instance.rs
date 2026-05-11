@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use iced::{Task, widget::pane_grid};
 use ql_core::{
     DownloadProgress, Instance, InstanceKind, IntoStringError, ListEntry, ListEntryKind,
@@ -58,7 +60,7 @@ impl Launcher {
                     // - Exact name match
                     // - Name contains search term
                     // - Special lwjgl3 "ports" of normal versions (de-prioritized)
-                    if let Some(sel) = list.iter().flatten().flatten().find(|n| n.name == search_box.trim())
+                    if let Some(sel) = list.iter().flatten().flatten().find(|n| &*n.name == search_box.trim())
                         .or(iter().find(|n| !n.name.ends_with("-lwjgl3"))
                         .or(iter().next())) {
                         *selected_version = sel.clone();
@@ -153,7 +155,7 @@ impl Launcher {
 
     fn create_instance_finish_loading_versions_list(
         &mut self,
-        res: Result<(Vec<ListEntry>, String), String>,
+        res: Result<(Vec<ListEntry>, Arc<str>), String>,
     ) {
         iflet!(self, selected_version, list; {
             let mut offset = 0.0;
@@ -164,7 +166,7 @@ impl Launcher {
                     .iter()
                     .enumerate()
                     .filter(|n| n.1.kind != ListEntryKind::Snapshot)
-                    .find(|n| n.1.name == *latest)
+                    .find(|n| *n.1.name == **latest)
                     .map_or_else(|| ListEntry::new(latest.clone()), |n| {
                         offset = n.0 as f32 / len as f32;
                         n.1.clone()
@@ -194,7 +196,7 @@ impl Launcher {
             _loading_list_handle: handle.abort_on_drop(),
             list: Ok(None),
             selected_version: ListEntry {
-                name: String::new(),
+                name: Arc::default(),
                 supports_server: true,
                 kind: ListEntryKind::Release,
             },
@@ -220,7 +222,7 @@ impl Launcher {
                 };
                 existing_instances.is_some_and(|n| {
                     n.contains(instance_name)
-                        || (instance_name.is_empty() && n.contains(&selected_version.name))
+                        || (instance_name.is_empty() && n.contains(&selected_version.name.to_string()))
                 })
             };
 
@@ -238,7 +240,7 @@ impl Launcher {
 
             let version = selected_version.clone();
             let instance_name = if instance_name.trim().is_empty() {
-                version.name.clone()
+                version.name.to_string()
             } else {
                 instance_name.clone()
             };

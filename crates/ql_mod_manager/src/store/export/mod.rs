@@ -55,7 +55,7 @@ struct FileHashes {
 pub async fn export_qlmp_modpack(
     author: String,
     icon: String,
-    modpack_path: String,
+    modpack_path: PathBuf,
     modpack_name: String,
     modpack_version: String,
     modpack_summary: String,
@@ -139,7 +139,7 @@ pub async fn export_qlmp_modpack(
     )
     .unwrap();
 
-    let zip_path = PathBuf::from(&modpack_path)
+    let zip_path = modpack_path
         .join(format!("{}.qlmp", modpack_file_name))
         .to_string_lossy()
         .to_string();
@@ -309,7 +309,7 @@ async fn hash_file(path: &Path) -> StdResult<FileHashes> {
 
 fn create_override_mods_full_path(
     override_filenames: Vec<String>,
-    mods_folder_path: &PathBuf,
+    mods_folder_path: &Path,
 ) -> Vec<String> {
     let override_mods_full_path_string: Vec<String> = override_filenames
         .iter()

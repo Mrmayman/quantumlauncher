@@ -334,7 +334,7 @@ impl InstanceKind {
 /// A struct representing information about a Minecraft version
 #[derive(Debug, Clone, PartialEq)]
 pub struct ListEntry {
-    pub name: String,
+    pub name: Arc<str>,
     pub supports_server: bool,
     /// For UI display purposes only
     pub kind: ListEntryKind,
@@ -342,7 +342,7 @@ pub struct ListEntry {
 
 impl ListEntry {
     #[must_use]
-    pub fn new(name: String) -> Self {
+    pub fn new(name: Arc<str>) -> Self {
         Self {
             kind: ListEntryKind::guess(&name),
             supports_server: Version::guess_if_supports_server(&name),
@@ -351,7 +351,7 @@ impl ListEntry {
     }
 
     #[must_use]
-    pub fn with_kind(name: String, ty: &str) -> Self {
+    pub fn with_kind(name: Arc<str>, ty: &str) -> Self {
         Self {
             kind: ListEntryKind::calculate(&name, ty),
             supports_server: Version::guess_if_supports_server(&name),

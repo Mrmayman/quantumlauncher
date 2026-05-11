@@ -1,11 +1,9 @@
-use std::{fmt::Display, num::ParseIntError};
+use std::{fmt::Display, num::ParseIntError, sync::Arc};
 
-use ql_core::{IoError, JsonError, RequestError, impl_3_errs_jri};
+use ql_core::{IoError, JsonError, Loader, RequestError, impl_3_errs_jri};
 use thiserror::Error;
 
 use crate::store::QueryType;
-
-use super::modpack::PackError;
 
 const MOD_ERR_PREFIX: &str = "while managing mods:\n";
 
@@ -50,8 +48,6 @@ pub enum ModError {
     #[error("{MOD_ERR_PREFIX}couldn't parse int (curseforge mod id):\n{0}")]
     ParseInt(#[from] ParseIntError),
 
-    #[error("{MOD_ERR_PREFIX}{0}")]
-    Pack(#[from] Box<PackError>),
     #[error("{MOD_ERR_PREFIX}not a valid modpack or QMP preset!")]
     NotValidPack,
     #[error("{MOD_ERR_PREFIX}API Error: {error_id}\n{description}")]
@@ -59,6 +55,24 @@ pub enum ModError {
         error_id: String,
         description: String,
     },
+
+    #[error(
+        "This modpack requires loader: {expect}\nbut you have {got} installed.\n\nPlease install {expect} from the Mods menu"
+    )]
+    Loader { expect: String, got: Loader },
+    #[error(
+        "This modpack requires Minecraft {expect}\nbut this instance is Minecraft {got}.\n\nPlease create a {expect} instance."
+    )]
+    GameVersion { expect: Arc<str>, got: String },
+
+    #[error(
+        "{MOD_ERR_PREFIX}This modpack doesn't have any mod loaders specified.\nIt may be corrupt, unsupported or invalid.\nPlease report this bug in discord."
+    )]
+    NoLoadersSpecified,
+    #[error("{MOD_ERR_PREFIX}found modpack inside modpack!")]
+    ModpackInModpack,
+    #[error("{MOD_ERR_PREFIX}couldn't identify format (not CurseForge/Modrinth/QMP/...)")]
+    NoBackendFound,
 }
 
 impl_3_errs_jri!(ModError, Json, RequestError, Io);

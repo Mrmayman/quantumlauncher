@@ -82,7 +82,7 @@ pub fn view_project_description<'a, T: iced::advanced::text::IntoFragment<'a>>(
                 .on_press(back_msg.into()),
             widget::Space::with_width(0),
             images.view(hit.icon_url.as_deref(), Some(20.0), Some(20.0)),
-            widget::text(&hit.title)
+            widget::text(&*hit.title)
                 .shaping(widget::text::Shaping::Advanced)
                 .width(Length::Fill)
                 .size(16),

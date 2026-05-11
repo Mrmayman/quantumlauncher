@@ -1,4 +1,8 @@
-use std::{collections::HashMap, path::Path, sync::mpsc::Sender};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::{Arc, mpsc::Sender},
+};
 
 use ql_core::{
     GenericProgress, Instance, InstanceKind, Loader, do_jobs, download,
@@ -8,12 +12,12 @@ use ql_core::{
 use serde::Deserialize;
 use tokio::sync::Mutex;
 
-use super::PackError;
+use crate::store::ModError;
 
 #[derive(Deserialize)]
 pub struct PackIndex {
-    pub name: String,
-    files: Vec<PackFile>,
+    pub name: Arc<str>,
+    pub files: Vec<PackFile>,
 
     /// Info about which Minecraft version
     /// and Loader version is required. May contain:
@@ -23,7 +27,7 @@ pub struct PackIndex {
     /// - `neoforge`
     /// - `fabric-loader`
     /// - `quilt-loader`
-    pub dependencies: HashMap<String, String>,
+    pub dependencies: HashMap<String, Arc<str>>,
 }
 
 #[derive(Deserialize)]
@@ -46,10 +50,10 @@ pub async fn install(
     json: &VersionDetails,
     index: &PackIndex,
     sender: Option<&Sender<GenericProgress>>,
-) -> Result<(), PackError> {
+) -> Result<(), ModError> {
     if let Some(version) = index.dependencies.get("minecraft") {
-        if json.get_id() != *version {
-            return Err(PackError::GameVersion {
+        if json.get_id() != &**version {
+            return Err(ModError::GameVersion {
                 expect: version.clone(),
                 got: json.get_id().to_owned(),
             });
@@ -74,7 +78,7 @@ pub async fn install(
     let i = &i;
 
     let len = index.files.len();
-    let jobs: Result<Vec<()>, PackError> = do_jobs(
+    let jobs: Result<Vec<()>, ModError> = do_jobs(
         index
             .files
             .iter()
@@ -142,7 +146,7 @@ async fn send_progress(
     }
 }
 
-fn expect_got_modrinth(index_json: &PackIndex, config: &InstanceConfigJson) -> PackError {
+fn expect_got_modrinth(index_json: &PackIndex, config: &InstanceConfigJson) -> ModError {
     match index_json
         .dependencies
         .keys()
@@ -155,10 +159,10 @@ fn expect_got_modrinth(index_json: &PackIndex, config: &InstanceConfigJson) -> P
         })
         .next()
     {
-        Some(expect) => PackError::Loader {
+        Some(expect) => ModError::Loader {
             expect,
             got: config.mod_type,
         },
-        None => PackError::NoLoadersSpecified,
+        None => ModError::NoLoadersSpecified,
     }
 }

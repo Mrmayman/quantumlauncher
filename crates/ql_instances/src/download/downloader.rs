@@ -1,7 +1,7 @@
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
-    sync::mpsc::Sender,
+    sync::{Arc, mpsc::Sender},
 };
 
 use crate::json_profiles::ProfileJson;
@@ -34,7 +34,7 @@ pub enum DownloadError {
     #[error("an instance with that name already exists: {0}")]
     InstanceAlreadyExists(String),
     #[error("{DOWNLOAD_ERR_PREFIX}version not found in manifest.json: {0}")]
-    VersionNotFoundInManifest(String),
+    VersionNotFoundInManifest(Arc<str>),
     #[error("{DOWNLOAD_ERR_PREFIX}in assets JSON, field not found: \"{0}\"")]
     AssetsJsonFieldNotFound(String),
     #[error("{DOWNLOAD_ERR_PREFIX}could not extract native libraries:\n{0}")]

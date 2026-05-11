@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     io::{Cursor, Write},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use ql_core::{
@@ -138,9 +139,9 @@ async fn zip_add_dotmc_dir(
     Ok(())
 }
 
-async fn get_minecraft_version(instance_name: &Instance) -> Result<String, ModError> {
+async fn get_minecraft_version(instance_name: &Instance) -> Result<Arc<str>, ModError> {
     let version_json = VersionDetails::load(instance_name).await?;
-    let minecraft_version = version_json.get_id().to_owned();
+    let minecraft_version = version_json.get_id().into();
     Ok(minecraft_version)
 }
 

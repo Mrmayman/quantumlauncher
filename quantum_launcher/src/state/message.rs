@@ -1,4 +1,4 @@
-use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
+use std::{collections::HashSet, path::PathBuf, process::ExitStatus, sync::Arc};
 
 use crate::{
     config::{
@@ -56,7 +56,7 @@ pub enum CreateInstanceMessage {
     ScreenOpen(InstanceKind),
     SidebarResize(f32),
 
-    VersionsLoaded(Res<(Vec<ListEntry>, String)>),
+    VersionsLoaded(Res<(Vec<ListEntry>, Arc<str>)>),
     VersionSelected(ListEntry),
     NameInput(String),
     ChangeAssetToggle(bool),

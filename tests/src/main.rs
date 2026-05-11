@@ -1,4 +1,4 @@
-use std::{fmt::Display, path::PathBuf, process::exit};
+use std::{fmt::Display, path::PathBuf, process::exit, sync::Arc};
 
 use clap::Parser;
 use ql_core::{LAUNCHER_DIR, ListEntry, Loader, do_jobs, eeprintln, print::LogConfig};
@@ -18,7 +18,7 @@ mod version;
 struct Cli {
     #[arg(long)]
     #[arg(help = "Test a specific version")]
-    specific: Option<String>,
+    specific: Option<Arc<str>>,
     #[arg(short, long)]
     #[arg(help = "Whether to reuse existing test files instead of redownloading them")]
     existing: bool,
@@ -64,15 +64,15 @@ async fn main() {
 
     if !cli.existing {
         if let Some(name) = &cli.specific {
-            let path = LAUNCHER_DIR.join("instances").join(name);
+            let path = LAUNCHER_DIR.join("instances").join(&**name);
             _ = tokio::fs::remove_dir_all(&path).await;
-            attempt(create_instance(name.to_owned()).await);
+            attempt(create_instance(name.clone()).await);
         } else {
             attempt(
                 do_jobs(cli.get_versions().map(|version| async {
                     let path = LAUNCHER_DIR.join("instances").join(version.0);
                     _ = tokio::fs::remove_dir_all(&path).await;
-                    create_instance(version.0.to_owned()).await?;
+                    create_instance(version.0.into()).await?;
                     Ok::<(), DownloadError>(())
                 }))
                 .await,
@@ -155,8 +155,9 @@ fn setup_dir() {
     }
 }
 
-async fn create_instance(version: String) -> Result<(), DownloadError> {
-    match ql_instances::create_instance(version.clone(), ListEntry::new(version), None, false).await
+async fn create_instance(version: Arc<str>) -> Result<(), DownloadError> {
+    match ql_instances::create_instance(version.to_string(), ListEntry::new(version), None, false)
+        .await
     {
         Ok(_) | Err(DownloadError::InstanceAlreadyExists(_)) => Ok(()),
         Err(err) => Err(err),

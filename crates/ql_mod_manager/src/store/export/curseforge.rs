@@ -1,6 +1,6 @@
 use std::{collections::HashSet, path::PathBuf};
 
-use ql_core::{Instance, json::VersionDetails};
+use ql_core::{Instance, Loader, json::VersionDetails};
 use serde::Serialize;
 
 use crate::store::{
@@ -80,12 +80,12 @@ pub async fn export_curseforge_modpack(
     let details = VersionDetails::load(&instance).await.unwrap();
     let minecraft_version = details.get_id().to_string();
     let config = ql_core::InstanceConfigJson::read(&instance).await;
-    let loader_name = match config.as_ref().unwrap().mod_type.to_curseforge_num() {
-        "1" => "forge",
-        "4" => "fabric",
-        "5" => "quilt",
-        "6" => "neoforge",
-        "3" => "lightloader",
+    let loader_name = match config.as_ref().unwrap().mod_type {
+        Loader::Forge => "forge",
+        Loader::Fabric => "fabric",
+        Loader::Quilt => "quilt",
+        Loader::Neoforge => "neoforge",
+        // Loader::Liteloader => "lightloader",
         _ => panic!(),
     };
     let loader_version = config.unwrap().mod_type_info.unwrap().version;
@@ -141,7 +141,7 @@ fn write_curseforge_manifest_json(
 
     let files: Vec<CurseForgeFileEntry> = mod_id
         .into_iter()
-        .zip(file_id.into_iter())
+        .zip(file_id)
         .map(|(proj_str, file_str)| CurseForgeFileEntry {
             project_id: proj_str.parse::<u64>().unwrap(),
             file_id: file_str.parse::<u64>().unwrap(),

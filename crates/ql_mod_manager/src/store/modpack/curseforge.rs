@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::mpsc::Sender,
+    sync::{Arc, mpsc::Sender},
 };
 
 use ql_core::{
@@ -12,25 +12,23 @@ use serde::Deserialize;
 use tokio::sync::Mutex;
 
 use crate::store::{
-    CurseforgeNotAllowed, CurseforgeNotAllowedEntry, DirStructure, ModConfig, ModFile, ModId,
-    ModIndex, QueryType, StoreBackendType,
+    CurseforgeNotAllowed, CurseforgeNotAllowedEntry, DirStructure, ModConfig, ModError, ModFile,
+    ModId, ModIndex, QueryType, StoreBackendType,
     curseforge::{self, CFSearchResult, CurseforgeFileQuery, ModQuery, get_query_type},
 };
-
-use super::PackError;
 
 #[derive(Deserialize)]
 pub struct PackIndex {
     pub minecraft: PackMinecraft,
-    pub name: String,
-    files: Vec<PackFile>,
+    pub name: Arc<str>,
+    pub files: Vec<PackFile>,
     pub overrides: String,
 }
 
 #[derive(Deserialize)]
 #[allow(non_snake_case)]
 pub struct PackMinecraft {
-    pub version: String,
+    pub version: Arc<str>,
     pub modLoaders: Vec<PackLoader>,
     pub recommendedRam: Option<usize>,
 }
@@ -44,7 +42,7 @@ pub struct PackLoader {
 #[derive(Deserialize)]
 #[allow(non_snake_case)]
 pub struct PackFile {
-    projectID: i32,
+    pub projectID: i32,
     fileID: usize,
     required: bool,
 }
@@ -58,7 +56,7 @@ impl PackFile {
         (i, len): (&Mutex<usize>, usize),
         cache: &HashMap<i32, curseforge::Mod>,
         index: &Mutex<ModIndex>,
-    ) -> Result<(), PackError> {
+    ) -> Result<(), ModError> {
         if !self.required {
             return Ok(());
         }
@@ -77,7 +75,10 @@ impl PackFile {
             return Ok(());
         };
 
-        let path = dirs.get(query_type)?.join(&query.data.fileName);
+        let path = dirs
+            .get(query_type)
+            .ok_or(ModError::ModpackInModpack)?
+            .join(&query.data.fileName);
         if path.is_file() {
             let metadata = tokio::fs::metadata(&path).await.path(&path)?;
             let got_len = metadata.len();
@@ -185,9 +186,9 @@ pub async fn install(
     json: &VersionDetails,
     index: &PackIndex,
     sender: Option<&Sender<GenericProgress>>,
-) -> Result<CurseforgeNotAllowed, PackError> {
-    if json.get_id() != index.minecraft.version {
-        return Err(PackError::GameVersion {
+) -> Result<CurseforgeNotAllowed, ModError> {
+    if json.get_id() != &*index.minecraft.version {
+        return Err(ModError::GameVersion {
             expect: index.minecraft.version.clone(),
             got: json.get_id().to_owned(),
         });
@@ -235,7 +236,7 @@ pub async fn install(
             .collect()
     };
 
-    do_jobs::<(), PackError>(
+    do_jobs::<(), ModError>(
         index
             .files
             .iter()
@@ -249,8 +250,8 @@ pub async fn install(
     Ok(not_allowed.clone())
 }
 
-fn expect_got_curseforge(index: &PackIndex, config: &InstanceConfigJson) -> PackError {
-    PackError::Loader {
+fn expect_got_curseforge(index: &PackIndex, config: &InstanceConfigJson) -> ModError {
+    ModError::Loader {
         expect: index
             .minecraft
             .modLoaders

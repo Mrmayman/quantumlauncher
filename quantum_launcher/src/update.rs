@@ -10,9 +10,9 @@ use owo_colors::OwoColorize;
 use crate::launcher_update::UpdateCheckInfo;
 use crate::{
     state::{
-        AutoSaveKind, CustomJarState, DirWatcher, GameProcess, InfoMessage, LaunchTab, Launcher,
-        LauncherSettingsMessage, ManageModsMessage, MenuExportInstance, MenuLaunch, MenuLicense,
-        MenuWelcome, Message, State, dir_watch, get_entries,
+        AutoSaveKind, CustomJarState, DirWatcher, GameProcess, InfoMessage, Launcher,
+        LauncherSettingsMessage, ManageModsMessage, MenuExportInstance, MenuLicense, MenuWelcome,
+        Message, State, dir_watch, get_entries,
     },
     stylesheet::styles::LauncherThemeLightness,
 };
