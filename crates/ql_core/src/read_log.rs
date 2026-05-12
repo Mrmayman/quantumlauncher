@@ -237,7 +237,7 @@ pub enum LogLine {
 
 impl LogLine {
     #[must_use]
-    pub fn print_colored(&self) -> String {
+    fn print_colored(&self) -> String {
         match self {
             LogLine::Info(event) => event.print_color(),
             LogLine::Message(message) => message.clone(),
@@ -297,7 +297,7 @@ pub enum Diagnostic {
 
 impl Diagnostic {
     #[must_use]
-    pub fn generate_from_log(log: &[String]) -> Option<Diagnostic> {
+    fn generate_from_log(log: &[String]) -> Option<Diagnostic> {
         fn c(log: &[String], msg: &str) -> bool {
             log.iter().any(|n| n.contains(msg))
         }
@@ -362,7 +362,7 @@ pub struct LogEvent {
 impl LogEvent {
     /// Returns the time of the log event, formatted as `HH:MM:SS`.
     #[must_use]
-    pub fn get_time(&self) -> Option<String> {
+    fn get_time(&self) -> Option<String> {
         let time: i64 = self.timestamp.parse().ok()?;
         let seconds = time / 1000;
         let milliseconds = time % 1000;
@@ -373,7 +373,7 @@ impl LogEvent {
     }
 
     #[must_use]
-    pub fn print_color(&self) -> String {
+    fn print_color(&self) -> String {
         let date = self.get_time().unwrap_or_else(|| self.timestamp.clone());
 
         let bright_black = self.level.bright_black();
@@ -404,7 +404,7 @@ impl LogEvent {
         out
     }
 
-    pub fn fix_tabs(&mut self) {
+    fn fix_tabs(&mut self) {
         if let Some(message) = &mut self.message {
             *message = message.replace('\t', "\n\t");
         }

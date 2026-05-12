@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     io::{Cursor, Write},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use ql_core::{
@@ -29,6 +30,7 @@ pub async fn generate(
     instance: Instance,
     selected_mods: HashSet<SelectedMod>,
     dotmc_entries: Vec<DirItem>,
+    metadata: Option<super::ExtraMeta>,
 ) -> Result<Vec<u8>, ModError> {
     let opts = zip::write::FileOptions::<()>::default();
 
@@ -68,6 +70,7 @@ pub async fn generate(
         minecraft_version,
         entries_downloaded,
         entries_local: entries_local.iter().map(|(n, _)| n).cloned().collect(),
+        metadata,
     };
 
     let file: Vec<u8> = Vec::new();
@@ -136,9 +139,9 @@ async fn zip_add_dotmc_dir(
     Ok(())
 }
 
-async fn get_minecraft_version(instance_name: &Instance) -> Result<String, ModError> {
+async fn get_minecraft_version(instance_name: &Instance) -> Result<Arc<str>, ModError> {
     let version_json = VersionDetails::load(instance_name).await?;
-    let minecraft_version = version_json.get_id().to_owned();
+    let minecraft_version = version_json.get_id().into();
     Ok(minecraft_version)
 }
 

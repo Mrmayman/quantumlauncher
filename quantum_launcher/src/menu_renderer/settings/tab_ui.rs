@@ -20,9 +20,7 @@ impl MenuLauncherSettings {
             widget::horizontal_space(),
             widget::button(widget::text("Apply").size(12))
                 .padding([1.8, 5.0])
-                .on_press(Message::LauncherSettings(
-                    LauncherSettingsMessage::UiScaleApply,
-                ))
+                .on_press(LauncherSettingsMessage::UiScaleApply.into())
         ];
 
         let idle_fps = config.c_idle_fps();
@@ -45,10 +43,11 @@ impl MenuLauncherSettings {
                             .then_some(ui_scale_apply)
                     )
                     .align_y(Alignment::Center).width(SETTING_WIDTH),
-                widget::slider(0.5..=3.0, self.temp_scale, |n| Message::LauncherSettings(
-                    LauncherSettingsMessage::UiScale(n)
-                ))
-                .step(0.1),
+                widget::slider(
+                    0.5..=3.0,
+                    self.temp_scale,
+                    |n| LauncherSettingsMessage::UiScale(n).into()
+                ).step(0.1),
             ]
             .align_y(Alignment::Center)
             .spacing(5)],
@@ -64,9 +63,7 @@ impl MenuLauncherSettings {
                 // widget::Space::with_height(5),
 
                 widget::checkbox("Antialiasing (UI) - Requires Restart", config.ui_antialiasing.unwrap_or(true))
-                    .on_toggle(|n| Message::LauncherSettings(
-                        LauncherSettingsMessage::ToggleAntialiasing(n)
-                    )),
+                    .on_toggle(|n| LauncherSettingsMessage::ToggleAntialiasing(n).into()),
                 widget::text("Makes text/menus crisper. Also nudges the launcher into using your dedicated GPU for the User Interface")
                     .size(12).style(tsubtitle),
                 widget::Space::with_height(5),
@@ -84,10 +81,9 @@ impl MenuLauncherSettings {
                     widget::text!("UI Idle FPS ({idle_fps})")
                         .size(15)
                         .width(SETTING_WIDTH),
-                    widget::slider(2.0..=20.0, idle_fps as f64, |n| Message::LauncherSettings(
-                        LauncherSettingsMessage::UiIdleFps(n)
-                    ))
-                    .step(1.0).shift_step(1.0),
+                    widget::slider(2.0..=20.0, idle_fps as f64, |n| LauncherSettingsMessage::UiIdleFps(n).into())
+                        .step(1.0)
+                        .shift_step(1.0),
                 ]
                 .align_y(Alignment::Center)
                 .spacing(5),
@@ -107,9 +103,9 @@ fn get_ui_opacity(config: &LauncherConfig) -> widget::Column<'static, Message, L
             widget::text!("Window Opacity ({ui_opacity:.2}x)")
                 .width(SETTING_WIDTH)
                 .size(15),
-            widget::slider(0.5..=1.0, ui_opacity, |n| Message::LauncherSettings(
-                LauncherSettingsMessage::UiOpacity(n)
-            ))
+            widget::slider(0.5..=1.0, ui_opacity, |n| {
+                LauncherSettingsMessage::UiOpacity(n).into()
+            })
             .step(0.1)
         ]
         .spacing(5)

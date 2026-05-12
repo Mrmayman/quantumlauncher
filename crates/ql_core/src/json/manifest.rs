@@ -1,4 +1,4 @@
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use crate::{IntoJsonError, JsonDownloadError, err, file_utils};
 use cfg_if::cfg_if;
@@ -79,13 +79,13 @@ impl Manifest {
         // Removes newer versions from out-of-date manifest
         // if it ever gets updated, to not mess up the list.
         older_manifest.versions = take_versions_older_than(&older_manifest.versions, |n| {
-            n.id == LAST_BETTERJSONS || n.id == LAST_BETTERJSONS_ALT
+            &*n.id == LAST_BETTERJSONS || &*n.id == LAST_BETTERJSONS_ALT
         });
         // Add newer versions (that lack fixes/polish) to the manifest
         older_manifest.versions.splice(
             0..0,
             take_versions_newer_than(&newer_manifest.versions, |n| {
-                n.id == LAST_BETTERJSONS || n.id == LAST_BETTERJSONS_ALT
+                &*n.id == LAST_BETTERJSONS || &*n.id == LAST_BETTERJSONS_ALT
             }),
         );
 
@@ -96,7 +96,7 @@ impl Manifest {
     /// This searches for an *exact match*.
     #[must_use]
     pub fn find_name(&self, name: &str) -> Option<&Version> {
-        self.versions.iter().find(|n| n.id == name)
+        self.versions.iter().find(|n| &*n.id == name)
     }
 
     /// Gets the latest stable release
@@ -109,32 +109,21 @@ impl Manifest {
     pub fn get_latest_release(&self) -> Option<&Version> {
         self.find_name(&self.latest.release)
     }
-
-    /// Gets the latest snapshot (experimental) release.
-    ///
-    /// This only returns a `None` if the .latest field's
-    /// data is *wrong* (impossible normally, if you just
-    /// [`Manifest::download`] it). So it's mostly safe
-    /// to unwrap.
-    #[must_use]
-    pub fn get_latest_snapshot(&self) -> Option<&Version> {
-        self.find_name(&self.latest.snapshot)
-    }
 }
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct Latest {
-    pub release: String,
-    pub snapshot: String,
+    release: String,
+    // snapshot: String,
 }
 
 #[allow(non_snake_case)]
 #[derive(Deserialize, Clone, Debug)]
 pub struct Version {
-    pub id: String,
+    pub id: Arc<str>,
     pub r#type: String,
     pub url: String,
-    pub time: String,
+    // time: String,
     pub releaseTime: String,
 }
 

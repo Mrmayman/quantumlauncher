@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use ql_core::{JsonDownloadError, ListEntry, ListEntryKind, json::Manifest};
 
 /// Returns a list of every downloadable version of Minecraft.
@@ -5,7 +7,7 @@ use ql_core::{JsonDownloadError, ListEntry, ListEntryKind, json::Manifest};
 ///
 /// # Errors
 /// If [`Manifest`] couldn't be downloaded or parsed into JSON
-pub async fn list_versions() -> Result<(Vec<ListEntry>, String), JsonDownloadError> {
+pub async fn list_versions() -> Result<(Vec<ListEntry>, Arc<str>), JsonDownloadError> {
     let manifest = Manifest::download().await?;
     let latest = manifest
         .get_latest_release()

@@ -168,7 +168,7 @@ impl MenuModsDownload {
                 row![icons::download_s(14), widget::text("Type:").size(18)]
                     .align_y(Alignment::Center)
                     .spacing(5),
-                widget::column(QueryType::STORE_QUERIES.iter().map(|n| {
+                widget::column(QueryType::ALL.iter().map(|n| {
                     widget::radio(n.to_string(), *n, Some(self.query_type), |v| {
                         InstallModsMessage::ChangeQueryType(v).into()
                     })

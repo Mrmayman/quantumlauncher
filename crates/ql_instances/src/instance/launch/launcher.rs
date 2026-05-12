@@ -40,9 +40,9 @@ pub struct GameLauncher {
     pub instance_dir: PathBuf,
     /// Client: `QuantumLauncher/instances/NAME/.minecraft/`
     /// Server: `QuantumLauncher/servers/NAME/`
-    pub minecraft_dir: PathBuf,
+    minecraft_dir: PathBuf,
 
-    pub config: InstanceConfigJson,
+    config: InstanceConfigJson,
     pub version_json: VersionDetails,
     /// Launcher-wide instance settings. These
     /// can be overridden by `config_json.global_settings`.
@@ -753,7 +753,7 @@ impl GameLauncher {
         Ok(())
     }
 
-    pub async fn get_java_command(&mut self) -> Result<(Command, PathBuf), GameLaunchError> {
+    async fn get_java_command(&mut self) -> Result<(Command, PathBuf), GameLaunchError> {
         let which_java = if cfg!(target_os = "windows") && self.config.enable_logger.unwrap_or(true)
         {
             "javaw"

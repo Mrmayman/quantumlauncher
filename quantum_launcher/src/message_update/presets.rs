@@ -99,7 +99,13 @@ impl Launcher {
                         State::ManagePresets(MenuEditPresets::Loading("Building Preset..."));
 
                     return Task::perform(
-                        ql_mod_manager::presets::generate(selected_instance, mods_selected, dir),
+                        // TODO: Add metadata for preset generating
+                        ql_mod_manager::presets::generate(
+                            selected_instance,
+                            mods_selected,
+                            dir,
+                            None,
+                        ),
                         |n| EditPresetsMessage::GenerateEnd(n.strerr()).into(),
                     );
                 });

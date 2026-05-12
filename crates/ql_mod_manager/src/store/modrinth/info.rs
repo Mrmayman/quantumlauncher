@@ -22,11 +22,11 @@ pub struct ProjectInfo {
     // pub status: String,
     // pub requested_status: Option<String>,
     // pub additional_categories: Vec<String>,
-    pub issues_url: Option<String>,
-    pub source_url: Option<String>,
-    pub wiki_url: Option<String>,
-    pub discord_url: Option<String>,
-    pub donation_urls: Vec<DonationLink>,
+    issues_url: Option<String>,
+    source_url: Option<String>,
+    wiki_url: Option<String>,
+    discord_url: Option<String>,
+    donation_urls: Vec<DonationLink>,
     pub downloads: usize,
     // pub color: Option<usize>,
     // pub thread_id: Option<String>,
@@ -44,10 +44,10 @@ pub struct ProjectInfo {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct MGallery {
-    pub url: String,
+    url: String,
     // pub featured: bool,
-    pub title: Option<String>,
-    pub description: Option<String>,
+    title: Option<String>,
+    description: Option<String>,
     // pub created: String,
     pub ordering: i64,
 }
@@ -118,13 +118,13 @@ impl ProjectInfo {
 #[derive(Deserialize, Debug, Clone)]
 pub struct DonationLink {
     // pub id: String,
-    pub platform: String,
-    pub url: String,
+    platform: String,
+    url: String,
 }
 
 /*#[derive(Deserialize, Debug, Clone)]
 pub struct License {
-    pub id: String,
-    pub name: String,
-    pub url: Option<String>,
+    id: String,
+    name: String,
+    url: Option<String>,
 }*/

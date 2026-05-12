@@ -31,6 +31,8 @@ mod generate;
 pub use generate::generate;
 mod load;
 pub use load::{PresetOutput, load};
+mod peek;
+pub use peek::peek;
 
 // TODO: (SERVER) Adapt both of these to also suit Minecraft servers,
 // not just clients. This is super important!
@@ -67,7 +69,7 @@ pub const SOFT_EXCEPTIONS: &[&str] = &[
     "usernamecache.json",
 ];
 
-const OVERRIDES_NAME: &str = "overrides";
+pub(crate) const OVERRIDES_NAME: &str = "overrides";
 
 /// The main upfront choices the user will have to make.
 ///
@@ -85,16 +87,27 @@ pub const MAIN_CHOICES: &[(&str, &str, bool)] = &[
 ];
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct PresetJson {
+pub(crate) struct PresetJson {
     instance_name: Option<Arc<str>>,
     is_server: Option<bool>,
 
     launcher_version: String,
-    minecraft_version: String,
+    minecraft_version: Arc<str>,
     instance_type: Loader,
     #[serde(rename = "entries_modrinth")]
     entries_downloaded: HashMap<ModId, ModConfig>,
     entries_local: Vec<String>,
+
+    metadata: Option<ExtraMeta>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ExtraMeta {
+    nice_name: Option<Arc<str>>,
+    author: Option<Arc<str>>,
+    summary: Option<Arc<str>>,
+    icon: Option<Arc<str>>,
+    version: Option<Arc<str>>,
 }
 
 async fn get_instance_type(instance_name: &Instance) -> Result<Loader, ModError> {
