@@ -2,8 +2,8 @@ use crate::store::{ModId, ModIndex};
 use async_zip::tokio::write::ZipFileWriter;
 use async_zip::{Compression, ZipEntryBuilder};
 use hex;
-use ql_core::Instance;
 use ql_core::json::VersionDetails;
+use ql_core::{Instance, JsonFileError};
 use serde::Serialize;
 use serde_json::{Map, Value};
 use sha1::{Digest, Sha1};
@@ -11,6 +11,7 @@ use sha2::Sha512;
 use std::collections::HashSet;
 use std::io::Result as StdResult;
 use std::path::{Path, PathBuf};
+use thiserror::Error;
 use tokio::fs::read;
 
 mod curseforge;
@@ -52,6 +53,18 @@ struct FileHashes {
     file_size: u64,
 }
 
+#[derive(Error, Debug)]
+pub enum ModpackExportError {
+    #[error("could not package: {0}")]
+    FailedPackaging(#[from] PackageError),
+
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("failed to parse JSON: {0}")]
+    Json(#[from] JsonFileError),
+}
+
 pub async fn export_qlmp_modpack(
     author: String,
     icon: String,
@@ -63,8 +76,8 @@ pub async fn export_qlmp_modpack(
     mod_ids: HashSet<ModId>,
     overrides: Vec<String>,
     instance: Instance,
-) {
-    let index = ModIndex::load(&instance).await.unwrap();
+) -> Result<(), ModpackExportError> {
+    let index = ModIndex::load(&instance).await?;
 
     let mut urls: Vec<String> = Vec::new();
     let mut filenames: Vec<String> = Vec::new();
@@ -93,7 +106,7 @@ pub async fn export_qlmp_modpack(
         }
     }
 
-    let details = VersionDetails::load(&instance).await.unwrap();
+    let details = VersionDetails::load(&instance).await?;
     let minecraft_version = details.get_id();
     let config = ql_core::InstanceConfigJson::read(&instance).await;
     let loader_name = config.as_ref().unwrap().mod_type.to_modrinth_str();
@@ -112,7 +125,7 @@ pub async fn export_qlmp_modpack(
     let mut file_sizes = Vec::new();
 
     for path in &full_path {
-        let hashes = hash_file(path).await.unwrap();
+        let hashes = hash_file(path).await?;
         sha1s.push(hashes.sha1);
         sha512s.push(hashes.sha512);
         file_sizes.push(hashes.file_size);
@@ -136,8 +149,7 @@ pub async fn export_qlmp_modpack(
         sha512s,
         urls,
         file_sizes,
-    )
-    .unwrap();
+    )?;
 
     let zip_path = modpack_path
         .join(format!("{}.qlmp", modpack_file_name))
@@ -147,9 +159,9 @@ pub async fn export_qlmp_modpack(
     let overrides: Vec<(String, String)> =
         overrides_fn(override_mods_full_path_string, overrides, instance);
 
-    package_format1_pack("qlmp.index".to_string(), json_data, zip_path, overrides)
-        .await
-        .unwrap();
+    package_format1_pack("qlmp.index".to_string(), json_data, zip_path, overrides).await?;
+
+    Ok(())
 }
 
 fn create_qlmp_index_json(
@@ -190,13 +202,17 @@ fn create_qlmp_index_json(
     Ok(json_data)
 }
 
-#[derive(thiserror::Error, Debug)]
-enum PackageError {
+#[derive(Error, Debug)]
+pub enum PackageError {
     #[error("zip error: {0}")]
     Zip(#[from] async_zip::error::ZipError),
 
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("parent path is undefined for: {0}")]
+    #[allow(unused)]
+    ParentPathUndefined(String),
 }
 
 async fn package_format1_pack(
@@ -206,7 +222,9 @@ async fn package_format1_pack(
     zip_path: String,
     overrides: Vec<(String, String)>,
 ) -> Result<(), PackageError> {
-    let parent_dir = Path::new(&zip_path).parent().unwrap();
+    let parent_dir = Path::new(&zip_path)
+        .parent()
+        .ok_or(PackageError::ParentPathUndefined(zip_path.clone()))?;
     tokio::fs::create_dir_all(parent_dir).await?;
 
     let output_file = tokio::fs::File::create(&zip_path).await?;
