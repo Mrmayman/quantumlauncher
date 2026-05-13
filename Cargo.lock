@@ -1435,9 +1435,9 @@ dependencies = [
 
 [[package]]
 name = "filthy-rich"
-version = "1.0.2"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25dc6a00a631ae713340eb9bf9a897661defbe55d59057e89e8a44e05a07b3ca"
+checksum = "a6a018b0fc04824b50ab96cf584a86b45f4e266f9365111aefa54f77e6fb7535"
 dependencies = [
  "bytes",
  "serde",
@@ -4080,6 +4080,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "sysinfo",
  "terminal_size",
  "thiserror 2.0.18",
  "tokio",
