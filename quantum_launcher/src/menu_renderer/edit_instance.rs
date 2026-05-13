@@ -207,8 +207,7 @@ impl MenuEditInstance {
         let total_mem = system.total_memory() as f32 / 1024_f32.powf(2.0);
         let mem_256_mb_in_twos_exponent: f32 = 256_f32.ln() / 2_f32.ln();
         let mem_max_in_twos_exponent: f32 = (total_mem as f32).ln() / 2_f32.ln();
-
-        const RAM_16_GB_TO_MB: usize = 16384;
+        let mem_warning_threshold = ((total_mem) * 0.7) as usize; // 70%
 
         column![
             "Allocated memory",
@@ -243,9 +242,9 @@ Heavy modpacks / High settings: 4-8 GB+"
             .spacing(5)
         ]
         .push_maybe(
-            (self.config.ram_in_mb > RAM_16_GB_TO_MB).then_some(
+            (self.config.ram_in_mb > mem_warning_threshold).then_some(
                 widget::text(
-                    "Warning: Very high RAM allocated! (16+ GB)\nYour system may struggle",
+                    "Warning: Very high RAM allocated! (70% of total)\nYour system may struggle",
                 )
                 .size(14),
             ),
