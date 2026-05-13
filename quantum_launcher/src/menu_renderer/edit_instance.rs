@@ -202,10 +202,11 @@ impl MenuEditInstance {
     }
 
     fn item_mem_alloc(&self) -> Column<'_> {
-        // 2 ^ 8 = 256 MB
-        const MEM_256_MB_IN_TWOS_EXPONENT: f32 = 8.0;
-        // 2 ^ 15 = 32768 MB (32 GB)
-        const MEM_32768_MB_IN_TWOS_EXPONENT: f32 = 15.0;
+        // total RAM of system
+        let system = sysinfo::System::new_all();
+        let total_mem = system.total_memory() as f32 / 1024_f32.powf(2.0);
+        let mem_256_mb_in_twos_exponent: f32 = 256_f32.ln() / 2_f32.ln();
+        let mem_max_in_twos_exponent: f32 = (total_mem as f32).ln() / 2_f32.ln();
 
         const RAM_16_GB_TO_MB: usize = 16384;
 
@@ -222,7 +223,7 @@ Heavy modpacks / High settings: 4-8 GB+"
             row![
                 widget::text(&self.slider_text),
                 widget::slider(
-                    MEM_256_MB_IN_TWOS_EXPONENT..=MEM_32768_MB_IN_TWOS_EXPONENT,
+                    mem_256_mb_in_twos_exponent..=mem_max_in_twos_exponent,
                     self.slider_value,
                     |n| EditInstanceMessage::MemoryChanged(n).into()
                 )
