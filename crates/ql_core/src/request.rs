@@ -148,6 +148,9 @@ pub enum ResponseType<'a> {
     Download(&'a reqwest_d::Response),
 }
 
+/// It is advised to use `ResponseType::Regular` variant because `ResponseType::Download`
+/// cannot and should not be used outside of the `ql_core` module. It will automatically be
+/// used during `download()` calls.
 pub fn check_for_success(response: ResponseType) -> Result<(), RequestError> {
     match response {
         ResponseType::Regular(response) => {
