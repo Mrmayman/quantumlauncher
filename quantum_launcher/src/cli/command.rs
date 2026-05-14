@@ -1,3 +1,4 @@
+use iced::futures::executor::block_on;
 use owo_colors::{OwoColorize, Style};
 use ql_core::{
     Instance, InstanceKind, IntoStringError, ListEntry, Loader, OptifineUniqueVersion, eeprintln,
@@ -41,6 +42,12 @@ pub fn list_available_versions(kind: InstanceKind) {
         }
         writeln!(stdout, "{version}").unwrap();
     }
+}
+
+pub fn clean_cache() -> Result<(), Box<dyn std::error::Error>> {
+    block_on(ql_core::clean::cache_dir())?;
+
+    Ok(())
 }
 
 pub fn list_instances(

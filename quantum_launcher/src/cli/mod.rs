@@ -74,6 +74,8 @@ enum QSubCommand {
         account_type: Option<String>,
     },
     #[command(aliases = ["list", "list-instances"], short_flag = 'l')]
+    #[command(about = "Clears the download cache")]
+    ClearCache,
     #[command(about = "Lists installed instances")]
     ListInstalled { properties: Option<Vec<String>> },
     #[command(about = "Deletes the specified instance")]
@@ -276,6 +278,7 @@ pub fn start_cli(is_dir_err: bool, launcher_dir: &mut Option<PathBuf>) {
                 instance_name,
                 force,
             } => quit(command::delete_instance(&instance_name, force, kind)),
+            QSubCommand::ClearCache => quit(command::clean_cache()),
             QSubCommand::ListInstalled { properties } => {
                 quit(command::list_instances(properties.as_deref(), kind));
             }
