@@ -73,9 +73,9 @@ enum QSubCommand {
         #[arg(help = "microsoft/elyby/littleskin")]
         account_type: Option<String>,
     },
-    #[command(aliases = ["list", "list-instances"], short_flag = 'l')]
     #[command(about = "Clears the download cache")]
     ClearCache,
+    #[command(aliases = ["list", "list-instances"], short_flag = 'l')]
     #[command(about = "Lists installed instances")]
     ListInstalled { properties: Option<Vec<String>> },
     #[command(about = "Deletes the specified instance")]
