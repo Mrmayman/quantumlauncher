@@ -1,6 +1,6 @@
 use crate::auth::alt::OauthError;
 use keyring;
-use ql_core::request::check_for_success;
+use ql_core::request::{ResponseType, check_for_success};
 use ql_core::{CLIENT, IntoJsonError};
 use serde::{Deserialize, Serialize};
 
@@ -25,7 +25,7 @@ async fn get_user_info(access_token: &str) -> Result<UserInfo, Error> {
         .bearer_auth(access_token)
         .send()
         .await?;
-    check_for_success(&resp)?;
+    check_for_success(&ResponseType::Regular(&resp))?;
     let user = resp.text().await?;
     let user: UserInfo = serde_json::from_str(&user).json(user)?;
     Ok(user)
@@ -64,7 +64,7 @@ pub async fn request_device_code() -> Result<DeviceCodeResponse, Error> {
         .body(body)
         .send()
         .await?;
-    check_for_success(&resp)?;
+    check_for_success(&ResponseType::Regular(&resp))?;
 
     let code_resp = resp.text().await?;
     let code_resp: DeviceCodeResponse = serde_json::from_str(&code_resp).json(code_resp)?;
@@ -145,7 +145,7 @@ async fn get_minecraft_profile(oauth_access_token: &str) -> Result<MinecraftProf
         .bearer_auth(oauth_access_token)
         .send()
         .await?;
-    check_for_success(&resp)?;
+    check_for_success(&ResponseType::Regular(&resp))?;
 
     // API returns an array of profiles;
     let list = resp.text().await?;
@@ -165,7 +165,7 @@ async fn create_minecraft_token(
         .send()
         .await?;
 
-    check_for_success(&resp)?;
+    check_for_success(&ResponseType::Regular(&resp))?;
     let token = resp.text().await?;
     let token: MinecraftTokenResponse = serde_json::from_str(&token).json(token)?;
     Ok(token)

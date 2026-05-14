@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 
 use futures::StreamExt;
 use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
-use reqwest::{Client, Response};
+use reqwest_d::Client;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use tokio_util::io::StreamReader;
 
@@ -47,7 +47,7 @@ impl DownloadRequest<'_> {
         self
     }
 
-    async fn send(&self) -> Result<reqwest::Response, RequestError> {
+    async fn send(&self) -> Result<reqwest_d::Response, RequestError> {
         let mut get = DOWNLOAD_CLIENT.get(self.url);
         match self.user_agent {
             UserAgentKind::None => {}
@@ -65,7 +65,7 @@ impl DownloadRequest<'_> {
             }
         }
         let response = get.send().await?;
-        check_for_success(&response)?;
+        check_for_success(&ResponseType::Download(&response))?;
         Ok(response)
     }
 
@@ -143,13 +143,32 @@ pub fn download(url: &str) -> DownloadRequest<'_> {
     }
 }
 
-pub fn check_for_success(response: &Response) -> Result<(), RequestError> {
-    if response.status().is_success() {
-        Ok(())
-    } else {
-        Err(RequestError::DownloadError {
-            code: response.status(),
-            url: response.url().clone(),
-        })
+pub enum ResponseType<'a> {
+    Regular(&'a reqwest::Response),
+    Download(&'a reqwest_d::Response),
+}
+
+pub fn check_for_success(response: &ResponseType) -> Result<(), RequestError> {
+    match response {
+        ResponseType::Regular(response) => {
+            if response.status().is_success() {
+                Ok(())
+            } else {
+                Err(RequestError::DownloadError {
+                    code: response.status(),
+                    url: response.url().clone(),
+                })
+            }
+        }
+        ResponseType::Download(response) => {
+            if response.status().is_success() {
+                Ok(())
+            } else {
+                Err(RequestError::DownloadError {
+                    code: response.status(),
+                    url: response.url().clone(),
+                })
+            }
+        }
     }
 }

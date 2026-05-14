@@ -28,8 +28,9 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 semver.workspace = true
-http-cache-reqwest = { version = "1.0.0-alpha.6" }
-reqwest-middleware = "0.5.1"
+http-cache-reqwest = { version = "1.0.0-alpha.1", features = ["streaming"] }
+reqwest_d = { package = "reqwest", version = "^0.12.12"}
+reqwest-middleware = "0.4.2"
 
 # TODO: Look into `async-tokio` feature, might make log reading cleaner
 quick-xml = { version = "0.39.*", features = ["encoding", "serialize"] }

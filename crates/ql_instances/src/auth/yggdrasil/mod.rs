@@ -1,7 +1,7 @@
 use crate::auth::alt::AccountResponse;
 
 use super::{AccountData, AccountType};
-use ql_core::{CLIENT, IntoJsonError, info, pt};
+use ql_core::{CLIENT, IntoJsonError, info, pt, request::ResponseType};
 
 pub use super::alt::{Account, AccountResponseError, Error};
 use ql_core::request::check_for_success;
@@ -42,7 +42,7 @@ pub async fn login_new(
     if response.status().as_u16() == 401 {
         return Err(Error::IncorrectPassword);
     }
-    check_for_success(&response)?;
+    check_for_success(&ResponseType::Regular(&response))?;
     let text = response.text().await?;
 
     let account_response = match serde_json::from_str::<AccountResponse>(&text).json(text.clone()) {
@@ -101,7 +101,7 @@ pub async fn login_refresh(
         .json(&value)
         .send()
         .await?;
-    check_for_success(&response)?;
+    check_for_success(&ResponseType::Regular(&response))?;
     let text = response.text().await?;
 
     let account_response = serde_json::from_str::<AccountResponse>(&text).json(text.clone())?;
