@@ -42,7 +42,7 @@ pub async fn login_new(
     if response.status().as_u16() == 401 {
         return Err(Error::IncorrectPassword);
     }
-    check_for_success(&ResponseType::Regular(&response))?;
+    check_for_success(ResponseType::Regular(&response))?;
     let text = response.text().await?;
 
     let account_response = match serde_json::from_str::<AccountResponse>(&text).json(text.clone()) {
@@ -101,7 +101,7 @@ pub async fn login_refresh(
         .json(&value)
         .send()
         .await?;
-    check_for_success(&ResponseType::Regular(&response))?;
+    check_for_success(ResponseType::Regular(&response))?;
     let text = response.text().await?;
 
     let account_response = serde_json::from_str::<AccountResponse>(&text).json(text.clone())?;

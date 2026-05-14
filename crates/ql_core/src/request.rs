@@ -65,7 +65,7 @@ impl DownloadRequest<'_> {
             }
         }
         let response = get.send().await?;
-        check_for_success(&ResponseType::Download(&response))?;
+        check_for_success(ResponseType::Download(&response))?;
         Ok(response)
     }
 
@@ -148,7 +148,7 @@ pub enum ResponseType<'a> {
     Download(&'a reqwest_d::Response),
 }
 
-pub fn check_for_success(response: &ResponseType) -> Result<(), RequestError> {
+pub fn check_for_success(response: ResponseType) -> Result<(), RequestError> {
     match response {
         ResponseType::Regular(response) => {
             if response.status().is_success() {

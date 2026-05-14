@@ -252,7 +252,7 @@ impl CFSearchResult {
             .send()
             .await
             .map_err(RequestError::from)?;
-        check_for_success(&ResponseType::Regular(&response))?;
+        check_for_success(ResponseType::Regular(&response))?;
         let text = response.text().await.map_err(RequestError::from)?;
         Ok(serde_json::from_str(&text).json(text)?)
     }
@@ -582,7 +582,7 @@ pub async fn send_request(
         .send()
         .await?;
 
-    check_for_success(&ResponseType::Regular(&response))?;
+    check_for_success(ResponseType::Regular(&response))?;
     Ok(response.text().await?)
 }
 
