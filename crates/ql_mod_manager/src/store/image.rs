@@ -1,5 +1,5 @@
 use image::{ImageFormat, imageops::FilterType};
-use ql_core::{IntoStringError, urlcache};
+use ql_core::{IntoStringError, url};
 use std::io::Cursor;
 
 #[derive(Clone)]
@@ -28,7 +28,7 @@ pub async fn get(url: String) -> Result<Output, String> {
         return Err("url is empty".to_owned());
     }
 
-    let image = urlcache::get(&url).await.strerr()?;
+    let image = url::get(&url).await.strerr()?;
     let is_svg = image.starts_with(b"<svg") || url.to_lowercase().ends_with(".svg");
 
     Ok(Output { url, image, is_svg })
@@ -45,7 +45,7 @@ pub async fn get_icon(url: String) -> Result<Output, String> {
 
     let mut is_svg = url.to_lowercase().ends_with(".svg");
 
-    let image = urlcache::get_ext(&url, |bytes| {
+    let image = url::get_ext(&url, |bytes| {
         is_svg |= bytes.starts_with(b"<svg");
         let is_gif = bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a");
 
