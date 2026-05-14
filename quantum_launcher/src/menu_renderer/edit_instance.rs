@@ -204,7 +204,7 @@ impl MenuEditInstance {
     fn item_mem_alloc(&self) -> Column<'_> {
         // total RAM of system
         let total_mem = self.state_ram.system.total_memory() as f32 / 1024_f32.powf(2.0);
-        let mem_256_mb_in_twos_exponent: f32 = 256_f32.ln() / 2_f32.ln();
+        const MEM_256_MB_IN_TWOS_EXPONENT: f32 = 8_f32;
         let mem_max_in_twos_exponent: f32 = total_mem.ln().max(256_f32.ln()) / 2_f32.ln();
         let mem_warning_threshold = ((total_mem) * 0.7) as usize; // 70%
 
@@ -221,7 +221,7 @@ Heavy modpacks / High settings: 4-8 GB+"
             row![
                 widget::text(&self.state_ram.slider_text),
                 widget::slider(
-                    mem_256_mb_in_twos_exponent..=mem_max_in_twos_exponent,
+                    MEM_256_MB_IN_TWOS_EXPONENT..=mem_max_in_twos_exponent,
                     self.state_ram.slider_value,
                     |n| EditInstanceMessage::MemoryChanged(n).into()
                 )
