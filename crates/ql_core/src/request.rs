@@ -148,30 +148,27 @@ pub enum ResponseType<'a> {
     Download(&'a reqwest_d::Response),
 }
 
+// we use a macro instead of a function because that way we avoid writing a dynamic dispatch
+// and dynamic dispatch is FAT
+macro_rules! check_ok {
+    ($resp: ident) => {
+        if $resp.status().is_success() {
+            Ok(())
+        } else {
+            Err(RequestError::DownloadError {
+                code: $resp.status(),
+                url: $resp.url().clone(),
+            })
+        }
+    };
+}
+
 /// It is advised to use `ResponseType::Regular` variant because `ResponseType::Download`
-/// cannot and should not be used outside of the `ql_core` module. It will automatically be
+/// cannot and should not be used outside of the `ql_core` module; it will automatically be
 /// used during `download()` calls.
 pub fn check_for_success(response: ResponseType) -> Result<(), RequestError> {
     match response {
-        ResponseType::Regular(response) => {
-            if response.status().is_success() {
-                Ok(())
-            } else {
-                Err(RequestError::DownloadError {
-                    code: response.status(),
-                    url: response.url().clone(),
-                })
-            }
-        }
-        ResponseType::Download(response) => {
-            if response.status().is_success() {
-                Ok(())
-            } else {
-                Err(RequestError::DownloadError {
-                    code: response.status(),
-                    url: response.url().clone(),
-                })
-            }
-        }
+        ResponseType::Regular(response) => check_ok!(response),
+        ResponseType::Download(response) => check_ok!(response),
     }
 }
