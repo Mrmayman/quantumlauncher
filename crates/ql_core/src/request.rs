@@ -1,10 +1,34 @@
+use std::sync::LazyLock;
+
 use futures::StreamExt;
-use reqwest::Response;
+use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
+use reqwest::{Client, Response};
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use tokio_util::io::StreamReader;
 
 use crate::{
-    CLIENT, DownloadFileError, IntoIoError, IntoJsonError, JsonDownloadError, RequestError, retry,
+    DownloadFileError, IntoIoError, IntoJsonError, JsonDownloadError, LAUNCHER_CACHE_DIR,
+    RequestError, pt, retry,
 };
+
+pub static DOWNLOAD_CLIENT: LazyLock<ClientWithMiddleware> = LazyLock::new(build_download_client);
+
+fn build_download_client() -> ClientWithMiddleware {
+    pt!(
+        no_log,
+        "Using {LAUNCHER_CACHE_DIR:?} as downloadables' cache directory."
+    );
+
+    let client = ClientBuilder::new(Client::new())
+        .with(Cache(HttpCache {
+            mode: CacheMode::Default,
+            manager: CACacheManager::new(LAUNCHER_CACHE_DIR.to_path_buf(), false),
+            options: HttpCacheOptions::default(),
+        }))
+        .build();
+
+    client
+}
 
 #[must_use]
 pub struct DownloadRequest<'a> {
@@ -24,7 +48,7 @@ impl DownloadRequest<'_> {
     }
 
     async fn send(&self) -> Result<reqwest::Response, RequestError> {
-        let mut get = CLIENT.get(self.url);
+        let mut get = DOWNLOAD_CLIENT.get(self.url);
         match self.user_agent {
             UserAgentKind::None => {}
             UserAgentKind::Ql => {

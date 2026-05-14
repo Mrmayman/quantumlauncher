@@ -32,6 +32,11 @@ use crate::{IntoIoError, JsonDownloadError, download, error::IoError};
 #[allow(clippy::doc_markdown)]
 pub static LAUNCHER_DIR: LazyLock<PathBuf> = LazyLock::new(|| get_launcher_dir().unwrap());
 
+/// The path to the QuantumLauncher cache folder.
+#[allow(clippy::doc_markdown)]
+pub static LAUNCHER_CACHE_DIR: LazyLock<PathBuf> =
+    LazyLock::new(|| get_launcher_cache_dir().unwrap());
+
 /// Returns the path to the QuantumLauncher root folder.
 ///
 /// This uses the current dir or executable location (portable mode)
@@ -58,6 +63,29 @@ pub fn get_launcher_dir() -> Result<PathBuf, IoError> {
 
     std::fs::create_dir_all(&launcher_directory).path(&launcher_directory)?;
     Ok(launcher_directory)
+}
+
+/// Returns the path to the cache directory for downloadables for QuantumLauncher.
+///
+/// This uses `dirs::cache_dir()` as the highest-priority choice:
+/// - `$XDG_CACHE_HOME/QuantumLauncherCache` or `$HOME/.cache/QuantumLauncherCache` on Linux
+/// - `$HOME/Library/Caches/QuantumLauncherCache` on macOS
+/// - `{FOLDERID_LocalAppData}\QuantumLauncherCache` on Winows
+/// If unavailable, this resorts to:
+/// - `$LAUNCHER_DIR/QuantumLauncherCache`
+///
+/// # Errors
+/// - if data dir is not found
+/// - if you're on an unsupported platform (other than Windows, Linux, macOS, Redox, any linux-like unix)
+/// - if the cache directory could not be created (permissions issue)
+pub fn get_launcher_cache_dir() -> Result<PathBuf, IoError> {
+    let launcher_directory = LAUNCHER_DIR.to_path_buf();
+    let cache_dir = dirs::cache_dir()
+        .unwrap_or(launcher_directory)
+        .join("QuantumLauncherCache");
+
+    std::fs::create_dir_all(&cache_dir).path(&cache_dir)?;
+    Ok(cache_dir)
 }
 
 struct QlDirInfo {
@@ -237,6 +265,8 @@ const NETWORK_ERROR_MSG: &str = r"
 
 #[derive(Debug, Error)]
 pub enum RequestError {
+    #[error("Download Error (middleware): {0}")]
+    MiddlewareError(#[from] reqwest_middleware::Error),
     #[error("Download Error (code {code}){NETWORK_ERROR_MSG}Url: {url}")]
     DownloadError {
         code: reqwest::StatusCode,
@@ -259,6 +289,7 @@ impl RequestError {
             RequestError::InvalidHeaderValue(_) => {
                 "Download Error: invalid header value".to_owned()
             }
+            RequestError::MiddlewareError(error) => format!("Download error (middleware): {error}"),
         }
     }
 }
