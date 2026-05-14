@@ -1,4 +1,4 @@
-use std::sync::LazyLock;
+use std::{path::PathBuf, sync::LazyLock};
 
 use futures::StreamExt;
 use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
@@ -8,21 +8,19 @@ use tokio_util::io::StreamReader;
 
 use crate::{
     DownloadFileError, IntoIoError, IntoJsonError, JsonDownloadError, LAUNCHER_CACHE_DIR,
-    RequestError, pt, retry,
+    LAUNCHER_DIR, RequestError, retry,
 };
 
-pub static DOWNLOAD_CLIENT: LazyLock<ClientWithMiddleware> = LazyLock::new(build_download_client);
+pub static DOWNLOAD_CLIENT: LazyLock<ClientWithMiddleware> =
+    LazyLock::new(|| build_middleware(LAUNCHER_CACHE_DIR.to_path_buf()));
+pub static ASSETS_DOWNLOAD_CLIENT: LazyLock<ClientWithMiddleware> =
+    LazyLock::new(|| build_middleware(LAUNCHER_DIR.join("downloads/cache")));
 
-fn build_download_client() -> ClientWithMiddleware {
-    pt!(
-        no_log,
-        "Using {LAUNCHER_CACHE_DIR:?} as downloadables' cache directory."
-    );
-
+fn build_middleware(path: PathBuf) -> ClientWithMiddleware {
     let client = ClientBuilder::new(Client::new())
         .with(Cache(HttpCache {
             mode: CacheMode::Default,
-            manager: CACacheManager::new(LAUNCHER_CACHE_DIR.to_path_buf(), false),
+            manager: CACacheManager::new(path, false),
             options: HttpCacheOptions::default(),
         }))
         .build();
@@ -33,6 +31,7 @@ fn build_download_client() -> ClientWithMiddleware {
 #[must_use]
 pub struct DownloadRequest<'a> {
     url: &'a str,
+    is_asset: bool,
     user_agent: UserAgentKind,
 }
 
@@ -48,7 +47,12 @@ impl DownloadRequest<'_> {
     }
 
     async fn send(&self) -> Result<reqwest_d::Response, RequestError> {
-        let mut get = DOWNLOAD_CLIENT.get(self.url);
+        let mut get = if self.is_asset {
+            ASSETS_DOWNLOAD_CLIENT.get(self.url)
+        } else {
+            DOWNLOAD_CLIENT.get(self.url)
+        };
+
         match self.user_agent {
             UserAgentKind::None => {}
             UserAgentKind::Ql => {
@@ -139,7 +143,21 @@ enum UserAgentKind {
 pub fn download(url: &str) -> DownloadRequest<'_> {
     DownloadRequest {
         url,
+        is_asset: false,
         user_agent: UserAgentKind::None,
+    }
+}
+/// Instead of using the primary `LAUNCHER_CACHE_DIR` like [`download`], this method stores the cache in
+/// `LAUNCHER_DIR/downloads/cache` and also spoofs the agent on demand.
+pub fn download_asset(url: &str, spoofed_agent: bool) -> DownloadRequest<'_> {
+    DownloadRequest {
+        url,
+        is_asset: true,
+        user_agent: if !spoofed_agent {
+            UserAgentKind::Ql
+        } else {
+            UserAgentKind::Spoofed
+        },
     }
 }
 
