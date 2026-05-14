@@ -243,7 +243,7 @@ Heavy modpacks / High settings: 4-8 GB+"
         .push_maybe(
             (self.config.ram_in_mb > mem_warning_threshold).then_some(
                 widget::text(
-                    "Warning: Very high RAM allocated! (More than 70% of total)\nYour system may struggle",
+                    "Warning: Very high RAM allocated! (More than 70% of total)\nYour system may struggle.",
                 )
                 .size(14),
             ),
