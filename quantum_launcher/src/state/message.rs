@@ -287,6 +287,8 @@ pub enum LauncherSettingsMessage {
     UiIdleFps(f64),
     ClearJavaInstalls,
     ClearJavaInstallsConfirm,
+    ClearDownloadCache,
+    ClearDownloadCacheConfirm,
     DefaultMinecraftWidthChanged(String),
     DefaultMinecraftHeightChanged(String),
     Rpc(RpcMessage),

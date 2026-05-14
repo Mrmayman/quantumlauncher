@@ -1,10 +1,10 @@
 use std::{collections::HashSet, fs::Metadata, path::Path};
 
 use fs::DirEntry;
-use tokio::fs;
+use tokio::fs::{self, remove_dir_all};
 
 use crate::{
-    IntoIoError, IntoJsonError, IoError, JsonFileError, LAUNCHER_DIR,
+    IntoIoError, IntoJsonError, IoError, JsonFileError, LAUNCHER_CACHE_DIR, LAUNCHER_DIR,
     file_utils::{exists, get_launcher_dir},
     info,
     json::{AssetIndex, VersionDetails},
@@ -91,6 +91,15 @@ async fn delete_files(mut total_size: u64, files: &[(DirEntry, Metadata)]) -> Re
         }
     }
     Ok(cleaned_amount)
+}
+
+/// Cleans the cache directory.
+///
+/// This will completely remove all cache since they are pretty much disposable.
+pub async fn cache_dir() -> Result<(), std::io::Error> {
+    let cache_dir = LAUNCHER_CACHE_DIR.to_path_buf();
+    remove_dir_all(cache_dir).await?;
+    Ok(())
 }
 
 /// Cleans the assets directory by deleting unused files.

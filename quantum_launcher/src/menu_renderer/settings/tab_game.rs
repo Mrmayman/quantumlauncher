@@ -53,8 +53,21 @@ impl MenuLauncherSettings {
                     .size(12),
                 ]
                 .spacing(10)
+                .wrap(),
+                widget::row![
+                    button_with_icon(icons::bin_s(12), "Clear download cache", 12)
+                        .padding([5, 10])
+                        .on_press(LauncherSettingsMessage::ClearDownloadCache.into()),
+                    widget::text(
+                        "Erases the cache for downloaded content (instances, mods, resource packs etc.)."
+                    )
+                    .style(tsubtitle)
+                    .size(12),
+                ]
+                .spacing(10)
                 .wrap()
-            ],
+            ]
+            .spacing(10),
         ])
     }
 }

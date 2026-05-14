@@ -288,8 +288,17 @@ impl Launcher {
             LauncherSettingsMessage::ClearJavaInstalls => {
                 self.confirm_clear_java_installs();
             }
+
             LauncherSettingsMessage::ClearJavaInstallsConfirm => {
                 return Task::perform(ql_instances::delete_java_installs(), |()| {
+                    LauncherSettingsMessage::Open(LauncherSettingsTab::Game).into()
+                });
+            }
+            LauncherSettingsMessage::ClearDownloadCache => {
+                self.confirm_clear_download_cache();
+            }
+            LauncherSettingsMessage::ClearDownloadCacheConfirm => {
+                return Task::perform(ql_core::clean::cache_dir(), |_| {
                     LauncherSettingsMessage::Open(LauncherSettingsTab::Game).into()
                 });
             }
@@ -382,6 +391,15 @@ impl Launcher {
             msg1: "delete auto-installed Java files".to_owned(),
             msg2: "They will get reinstalled automatically as needed".to_owned(),
             yes: LauncherSettingsMessage::ClearJavaInstallsConfirm.into(),
+            no: LauncherSettingsMessage::Open(LauncherSettingsTab::Game).into(),
+        }
+    }
+
+    fn confirm_clear_download_cache(&mut self) {
+        self.state = State::ConfirmAction {
+            msg1: "delete cache for downloads?".to_owned(),
+            msg2: "Caches will be rebuilt once you start downloading content again".to_owned(),
+            yes: LauncherSettingsMessage::ClearDownloadCacheConfirm.into(),
             no: LauncherSettingsMessage::Open(LauncherSettingsTab::Game).into(),
         }
     }
