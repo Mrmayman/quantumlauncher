@@ -28,7 +28,7 @@ use std::{borrow::Cow, time::Duration};
 use config::LauncherConfig;
 use iced::{Settings, Task};
 use owo_colors::OwoColorize;
-use state::{Launcher, Message, get_entries};
+use state::{Launcher, Message, get_entries, populate_middleware_clients};
 
 use ql_core::{
     InstanceKind, IntoStringError, JsonFileError, constants::OS_NAME, err, file_utils, info, pt,
@@ -130,6 +130,8 @@ impl Launcher {
         } else {
             Task::none()
         };
+
+        populate_middleware_clients(launcher.config.do_cache.unwrap_or(true));
 
         (
             launcher,

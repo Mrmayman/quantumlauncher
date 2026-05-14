@@ -56,6 +56,10 @@ pub struct LauncherConfig {
     // Since: v0.3
     pub version: Option<String>,
 
+    /// Whether to enable various different caches.
+    /// Since: TBD
+    pub do_cache: Option<bool>,
+
     /// A list of Minecraft accounts logged into the launcher.
     ///
     /// `String (username) : ConfigAccount { uuid: String, skin: None (unimplemented) }`
@@ -126,6 +130,7 @@ impl Default for LauncherConfig {
             version: Some(LAUNCHER_VERSION_NAME.to_owned()),
             accounts: None,
             ui_scale: None,
+            do_cache: None,
             java_installs: Some(Vec::new()),
             ui_antialiasing: Some(true),
             account_selected: None,

@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::LazyLock};
+use std::{path::PathBuf, sync::OnceLock};
 
 use futures::StreamExt;
 use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
@@ -7,19 +7,20 @@ use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use tokio_util::io::StreamReader;
 
 use crate::{
-    DownloadFileError, IntoIoError, IntoJsonError, JsonDownloadError, LAUNCHER_CACHE_DIR,
-    LAUNCHER_DIR, RequestError, retry,
+    DownloadFileError, IntoIoError, IntoJsonError, JsonDownloadError, RequestError, retry,
 };
 
-pub static DOWNLOAD_CLIENT: LazyLock<ClientWithMiddleware> =
-    LazyLock::new(|| build_middleware(LAUNCHER_CACHE_DIR.to_path_buf()));
-pub static ASSETS_DOWNLOAD_CLIENT: LazyLock<ClientWithMiddleware> =
-    LazyLock::new(|| build_middleware(LAUNCHER_DIR.join("downloads/cache")));
+pub static DOWNLOAD_CLIENT: OnceLock<ClientWithMiddleware> = OnceLock::new();
+pub static ASSETS_DOWNLOAD_CLIENT: OnceLock<ClientWithMiddleware> = OnceLock::new();
 
-fn build_middleware(path: PathBuf) -> ClientWithMiddleware {
+pub fn build_middleware(path: PathBuf, cache: bool) -> ClientWithMiddleware {
     let client = ClientBuilder::new(Client::new())
         .with(Cache(HttpCache {
-            mode: CacheMode::Default,
+            mode: if cache {
+                CacheMode::Default
+            } else {
+                CacheMode::NoStore
+            },
             manager: CACacheManager::new(path, false),
             options: HttpCacheOptions::default(),
         }))
@@ -48,9 +49,9 @@ impl DownloadRequest<'_> {
 
     async fn send(&self) -> Result<reqwest_d::Response, RequestError> {
         let mut get = if self.is_asset {
-            ASSETS_DOWNLOAD_CLIENT.get(self.url)
+            ASSETS_DOWNLOAD_CLIENT.get().unwrap().get(self.url)
         } else {
-            DOWNLOAD_CLIENT.get(self.url)
+            DOWNLOAD_CLIENT.get().unwrap().get(self.url)
         };
 
         match self.user_agent {

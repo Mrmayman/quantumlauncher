@@ -13,9 +13,11 @@ use iced::Task;
 use notify::Watcher;
 use ql_core::{
     GenericProgress, Instance, InstanceKind, IntoIoError, IntoStringError, IoError, JsonFileError,
-    LAUNCHER_DIR, LAUNCHER_VERSION_NAME, LaunchedProcess, Progress, err,
+    LAUNCHER_CACHE_DIR, LAUNCHER_DIR, LAUNCHER_VERSION_NAME, LaunchedProcess, Progress, err,
     file_utils::{self, exists},
+    pt,
     read_log::LogLine,
+    request::{ASSETS_DOWNLOAD_CLIENT, DOWNLOAD_CLIENT, build_middleware},
 };
 use ql_instances::auth::{AccountData, AccountType, ms::CLIENT_ID};
 use tokio::process::ChildStdin;
@@ -410,6 +412,20 @@ fn load_account(
             accounts_to_remove.push(username.to_owned());
         }
     }
+}
+
+pub fn populate_middleware_clients(do_cache: bool) {
+    DOWNLOAD_CLIENT
+        .set(build_middleware(LAUNCHER_CACHE_DIR.to_path_buf(), do_cache))
+        .unwrap();
+    ASSETS_DOWNLOAD_CLIENT
+        .set(build_middleware(
+            LAUNCHER_DIR.join("downloads/cache"),
+            do_cache,
+        ))
+        .unwrap();
+
+    pt!(no_log, "Downloaders ready for assets and jars/mods.");
 }
 
 pub async fn get_entries(kind: InstanceKind) -> Res<(Vec<String>, InstanceKind)> {
