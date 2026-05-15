@@ -400,7 +400,7 @@ impl Launcher {
 
     fn confirm_clear_download_cache(&mut self) {
         self.state = State::ConfirmAction {
-            msg1: "delete cache for downloads?".to_owned(),
+            msg1: "delete cache for downloads".to_owned(),
             msg2: "Caches will be rebuilt once you start downloading content again".to_owned(),
             yes: LauncherSettingsMessage::ClearDownloadCacheConfirm.into(),
             no: LauncherSettingsMessage::Open(LauncherSettingsTab::Game).into(),
