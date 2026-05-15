@@ -298,7 +298,7 @@ impl Launcher {
                 self.confirm_clear_download_cache();
             }
             LauncherSettingsMessage::ClearDownloadCacheConfirm => {
-                return Task::perform(ql_core::clean::cache_dir(), |_| {
+                return Task::perform(ql_core::clean::cache_dir(true), |_| {
                     LauncherSettingsMessage::Open(LauncherSettingsTab::Game).into()
                 });
             }

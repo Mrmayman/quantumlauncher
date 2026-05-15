@@ -96,9 +96,14 @@ async fn delete_files(mut total_size: u64, files: &[(DirEntry, Metadata)]) -> Re
 /// Cleans the cache directory.
 ///
 /// This will completely remove all cache since they are pretty much disposable.
-pub async fn cache_dir() -> Result<(), std::io::Error> {
+pub async fn cache_dir(force: bool) -> Result<(), std::io::Error> {
     let cache_dir = LAUNCHER_CACHE_DIR.to_path_buf();
-    remove_dir_all(cache_dir).await?;
+
+    if force {
+        remove_dir_all(cache_dir).await?;
+        return Ok(());
+    }
+
     Ok(())
 }
 

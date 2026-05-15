@@ -45,8 +45,7 @@ pub fn list_available_versions(kind: InstanceKind) {
 }
 
 pub fn clean_cache() -> Result<(), Box<dyn std::error::Error>> {
-    block_on(ql_core::clean::cache_dir())?;
-
+    block_on(ql_core::clean::cache_dir(true))?;
     Ok(())
 }
 
