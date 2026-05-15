@@ -195,17 +195,24 @@ impl MenuLaunch {
 pub struct MenuEditInstance {
     pub config: InstanceConfigJson,
 
-    // Renaming Instance:
-    pub is_editing_name: bool,
-    pub instance_name: String,
-    pub old_instance_name: Arc<str>,
-    // Changing RAM:
-    pub slider_value: f32,
-    pub slider_text: String,
-    pub memory_input: String,
+    pub state_rename: EditInstanceRename,
+    pub state_ram: EditInstanceRam,
 
     pub main_class_mode: Option<MainClassMode>,
     pub arg_split_by_space: bool,
+}
+
+pub struct EditInstanceRename {
+    pub is_editing: bool,
+    pub name: String,
+    pub old_name: Arc<str>,
+}
+
+pub struct EditInstanceRam {
+    pub slider_value: f32,
+    pub slider_text: String,
+    pub memory_input: String,
+    pub system: sysinfo::System,
 }
 
 pub enum SelectedState {

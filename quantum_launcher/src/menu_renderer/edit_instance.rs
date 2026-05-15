@@ -72,7 +72,7 @@ impl MenuEditInstance {
                     .font(FONT_MONO)
             ]
             .push_maybe(
-                (!self.is_editing_name).then_some(
+                (!self.state_rename.is_editing).then_some(
                     widget::button(
                         icons::edit_s(12).style(|t: &LauncherTheme| t.style_text(Color::Mid))
                     )
@@ -96,10 +96,10 @@ impl MenuEditInstance {
         .width(Length::Fill)
         .spacing(5)
         .push_maybe(
-            self.is_editing_name.then_some(
+            self.state_rename.is_editing.then_some(
                 column![
                     widget::Space::with_height(1),
-                    widget::text_input("Rename Instance", &self.instance_name)
+                    widget::text_input("Rename Instance", &self.state_rename.name)
                         .on_input(|n| EditInstanceMessage::RenameEdit(n).into()),
                     row![
                         widget::button(widget::text("Rename").size(12))
@@ -202,12 +202,11 @@ impl MenuEditInstance {
     }
 
     fn item_mem_alloc(&self) -> Column<'_> {
-        // 2 ^ 8 = 256 MB
-        const MEM_256_MB_IN_TWOS_EXPONENT: f32 = 8.0;
-        // 2 ^ 15 = 32768 MB (32 GB)
-        const MEM_32768_MB_IN_TWOS_EXPONENT: f32 = 15.0;
-
-        const RAM_16_GB_TO_MB: usize = 16384;
+        // total RAM of system
+        let total_mem = self.state_ram.system.total_memory() as f32 / 1024_f32.powf(2.0);
+        let mem_256_mb_in_twos_exponent: f32 = 256_f32.ln() / 2_f32.ln();
+        let mem_max_in_twos_exponent: f32 = total_mem.ln().max(256_f32.ln()) / 2_f32.ln();
+        let mem_warning_threshold = ((total_mem) * 0.7) as usize; // 70%
 
         column![
             "Allocated memory",
@@ -220,10 +219,10 @@ Heavy modpacks / High settings: 4-8 GB+"
             .style(tsubtitle),
             widget::Space::with_height(5),
             row![
-                widget::text(&self.slider_text),
+                widget::text(&self.state_ram.slider_text),
                 widget::slider(
-                    MEM_256_MB_IN_TWOS_EXPONENT..=MEM_32768_MB_IN_TWOS_EXPONENT,
-                    self.slider_value,
+                    mem_256_mb_in_twos_exponent..=mem_max_in_twos_exponent,
+                    self.state_ram.slider_value,
                     |n| EditInstanceMessage::MemoryChanged(n).into()
                 )
                 .step(0.1),
@@ -232,7 +231,7 @@ Heavy modpacks / High settings: 4-8 GB+"
             .spacing(10),
             row![
                 widget::text("Or enter directly:").size(12).style(tsubtitle),
-                widget::text_input("2048", &self.memory_input)
+                widget::text_input("2048", &self.state_ram.memory_input)
                     .on_input(|n| EditInstanceMessage::MemoryInputChanged(n).into())
                     .width(64)
                     .size(12),
@@ -242,9 +241,9 @@ Heavy modpacks / High settings: 4-8 GB+"
             .spacing(5)
         ]
         .push_maybe(
-            (self.config.ram_in_mb > RAM_16_GB_TO_MB).then_some(
+            (self.config.ram_in_mb > mem_warning_threshold).then_some(
                 widget::text(
-                    "Warning: Very high RAM allocated! (16+ GB)\nYour system may struggle",
+                    "Warning: Very high RAM allocated! (More than 70% of total)\nYour system may struggle",
                 )
                 .size(14),
             ),

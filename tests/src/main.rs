@@ -34,7 +34,6 @@ struct Cli {
     #[arg(help = "See all the logs to diagnose issues")]
     verbose: bool,
 }
-
 impl Cli {
     fn get_versions(&self) -> impl Iterator<Item = &Version> {
         VERSIONS_LWJGL2.iter().chain(
