@@ -117,7 +117,7 @@ pub async fn cache_dir(force: bool) -> Result<(), std::io::Error> {
 /// # Errors
 /// - User lacks permissions
 /// - File/directory/JSON structure is invalid
-pub async fn assets_dir() -> Result<u64, JsonFileError> {
+async fn assets_dir() -> Result<u64, JsonFileError> {
     let assets_dir = LAUNCHER_DIR.join("assets/dir");
     let indexes_dir = assets_dir.join("indexes");
 
