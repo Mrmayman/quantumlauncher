@@ -11,7 +11,8 @@ use iced::{Task, futures::executor::block_on, widget::scrollable::AbsoluteOffset
 use ql_core::{
     GenericProgress, Instance, IntoIoError, IntoStringError, JsonFileError, err,
     file_utils::exists,
-    json::{VersionDetails, instance_config::InstanceConfigJson},
+    json::{VersionDetails, instance_config::{InstanceConfigJson, ModTypeInfo}},
+    read_log::{Diagnostic, ReadError},
 };
 use ql_mod_manager::{loaders, store::ModIndex};
 use std::{

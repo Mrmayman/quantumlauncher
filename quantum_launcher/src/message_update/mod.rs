@@ -4,6 +4,13 @@ use frostmark::MarkState;
 use iced::{Task, futures::executor::block_on, widget::text_editor};
 use ql_core::{IntoStringError, Loader, OptifineUniqueVersion, err};
 use ql_mod_manager::{loaders, store};
+use crate::config::UiWindowDecorations;
+use crate::state::{
+    self, AutoSaveKind, GameLogMessage, InfoMessage, InstallFabricMessage, InstallOptifineMessage,
+    InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsMessage, LauncherSettingsTab,
+    MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLaunch, MenuModDescription,
+    Message, ModDescriptionMessage, NotesMessage, ProgressBar, State, WindowMessage,
+};
 
 mod accounts;
 mod create_instance;
@@ -15,15 +22,7 @@ mod mod_store;
 mod presets;
 mod recommended;
 mod shortcuts;
-
-use crate::config::UiWindowDecorations;
-use crate::state::{
-    self, AutoSaveKind, GameLogMessage, InfoMessage, InstallFabricMessage, InstallOptifineMessage,
-    InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsMessage, LauncherSettingsTab,
-    MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLaunch, MenuModDescription,
-    Message, ModDescriptionMessage, NotesMessage, ProgressBar, State, WindowMessage,
-};
-
+mod token;
 pub use discord_rpc::PresenceConnectionState;
 
 pub const MSG_RESIZE: &str = "Resize your window to apply the changes.";

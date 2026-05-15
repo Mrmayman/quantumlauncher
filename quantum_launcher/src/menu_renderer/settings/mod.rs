@@ -18,6 +18,7 @@ mod tab_about;
 mod tab_game;
 mod tab_presence;
 mod tab_ui;
+mod tab_security;
 
 pub static IMG_ICED: LazyLock<widget::image::Handle> = LazyLock::new(|| {
     widget::image::Handle::from_bytes(include_bytes!("../../../../assets/iced.png").as_slice())
@@ -31,6 +32,7 @@ impl MenuLauncherSettings {
         &'a self,
         config: &'a LauncherConfig,
         discord_connection_state: &Mutex<PresenceConnectionState>,
+    keyring_available: bool,
     ) -> Element<'a> {
         widget::row![
             sidebar(
@@ -61,7 +63,7 @@ impl MenuLauncherSettings {
             }),
             widget::scrollable(
                 self.selected_tab
-                    .view(config, self, discord_connection_state)
+                    .view(config, self, discord_connection_state, keyring_available)
             )
             .width(Length::Fill)
             .spacing(0)
@@ -106,6 +108,7 @@ impl LauncherSettingsTab {
         config: &'a LauncherConfig,
         menu: &'a MenuLauncherSettings,
         discord_connection_state: &Mutex<PresenceConnectionState>,
+        keyring_available: bool,
     ) -> Element<'a> {
         match self {
             LauncherSettingsTab::UserInterface => menu.view_ui_tab(config),
@@ -113,6 +116,7 @@ impl LauncherSettingsTab {
                 menu.view_presence_tab(config, discord_connection_state)
             }
             LauncherSettingsTab::Game => menu.view_game_tab(config),
+            LauncherSettingsTab::Security => tab_security::view(config, keyring_available),
             LauncherSettingsTab::About => tab_about::view(),
         }
         .into()

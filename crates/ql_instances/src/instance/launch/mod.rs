@@ -1,5 +1,5 @@
-use crate::auth::AccountData;
 use error::GameLaunchError;
+use ql_auth::AccountData;
 use ql_core::{GenericProgress, Instance, LaunchedProcess, REDACT_SENSITIVE_INFO, err, info};
 use std::sync::{Arc, mpsc::Sender};
 use tokio::sync::Mutex;

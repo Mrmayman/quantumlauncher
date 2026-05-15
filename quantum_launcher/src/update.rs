@@ -55,6 +55,12 @@ impl Launcher {
                 self.state = State::Welcome(MenuWelcome::P3Auth);
             }
 
+            Message::CoreFocusNext => {
+                return iced::widget::focus_next();
+            }
+            Message::CoreHideModal => {
+                self.hide_submenu();
+            }
             Message::Launch(msg) => return self.update_launch(msg),
             Message::MainMenu(msg) => return self.update_main_menu(msg),
             Message::Sidebar(msg) => return self.update_sidebar(msg),
@@ -75,7 +81,8 @@ impl Launcher {
                 Ok(n) => return n,
                 Err(e) => self.set_error(e),
             },
-
+            Message::TokenPassword(msg) => return self.update_token_password(msg),
+            Message::TokenStore(msg) => return self.update_token_store(msg),
             Message::DeleteInstanceMenu => self.go_to_delete_instance_menu(),
             Message::DeleteInstance => return self.delete_instance_confirm(),
 
@@ -391,12 +398,6 @@ impl Launcher {
                         }
                     }
                 }
-            }
-            Message::CoreFocusNext => {
-                return iced::widget::focus_next();
-            }
-            Message::CoreHideModal => {
-                self.hide_submenu();
             }
         }
         Task::none()

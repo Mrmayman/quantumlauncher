@@ -50,7 +50,6 @@
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_sign_loss)]
 
-pub mod auth;
 mod download;
 mod instance;
 mod json_profiles;

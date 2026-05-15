@@ -1,8 +1,5 @@
-use crate::{
-    auth::{AccountData, AccountType, ms::CLIENT_ID},
-    download::GameDownloader,
-    jarmod,
-};
+use crate::{download::GameDownloader, jarmod};
+use ql_auth::{ms::CLIENT_ID, AccountData, AccountType};
 use ql_core::{
     CLASSPATH_SEPARATOR, GenericProgress, Instance, IntoIoError, IntoJsonError, IoError,
     JsonFileError, LAUNCHER_DIR, Loader, err,
@@ -267,7 +264,7 @@ impl GameLauncher {
             args.push("-Dminecraft.api.session.host=https://nope.invalid".to_owned());
             args.push("-Dminecraft.api.services.host=https://nope.invalid".to_owned());
         } else if let Some(authlib) = auth.and_then(AccountData::get_authlib_url) {
-            args.push(crate::auth::get_authlib_injector(authlib).await?);
+            args.push(ql_auth::get_authlib_injector(authlib).await?);
         }
 
         if cfg!(target_pointer_width = "32") {

@@ -6,7 +6,7 @@ use ql_core::{
     InstanceKind, IntoIoError, IntoJsonError, JsonFileError, LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
     ListEntryKind, err, json::GlobalSettings,
 };
-use ql_instances::auth::{AccountData, AccountType};
+use ql_auth::{AccountData, AccountType, TokenStorageMethod};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::{
@@ -61,7 +61,7 @@ pub struct LauncherConfig {
     /// `String (username) : ConfigAccount { uuid: String, skin: None (unimplemented) }`
     ///
     /// Upon opening the launcher,
-    /// `read_refresh_token(username)` (in [`ql_instances::auth`])
+    /// `read_refresh_token(username)` (in [`ql_auth`])
     /// is called on each account's key value (username)
     /// to get the refresh token (stored securely on disk).
     // Since: v0.4
@@ -111,6 +111,15 @@ pub struct LauncherConfig {
     #[cfg(feature = "auto_update")]
     last_update_check: Option<u64>,
 
+    /// Which token storage backend is currently active globally.
+    // Since: TBD(probably 0.6?)
+    pub token_storage: Option<TokenStorageMethod>,
+
+    /// Selected account when using the encrypted-file backend.
+    /// Kept separate from `account_selected` so each backend remembers
+    /// its own default independently.
+    pub account_selected_file: Option<String>,
+
     /// Preserve fields when downgrading
     #[serde(flatten)]
     _extra: HashMap<String, serde_json::Value>,
@@ -136,6 +145,8 @@ impl Default for LauncherConfig {
             persistent: None,
             sidebar: None,
             discord_rpc: None,
+            token_storage: None,
+            account_selected_file: None,
             _extra: HashMap::new(),
             #[cfg(feature = "auto_update")]
             last_update_check: None,
@@ -233,6 +244,11 @@ impl LauncherConfig {
                 self.account_selected = None;
             }
         }
+        if let (Some(accounts), Some(selected)) = (&self.accounts, &self.account_selected_file) {
+            if !accounts.contains_key(selected) {
+                self.account_selected_file = None;
+            }
+        }
 
         #[allow(deprecated)]
         {
@@ -324,6 +340,28 @@ impl LauncherConfig {
         }
     }
 
+    pub fn c_token_storage(&self) -> TokenStorageMethod {
+        self.token_storage.unwrap_or(TokenStorageMethod::Keyring)
+    }
+
+    /// Returns the selected account for the currently active storage backend.
+    pub fn c_account_selected(&self) -> Option<&str> {
+        match self.c_token_storage() {
+            TokenStorageMethod::Keyring => self.account_selected.as_deref(),
+            TokenStorageMethod::EncryptedFile => self.account_selected_file.as_deref(),
+        }
+    }
+
+    /// Saves the selected account into the field for the currently active backend.
+    pub fn set_account_selected(&mut self, account: &str) {
+        match self.c_token_storage() {
+            TokenStorageMethod::Keyring => self.account_selected = Some(account.to_owned()),
+            TokenStorageMethod::EncryptedFile => {
+                self.account_selected_file = Some(account.to_owned())
+            }
+        }
+    }
+
     pub fn c_rpc_enabled(&self) -> bool {
         self.discord_rpc.as_ref().is_some_and(|n| n.enable)
     }
@@ -389,20 +427,29 @@ pub struct ConfigAccount {
     /// would be an email.
     pub username_nice: Option<String>,
 
+    /// Which backend stores the token for this account.
+    /// None means keyring (backwards compatible default).
+    pub token_storage: Option<TokenStorageMethod>,
+
     #[serde(flatten)]
     _extra: HashMap<String, serde_json::Value>,
 }
 
 impl ConfigAccount {
     pub fn from_account(data: &AccountData) -> Self {
+        let method = ql_auth::token_store::get_storage_method();
         Self {
             uuid: data.uuid.clone(),
             skin: None,
             account_type: Some(data.account_type),
             keyring_identifier: Some(data.username.clone()),
             username_nice: Some(data.nice_username.clone()),
+            token_storage: Some(method),
             _extra: HashMap::new(),
         }
+    }
+    pub fn c_token_storage(&self) -> TokenStorageMethod {
+        self.token_storage.unwrap_or(TokenStorageMethod::Keyring)
     }
 
     pub fn get_keyring_identifier<'a>(&'a self, key_username: &'a str) -> &'a str {

@@ -1,7 +1,7 @@
 use ql_core::{JsonError, RequestError};
 use serde::Deserialize;
 
-use crate::auth::KeyringError;
+use crate::{token_store::TokenStoreError, KeyringError};
 
 use super::AccountData;
 
@@ -30,6 +30,8 @@ pub enum Error {
     Response(#[from] AccountResponseError),
     #[error("{AUTH_ERR_PREFIX}{0}")]
     KeyringError(#[from] KeyringError),
+    #[error("{AUTH_ERR_PREFIX}{0}")]
+    TokenStore(#[from] TokenStoreError),
     #[error("{AUTH_ERR_PREFIX}Littleskin response:\n{0}")]
     LittleSkin(String),
     #[error("incorrect password entered (ely.by/littleskin account)")]
