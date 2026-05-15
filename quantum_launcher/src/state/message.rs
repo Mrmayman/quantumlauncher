@@ -296,6 +296,7 @@ pub enum LauncherSettingsMessage {
     ToggleAntialiasing(bool),
     ToggleWindowSize(bool),
     ToggleInstanceRemembering(bool),
+    ToggleCaching(bool),
     ToggleModUpdateChangelog(bool),
     AfterLaunchBehaviorChanged(crate::config::AfterLaunchBehavior),
     #[allow(unused)]

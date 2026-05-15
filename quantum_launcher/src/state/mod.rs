@@ -425,7 +425,10 @@ pub fn populate_middleware_clients(do_cache: bool) {
         ))
         .unwrap();
 
-    pt!(no_log, "Downloaders ready for assets and jars/mods.");
+    pt!(
+        no_log,
+        "Downloaders ready for assets and jars/mods. Cache? {do_cache}"
+    );
 }
 
 pub async fn get_entries(kind: InstanceKind) -> Res<(Vec<String>, InstanceKind)> {

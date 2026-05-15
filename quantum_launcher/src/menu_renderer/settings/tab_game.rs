@@ -28,6 +28,7 @@ impl MenuLauncherSettings {
             opt_after_launch(config),
             opt_resolution(config),
             opt_java_args(config),
+            opt_caching(config),
             column![
                 "Global Pre-Launch Prefix:",
                 widget::text(PREFIX_EXPLANATION).size(12).style(tsubtitle),
@@ -54,22 +55,40 @@ impl MenuLauncherSettings {
                 ]
                 .spacing(10)
                 .wrap(),
-                widget::row![
-                    button_with_icon(icons::bin_s(12), "Clear download cache", 12)
-                        .padding([5, 10])
-                        .on_press(LauncherSettingsMessage::ClearDownloadCache.into()),
-                    widget::text(
-                        "Erases the cache for downloaded content (instances, mods, resource packs etc.)."
-                    )
-                    .style(tsubtitle)
-                    .size(12),
-                ]
-                .spacing(10)
-                .wrap()
-            ]
-            .spacing(10),
+            ],
         ])
     }
+}
+
+fn opt_caching(config: &LauncherConfig) -> Column<'_> {
+    column![
+        "Caching:",
+        widget::Space::with_height(5),
+        widget::checkbox(
+            "Enable persistent, on-disk caching - Requires Restart",
+            config.do_cache.clone().unwrap_or(true),
+        )
+        .on_toggle(|n| LauncherSettingsMessage::ToggleCaching(n).into()),
+        widget::text(
+            "Enables a fast cache for downloading mods, resource packs, game jars and more."
+        )
+        .size(12)
+        .style(tsubtitle),
+        widget::Space::with_height(5),
+        widget::row![
+            button_with_icon(icons::bin_s(12), "Clear download cache", 12)
+                .padding([5, 10])
+                .on_press(LauncherSettingsMessage::ClearDownloadCache.into()),
+            widget::text(
+                "Erases the cache for downloaded content (instances, mods, resource packs etc.)."
+            )
+            .style(tsubtitle)
+            .size(12),
+        ]
+        .spacing(10)
+        .wrap()
+    ]
+    .spacing(5)
 }
 
 fn opt_java_args(config: &LauncherConfig) -> Column<'_> {

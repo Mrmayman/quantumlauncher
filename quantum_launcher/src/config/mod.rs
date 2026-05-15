@@ -130,7 +130,7 @@ impl Default for LauncherConfig {
             version: Some(LAUNCHER_VERSION_NAME.to_owned()),
             accounts: None,
             ui_scale: None,
-            do_cache: None,
+            do_cache: Some(true),
             java_installs: Some(Vec::new()),
             ui_antialiasing: Some(true),
             account_selected: None,

@@ -319,6 +319,9 @@ impl Launcher {
             LauncherSettingsMessage::ToggleModUpdateChangelog(t) => {
                 self.config.c_persistent().write_mod_update_changelog = t;
             }
+            LauncherSettingsMessage::ToggleCaching(t) => {
+                self.config.do_cache = Some(t);
+            }
             LauncherSettingsMessage::AfterLaunchBehaviorChanged(behavior) => {
                 self.config.ui.get_or_insert_default().after_game_opens = behavior;
                 self.autosave.remove(&AutoSaveKind::LauncherConfig);
