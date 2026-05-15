@@ -372,7 +372,7 @@ impl Launcher {
 }
 
 impl MenuModsDownload {
-    pub fn search_store(&self, is_server: bool, offset: usize) -> Task<Message> {
+    fn search_store(&self, is_server: bool, offset: usize) -> Task<Message> {
         let categories = self
             .categories
             .selected
@@ -402,7 +402,7 @@ impl MenuModsDownload {
         })
     }
 
-    pub fn load_categories(&self) -> Task<Message> {
+    fn load_categories(&self) -> Task<Message> {
         Task::perform(store::get_categories(self.query_type, self.backend), |n| {
             InstallModsMessage::CategoriesLoaded(n.strerr()).into()
         })

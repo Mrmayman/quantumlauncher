@@ -44,7 +44,7 @@ impl MenuCreateInstance {
 }
 
 impl MenuCreateInstanceChoosing {
-    pub fn view(&self, existing_instances: Option<&[String]>, timer: usize) -> Element<'_> {
+    fn view(&self, existing_instances: Option<&[String]>, timer: usize) -> Element<'_> {
         let view = widget::pane_grid(&self.sidebar_grid_state, |_, is_sidebar, _| {
             if *is_sidebar {
                 self.get_sidebar_contents(timer).into()

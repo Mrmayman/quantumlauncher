@@ -242,7 +242,7 @@ impl SidebarNode {
     }
 
     #[must_use]
-    pub fn new_folder(name: Arc<str>) -> Self {
+    fn new_folder(name: Arc<str>) -> Self {
         SidebarNode {
             name,
             kind: SidebarNodeKind::Folder(SidebarFolder::default()),
@@ -260,7 +260,7 @@ impl SidebarNode {
     }
 
     #[must_use]
-    pub fn get_folder_id(&self) -> Option<FolderId> {
+    fn get_folder_id(&self) -> Option<FolderId> {
         if let SidebarNodeKind::Folder(f) = &self.kind {
             Some(f.id)
         } else {

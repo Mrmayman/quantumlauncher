@@ -71,8 +71,8 @@ impl From<reqwest::Error> for ModError {
 
 #[derive(Debug)]
 pub struct GameExpectation {
-    pub expected: String,
-    pub got: String,
+    expected: String,
+    got: String,
 }
 
 impl Display for GameExpectation {

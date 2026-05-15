@@ -269,7 +269,7 @@ impl Launcher {
         ));
     }
 
-    pub fn autosave_launcher_config(&mut self) {
+    fn autosave_launcher_config(&mut self) {
         if self.autosave.insert(AutoSaveKind::LauncherConfig) {
             let launcher_config = self.config.clone();
             tokio::spawn(async move { launcher_config.save().await });
@@ -352,7 +352,7 @@ impl Launcher {
 }
 
 impl MenuModsDownload {
-    pub fn tick(selected_instance: Instance) -> Task<Message> {
+    fn tick(selected_instance: Instance) -> Task<Message> {
         Task::perform(
             async move { ModIndex::load(&selected_instance).await },
             |n| InstallModsMessage::IndexUpdated(n.strerr()).into(),
@@ -426,7 +426,7 @@ impl MenuEditMods {
 }
 
 impl MenuCreateInstance {
-    pub fn tick(&mut self) {
+    fn tick(&mut self) {
         match self {
             MenuCreateInstance::Choosing { .. } => {}
             MenuCreateInstance::DownloadingInstance(progress) => {

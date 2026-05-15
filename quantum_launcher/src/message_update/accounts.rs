@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use iced::Task;
 use ql_auth::AccountData;
@@ -30,8 +27,12 @@ impl Launcher {
             AccountMessage::Response1 { r: Err(err), .. }
             | AccountMessage::Response2(Err(err))
             | AccountMessage::Response3(Err(err))
-            | AccountMessage::AltLoginResponse(Err(err))
-            | AccountMessage::RefreshComplete(Err(err)) => {
+            | AccountMessage::AltLoginResponse(Err(err)) => {
+                self.set_error(err);
+            }
+            AccountMessage::RefreshComplete(Err(err)) => {
+                self.is_launching_game = false;
+                self.java_recv = None;
                 self.set_error(err);
             }
             AccountMessage::Selected(account) => self.account_selected(account),
@@ -297,7 +298,7 @@ impl Launcher {
         }
         self.accounts_dropdown.insert(0, username.clone());
 
-        let config_accounts = self.config.accounts.get_or_insert_with(HashMap::new);
+        let config_accounts = self.config.accounts.get_or_insert_default();
         config_accounts.insert(username.clone(), ConfigAccount::from_account(&data));
 
         self.config.set_account_selected(&username);

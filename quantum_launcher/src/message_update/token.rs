@@ -162,7 +162,7 @@ impl Launcher {
                     msg2: "All accounts using encrypted storage will be removed from the launcher."
                         .to_owned(),
                     yes: TokenStoreMessage::DeleteEncryptedStoreConfirm.into(),
-                    no: LauncherSettingsMessage::ChangeTab(LauncherSettingsTab::Security).into(),
+                    no: LauncherSettingsMessage::Open(LauncherSettingsTab::Security).into(),
                 };
             }
             TokenStoreMessage::DeleteEncryptedStoreConfirm => {
@@ -188,7 +188,7 @@ impl Launcher {
                 // Switch back to keyring backend
                 self.config.token_storage = Some(TokenStorageMethod::Keyring);
                 ql_auth::token_store::set_storage_method(TokenStorageMethod::Keyring);
-                self.go_to_launcher_settings();
+                self.go_to_launcher_settings(LauncherSettingsTab::Security);
                 return Task::none();
             }
         }

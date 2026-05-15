@@ -13,9 +13,9 @@ ql_core.path = "../crates/ql_core"
 tokio.workspace = true
 clap.workspace = true
 owo-colors.workspace = true
+sysinfo.workspace = true
 
 duct = "1"
-sysinfo = "0.38.*"
 which = "8.0.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]

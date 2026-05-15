@@ -1,4 +1,4 @@
-use std::sync::LazyLock;
+use std::sync::{LazyLock, Mutex};
 
 use iced::{Length, widget};
 
@@ -6,6 +6,7 @@ use super::{Element, back_button, back_to_launch_screen, sidebar, sidebar_button
 use crate::{
     config::LauncherConfig,
     icons,
+    message_update::PresenceConnectionState,
     state::{LauncherSettingsMessage, LauncherSettingsTab, MenuLauncherSettings, Message},
     stylesheet::{
         styles::{LauncherTheme, LauncherThemeColor},
@@ -15,6 +16,7 @@ use crate::{
 
 mod tab_about;
 mod tab_game;
+mod tab_presence;
 mod tab_ui;
 mod tab_security;
 
@@ -29,7 +31,8 @@ impl MenuLauncherSettings {
     pub fn view<'a>(
         &'a self,
         config: &'a LauncherConfig,
-        keyring_available: bool,
+        discord_connection_state: &Mutex<PresenceConnectionState>,
+    keyring_available: bool,
     ) -> Element<'a> {
         widget::row![
             sidebar(
@@ -48,7 +51,7 @@ impl MenuLauncherSettings {
                         tab,
                         &self.selected_tab,
                         text,
-                        LauncherSettingsMessage::ChangeTab(*tab).into(),
+                        LauncherSettingsMessage::Open(*tab).into(),
                     )
                 })
             )
@@ -58,10 +61,13 @@ impl MenuLauncherSettings {
                 border: iced::Border::default(),
                 shadow: iced::Shadow::default()
             }),
-            widget::scrollable(self.selected_tab.view(config, self, keyring_available))
-                .width(Length::Fill)
-                .spacing(0)
-                .style(LauncherTheme::style_scrollable_flat_dark)
+            widget::scrollable(
+                self.selected_tab
+                    .view(config, self, discord_connection_state, keyring_available)
+            )
+            .width(Length::Fill)
+            .spacing(0)
+            .style(LauncherTheme::style_scrollable_flat_dark)
         ]
         .into()
     }
@@ -90,23 +96,25 @@ pub fn get_theme_selector() -> widget::Row<'static, Message, LauncherTheme> {
                 }
                 .style_button(s, StyleButton::Round)
             })
-            .on_press(Message::LauncherSettings(
-                LauncherSettingsMessage::ColorSchemePicked(*color),
-            ))
+            .on_press(LauncherSettingsMessage::ColorSchemePicked(*color).into())
             .into()
     }))
     .spacing(5)
 }
 
 impl LauncherSettingsTab {
-    pub fn view<'a>(
+    fn view<'a>(
         &'a self,
         config: &'a LauncherConfig,
         menu: &'a MenuLauncherSettings,
+        discord_connection_state: &Mutex<PresenceConnectionState>,
         keyring_available: bool,
     ) -> Element<'a> {
         match self {
             LauncherSettingsTab::UserInterface => menu.view_ui_tab(config),
+            LauncherSettingsTab::Presence => {
+                menu.view_presence_tab(config, discord_connection_state)
+            }
             LauncherSettingsTab::Game => menu.view_game_tab(config),
             LauncherSettingsTab::Security => tab_security::view(config, keyring_available),
             LauncherSettingsTab::About => tab_about::view(),

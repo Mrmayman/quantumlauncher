@@ -10,6 +10,11 @@
 
 TODO: Add screenshots
 
+# Discord Rich Presence
+
+- Added support for displaying your status in Discord through Rich Presence
+- Customizable, can display any text or info (game version/instance name) of your choice
+
 # UX
 
 - You can now automatically create changelogs after updating mods,

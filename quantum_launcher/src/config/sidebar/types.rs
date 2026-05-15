@@ -93,7 +93,7 @@ impl PartialEq for SidebarNodeKind {
 pub struct FolderId(u128);
 
 impl FolderId {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self(rand::random())
     }
 }

@@ -106,9 +106,7 @@ fn trim(value: &str) -> &str {
     }
 }
 
-pub async fn check_for_updates(
-    instance: Instance,
-) -> Result<Vec<(ModId, String)>, ModError> {
+pub async fn check_for_updates(instance: Instance) -> Result<Vec<(ModId, String)>, ModError> {
     let index = ModIndex::load(&instance).await?;
     let version_json = VersionDetails::load(&instance).await?;
     let config = InstanceConfigJson::read(&instance).await?;

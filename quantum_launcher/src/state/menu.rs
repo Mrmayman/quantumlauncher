@@ -192,17 +192,24 @@ impl MenuLaunch {
 pub struct MenuEditInstance {
     pub config: InstanceConfigJson,
 
-    // Renaming Instance:
-    pub is_editing_name: bool,
-    pub instance_name: String,
-    pub old_instance_name: Arc<str>,
-    // Changing RAM:
-    pub slider_value: f32,
-    pub slider_text: String,
-    pub memory_input: String,
+    pub state_rename: EditInstanceRename,
+    pub state_ram: EditInstanceRam,
 
     pub main_class_mode: Option<MainClassMode>,
     pub arg_split_by_space: bool,
+}
+
+pub struct EditInstanceRename {
+    pub is_editing: bool,
+    pub name: String,
+    pub old_name: Arc<str>,
+}
+
+pub struct EditInstanceRam {
+    pub slider_value: f32,
+    pub slider_text: String,
+    pub memory_input: String,
+    pub system: sysinfo::System,
 }
 
 pub enum SelectedState {
@@ -579,9 +586,11 @@ pub struct MenuLauncherSettings {
     pub arg_split_by_space: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum LauncherSettingsTab {
+    #[default]
     UserInterface,
+    Presence,
     Game,
     Security,
     About,
@@ -594,6 +603,7 @@ impl std::fmt::Display for LauncherSettingsTab {
             LauncherSettingsTab::Game => "Game",
             LauncherSettingsTab::Security => "Security",
             LauncherSettingsTab::About => "About",
+            LauncherSettingsTab::Presence => "Discord Presence",
         })
     }
 }
@@ -601,6 +611,7 @@ impl std::fmt::Display for LauncherSettingsTab {
 impl LauncherSettingsTab {
     pub const ALL: &'static [Self] = &[
         Self::UserInterface,
+        Self::Presence,
         Self::Game,
         Self::Security,
         Self::About,
@@ -608,7 +619,8 @@ impl LauncherSettingsTab {
 
     pub const fn next(self) -> Self {
         match self {
-            Self::UserInterface => Self::Game,
+            Self::UserInterface => Self::Presence,
+            Self::Presence => Self::Game,
             Self::Game => Self::Security,
             Self::Security | Self::About => Self::About,
         }
@@ -616,7 +628,8 @@ impl LauncherSettingsTab {
 
     pub const fn prev(self) -> Self {
         match self {
-            Self::UserInterface | Self::Game => Self::UserInterface,
+            Self::UserInterface | Self::Presence => Self::UserInterface,
+            Self::Game => Self::Presence,
             Self::Security => Self::Game,
             Self::About => Self::Security,
         }

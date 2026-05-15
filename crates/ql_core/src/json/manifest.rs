@@ -109,23 +109,12 @@ impl Manifest {
     pub fn get_latest_release(&self) -> Option<&Version> {
         self.find_name(&self.latest.release)
     }
-
-    /// Gets the latest snapshot (experimental) release.
-    ///
-    /// This only returns a `None` if the .latest field's
-    /// data is *wrong* (impossible normally, if you just
-    /// [`Manifest::download`] it). So it's mostly safe
-    /// to unwrap.
-    #[must_use]
-    pub fn get_latest_snapshot(&self) -> Option<&Version> {
-        self.find_name(&self.latest.snapshot)
-    }
 }
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct Latest {
-    pub release: String,
-    pub snapshot: String,
+    release: String,
+    // snapshot: String,
 }
 
 #[allow(non_snake_case)]
@@ -134,7 +123,7 @@ pub struct Version {
     pub id: String,
     pub r#type: String,
     pub url: String,
-    pub time: String,
+    // time: String,
     pub releaseTime: String,
 }
 
