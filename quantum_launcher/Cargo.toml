@@ -2,7 +2,7 @@
 name = "quantum_launcher"
 version = "0.5.1"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 
 authors = ["Mrmayman <navneetkrishna22@gmail.com>"]
 description = "A simple, powerful Minecraft Launcher"
