@@ -2,7 +2,7 @@ use std::{path::PathBuf, sync::OnceLock};
 
 use futures::StreamExt;
 use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
-use reqwest_d::Client;
+use reqwest::Client;
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use tokio_util::io::StreamReader;
 
@@ -14,7 +14,7 @@ pub static DOWNLOAD_CLIENT: OnceLock<ClientWithMiddleware> = OnceLock::new();
 pub static ASSETS_DOWNLOAD_CLIENT: OnceLock<ClientWithMiddleware> = OnceLock::new();
 
 pub fn build_middleware(path: PathBuf, cache: bool) -> ClientWithMiddleware {
-    let client = ClientBuilder::new(Client::new())
+    ClientBuilder::new(Client::new())
         .with(Cache(HttpCache {
             mode: if cache {
                 CacheMode::Default
@@ -24,9 +24,7 @@ pub fn build_middleware(path: PathBuf, cache: bool) -> ClientWithMiddleware {
             manager: CACacheManager::new(path, false),
             options: HttpCacheOptions::default(),
         }))
-        .build();
-
-    client
+        .build()
 }
 
 #[must_use]
@@ -47,7 +45,12 @@ impl DownloadRequest<'_> {
         self
     }
 
-    async fn send(&self) -> Result<reqwest_d::Response, RequestError> {
+    pub fn asset(mut self) -> Self {
+        self.is_asset = true;
+        self
+    }
+
+    async fn send(&self) -> Result<reqwest::Response, RequestError> {
         let mut get = if self.is_asset {
             ASSETS_DOWNLOAD_CLIENT.get().unwrap().get(self.url)
         } else {
@@ -70,7 +73,7 @@ impl DownloadRequest<'_> {
             }
         }
         let response = get.send().await?;
-        check_for_success(ResponseType::Download(&response))?;
+        check_for_success(&response)?;
         Ok(response)
     }
 
@@ -148,46 +151,14 @@ pub fn download(url: &str) -> DownloadRequest<'_> {
         user_agent: UserAgentKind::None,
     }
 }
-/// Instead of using the primary `LAUNCHER_CACHE_DIR` like [`download`], this method stores the cache in
-/// `LAUNCHER_DIR/downloads/cache` and also spoofs the agent on demand.
-pub fn download_asset(url: &str, spoofed_agent: bool) -> DownloadRequest<'_> {
-    DownloadRequest {
-        url,
-        is_asset: true,
-        user_agent: if !spoofed_agent {
-            UserAgentKind::Ql
-        } else {
-            UserAgentKind::Spoofed
-        },
-    }
-}
 
-pub enum ResponseType<'a> {
-    Regular(&'a reqwest::Response),
-    Download(&'a reqwest_d::Response),
-}
-
-// we use a macro instead of a function because that way we avoid writing a dynamic dispatch
-// and dynamic dispatch is FAT
-macro_rules! check_ok {
-    ($resp: ident) => {
-        if $resp.status().is_success() {
-            Ok(())
-        } else {
-            Err(RequestError::DownloadError {
-                code: $resp.status(),
-                url: $resp.url().clone(),
-            })
-        }
-    };
-}
-
-/// It is advised to use `ResponseType::Regular` variant because `ResponseType::Download`
-/// cannot and should not be used outside of the `ql_core` module; it will automatically be
-/// used during `download()` calls.
-pub fn check_for_success(response: ResponseType) -> Result<(), RequestError> {
-    match response {
-        ResponseType::Regular(response) => check_ok!(response),
-        ResponseType::Download(response) => check_ok!(response),
+pub fn check_for_success(r: &reqwest::Response) -> Result<(), RequestError> {
+    if r.status().is_success() {
+        Ok(())
+    } else {
+        Err(RequestError::DownloadError {
+            code: r.status(),
+            url: r.url().clone(),
+        })
     }
 }

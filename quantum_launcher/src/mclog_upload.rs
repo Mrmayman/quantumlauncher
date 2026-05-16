@@ -1,7 +1,6 @@
 use ql_core::{
     CLIENT, Instance, InstanceConfigJson, IntoJsonError, IntoStringError, Loader,
-    json::VersionDetails,
-    request::{ResponseType, check_for_success},
+    json::VersionDetails, request::check_for_success,
 };
 use serde::Deserialize;
 
@@ -58,7 +57,7 @@ pub async fn upload_log(content: String, instance: Instance) -> Result<String, S
         .await
         .strerr()?;
 
-    check_for_success(ResponseType::Regular(&response)).strerr()?;
+    check_for_success(&response).strerr()?;
     let response_text = response.text().await.strerr()?;
 
     let mclog_response: MclogsResponse = serde_json::from_str(&response_text)

@@ -46,7 +46,6 @@ mod progress;
 pub mod read_log;
 pub mod request;
 mod structs;
-pub mod url;
 
 pub use crate::json::InstanceConfigJson;
 pub use constants::*;
