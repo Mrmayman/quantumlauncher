@@ -16,6 +16,7 @@ use crate::{
 
 mod tab_about;
 mod tab_game;
+mod tab_launcher;
 mod tab_presence;
 mod tab_ui;
 
@@ -112,6 +113,7 @@ impl LauncherSettingsTab {
             LauncherSettingsTab::Presence => {
                 menu.view_presence_tab(config, discord_connection_state)
             }
+            LauncherSettingsTab::Launcher => menu.view_launcher_tab(config),
             LauncherSettingsTab::Game => menu.view_game_tab(config),
             LauncherSettingsTab::About => tab_about::view(),
         }

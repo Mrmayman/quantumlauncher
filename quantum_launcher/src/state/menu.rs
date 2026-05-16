@@ -591,6 +591,7 @@ pub enum LauncherSettingsTab {
     #[default]
     UserInterface,
     Presence,
+    Launcher,
     Game,
     About,
 }
@@ -600,6 +601,7 @@ impl std::fmt::Display for LauncherSettingsTab {
         f.write_str(match self {
             LauncherSettingsTab::UserInterface => "Appearance",
             LauncherSettingsTab::Game => "Game",
+            LauncherSettingsTab::Launcher => "Launcher",
             LauncherSettingsTab::About => "About",
             LauncherSettingsTab::Presence => "Discord Presence",
         })
@@ -607,14 +609,20 @@ impl std::fmt::Display for LauncherSettingsTab {
 }
 
 impl LauncherSettingsTab {
-    pub const ALL: &'static [Self] =
-        &[Self::UserInterface, Self::Presence, Self::Game, Self::About];
+    pub const ALL: &'static [Self] = &[
+        Self::UserInterface,
+        Self::Presence,
+        Self::Game,
+        Self::Launcher,
+        Self::About,
+    ];
 
     pub const fn next(self) -> Self {
         match self {
             Self::UserInterface => Self::Presence,
             Self::Presence => Self::Game,
-            Self::Game | Self::About => Self::About,
+            Self::Game => Self::Launcher,
+            Self::Launcher | Self::About => Self::About,
         }
     }
 
@@ -622,7 +630,8 @@ impl LauncherSettingsTab {
         match self {
             Self::UserInterface | Self::Presence => Self::UserInterface,
             Self::Game => Self::Presence,
-            Self::About => Self::Game,
+            Self::Launcher => Self::Game,
+            Self::About => Self::Launcher,
         }
     }
 }
