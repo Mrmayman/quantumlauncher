@@ -5,7 +5,7 @@ use tokio::fs;
 
 use crate::{
     IntoIoError, IntoJsonError, IoError, JsonFileError, LAUNCHER_CACHE_DIR, LAUNCHER_DIR,
-    file_utils::{exists, get_launcher_dir},
+    file_utils::exists,
     info,
     json::{AssetIndex, VersionDetails},
     pt,
@@ -27,9 +27,8 @@ const SIZE_LIMIT_BYTES: u64 = 100 * 1024 * 1024; // 100 MB
 /// - `dir_name` is pointing at a file
 /// - User lacks permissions
 pub async fn dir(dir_name: &str) -> Result<(), IoError> {
-    let launcher_dir = get_launcher_dir()?;
-    let dir = launcher_dir.join(dir_name);
-    if dir == launcher_dir || dir_name.trim().is_empty() {
+    let dir = LAUNCHER_DIR.join(dir_name);
+    if dir == LAUNCHER_DIR.to_path_buf() || dir_name.trim().is_empty() {
         return Ok(());
     }
     if !exists(&dir).await {
