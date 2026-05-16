@@ -533,3 +533,21 @@ impl Launcher {
         Task::none()
     }
 }
+
+pub fn format_memory_bytes(bytes: u64) -> String {
+    const GB: u64 = 1024 * MB;
+    const MB: u64 = 1024 * KB;
+    const KB: u64 = 1024;
+
+    let b = bytes as f64;
+
+    if bytes >= GB {
+        format!("{:.2} GB", b / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.2} MB", b / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.?} KB", b / KB as f64)
+    } else {
+        format!("{bytes} bytes")
+    }
+}

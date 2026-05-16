@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, LazyLock, RwLock},
 };
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use owo_colors::{OwoColorize, Style};
 use ql_core::{InstanceKind, LAUNCHER_VERSION_NAME, REDACT_SENSITIVE_INFO, WEBSITE, err};
 
@@ -73,8 +73,11 @@ enum QSubCommand {
         #[arg(help = "microsoft/elyby/littleskin")]
         account_type: Option<String>,
     },
-    #[command(about = "Clears the download cache")]
-    ClearCache,
+    #[command(about = "Cleans temporary files (see `clean --help`)")]
+    Clean {
+        #[arg(value_enum, value_delimiter = ',')]
+        kinds: Vec<CleanType>,
+    },
     #[command(aliases = ["list", "list-instances"], short_flag = 'l')]
     #[command(about = "Lists installed instances")]
     ListInstalled { properties: Option<Vec<String>> },
@@ -90,6 +93,14 @@ enum QSubCommand {
     Loader(QLoader),
     #[command(about = "Lists downloadable versions", short_flag = 'a')]
     ListAvailableVersions,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+enum CleanType {
+    Assets,
+    Logs,
+    Downloads,
+    Java,
 }
 
 #[derive(Subcommand)]
@@ -278,7 +289,7 @@ pub fn start_cli(is_dir_err: bool, launcher_dir: &mut Option<PathBuf>) {
                 instance_name,
                 force,
             } => quit(command::delete_instance(&instance_name, force, kind)),
-            QSubCommand::ClearCache => quit(command::clean_cache()),
+            QSubCommand::Clean { kinds } => quit(runtime.block_on(command::clean_cache(kinds))),
             QSubCommand::ListInstalled { properties } => {
                 quit(command::list_instances(properties.as_deref(), kind));
             }
