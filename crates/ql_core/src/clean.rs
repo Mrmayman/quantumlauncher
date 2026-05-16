@@ -93,10 +93,10 @@ async fn delete_files(mut total_size: u64, files: &[(DirEntry, Metadata)]) -> Re
     Ok(cleaned_amount)
 }
 
-/// Cleans the cache directory.
+/// Clears the cache directory.
 ///
 /// This will completely remove all cache since they are pretty much disposable.
-pub async fn cache_dir(force: bool) -> Result<(), std::io::Error> {
+pub async fn clear_cache_dir(force: bool) -> Result<(), std::io::Error> {
     let cache_dir = LAUNCHER_CACHE_DIR.to_path_buf();
 
     if force {
@@ -117,7 +117,7 @@ pub async fn cache_dir(force: bool) -> Result<(), std::io::Error> {
 /// # Errors
 /// - User lacks permissions
 /// - File/directory/JSON structure is invalid
-async fn assets_dir() -> Result<u64, JsonFileError> {
+pub async fn assets_dir() -> Result<u64, JsonFileError> {
     let assets_dir = LAUNCHER_DIR.join("assets/dir");
     let indexes_dir = assets_dir.join("indexes");
 

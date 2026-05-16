@@ -1,5 +1,5 @@
 use iced::{
-    Length,
+    Alignment, Length,
     widget::{self, column, row},
 };
 use ql_core::LAUNCHER_DIR;
@@ -18,10 +18,39 @@ impl MenuLauncherSettings {
                 widget::text("Launcher Settings")
                     .size(20)
                     .width(Length::Fill),
+                widget::horizontal_space(),
                 button_with_icon(icons::folder_s(14), "Open Launcher Folder", 14)
+                    .padding([5, 10])
                     .on_press_with(|| Message::CoreOpenPath(LAUNCHER_DIR.clone())),
             ]],
             opt_caching(config),
+            column![
+                row![
+                    button_with_icon(icons::bin_s(12), "Clean unused assets", 12)
+                        .padding([5, 10])
+                        .on_press(LauncherSettingsMessage::CleanAssets.into()),
+                ]
+                .push_maybe(
+                    self.cleaned_bytes
+                        .as_ref()
+                        .map(|size| widget::text!("Cleaned {size}!").size(14))
+                )
+                .align_y(Alignment::Center)
+                .spacing(10),
+                widget::row![
+                    button_with_icon(icons::bin_s(12), "Clear Java installs", 12)
+                        .padding([5, 10])
+                        .on_press(LauncherSettingsMessage::ClearJavaInstalls.into()),
+                    widget::text(
+                        "Might fix some Java problems.\nPerfectly safe, will be redownloaded."
+                    )
+                    .style(tsubtitle)
+                    .size(12),
+                ]
+                .spacing(10)
+                .wrap(),
+            ]
+            .spacing(16),
         ])
     }
 }

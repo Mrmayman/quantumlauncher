@@ -581,9 +581,11 @@ impl ModCategoryState {
 }
 
 pub struct MenuLauncherSettings {
-    pub temp_scale: f64,
     pub selected_tab: LauncherSettingsTab,
+
+    pub temp_scale: f64,
     pub arg_split_by_space: bool,
+    pub cleaned_bytes: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
