@@ -200,11 +200,6 @@ impl Launcher {
     }
 }
 
-const DEBUG_LOG_BUTTON_HEIGHT: f32 = 16.0;
-
-const WINDOW_HEIGHT: f32 = 400.0;
-const WINDOW_WIDTH: f32 = 600.0;
-
 fn main() {
     #[cfg(target_os = "windows")]
     attach_to_console();

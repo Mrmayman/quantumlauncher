@@ -1,5 +1,4 @@
 use crate::{
-    DEBUG_LOG_BUTTON_HEIGHT,
     menu_renderer::{
         Element, FONT_MONO, tooltip, view_account_login, view_changelog, view_confirm, view_error,
         view_log_upload_result,
@@ -12,6 +11,8 @@ use iced::{
     widget::{self, column},
 };
 use ql_core::InstanceKind;
+
+const DEBUG_LOG_BUTTON_HEIGHT: f32 = 16.0;
 
 impl Launcher {
     pub fn view(&'_ self) -> Element<'_> {
@@ -98,13 +99,6 @@ impl Launcher {
     }
 
     fn view_menu(&'_ self) -> Element<'_> {
-        println!(
-            "viewing {}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis()
-        );
         let menu = match &self.state {
             State::Launch(menu) => self.view_main_menu(menu).into(),
             State::AccountLoginProgress(progress) => column![

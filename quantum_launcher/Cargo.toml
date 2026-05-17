@@ -24,10 +24,9 @@ embed-resource = "3"
 default = ["wgpu", "tiny_skia", "auto_update"]
 wgpu = ["iced/wgpu"]
 tiny_skia = ["iced/tiny-skia"]
-# checking for updates, autoupdater
+# debug = ["iced/debug"]
+# checking for updates, auto-updater
 auto_update = []
-
-debug = ["iced/debug"]
 simulate_linux_arm64 = ["ql_instances/simulate_linux_arm64"]
 simulate_linux_arm32 = ["ql_instances/simulate_linux_arm32"]
 simulate_macos_arm64 = ["ql_instances/simulate_macos_arm64"]

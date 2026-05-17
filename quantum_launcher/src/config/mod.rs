@@ -1,7 +1,6 @@
 use crate::config::discord_rpc::RpcConfig;
 use crate::config::sidebar::{SidebarConfig, SidebarNode, SidebarNodeKind};
 use crate::stylesheet::styles::{LauncherTheme, LauncherThemeColor, LauncherThemeLightness};
-use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use ql_core::{
     InstanceKind, IntoIoError, IntoJsonError, JsonFileError, LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
     ListEntryKind, err, json::GlobalSettings,
@@ -248,20 +247,21 @@ impl LauncherConfig {
     }
 
     pub fn c_window_size(&self) -> (f32, f32) {
+        const WINDOW_HEIGHT: f32 = 400.0;
+        const WINDOW_WIDTH: f32 = 600.0;
+
         let window = self.window.clone().unwrap_or_default();
-        let scale = self.ui_scale.unwrap_or(1.0);
         let window_width = window
             .width
             .filter(|_| window.save_window_size)
-            .unwrap_or(WINDOW_WIDTH * scale);
+            .unwrap_or(WINDOW_WIDTH);
         let window_height = window.height.filter(|_| window.save_window_size).unwrap_or(
-            (WINDOW_HEIGHT
+            WINDOW_HEIGHT
                 + if self.uses_system_decorations() {
                     0.0
                 } else {
                     30.0
-                })
-                * scale,
+                },
         );
         (window_width, window_height)
     }
