@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use ql_core::InstanceSelection;
+use ql_core::{Instance, InstanceKind};
 use serde::{Deserialize, Serialize};
 
 use crate::config::sidebar::SidebarNode;
@@ -8,11 +8,11 @@ use crate::config::sidebar::SidebarNode;
 impl PartialEq<SidebarSelection> for SidebarNode {
     fn eq(&self, other: &SidebarSelection) -> bool {
         match other {
-            SidebarSelection::Instance(name, instance_kind) => {
+            SidebarSelection::Instance(inst) => {
                 if let SidebarNodeKind::Instance(kind) = &self.kind
-                    && kind == instance_kind
+                    && *kind == inst.kind
                 {
-                    return self.name == *name;
+                    return self.name == inst.name;
                 }
             }
             SidebarSelection::Folder(folder_id) => {
@@ -25,23 +25,21 @@ impl PartialEq<SidebarSelection> for SidebarNode {
     }
 }
 
-impl PartialEq<InstanceSelection> for SidebarNode {
-    fn eq(&self, other: &InstanceSelection) -> bool {
+impl PartialEq<Instance> for SidebarNode {
+    fn eq(&self, other: &Instance) -> bool {
         match &self.kind {
             SidebarNodeKind::Instance(kind) => {
-                kind.is_server() == other.is_server() && self.name == other.get_name()
+                kind.is_server() == other.is_server() && &*self.name == other.get_name()
             }
             SidebarNodeKind::Folder(_) => false,
         }
     }
 }
 
-impl PartialEq<InstanceSelection> for SidebarSelection {
-    fn eq(&self, other: &InstanceSelection) -> bool {
+impl PartialEq<Instance> for SidebarSelection {
+    fn eq(&self, other: &Instance) -> bool {
         match self {
-            SidebarSelection::Instance(name, instance_kind) => {
-                instance_kind.is_server() == other.is_server() && name == other.get_name()
-            }
+            SidebarSelection::Instance(inst) => inst == other,
             SidebarSelection::Folder(_) => false,
         }
     }
@@ -93,38 +91,24 @@ impl PartialEq for SidebarNodeKind {
 pub struct FolderId(u128);
 
 impl FolderId {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self(rand::random())
-    }
-}
-
-// TODO: Refactor the entire launcher to use this
-// instead of `is_server: bool`
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[serde(rename_all = "snake_case")]
-pub enum InstanceKind {
-    Client,
-    Server,
-}
-
-impl InstanceKind {
-    pub fn is_server(self) -> bool {
-        matches!(self, Self::Server)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SidebarSelection {
-    Instance(String, InstanceKind),
+    Instance(Instance),
     Folder(FolderId),
 }
 
 impl SidebarSelection {
     pub fn from_node(node: &SidebarNode) -> Self {
         match &node.kind {
-            SidebarNodeKind::Instance(instance_kind) => {
-                Self::Instance(node.name.clone(), *instance_kind)
-            }
+            SidebarNodeKind::Instance(instance_kind) => Self::Instance(Instance {
+                name: node.name.clone(),
+                kind: *instance_kind,
+            }),
             SidebarNodeKind::Folder(f) => Self::Folder(f.id),
         }
     }

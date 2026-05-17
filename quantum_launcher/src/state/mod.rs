@@ -2,20 +2,27 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
     path::Path,
-    sync::mpsc::{self, Receiver},
+    sync::{
+        Arc, Mutex,
+        mpsc::{self, Receiver},
+    },
 };
 
+use filthy_rich::PresenceClient;
 use iced::Task;
 use notify::Watcher;
 use ql_core::{
-    InstanceSelection, IntoIoError, IntoStringError, IoError, LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
-    LaunchedProcess, Progress, err, file_utils, read_log::LogLine,
+    Instance, InstanceKind, IntoIoError, IntoStringError, IoError, LAUNCHER_DIR,
+    LAUNCHER_VERSION_NAME, LaunchedProcess, Progress, err,
+    file_utils::{self, exists},
+    read_log::LogLine,
 };
 use ql_instances::auth::{AccountData, AccountType, ms::CLIENT_ID};
 use tokio::process::ChildStdin;
 
 use crate::{
     config::{LauncherConfig, SIDEBAR_WIDTH},
+    message_update::PresenceConnectionState,
     stylesheet::styles::LauncherTheme,
 };
 
@@ -44,7 +51,7 @@ pub struct InstanceLog {
 
 pub struct Launcher {
     pub state: State,
-    pub selected_instance: Option<InstanceSelection>,
+    pub selected_instance: Option<Instance>,
     pub config: LauncherConfig,
     pub theme: LauncherTheme,
     pub images: ImageState,
@@ -54,6 +61,8 @@ pub struct Launcher {
     pub tick_timer: usize,
     pub is_launching_game: bool,
 
+    pub discord_ipc_client: Option<PresenceClient>,
+    pub discord_connection_state: Arc<Mutex<PresenceConnectionState>>,
     pub custom_jar: Option<CustomJarState>,
     /// See [`AutoSaveKind`]
     pub autosave: HashSet<AutoSaveKind>,
@@ -64,9 +73,11 @@ pub struct Launcher {
 
     pub client_list: Option<Vec<String>>,
     pub server_list: Option<Vec<String>>,
+    pub client_watcher: Option<DirWatcher>,
+    pub server_watcher: Option<DirWatcher>,
 
-    pub processes: HashMap<InstanceSelection, GameProcess>,
-    pub logs: HashMap<InstanceSelection, InstanceLog>,
+    pub processes: HashMap<Instance, GameProcess>,
+    pub logs: HashMap<Instance, InstanceLog>,
 
     pub window_state: WindowState,
     pub keys_pressed: HashSet<iced::keyboard::Key>,
@@ -108,8 +119,7 @@ impl WindowState {
 
 pub struct CustomJarState {
     pub choices: Vec<String>,
-    pub recv: Receiver<notify::Event>,
-    pub _watcher: notify::RecommendedWatcher,
+    pub watcher: DirWatcher,
 }
 
 impl CustomJarState {
@@ -117,6 +127,21 @@ impl CustomJarState {
         Task::perform(load_custom_jars(), |n| {
             EditInstanceMessage::CustomJarLoaded(n.strerr()).into()
         })
+    }
+}
+
+pub struct DirWatcher {
+    recv: Receiver<notify::Event>,
+    _watcher: notify::RecommendedWatcher,
+}
+
+impl DirWatcher {
+    pub fn has_changed(&self) -> bool {
+        let mut has_changed = false;
+        while let Ok(_event) = self.recv.try_recv() {
+            has_changed = true;
+        }
+        has_changed
     }
 }
 
@@ -128,7 +153,6 @@ pub struct GameProcess {
 
 impl Launcher {
     pub fn load_new(
-        message: Option<String>,
         is_new_user: bool,
         config: Result<LauncherConfig, String>,
     ) -> Result<Self, String> {
@@ -143,14 +167,8 @@ impl Launcher {
         let theme = config.c_theme();
         let (window_width, window_height) = config.c_window_size();
 
-        let mut launch = if let Some(message) = message {
-            MenuLaunch::with_message(message)
-        } else {
-            MenuLaunch::default()
-        };
-
+        let mut launch = MenuLaunch::default();
         launch.resize_sidebar(SIDEBAR_WIDTH);
-
         let launch = State::Launch(launch);
 
         // The version field was added in 0.3
@@ -171,13 +189,21 @@ impl Launcher {
         let (accounts, accounts_dropdown, account_selected) = load_accounts(&mut config);
 
         let persistent = config.c_persistent();
+        let selected_instance = persistent
+            .selected_instance
+            .as_ref()
+            .filter(|_| persistent.selected_remembered)
+            .map(|n| {
+                Instance::new(
+                    n,
+                    persistent
+                        .selected_instance_kind
+                        .unwrap_or(ql_core::InstanceKind::Client),
+                )
+            });
 
         Ok(Self {
-            selected_instance: persistent
-                .selected_instance
-                .as_ref()
-                .filter(|_| persistent.selected_remembered)
-                .map(|n| InstanceSelection::new(n, false)),
+            selected_instance,
             state,
             config,
             theme,
@@ -189,6 +215,8 @@ impl Launcher {
 
             client_list: None,
             server_list: None,
+            client_watcher: None,
+            server_watcher: None,
             custom_jar: None,
 
             logs: HashMap::new(),
@@ -198,6 +226,9 @@ impl Launcher {
 
             is_log_open: false,
             is_launching_game: false,
+
+            discord_ipc_client: None,
+            discord_connection_state: Arc::new(Mutex::new(PresenceConnectionState::Uninitialized)),
 
             log_scroll: 0,
             tick_timer: 0,
@@ -242,6 +273,8 @@ impl Launcher {
 
             client_list: None,
             server_list: None,
+            client_watcher: None,
+            server_watcher: None,
             selected_instance: None,
             custom_jar: None,
 
@@ -250,6 +283,9 @@ impl Launcher {
 
             log_scroll: 0,
             tick_timer: 0,
+
+            discord_ipc_client: None,
+            discord_connection_state: Arc::new(Mutex::new(PresenceConnectionState::Uninitialized)),
 
             logs: HashMap::new(),
             processes: HashMap::new(),
@@ -265,7 +301,7 @@ impl Launcher {
         }
     }
 
-    pub fn instance(&self) -> &InstanceSelection {
+    pub fn instance(&self) -> &Instance {
         self.selected_instance.as_ref().unwrap()
     }
 
@@ -276,27 +312,17 @@ impl Launcher {
         self.state = State::Error { error }
     }
 
-    pub fn go_to_launch_screen<T: Display>(&mut self, message: Option<T>) -> Task<Message> {
-        let mut menu_launch = match message {
-            Some(message) => MenuLaunch::with_message(message.to_string()),
-            None => MenuLaunch::default(),
-        };
+    pub fn go_to_main_menu(&mut self, message: Option<InfoMessage>) -> Task<Message> {
+        let mut menu_launch = MenuLaunch::new(message);
         menu_launch.resize_sidebar(SIDEBAR_WIDTH);
+        let t = if let Some(inst) = &self.selected_instance {
+            menu_launch.reload_notes(inst.clone())
+        } else {
+            Task::none()
+        };
         self.state = State::Launch(menu_launch);
 
-        let get_entries = Task::perform(get_entries(false), Message::CoreListLoaded);
-        match &self.selected_instance {
-            Some(i @ InstanceSelection::Instance(_)) => {
-                if let State::Launch(menu) = &mut self.state {
-                    return Task::batch([menu.reload_notes(i.clone()), get_entries]);
-                }
-            }
-            // We're going to the *instance* launch screen,
-            // there's a separate function for servers.
-            Some(InstanceSelection::Server(_)) => self.selected_instance = None,
-            None => {}
-        }
-        get_entries
+        t
     }
 }
 
@@ -385,18 +411,14 @@ fn load_account(
     }
 }
 
-pub async fn get_entries(is_server: bool) -> Res<(Vec<String>, bool)> {
-    let dir_path = file_utils::get_launcher_dir().strerr()?.join(if is_server {
-        "servers"
-    } else {
-        "instances"
-    });
-    if !dir_path.exists() {
+pub async fn get_entries(kind: InstanceKind) -> Res<(Vec<String>, InstanceKind)> {
+    let dir_path = kind.get_root_directory();
+    if !exists(&dir_path).await {
         tokio::fs::create_dir_all(&dir_path)
             .await
             .path(&dir_path)
             .strerr()?;
-        return Ok((Vec::new(), is_server));
+        return Ok((Vec::new(), kind));
     }
 
     Ok((
@@ -407,7 +429,7 @@ pub async fn get_entries(is_server: bool) -> Res<(Vec<String>, bool)> {
             .filter(|n| !n.is_file)
             .map(|n| n.name)
             .collect(),
-        is_server,
+        kind,
     ))
 }
 
@@ -423,6 +445,14 @@ impl ProgressBar {
             num: 0.0,
             total: 1.0,
             message: None,
+        }
+    }
+
+    pub fn with_message(m: String) -> Self {
+        Self {
+            num: 0.0,
+            total: 1.0,
+            message: Some(m),
         }
     }
 }
@@ -451,10 +481,8 @@ pub async fn load_custom_jars() -> Result<Vec<String>, IoError> {
     Ok(list)
 }
 
-pub fn dir_watch<P: AsRef<Path>>(
-    path: P,
-) -> notify::Result<(Receiver<notify::Event>, notify::RecommendedWatcher)> {
-    let (tx, rx) = mpsc::channel();
+pub fn dir_watch<P: AsRef<Path>>(path: P) -> notify::Result<DirWatcher> {
+    let (tx, recv) = mpsc::channel();
 
     // `notify` runs callbacks in its own thread.
     let mut watcher: notify::RecommendedWatcher = notify::recommended_watcher(move |res| {
@@ -462,9 +490,13 @@ pub fn dir_watch<P: AsRef<Path>>(
             _ = tx.send(event);
         }
     })?;
-    watcher.watch(path.as_ref(), notify::RecursiveMode::NonRecursive)?;
+    let path = path.as_ref();
+    watcher.watch(path, notify::RecursiveMode::NonRecursive)?;
 
-    Ok((rx, watcher))
+    Ok(DirWatcher {
+        recv,
+        _watcher: watcher,
+    })
 }
 
 fn migration(version: &str) -> Result<(), String> {

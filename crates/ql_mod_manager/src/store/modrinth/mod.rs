@@ -2,17 +2,18 @@ use std::{collections::HashSet, time::Instant};
 
 use chrono::DateTime;
 use download::version_sort;
+use indexmap::IndexMap;
 use info::ProjectInfo;
-use ql_core::{GenericProgress, InstanceSelection, Loader, ModId, pt};
+use ql_core::{GenericProgress, Instance, Loader, pt};
 use sipper::Sender;
 use versions::ModVersion;
 
 use crate::{
     rate_limiter::{RATE_LIMITER, lock},
-    store::{SearchMod, StoreBackendType},
+    store::{Category, ModId, QueryType, SearchMod, StoreBackendType, types::GalleryItem},
 };
 
-use super::{Backend, CurseforgeNotAllowed, ModError, Query, QueryType, SearchResult};
+use super::{Backend, CurseforgeNotAllowed, ModError, Query, SearchResult};
 
 mod download;
 mod info;
@@ -22,15 +23,11 @@ mod versions;
 pub struct ModrinthBackend;
 
 impl Backend for ModrinthBackend {
-    async fn search(
-        query: Query,
-        offset: usize,
-        query_type: QueryType,
-    ) -> Result<SearchResult, ModError> {
+    async fn search(query: Query, offset: usize) -> Result<SearchResult, ModError> {
         RATE_LIMITER.lock().await;
         let instant = Instant::now();
 
-        let res = search::do_request(&query, offset, query_type).await?;
+        let res = search::do_request(&query, offset).await?;
         let reached_end = res.hits.len() < res.limit;
 
         let res = SearchResult {
@@ -45,6 +42,17 @@ impl Backend for ModrinthBackend {
                     project_type: entry.project_type,
                     id: entry.project_id,
                     icon_url: entry.icon_url,
+                    backend: StoreBackendType::Modrinth,
+                    gallery: entry
+                        .gallery
+                        .into_iter()
+                        .map(|url| GalleryItem {
+                            url,
+                            title: None,
+                            description: None,
+                        })
+                        .collect(),
+                    urls: Vec::new(),
                 })
                 .collect(),
             start_time: instant,
@@ -96,12 +104,12 @@ impl Backend for ModrinthBackend {
 
         let download_version_time = DateTime::parse_from_rfc3339(&download_version.date_published)?;
 
-        Ok((download_version_time, download_version.name))
+        Ok((download_version_time, download_version.version_number))
     }
 
     async fn download(
         id: &str,
-        instance: &InstanceSelection,
+        instance: &Instance,
         sender: Option<Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
         let _guard = lock().await;
@@ -118,10 +126,10 @@ impl Backend for ModrinthBackend {
 
     async fn download_bulk(
         ids: &[String],
-        instance: &InstanceSelection,
+        instance: &Instance,
         ignore_incompatible: bool,
         set_manually_installed: bool,
-        sender: Option<&mut Sender<GenericProgress>>,
+        mut sender: Option<Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
         let _guard = lock().await;
 
@@ -135,7 +143,7 @@ impl Backend for ModrinthBackend {
         let len = ids.len();
 
         for (i, id) in ids.iter().enumerate() {
-            if let Some(mut sender) = sender.as_ref().map(|n| (*n).clone()) {
+            if let Some(sender) = sender.as_mut() {
                 sender
                     .send(GenericProgress {
                         done: i,
@@ -158,7 +166,9 @@ impl Backend for ModrinthBackend {
             }
             result?;
 
-            if set_manually_installed && let Some(config) = downloader.index.mods.get_mut(id) {
+            if set_manually_installed
+                && let Some(config) = downloader.index.mods.get_mut(&ModId::Modrinth(id.clone()))
+            {
                 config.manually_installed = true;
             }
         }
@@ -166,10 +176,123 @@ impl Backend for ModrinthBackend {
         downloader.index.save(instance).await?;
 
         pt!("Finished");
-        if let Some(sender) = sender {
+        if let Some(sender) = &mut sender {
             sender.send(GenericProgress::finished()).await;
         }
 
         Ok(HashSet::new())
     }
+
+    async fn get_categories(kind: super::QueryType) -> Result<Vec<Category>, ModError> {
+        #[derive(serde::Deserialize, Clone)]
+        struct MCategory {
+            name: String,
+            project_type: String,
+            header: String,
+        }
+
+        static CACHE: tokio::sync::OnceCell<Vec<MCategory>> = tokio::sync::OnceCell::const_new();
+
+        let mcategories = CACHE
+            .get_or_try_init(|| async {
+                ql_core::download("https://api.modrinth.com/v2/tag/category")
+                    .json()
+                    .await
+            })
+            .await?;
+        let kind_str = kind.to_modrinth_str();
+
+        let mut map: IndexMap<String, Vec<Category>> = IndexMap::new();
+        for cat in mcategories.iter().filter(|n| n.project_type == kind_str) {
+            let category = Category {
+                name: slug_to_nice_name(&cat.name),
+                slug: cat.name.clone(),
+                children: Vec::new(),
+                internal_id: None,
+                is_usable: true,
+            };
+            match map.get_mut(&cat.header) {
+                Some(n) => n.push(category),
+                None => {
+                    map.insert(cat.header.clone(), vec![category]);
+                }
+            }
+        }
+
+        Ok(if map.len() == 1 {
+            map.into_iter().next().expect("len should be equal to 1").1
+        } else {
+            map.into_iter()
+                .map(|(header, children)| Category {
+                    name: slug_to_nice_name(&header),
+                    slug: header,
+                    children,
+                    internal_id: None,
+                    is_usable: false,
+                })
+                .collect()
+        })
+    }
+
+    async fn get_info(id: &str) -> Result<SearchMod, ModError> {
+        let mut info = ProjectInfo::download(id).await?;
+        info.gallery.sort_by_key(|a| a.ordering);
+
+        Ok(SearchMod {
+            urls: info.build_urls(),
+            title: info.title,
+            description: info.description,
+            downloads: info.downloads,
+            internal_name: info.slug,
+            project_type: info.project_type,
+            id: info.id,
+            icon_url: info.icon_url,
+            backend: StoreBackendType::Modrinth,
+            gallery: info.gallery.into_iter().map(GalleryItem::from).collect(),
+        })
+    }
+
+    async fn get_info_bulk(ids: &[String]) -> Result<Vec<SearchMod>, ModError> {
+        let infos = ProjectInfo::download_bulk(ids).await?;
+        Ok(infos
+            .into_iter()
+            .map(|mut info| {
+                info.gallery.sort_by_key(|a| a.ordering);
+                SearchMod {
+                    urls: info.build_urls(),
+                    title: info.title,
+                    description: info.description,
+                    downloads: info.downloads,
+                    internal_name: info.slug,
+                    project_type: info.project_type,
+                    id: info.id,
+                    icon_url: info.icon_url,
+                    backend: StoreBackendType::Modrinth,
+                    gallery: info.gallery.into_iter().map(GalleryItem::from).collect(),
+                }
+            })
+            .collect())
+    }
+
+    async fn get_download_link(
+        instance: &Instance,
+        id: &str,
+        query_type: QueryType,
+    ) -> Result<String, ModError> {
+        let downloader = download::ModDownloader::basic(instance).await?;
+        downloader.get_download_link(id, query_type).await
+    }
+}
+
+pub fn slug_to_nice_name(slug: &str) -> String {
+    slug.split('-')
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }

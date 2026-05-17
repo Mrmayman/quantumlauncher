@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use ql_core::{
-    GenericProgress, InstanceSelection, IntoIoError, Loader, StoreBackendType, do_jobs, download,
+    GenericProgress, Instance, IntoIoError, Loader, do_jobs, download,
     json::{InstanceConfigJson, VersionDetails},
     pt,
 };
@@ -10,7 +10,8 @@ use sipper::Sender;
 use tokio::sync::Mutex;
 
 use crate::store::{
-    CurseforgeNotAllowed, DirStructure, ModConfig, ModFile, ModIndex, QueryType,
+    CurseforgeNotAllowed, DirStructure, ModConfig, ModFile, ModId, ModIndex, QueryType,
+    StoreBackendType,
     curseforge::{self, CFSearchResult, CurseforgeFileQuery, ModQuery, get_query_type},
 };
 
@@ -18,37 +19,37 @@ use super::PackError;
 
 #[derive(Deserialize)]
 pub struct PackIndex {
-    pub minecraft: PackMinecraft,
-    pub name: String,
-    pub files: Vec<PackFile>,
+    minecraft: PackMinecraft,
+    name: String,
+    files: Vec<PackFile>,
     pub overrides: String,
 }
 
 #[derive(Deserialize)]
 #[allow(non_snake_case)]
 pub struct PackMinecraft {
-    pub version: String,
-    pub modLoaders: Vec<PackLoader>,
+    version: String,
+    modLoaders: Vec<PackLoader>,
     // No one asked for your recommendation bro:
     // pub recommendedRam: usize
 }
 
 #[derive(Deserialize)]
 pub struct PackLoader {
-    pub id: String,
+    id: String,
     // pub primary: bool,
 }
 
 #[derive(Deserialize)]
 #[allow(non_snake_case)]
 pub struct PackFile {
-    pub projectID: i32,
-    pub fileID: usize,
-    pub required: bool,
+    projectID: i32,
+    fileID: usize,
+    required: bool,
 }
 
 impl PackFile {
-    pub async fn download(
+    async fn download(
         &self,
         not_allowed: &Mutex<HashSet<CurseforgeNotAllowed>>,
         dirs: &DirStructure,
@@ -68,7 +69,7 @@ impl PackFile {
         };
 
         let query = CurseforgeFileQuery::load(&self.projectID, self.fileID as i32).await?;
-        let query_type = get_query_type(mod_info.classId).await?;
+        let query_type = get_query_type(mod_info.class_id).await?;
         let Some(url) = query.data.downloadUrl.clone() else {
             self.add_to_not_allowed(not_allowed, mod_info, query, query_type)
                 .await;
@@ -117,6 +118,7 @@ async fn add_to_index(
     url: String,
 ) {
     let mut index = index.lock().await;
+    let project_id = ModId::Curseforge(project_id);
     if !index.mods.contains_key(&project_id) {
         index.mods.insert(
             project_id.clone(),
@@ -179,7 +181,7 @@ async fn send_progress(
 }
 
 pub async fn install(
-    instance: &InstanceSelection,
+    instance: &Instance,
     config: &InstanceConfigJson,
     json: &VersionDetails,
     index: &PackIndex,

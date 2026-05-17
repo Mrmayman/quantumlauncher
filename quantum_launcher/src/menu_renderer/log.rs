@@ -45,6 +45,7 @@
 use iced::{Length, widget};
 
 use crate::{
+    menu_renderer::Column,
     state::{Launcher, Message},
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
@@ -124,7 +125,7 @@ fn log_inner<'a, T: Clone>(
     height_limit: f32,
     render: impl Fn(&T) -> Element<'a>,
     stringify: impl Fn(&T) -> String,
-) -> (usize, widget::Column<'a, Message, LauncherTheme>) {
+) -> (usize, Column<'a>) {
     let len = text.len();
 
     let start_pos = scroll as usize;

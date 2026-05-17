@@ -60,11 +60,8 @@ impl Launcher {
                         .set_title("Save shortcut to...")
                         .save_file(),
                     |f| {
-                        if let Some(f) = f {
-                            ShortcutMessage::SaveCustomPicked(f.path().to_owned()).into()
-                        } else {
-                            Message::Nothing
-                        }
+                        f.map(|f| ShortcutMessage::SaveCustomPicked(f.path().to_owned()).into())
+                            .unwrap_or_default()
                     },
                 ));
             }),
@@ -116,7 +113,7 @@ impl Launcher {
         });
     }
 
-    pub fn shortcut_prepare(&mut self) -> Result<Shortcut, String> {
+    fn shortcut_prepare(&mut self) -> Result<Shortcut, String> {
         let State::CreateShortcut(menu) = &self.state else {
             self.shortcut_open();
             return self.shortcut_prepare();

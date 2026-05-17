@@ -60,15 +60,11 @@ pub enum LogType {
 
 impl Display for LogType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                LogType::Info => "[info]",
-                LogType::Error => "[error]",
-                LogType::Point => "-",
-            }
-        )
+        f.write_str(match self {
+            LogType::Info => "[info]",
+            LogType::Error => "[error]",
+            LogType::Point => "-",
+        })
     }
 }
 
@@ -92,20 +88,20 @@ pub struct LoggingState {
     writer: Option<BufWriter<File>>,
     sender: Option<std::sync::mpsc::Sender<String>>,
     config: LogConfig,
-    pub text: Vec<(String, LogType)>,
+    text: Vec<(String, LogType)>,
 }
 
 impl LoggingState {
     #[must_use]
-    pub fn create() -> Option<RwLock<LoggingState>> {
+    fn create() -> Option<RwLock<LoggingState>> {
         Some(RwLock::new(Self::default()))
     }
 
-    pub fn write_to_memory(&mut self, s: &str, t: LogType) {
+    fn write_to_memory(&mut self, s: &str, t: LogType) {
         self.text.push((s.to_owned(), t));
     }
 
-    pub fn write_to_logfile(&mut self, s: &str, t: LogType) {
+    fn write_to_logfile(&mut self, s: &str, t: LogType) {
         self.write_to_memory(s, t);
 
         if self.sender.is_none() {
@@ -142,7 +138,7 @@ impl LoggingState {
         }
     }
 
-    pub fn finish(&self) {
+    fn finish(&self) {
         if let Some(writer) = &self.writer {
             _ = writer.get_ref().sync_all();
         }

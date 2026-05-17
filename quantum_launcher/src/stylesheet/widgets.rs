@@ -384,7 +384,7 @@ impl widget::slider::Catalog for LauncherTheme {
 impl iced::theme::Base for LauncherTheme {
     fn default(preference: iced::theme::Mode) -> Self {
         Self {
-            mode: preference.into(),
+            lightness: preference.into(),
             color: LauncherThemeColor::Purple,
             alpha: 0.9,
             system_dark_mode: false,
@@ -392,7 +392,7 @@ impl iced::theme::Base for LauncherTheme {
     }
 
     fn mode(&self) -> iced::theme::Mode {
-        self.mode.into()
+        self.lightness.into()
     }
 
     fn base(&self) -> iced::theme::Style {

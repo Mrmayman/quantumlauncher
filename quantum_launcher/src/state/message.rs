@@ -1,30 +1,33 @@
 use std::{collections::HashSet, path::PathBuf, process::ExitStatus, sync::Arc};
 
 use crate::{
-    config::sidebar::{FolderId, SDragLocation, SidebarSelection},
+    config::{
+        discord_rpc::{PresenceStatusDisplayType, RpcText},
+        sidebar::{FolderId, SDragLocation, SidebarSelection},
+    },
     message_handler::ForgeKind,
-    state::LaunchModal,
+    state::{InfoMessage, LaunchModal, SidebarScroll},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
+use filthy_rich::PresenceClient;
 use iced::widget::{self, scrollable::AbsoluteOffset};
 use ql_core::{
-    GenericProgress, InstanceSelection, LaunchedProcess, ListEntry, Loader, ModId,
-    StoreBackendType,
+    GenericProgress, Instance, InstanceKind, LaunchedProcess, ListEntry, Loader,
     file_utils::DirItem,
     jarmod::JarMods,
     json::instance_config::{MainClassMode, PreLaunchPrefixMode},
     read_log::Diagnostic,
 };
-use ql_instances::{
-    UpdateCheckInfo,
-    auth::{
-        AccountData, AccountType,
-        ms::{AuthCodeResponse, AuthTokenResponse},
-    },
+use ql_instances::auth::{
+    AccountData, AccountType,
+    ms::{AuthCodeResponse, AuthTokenResponse},
 };
 use ql_mod_manager::{
     loaders::{fabric, paper::PaperVersion},
-    store::{CurseforgeNotAllowed, ImageResult, ModIndex, QueryType, RecommendedMod, SearchResult},
+    store::{
+        Category, CurseforgeNotAllowed, ModId, ModIndex, QueryType, RecommendedMod, SearchMod,
+        SearchResult, StoreBackendType,
+    },
 };
 
 use super::{LaunchTab, LauncherSettingsTab, LicenseTab, Res};
@@ -50,26 +53,26 @@ pub enum InstallPaperMessage {
 
 #[derive(Debug, Clone)]
 pub enum CreateInstanceMessage {
-    ScreenOpen {
-        is_server: bool,
-    },
+    ScreenOpen(InstanceKind),
     SidebarResize(f32),
 
     VersionsLoaded(Res<(Vec<ListEntry>, String)>),
     VersionSelected(ListEntry),
     NameInput(String),
     ChangeAssetToggle(bool),
+    ChangeKind(InstanceKind),
 
     SearchInput(String),
     SearchSubmit,
     CategoryToggle(ql_core::ListEntryKind),
 
     Start,
-    End(Res<InstanceSelection>),
+    End(Res<Instance>),
 
     #[allow(unused)]
     Import,
-    ImportResult(Res<Option<InstanceSelection>>),
+    ImportSelected(PathBuf),
+    ImportResult(Res<Option<Instance>>),
 }
 
 #[derive(Debug, Clone)]
@@ -77,14 +80,14 @@ pub enum EditInstanceMessage {
     ConfigSaved(Res),
     ReinstallLibraries,
     UpdateAssets,
-    BrowseJavaOverride,
+    JavaOverrideBrowse,
+    JavaOverrideBrowsePicked(PathBuf),
 
     JavaOverride(String),
     JavaOverrideVersion(usize),
     MemoryChanged(f32),
     MemoryInputChanged(String),
     LoggingToggle(bool),
-    CloseLauncherToggle(bool),
     SetMainClass(Option<MainClassMode>, Option<String>),
 
     JavaArgs(ListMessage),
@@ -102,7 +105,8 @@ pub enum EditInstanceMessage {
     WindowWidthChanged(String),
     WindowHeightChanged(String),
 
-    CustomJarPathChanged(String),
+    CustomJarChanged(String),
+    CustomJarPicked(String, PathBuf),
     CustomJarLoaded(Res<Vec<String>>),
 }
 
@@ -129,11 +133,13 @@ pub enum ManageModsMessage {
     UpdateCheckResult(Res<Vec<(ModId, String)>>),
     UpdateCheckToggle(usize, bool),
     UpdatePerform,
-    UpdatePerformDone(Res),
+    UpdatePerformDone(Res<(Option<ql_mod_manager::store::ChangelogFile>, bool)>),
+    SetInfoMessage(Option<InfoMessage>),
 
     /// Add a mod, preset or modpack to the current instance.
     /// The field represents whether to delete the file after importing it.
     AddFile(bool),
+    AddFilePicked(Vec<PathBuf>, bool),
     AddFileDone(Res<HashSet<CurseforgeNotAllowed>>),
 
     SelectAll,
@@ -158,6 +164,7 @@ pub enum ManageJarModsMessage {
     ToggleCheckbox(String, bool),
     DeleteSelected,
     AddFile,
+    AddFilePicked(String, PathBuf),
     ToggleSelected,
     SelectAll,
     AutosaveFinished((Res, JarMods)),
@@ -169,20 +176,27 @@ pub enum ManageJarModsMessage {
 pub enum InstallModsMessage {
     Open,
     TickDesc(frostmark::UpdateMsg),
-    SearchInput(String),
-    SearchResult(Res<SearchResult>),
 
-    Click(usize),
     BackToMainScreen,
-    LoadData(Res<(ModId, String)>),
-    Download(usize),
-    DownloadComplete(Res<(ModId, HashSet<CurseforgeNotAllowed>)>),
+    Click(usize),
+    LoadedDescription(Res<(ModId, String)>),
+    LoadedExtendedInfo(Res<(ModId, SearchMod)>),
     IndexUpdated(Res<ModIndex>),
     Scrolled(widget::scrollable::Viewport),
+
+    SearchInput(String),
+    SearchResult(Res<SearchResult>),
+    Download(usize),
+    DownloadComplete(Res<(ModId, HashSet<CurseforgeNotAllowed>)>),
     InstallModpack(ModId),
     Uninstall(usize),
     UninstallComplete(Res<Vec<ModId>>),
 
+    CategoriesLoaded(Res<Vec<Category>>),
+    CategoriesToggle(String),
+    CategoriesUseAll(bool),
+
+    ForceOpenSource(bool),
     ChangeBackend(StoreBackendType),
     ChangeQueryType(QueryType),
 }
@@ -191,6 +205,7 @@ pub enum InstallModsMessage {
 pub enum InstallOptifineMessage {
     ScreenOpen,
     SelectInstallerStart,
+    SelectedInstaller(PathBuf),
     DeleteInstallerToggle(bool),
     End(Res),
 }
@@ -202,9 +217,11 @@ pub enum EditPresetsMessage {
     ToggleCheckboxLocal(String, bool),
     ToggleIncludeConfig(bool),
     SelectAll,
-    BuildYourOwn,
-    BuildYourOwnEnd(Res<Vec<u8>>),
     LoadComplete(Res<HashSet<CurseforgeNotAllowed>>),
+
+    BuildStart,
+    BuildSave(Res<Vec<u8>>),
+    BuildSavePicked(PathBuf, Vec<u8>),
 }
 
 #[derive(Debug, Clone)]
@@ -266,7 +283,7 @@ pub enum AccountMessage {
 
 #[derive(Debug, Clone)]
 pub enum LauncherSettingsMessage {
-    Open,
+    Open(LauncherSettingsTab),
     LoadedSystemTheme(Res<dark_light::Mode>),
     ThemePicked(LauncherThemeLightness),
     ColorSchemePicked(LauncherThemeColor),
@@ -276,18 +293,62 @@ pub enum LauncherSettingsMessage {
     UiIdleFps(f64),
     ClearJavaInstalls,
     ClearJavaInstallsConfirm,
-    ChangeTab(LauncherSettingsTab),
     DefaultMinecraftWidthChanged(String),
     DefaultMinecraftHeightChanged(String),
+    Rpc(RpcMessage),
 
     ToggleAntialiasing(bool),
     ToggleWindowSize(bool),
     ToggleInstanceRemembering(bool),
+    ToggleModUpdateChangelog(bool),
+    AfterLaunchBehaviorChanged(crate::config::AfterLaunchBehavior),
     #[allow(unused)]
     ToggleWindowDecorations(bool),
 
     GlobalJavaArgs(ListMessage),
     GlobalPreLaunchPrefix(ListMessage),
+}
+
+#[derive(Debug, Clone)]
+pub enum RpcMessage {
+    RunStarted(Option<PresenceClient>),
+    Toggle(bool),
+    DefaultChanged(RpcInnerMessage),
+    TogglePresenceOnGameEvent(bool),
+    StatusDisplayTypePicked(PresenceStatusDisplayType),
+    SetName(String),
+    ToggleCompeting(bool),
+    GameOpen(RpcInnerMessage),
+    GameExit(RpcInnerMessage),
+    SetPresenceNow,
+    ResetPresence,
+}
+
+#[derive(Debug, Clone)]
+pub enum RpcInnerMessage {
+    TopText(String),
+    TopTextURL(String),
+    BottomText(String),
+    BottomTextURL(String),
+}
+
+impl RpcText {
+    pub fn apply(&mut self, msg: RpcInnerMessage) {
+        match msg {
+            RpcInnerMessage::TopText(text) => {
+                self.top_text = (!text.is_empty()).then_some(text);
+            }
+            RpcInnerMessage::TopTextURL(text) => {
+                self.top_text_url = (!text.is_empty()).then_some(text);
+            }
+            RpcInnerMessage::BottomText(text) => {
+                self.bottom_text = (!text.is_empty()).then_some(text);
+            }
+            RpcInnerMessage::BottomTextURL(text) => {
+                self.bottom_text_url = (!text.is_empty()).then_some(text);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -356,11 +417,7 @@ pub enum GameLogMessage {
 #[derive(Debug, Clone)]
 pub enum SidebarMessage {
     Resize(f32),
-    Scroll {
-        total: f32,
-        offset: f32,
-        bounds: iced::Rectangle,
-    },
+    Scroll(SidebarScroll),
     FolderRenameConfirm,
 
     NewFolder(Option<SidebarSelection>),
@@ -377,8 +434,9 @@ pub enum SidebarMessage {
 pub enum MainMenuMessage {
     ChangeTab(LaunchTab),
     Modal(Option<LaunchModal>),
-    InstanceSelected(InstanceSelection),
+    InstanceSelected(Instance),
     UsernameSet(String),
+    SetInfoMessage(Option<InfoMessage>),
 }
 
 #[derive(Debug, Clone)]
@@ -400,7 +458,24 @@ pub enum ShortcutMessage {
 }
 
 #[derive(Debug, Clone)]
+pub enum ModDescriptionMessage {
+    Open(ModId),
+    LoadedDetails(Res<SearchMod>),
+    LoadedDescription(Res<String>),
+}
+
+#[derive(Debug, Clone)]
+pub enum LaunchMessage {
+    Start,
+    End(Res<LaunchedProcess>),
+    Kill,
+    JavaInstallProgress(GenericProgress),
+    GameExited(Res<(ExitStatus, Instance, Option<Diagnostic>)>),
+}
+
+#[derive(Debug, Clone, Default)]
 pub enum Message {
+    #[default]
     Nothing,
     Error(String),
     Multiple(Vec<Message>),
@@ -409,6 +484,7 @@ pub enum Message {
     WelcomeContinueToTheme,
     WelcomeContinueToAuth,
 
+    Launch(LaunchMessage),
     Account(AccountMessage),
     CreateInstance(CreateInstanceMessage),
     EditInstance(EditInstanceMessage),
@@ -417,7 +493,6 @@ pub enum Message {
     GameLog(GameLogMessage),
     Window(WindowMessage),
     Shortcut(ShortcutMessage),
-
     ManageMods(ManageModsMessage),
     ManageJarMods(ManageJarModsMessage),
     InstallMods(InstallModsMessage),
@@ -427,17 +502,13 @@ pub enum Message {
     ExportMods(ExportModsMessage),
     RecommendedMods(RecommendedModMessage),
     MainMenu(MainMenuMessage),
-    SidebarMessage(SidebarMessage),
+    Sidebar(SidebarMessage),
+    ModDescription(ModDescriptionMessage),
 
     MScreenOpen {
-        message: Option<String>,
+        message: Option<InfoMessage>,
         clear_selection: bool,
-        is_server: Option<bool>,
     },
-    LaunchStart,
-    LaunchEnd(Res<LaunchedProcess>),
-    LaunchKill,
-    LaunchGameExited(Res<(ExitStatus, InstanceSelection, Option<Diagnostic>)>),
 
     DeleteInstanceMenu,
     DeleteInstance,
@@ -460,13 +531,11 @@ pub enum Message {
     CoreCopyError,
     CoreCopyLog,
     CoreProgress(Arc<dyn ql_core::Progress>),
-    CJavaInstallProgress(GenericProgress),
     CoreOpenLink(String),
     CoreOpenPath(PathBuf),
     CoreCopyText(String),
     CoreTick,
-    CoreTickConfigSaved(Res),
-    CoreListLoaded(Res<(Vec<String>, bool)>),
+    CoreListLoaded(Res<(Vec<String>, InstanceKind)>),
     CoreOpenChangeLog,
     CoreOpenIntro,
     CoreEvent(iced::Event, iced::event::Status),
@@ -475,16 +544,17 @@ pub enum Message {
     CoreTryQuit,
     CoreHideModal,
 
-    CoreImageDownloaded(Res<ImageResult>),
+    CoreImageDownloaded(Res<ql_mod_manager::store::image::Output>),
 
     CoreLogToggle,
     CoreLogScroll(isize),
     CoreLogScrollAbsolute(isize),
 
-    #[allow(unused)]
-    UpdateCheckResult(Res<UpdateCheckInfo>),
+    #[cfg(feature = "auto_update")]
+    UpdateCheckResult(Res<crate::launcher_update::UpdateCheckInfo>),
+    #[cfg(feature = "auto_update")]
     UpdateDownloadStart,
-    #[allow(unused)]
+    #[cfg(feature = "auto_update")]
     UpdateDownloadEnd(Res),
 
     ServerCommandEdit(String),
@@ -505,8 +575,9 @@ macro_rules! from_m {
     };
 }
 
+from_m!(Launch, LaunchMessage);
 from_m!(MainMenu, MainMenuMessage);
-from_m!(SidebarMessage, SidebarMessage);
+from_m!(Sidebar, SidebarMessage);
 from_m!(ManageMods, ManageModsMessage);
 from_m!(ManageJarMods, ManageJarModsMessage);
 from_m!(InstallMods, InstallModsMessage);
@@ -515,7 +586,6 @@ from_m!(InstallFabric, InstallFabricMessage);
 from_m!(EditPresets, EditPresetsMessage);
 from_m!(ExportMods, ExportModsMessage);
 from_m!(RecommendedMods, RecommendedModMessage);
-
 from_m!(Account, AccountMessage);
 from_m!(CreateInstance, CreateInstanceMessage);
 from_m!(EditInstance, EditInstanceMessage);
@@ -524,3 +594,16 @@ from_m!(Notes, NotesMessage);
 from_m!(GameLog, GameLogMessage);
 from_m!(Window, WindowMessage);
 from_m!(Shortcut, ShortcutMessage);
+from_m!(ModDescription, ModDescriptionMessage);
+
+impl From<RpcMessage> for LauncherSettingsMessage {
+    fn from(value: RpcMessage) -> Self {
+        Self::Rpc(value)
+    }
+}
+
+impl From<RpcMessage> for Message {
+    fn from(value: RpcMessage) -> Self {
+        Self::LauncherSettings(value.into())
+    }
+}

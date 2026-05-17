@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::loaders::paper::PaperVer;
 use ql_core::{
-    GenericProgress, InstanceSelection, IntoStringError, JsonFileError, Loader,
+    GenericProgress, Instance, IntoStringError, JsonFileError, Loader,
     json::{InstanceConfigJson, instance_config::ModTypeInfo},
     pipe_progress,
 };
@@ -39,7 +39,7 @@ pub enum LoaderInstallResult {
 }
 
 pub async fn install_specified_loader(
-    instance: InstanceSelection,
+    instance: Instance,
     loader: Loader,
     progress: Option<Sender<GenericProgress>>,
     specified_version: Option<String>,
@@ -114,7 +114,7 @@ pub async fn install_specified_loader(
     Ok(LoaderInstallResult::Ok)
 }
 
-pub async fn uninstall_loader(instance: InstanceSelection) -> Result<(), String> {
+pub async fn uninstall_loader(instance: Instance) -> Result<(), String> {
     let loader = InstanceConfigJson::read(&instance).await.strerr()?.mod_type;
 
     match loader {

@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use iced::{
     Alignment, Length,
     widget::{self, column, row},
 };
-use ql_core::InstanceSelection;
+use ql_core::{Instance, InstanceKind};
 
 use crate::{
     config::sidebar::{FolderId, SidebarFolder, SidebarNode, SidebarNodeKind, SidebarSelection},
@@ -68,8 +70,8 @@ impl Launcher {
         );
 
         let button: Element = match &node.kind {
-            SidebarNodeKind::Instance(_) => {
-                self.get_node_instance(node, &selection, mode, is_selected)
+            SidebarNodeKind::Instance(kind) => {
+                self.get_node_instance(node, &selection, mode, is_selected, *kind)
             }
             SidebarNodeKind::Folder(f) => self.get_node_folder(node, &selection, mode, f),
         };
@@ -133,17 +135,18 @@ impl Launcher {
         selection: &SidebarSelection,
         mode: NodeMode,
         is_selected: bool,
+        kind: InstanceKind,
     ) -> Element<'a> {
         let State::Launch(menu) = &self.state else {
             return widget::Column::new().into();
         };
 
-        let text = widget::text(&node.name)
+        let text = widget::text(&*node.name)
             .size(15)
             .style(move |t: &LauncherTheme| t.style_text(Color::SecondLight));
 
         let view = widget::stack!(underline_maybe(
-            widget::row![text, self.get_running_icon(menu, &node.name)]
+            widget::row![text, self.get_running_icon(&node.name, kind)]
                 .padding([5, 14])
                 .width(Length::Fill)
                 .align_y(Alignment::Center),
@@ -155,11 +158,7 @@ impl Launcher {
             NodeMode::InTree(_) => mode
                 .get_button(view.push(drag_drop_receiver(menu, selection, node)))
                 .on_press_maybe((!is_selected).then(|| {
-                    MainMenuMessage::InstanceSelected(InstanceSelection::new(
-                        &node.name,
-                        menu.is_viewing_server,
-                    ))
-                    .into()
+                    MainMenuMessage::InstanceSelected(Instance::new(&node.name, kind)).into()
                 }))
                 .into(),
             NodeMode::Dragged => drag_tooltip(row![mode.get_space(), view]).into(),
@@ -176,7 +175,7 @@ impl Launcher {
         &self,
         selection: SidebarSelection,
         elem: impl Into<Element<'a>>,
-        name: String,
+        name: Arc<str>,
     ) -> widget::MouseArea<'a, Message, LauncherTheme> {
         widget::mouse_area(elem).on_right_press(
             MainMenuMessage::Modal(Some(LaunchModal::CtxMenu(
@@ -241,17 +240,13 @@ impl Launcher {
                     // ctx_button(icons::file_s(CTXI_SIZE), "Change Icon"),
                     ctx_button(icons::edit_s(CTXI_SIZE), "Rename").on_press_with(move || {
                         match inst {
-                            SidebarSelection::Instance(name, kind) => Message::Multiple(vec![
-                                MainMenuMessage::InstanceSelected(InstanceSelection::new(
-                                    name,
-                                    kind.is_server(),
-                                ))
-                                .into(),
+                            SidebarSelection::Instance(instance) => Message::Multiple(vec![
+                                MainMenuMessage::InstanceSelected(instance.clone()).into(),
                                 MainMenuMessage::ChangeTab(LaunchTab::Edit).into(),
                                 EditInstanceMessage::RenameToggle.into(),
                             ]),
                             SidebarSelection::Folder(folder_id) => MainMenuMessage::Modal(Some(
-                                LaunchModal::RenamingFolder(*folder_id, name.clone(), false),
+                                LaunchModal::RenamingFolder(*folder_id, name.to_string(), false),
                             ))
                             .into(),
                         }
@@ -277,7 +272,7 @@ impl Launcher {
         folder: &SidebarFolder,
     ) -> widget::Stack<'a, Message, LauncherTheme> {
         let text = if folder.is_expanded {
-            widget::text(&node.name)
+            widget::text(&*node.name)
         } else {
             widget::text!("{}...", node.name)
         }

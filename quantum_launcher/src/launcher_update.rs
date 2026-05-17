@@ -1,14 +1,16 @@
+use std::path::Path;
 use std::{ffi::OsStr, process::Command, sync::Arc};
 
+use ql_core::download;
 use ql_core::{
-    GenericProgress, IntoIoError, IoError, JsonError, RequestError, err, file_utils,
-    impl_3_errs_jri, info,
+    GenericProgress, IntoIoError, IoError, JsonError, LAUNCHER_VERSION, RequestError, err,
+    file_utils::{self, exists},
+    impl_3_errs_jri, pt,
 };
 use serde::Deserialize;
 use sipper::Sender;
 use thiserror::Error;
-
-use crate::LAUNCHER_VERSION;
+use tokio::task::JoinError;
 
 #[derive(Debug, Clone)]
 pub enum UpdateCheckInfo {
@@ -33,7 +35,7 @@ pub enum UpdateCheckInfo {
 ///   with semver (even after conversion)
 /// - user is on unsupported architecture or OS
 /// - no matching download could be found for the platform
-pub async fn check_for_launcher_updates() -> Result<UpdateCheckInfo, UpdateError> {
+pub async fn check() -> Result<UpdateCheckInfo, UpdateError> {
     const URL: &str = "https://api.github.com/repos/Mrmayman/quantum-launcher/releases";
 
     let json: Vec<GithubRelease> = file_utils::download_file_to_json(URL, true).await?;
@@ -71,7 +73,11 @@ pub async fn check_for_launcher_updates() -> Result<UpdateCheckInfo, UpdateError
 
     match version.cmp(&LAUNCHER_VERSION) {
         std::cmp::Ordering::Less => Err(UpdateError::AheadOfLatestVersion),
+        // ====
+        // Comment first line to test out update mechanism
         std::cmp::Ordering::Equal => Ok(UpdateCheckInfo::UpToDate),
+        // std::cmp::Ordering::Equal |
+        // ====
         std::cmp::Ordering::Greater => {
             let arch = if cfg!(target_arch = "x86_64") {
                 "x86_64"
@@ -123,7 +129,7 @@ pub async fn check_for_launcher_updates() -> Result<UpdateCheckInfo, UpdateError
 /// The launcher will be backed up, the new version
 /// will be downloaded and extracted.
 ///
-/// The new version will be started and the current process will exit.
+/// The new version will be started. You must exit the current process manually.
 ///
 /// # Arguments
 /// - `url`: The url to the zip file containing the new version of the launcher.
@@ -137,7 +143,7 @@ pub async fn check_for_launcher_updates() -> Result<UpdateCheckInfo, UpdateError
 /// ## Current executable:
 /// - Couldn't be found
 /// - Has a name with invalid UNICODE
-pub async fn install_launcher_update(
+pub async fn install(
     url: String,
     mut progress: Sender<GenericProgress>,
 ) -> Result<(), UpdateError> {
@@ -152,58 +158,37 @@ pub async fn install_launcher_update(
         .ok_or(UpdateError::OsStrToStr(exe_name.into()))?;
 
     let mut backup_idx = 1;
-    while exe_location
-        .join(format!("backup_{backup_idx}_{exe_name}"))
-        .exists()
-    {
+    while exists(&exe_location.join(format!("backup_{backup_idx}_{exe_name}"))).await {
         backup_idx += 1;
     }
 
-    info!("Backing up existing launcher");
-    progress
-        .send(GenericProgress {
-            done: 1,
-            total: 4,
-            message: Some("Backing up existing launcher".to_owned()),
-            has_finished: false,
-        })
-        .await;
+    send_progress(&mut progress, 1, "Backing up existing launcher").await;
     let backup_path = exe_location.join(format!("backup_{backup_idx}_{exe_name}"));
     tokio::fs::rename(&exe_path, &backup_path)
         .await
         .path(backup_path)?;
 
-    info!("Downloading new version of launcher");
-    progress
-        .send(GenericProgress {
-            done: 2,
-            total: 4,
-            message: Some("Downloading new launcher".to_owned()),
-            has_finished: false,
-        })
-        .await;
-    let download_zip = file_utils::download_file_to_bytes(&url, false).await?;
+    send_progress(&mut progress, 2, "Downloading new launcher version").await;
+    let download_zip = download(&url).bytes().await?;
 
-    info!("Extracting launcher");
-    progress
-        .send(GenericProgress {
-            done: 3,
-            total: 4,
-            message: Some("Extracting new launcher".to_owned()),
-            has_finished: false,
+    send_progress(&mut progress, 3, "Extracting new launcher").await;
+    let url_cmp = url.to_lowercase();
+    if url_cmp.ends_with(".tar.gz") {
+        let exe_location = exe_location.to_owned();
+        tokio::task::spawn_blocking(move || {
+            file_utils::extract_tar_gz(&download_zip, &exe_location)
         })
-        .await;
-    file_utils::extract_zip_archive(std::io::Cursor::new(download_zip), exe_location, true).await?;
+        .await?
+        .map_err(UpdateError::TarGz)?;
+    } else if url_cmp.ends_with(".zip") {
+        file_utils::extract_zip_archive(std::io::Cursor::new(download_zip), exe_location, true)
+            .await?;
+    } else {
+        return Err(UpdateError::UnknownFileExtension(url));
+    }
 
-    // Should I, though?
-    let rm_path = exe_location.join("README.md");
-    if rm_path.exists() {
-        tokio::fs::remove_file(&rm_path).await.path(rm_path)?;
-    }
-    let rm_path = exe_location.join("LICENSE");
-    if rm_path.exists() {
-        tokio::fs::remove_file(&rm_path).await.path(rm_path)?;
-    }
+    clean_file(exe_location, "README.md").await?;
+    clean_file(exe_location, "LICENSE").await?;
 
     let extract_name = if cfg!(target_os = "windows") {
         "quantum_launcher.exe"
@@ -214,44 +199,74 @@ pub async fn install_launcher_update(
     let new_path = exe_location.join(extract_name);
     _ = Command::new(&new_path).spawn().path(new_path)?;
 
-    std::process::exit(0);
+    Ok(())
 }
 
-const UPDATE_ERR_PREFIX: &str = "launcher update:\n";
+async fn clean_file(parent: &Path, name: &str) -> Result<(), UpdateError> {
+    let p = parent.join(name);
+    if exists(&p).await {
+        tokio::fs::remove_file(&p).await.path(p)?;
+    }
+    Ok(())
+}
+
+async fn send_progress(progress: &mut Sender<GenericProgress>, done: usize, msg: &str) {
+    pt!("({done}/4) {msg}");
+    progress
+        .send(GenericProgress {
+            done,
+            total: 4,
+            message: Some(msg.to_owned()),
+            has_finished: false,
+        })
+        .await;
+}
+
+const ERR_PREFIX: &str = "launcher update:\n";
 
 #[derive(Debug, Error)]
 pub enum UpdateError {
-    #[error("{UPDATE_ERR_PREFIX}{0}")]
+    #[error("{ERR_PREFIX}{0}")]
     Request(#[from] RequestError),
-    #[error("{UPDATE_ERR_PREFIX}{0}")]
-    Serde(#[from] JsonError),
-    #[error("{UPDATE_ERR_PREFIX}no Release entries found in launcher github")]
-    NoReleases,
-    #[error("{UPDATE_ERR_PREFIX}semver error: {0}")]
+    #[error("{ERR_PREFIX}{0}")]
+    Json(#[from] JsonError),
+    #[error("{ERR_PREFIX}{0}")]
+    Io(#[from] IoError),
+
+    #[error("{ERR_PREFIX}zip extract error: {0}")]
+    Zip(#[from] zip::result::ZipError),
+    #[error("{ERR_PREFIX}tar.gz extract error: {0}")]
+    TarGz(std::io::Error),
+    #[error("{ERR_PREFIX}semver error: {0}")]
     SemverError(#[from] semver::Error),
+    #[error("{ERR_PREFIX}tokio task join error: {0}")]
+    Join(#[from] JoinError),
+
     #[error("unsupported OS for launcher update")]
     UnsupportedOS,
     #[error("unsupported architecture for launcher update")]
     UnsupportedArchitecture,
+
+    #[error("{ERR_PREFIX}no Release entries found in launcher github")]
+    NoReleases,
     #[error("no matching launcher update download found for your platform")]
     NoMatchingDownloadFound,
+    #[error("{ERR_PREFIX}unknown file extension\n{0}")]
+    UnknownFileExtension(String),
     #[error("Running dev build... (ahead of latest version)")]
     AheadOfLatestVersion,
-    #[error("{UPDATE_ERR_PREFIX}could not get current exe path: {0}")]
+
+    #[error("{ERR_PREFIX}could not get current exe path: {0}")]
     CurrentExeError(std::io::Error),
-    #[error("{UPDATE_ERR_PREFIX}could not get current exe parent path")]
+    #[error("{ERR_PREFIX}could not get current exe parent path")]
     ExeParentPathError,
-    #[error("{UPDATE_ERR_PREFIX}could not get current exe file name")]
+    #[error("{ERR_PREFIX}could not get current exe file name")]
     ExeFileNameError,
-    #[error("{UPDATE_ERR_PREFIX}could not convert OsStr to str: {0:?}")]
+    #[error("{ERR_PREFIX}could not convert OsStr to str: {0:?}")]
     OsStrToStr(Arc<OsStr>),
-    #[error("{UPDATE_ERR_PREFIX}{0}")]
-    Io(#[from] IoError),
-    #[error("{UPDATE_ERR_PREFIX}zip extract error: {0}")]
-    Zip(#[from] zip::result::ZipError),
 }
 
-impl_3_errs_jri!(UpdateError, Serde, Request, Io);
+impl_3_errs_jri!(UpdateError, Json, Request, Io);
 
 #[derive(Deserialize)]
 struct GithubRelease {

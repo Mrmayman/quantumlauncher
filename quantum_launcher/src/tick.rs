@@ -6,10 +6,10 @@ use std::{
 
 use iced::{Rectangle, Task, widget::text_editor};
 use ql_core::{
-    InstanceSelection, IntoIoError, IntoJsonError, IntoStringError, JsonFileError, ModId,
-    constants::OS_NAME, json::InstanceConfigJson,
+    Instance, IntoIoError, IntoJsonError, IntoStringError, JsonFileError, constants::OS_NAME,
+    json::InstanceConfigJson,
 };
-use ql_mod_manager::store::{ModConfig, ModIndex};
+use ql_mod_manager::store::{ModConfig, ModId, ModIndex};
 
 use crate::config::SIDEBAR_WIDTH;
 use crate::state::{
@@ -50,6 +50,7 @@ impl Launcher {
                     bar.update(progress);
                 }
             },
+            #[cfg(feature = "auto_update")]
             State::UpdateFound(menu) => {
                 if let Some(p) = &mut menu.progress {
                     p.update(progress);
@@ -94,40 +95,46 @@ impl Launcher {
             | State::InstallPaper(_)
             | State::InstallJava(_)
             | State::CreateShortcut(_)
-            | State::ExportMods(_) => {}
+            | State::ExportMods(_)
+            | State::ModDescription(_) => {}
         }
     }
 
     pub fn tick(&mut self) -> Task<Message> {
+        self.autosave_launcher_config();
+
         match &mut self.state {
             State::Launch(_) => {
-                let autosave_instancecfg = if let (
-                    State::Launch(MenuLaunch {
-                        tab: LaunchTab::Edit,
-                        edit_instance: Some(edit),
-                        ..
-                    }),
-                    true,
-                ) = (
-                    &self.state,
-                    self.autosave.insert(AutoSaveKind::InstanceConfig)
-                        || self.tick_timer.is_multiple_of(5),
-                ) {
-                    let config = edit.config.clone();
-                    self.tick_edit_instance(config)
+                let autosave_instancecfg = if let State::Launch(MenuLaunch {
+                    tab: LaunchTab::Edit,
+                    edit_instance: Some(edit),
+                    ..
+                }) = &self.state
+                    && self.autosave.insert(AutoSaveKind::InstanceConfig)
+                    && let Some(instance) = self.selected_instance.clone()
+                {
+                    // Autosave instance config
+                    let config = (*edit.config).clone();
+                    Task::perform(Launcher::save_config(instance, config), |n| {
+                        EditInstanceMessage::ConfigSaved(n.strerr()).into()
+                    })
                 } else {
                     Task::none()
                 };
 
-                let autosave_launchercfg = self.autosave_config();
-
-                for (name, process) in &mut self.processes {
+                for (instance, process) in &mut self.processes {
                     let log_state = if let State::Launch(menu) = &mut self.state {
                         &mut menu.log_state
                     } else {
                         &mut None
                     };
-                    Self::read_game_logs(process, name, &mut self.logs, log_state);
+                    Self::read_game_logs(
+                        process,
+                        instance,
+                        &mut self.logs,
+                        log_state,
+                        self.selected_instance.as_ref(),
+                    );
                 }
 
                 let sidebar_scroll = if let State::Launch(menu) = &self.state {
@@ -136,10 +143,7 @@ impl Launcher {
                     Task::none()
                 };
 
-                return Task::batch([autosave_instancecfg, autosave_launchercfg, sidebar_scroll]);
-            }
-            State::Create(_) => {
-                return self.autosave_config();
+                return Task::batch([autosave_instancecfg, sidebar_scroll]);
             }
             State::EditMods(menu) => {
                 let instance_selection = self.selected_instance.as_ref().unwrap();
@@ -151,10 +155,7 @@ impl Launcher {
             }
             State::LauncherSettings(_) => {
                 let launcher_config = self.config.clone();
-                return Task::perform(
-                    async move { launcher_config.save().await.strerr() },
-                    Message::CoreTickConfigSaved,
-                );
+                tokio::spawn(async move { launcher_config.save().await });
             }
             State::EditJarMods(menu) => {
                 if self.autosave.insert(AutoSaveKind::Jarmods) {
@@ -197,11 +198,12 @@ impl Launcher {
             return Task::none();
         };
 
-        if menu.sidebar_scroll_total <= 0.0 {
+        let scroll = menu.sidebar_scroll;
+        if scroll.remaining <= 0.0 {
             return Task::none();
         }
 
-        let bounds = menu.sidebar_scroll_bounds.unwrap_or_else(|| {
+        let bounds = scroll.bounds.unwrap_or_else(|| {
             let (width, height) = self.window_state.size;
             let sidebar_width = width * SIDEBAR_WIDTH;
             let usable_height = (height - FALLBACK_TOP - FALLBACK_BOTTOM).max(0.0);
@@ -236,14 +238,14 @@ impl Launcher {
             return Task::none();
         }
 
-        let new_offset = (menu.sidebar_scroll_offset + delta).clamp(0.0, menu.sidebar_scroll_total);
+        let new_offset = (scroll.offset + delta).clamp(0.0, scroll.remaining);
 
-        if (new_offset - menu.sidebar_scroll_offset).abs() < 0.25 {
+        if (new_offset - scroll.offset).abs() < 0.25 {
             return Task::none();
         }
 
         iced::widget::operation::scroll_to(
-            iced::widget::Id::new("MenuLaunch:sidebar"),
+            "MenuLaunch:sidebar",
             iced::widget::scrollable::AbsoluteOffset {
                 x: 0.0,
                 y: new_offset,
@@ -251,34 +253,22 @@ impl Launcher {
         )
     }
 
-    #[allow(clippy::manual_is_multiple_of)] // Maintain Rust MSRV
-    pub fn autosave_config(&mut self) -> Task<Message> {
-        if self.tick_timer.is_multiple_of(5) && self.autosave.insert(AutoSaveKind::LauncherConfig) {
+    fn autosave_launcher_config(&mut self) {
+        if self.autosave.insert(AutoSaveKind::LauncherConfig) {
             let launcher_config = self.config.clone();
-            Task::perform(
-                async move { launcher_config.save().await.strerr() },
-                Message::CoreTickConfigSaved,
-            )
-        } else {
-            Task::none()
+            tokio::spawn(async move { launcher_config.save().await });
         }
-    }
-
-    fn tick_edit_instance(&self, config: InstanceConfigJson) -> Task<Message> {
-        let Some(instance) = self.selected_instance.clone() else {
-            return Task::none();
-        };
-        Task::perform(Launcher::save_config(instance, config), |n| {
-            EditInstanceMessage::ConfigSaved(n.strerr()).into()
-        })
     }
 
     pub fn read_game_logs(
         process: &GameProcess,
-        instance: &InstanceSelection,
-        logs: &mut HashMap<InstanceSelection, InstanceLog>,
+        instance: &Instance,
+        logs: &mut HashMap<Instance, InstanceLog>,
         log_state: &mut Option<LogState>,
+        selected_instance: Option<&Instance>,
     ) {
+        let update_ui = selected_instance.is_some_and(|n| n == instance);
+
         while let Some(message) = process.receiver.as_ref().and_then(|n| n.try_recv().ok()) {
             let message = message.to_string();
 
@@ -293,9 +283,11 @@ impl Launcher {
                         },
                     );
 
-                    *log_state = Some(LogState {
-                        content: text_editor::Content::with_text(&log_start),
-                    });
+                    if update_ui {
+                        *log_state = Some(LogState {
+                            content: text_editor::Content::with_text(&log_start),
+                        });
+                    }
                     InstanceLog {
                         log: vec![log_start],
                         has_crashed: false,
@@ -305,12 +297,14 @@ impl Launcher {
                 .log
                 .push(message.clone());
 
-            update_log_render_state(log_state.as_mut(), message);
+            if update_ui {
+                update_log_render_state(log_state.as_mut(), message);
+            }
         }
     }
 
     async fn save_config(
-        instance: InstanceSelection,
+        instance: Instance,
         config: InstanceConfigJson,
     ) -> Result<(), JsonFileError> {
         let mut config = config.clone();
@@ -328,7 +322,7 @@ impl Launcher {
 }
 
 impl MenuModsDownload {
-    pub fn tick(selected_instance: InstanceSelection) -> Task<Message> {
+    fn tick(selected_instance: Instance) -> Task<Message> {
         Task::perform(
             async move { ModIndex::load(&selected_instance).await },
             |n| InstallModsMessage::IndexUpdated(n.strerr()).into(),
@@ -337,14 +331,14 @@ impl MenuModsDownload {
 }
 
 pub fn sort_dependencies(
-    downloaded_mods: &HashMap<String, ModConfig>,
+    downloaded_mods: &HashMap<ModId, ModConfig>,
     locally_installed_mods: &HashSet<String>,
 ) -> Vec<ModListEntry> {
     let mut entries: Vec<ModListEntry> = downloaded_mods
         .iter()
-        .map(|(k, v)| ModListEntry::Downloaded {
-            id: ModId::from_index_str(k),
-            config: Box::new(v.clone()),
+        .map(|(id, c)| ModListEntry::Downloaded {
+            id: id.clone(),
+            config: Box::new(c.clone()),
         })
         .chain(locally_installed_mods.iter().map(|n| ModListEntry::Local {
             file_name: n.clone(),
@@ -387,12 +381,13 @@ pub fn sort_dependencies(
 }
 
 impl MenuEditMods {
-    fn tick(&mut self, instance_selection: &InstanceSelection) -> Task<Message> {
+    fn tick(&mut self, instance_selection: &Instance) -> Task<Message> {
         self.sorted_mods_list = sort_dependencies(&self.mods.mods, &self.locally_installed_mods);
 
         MenuEditMods::update_locally_installed_mods(&self.mods, instance_selection)
     }
 }
+
 fn update_log_render_state(log_state: Option<&mut LogState>, mut message: String) {
     if let Some(state) = log_state {
         use iced::widget::text_editor::{Action, Edit, Motion};

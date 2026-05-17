@@ -5,9 +5,7 @@ use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{
-    InstanceSelection, IntoIoError, IntoJsonError, JsonFileError, OS_NAME, constants::*, err, pt,
-};
+use crate::{Instance, IntoIoError, IntoJsonError, JsonFileError, OS_NAME, constants::*, err, pt};
 
 pub const V_PRECLASSIC_LAST: &str = "2009-05-16T11:48:00+00:00";
 pub const V_OFFICIAL_FABRIC_SUPPORT: &str = "2018-10-24T10:52:16+00:00";
@@ -21,7 +19,7 @@ pub struct VersionDetails {
     /// An index/list of assets (music/sounds) to be downloaded.
     pub assetIndex: AssetIndexInfo,
     /// Which version of the assets to be downloaded.
-    pub assets: String,
+    assets: String,
     /// Where to download the client/server jar.
     pub downloads: Downloads,
     /// Name of the version.
@@ -49,10 +47,10 @@ pub struct VersionDetails {
     /// Minimum version of the official launcher that is supported.
     ///
     /// Unused field.
-    pub minimumLauncherVersion: Option<usize>,
+    minimumLauncherVersion: Option<usize>,
 
     pub releaseTime: String,
-    pub time: String,
+    time: String,
 
     /// Type of version, such as alpha, beta or release.
     pub r#type: String,
@@ -63,12 +61,12 @@ pub struct VersionDetails {
 
 impl VersionDetails {
     /// Loads a Minecraft instance JSON from disk,
-    /// based on a specific `InstanceSelection`
+    /// based on a specific `Instance`
     ///
     /// # Errors
     /// - `details.json` file couldn't be loaded
     /// - `details.json` couldn't be parsed into valid JSON
-    pub async fn load(instance: &InstanceSelection) -> Result<Self, JsonFileError> {
+    pub async fn load(instance: &Instance) -> Result<Self, JsonFileError> {
         Self::load_from_path(&instance.get_instance_path()).await
     }
 
@@ -89,8 +87,8 @@ impl VersionDetails {
     }
 
     /// Saves the Minecraft instance JSON to disk
-    /// to a specific [`InstanceSelection`] (Minecraft installation).
-    pub async fn save(&self, instance: &InstanceSelection) -> Result<(), JsonFileError> {
+    /// to a specific [`Instance`] (Minecraft installation).
+    pub async fn save(&self, instance: &Instance) -> Result<(), JsonFileError> {
         self.save_to_dir(&instance.get_instance_path()).await
     }
 
@@ -105,10 +103,7 @@ impl VersionDetails {
         Ok(())
     }
 
-    pub async fn apply_tweaks(
-        &mut self,
-        instance: &InstanceSelection,
-    ) -> Result<(), JsonFileError> {
+    pub async fn apply_tweaks(&mut self, instance: &Instance) -> Result<(), JsonFileError> {
         let patches_path = instance.get_instance_path().join("patches");
         if !patches_path.is_dir() {
             return Ok(());
@@ -155,7 +150,7 @@ impl VersionDetails {
         // TODO: More fields in the future
     }
 
-    pub fn fix(&mut self) {
+    fn fix(&mut self) {
         if self.minimumLauncherVersion.is_none() {
             self.minimumLauncherVersion = Some(3);
         }
@@ -207,36 +202,29 @@ impl VersionDetails {
     pub fn get_id(&self) -> &str {
         self.id.strip_suffix("-lwjgl3").unwrap_or(&self.id)
     }
-
-    #[must_use]
-    pub fn uses_java_8(&self) -> bool {
-        self.javaVersion
-            .as_ref()
-            .is_some_and(|n| n.majorVersion == 8)
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[allow(non_snake_case)]
 pub struct VersionDetailsPatch {
-    pub libraries: Option<Vec<Library>>,
-    pub minecraftArguments: Option<String>,
-    pub uid: String,
+    libraries: Option<Vec<Library>>,
+    minecraftArguments: Option<String>,
+    uid: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Arguments {
     pub game: Vec<Value>,
-    pub jvm: Vec<Value>,
+    jvm: Vec<Value>,
 }
 
 #[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AssetIndexInfo {
     pub id: String,
-    pub sha1: String,
-    pub size: usize,
-    pub totalSize: usize,
+    sha1: String,
+    size: usize,
+    totalSize: usize,
     pub url: String,
 }
 
@@ -250,15 +238,15 @@ pub struct Downloads {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Download {
-    pub sha1: String,
-    pub size: usize,
+    sha1: String,
+    size: usize,
     pub url: String,
 }
 
 #[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JavaVersionJson {
-    pub component: String,
+    component: String,
     pub majorVersion: usize,
 }
 
@@ -320,7 +308,6 @@ impl Library {
             allowed = false;
 
             for rule in rules {
-                #[allow(clippy::unnecessary_semicolon)] // cfg_if weirdness
                 if let Some(ref os) = rule.os {
                     cfg_if!(
                         if #[cfg(any(
@@ -416,7 +403,7 @@ impl Debug for Library {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct LibraryExtract {
     pub exclude: Vec<String>,
-    pub name: Option<String>,
+    name: Option<String>,
 }
 
 impl Debug for LibraryExtract {
@@ -466,15 +453,15 @@ impl Debug for LibraryDownloads {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct LibraryClassifier {
     // pub path: Option<String>,
-    pub sha1: String,
-    pub size: serde_json::Number,
+    sha1: String,
+    size: serde_json::Number,
     pub url: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct LibraryRule {
-    pub action: String,
-    pub os: Option<LibraryRuleOS>,
+    action: String,
+    os: Option<LibraryRuleOS>,
 }
 
 impl Debug for LibraryRule {
@@ -489,7 +476,7 @@ impl Debug for LibraryRule {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct LibraryRuleOS {
-    pub name: String,
+    name: String,
     // pub version: Option<String>, // Regex for OS version. TODO: Use this
 }
 
@@ -501,9 +488,9 @@ impl Debug for LibraryRuleOS {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct LibraryDownloadArtifact {
-    pub path: Option<String>,
-    pub sha1: String,
-    pub size: serde_json::Number,
+    path: Option<String>,
+    sha1: String,
+    size: serde_json::Number,
     pub url: String,
 }
 
@@ -551,15 +538,15 @@ pub struct Logging {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LoggingClient {
-    pub argument: String,
+    argument: String,
     pub file: LoggingClientFile,
-    pub r#type: String,
+    r#type: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LoggingClientFile {
     pub id: String,
-    pub sha1: String,
-    pub size: usize,
+    sha1: String,
+    size: usize,
     pub url: String,
 }

@@ -119,29 +119,25 @@ impl From<LauncherThemeLightness> for iced::theme::Mode {
 
 impl Display for LauncherThemeLightness {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                LauncherThemeLightness::Light => "Light",
-                LauncherThemeLightness::Dark => "Dark",
-                LauncherThemeLightness::Auto => "Auto",
-            },
-        )
+        f.write_str(match self {
+            LauncherThemeLightness::Light => "Light",
+            LauncherThemeLightness::Dark => "Dark",
+            LauncherThemeLightness::Auto => "Auto",
+        })
     }
 }
 
 #[derive(Clone, Default, Debug)]
 pub struct LauncherTheme {
-    pub mode: LauncherThemeLightness,
+    pub lightness: LauncherThemeLightness,
     pub color: LauncherThemeColor,
     pub alpha: f32,
     pub system_dark_mode: bool,
 }
 
 impl LauncherTheme {
-    pub fn is_light(&self) -> bool {
-        match self.mode {
+    fn is_light(&self) -> bool {
+        match self.lightness {
             LauncherThemeLightness::Light => true,
             LauncherThemeLightness::Dark => false,
             LauncherThemeLightness::Auto => !self.system_dark_mode,
@@ -233,6 +229,11 @@ impl LauncherTheme {
     }
 
     fn style_scrollable_active(&self, style: StyleScrollable) -> widget::scrollable::Style {
+        let background = match style {
+            StyleScrollable::Round | StyleScrollable::FlatDark => None,
+            StyleScrollable::FlatExtraDark => Some(self.get_bg(Color::ExtraDark)),
+        };
+
         let border = self.get_border_style(
             &style,
             match style {
@@ -240,8 +241,9 @@ impl LauncherTheme {
                 StyleScrollable::FlatExtraDark => Color::Dark,
             },
         );
+
         let rail = Rail {
-            background: Some(self.get_bg(Color::ExtraDark)),
+            background,
             border,
             scroller: widget::scrollable::Scroller {
                 background: iced::Background::Color(mix(
@@ -249,16 +251,13 @@ impl LauncherTheme {
                     // self.get(Color::Dark),
                     self.get(Color::SecondDark),
                 )),
-                border: self.get_border_style(&style, Color::Mid),
+                border: self.get_border(Color::SecondDark),
             },
         };
         widget::scrollable::Style {
             container: widget::container::Style {
                 text_color: None,
-                background: match style {
-                    StyleScrollable::Round | StyleScrollable::FlatDark => None,
-                    StyleScrollable::FlatExtraDark => Some(self.get_bg(Color::ExtraDark)),
-                },
+                background,
                 border,
                 shadow: iced::Shadow::default(),
                 snap: true,
@@ -282,9 +281,13 @@ impl LauncherTheme {
     fn style_scrollable_hovered(
         &self,
         style: StyleScrollable,
-        is_vertical_scrollbar_hovered: bool,
-        is_horizontal_scrollbar_hovered: bool,
+        vertical_hovered: bool,
+        horizontal_hovered: bool,
     ) -> widget::scrollable::Style {
+        let background = match style {
+            StyleScrollable::Round | StyleScrollable::FlatDark => None,
+            StyleScrollable::FlatExtraDark => Some(self.get_bg(Color::ExtraDark)),
+        };
         let border = self.get_border_style(
             &style,
             match style {
@@ -292,11 +295,13 @@ impl LauncherTheme {
                 StyleScrollable::FlatExtraDark => Color::Dark,
             },
         );
-        let vertical_rail = self.s_scrollable_rail(style, border, is_vertical_scrollbar_hovered);
+
+        let vertical_rail = self.s_scrollable_rail_hovered(background, border, vertical_hovered);
         let horizontal_rail =
-            self.s_scrollable_rail(style, border, is_horizontal_scrollbar_hovered);
+            self.s_scrollable_rail_hovered(background, border, horizontal_hovered);
+
         widget::scrollable::Style {
-            container: self.s_scrollable_get_container(style, border),
+            container: self.s_scrollable_get_container(background, border),
             vertical_rail,
             horizontal_rail,
             gap: None,
@@ -304,9 +309,14 @@ impl LauncherTheme {
         }
     }
 
-    fn s_scrollable_rail(&self, style: StyleScrollable, border: Border, hovered: bool) -> Rail {
+    fn s_scrollable_rail_hovered(
+        &self,
+        background: Option<iced::Background>,
+        border: Border,
+        hovered: bool,
+    ) -> Rail {
         Rail {
-            background: Some(self.get_bg(Color::ExtraDark)),
+            background,
             border,
             scroller: widget::scrollable::Scroller {
                 background: if hovered {
@@ -314,7 +324,7 @@ impl LauncherTheme {
                 } else {
                     iced::Background::Color(mix(self.get(Color::SecondDark), self.get(Color::Mid)))
                 },
-                border: self.get_border_style(&style, Color::Light),
+                border: self.get_border(Color::SecondDark),
             },
         }
     }
@@ -325,6 +335,11 @@ impl LauncherTheme {
         is_vertical_scrollbar_dragged: bool,
         is_horizontal_scrollbar_dragged: bool,
     ) -> widget::scrollable::Style {
+        let background = match style {
+            StyleScrollable::Round | StyleScrollable::FlatDark => None,
+            StyleScrollable::FlatExtraDark => Some(self.get_bg(Color::ExtraDark)),
+        };
+
         let border = self.get_border_style(
             &style,
             match style {
@@ -333,34 +348,24 @@ impl LauncherTheme {
                 StyleScrollable::FlatExtraDark => Color::Dark,
             },
         );
-        let rail_v = Rail {
-            background: Some(self.get_bg(Color::ExtraDark)),
+
+        let rail = |dragged| Rail {
+            background,
             border,
             scroller: widget::scrollable::Scroller {
-                background: if is_vertical_scrollbar_dragged {
-                    self.get_bg(Color::White)
+                background: if dragged {
+                    self.get_bg(Color::SecondLight)
                 } else {
                     iced::Background::Color(mix(self.get(Color::Mid), self.get(Color::SecondDark)))
                 },
-                border: self.get_border_style(&style, Color::Light),
+                border: self.get_border(Color::SecondDark),
             },
         };
-        let rail_h = Rail {
-            background: Some(self.get_bg(Color::Dark)),
-            border,
-            scroller: widget::scrollable::Scroller {
-                background: self.get_bg(if is_horizontal_scrollbar_dragged {
-                    Color::White
-                } else {
-                    Color::Mid
-                }),
-                border: self.get_border_style(&style, Color::Light),
-            },
-        };
+
         widget::scrollable::Style {
-            container: self.s_scrollable_get_container(style, border),
-            vertical_rail: rail_v,
-            horizontal_rail: rail_h,
+            container: self.s_scrollable_get_container(background, border),
+            vertical_rail: rail(is_vertical_scrollbar_dragged),
+            horizontal_rail: rail(is_horizontal_scrollbar_dragged),
             gap: None,
             auto_scroll: self.style_auto_scroll(border),
         }
@@ -368,15 +373,12 @@ impl LauncherTheme {
 
     fn s_scrollable_get_container(
         &self,
-        style: StyleScrollable,
+        background: Option<iced::Background>,
         border: Border,
     ) -> widget::container::Style {
         widget::container::Style {
             text_color: None,
-            background: match style {
-                StyleScrollable::Round | StyleScrollable::FlatDark => None,
-                StyleScrollable::FlatExtraDark => Some(self.get_bg(Color::ExtraDark)),
-            },
+            background,
             border,
             snap: true,
             shadow: iced::Shadow::default(),
@@ -699,29 +701,18 @@ impl LauncherTheme {
     }
 
     pub fn style_radio(&self, status: widget::radio::Status, color: Color) -> widget::radio::Style {
-        match status {
-            widget::radio::Status::Active { is_selected } => widget::radio::Style {
-                background: self.get_bg(Color::Dark),
-                dot_color: self.get(if is_selected {
-                    Color::SecondLight
-                } else {
-                    Color::ExtraDark
-                }),
-                border_width: BORDER_WIDTH,
-                border_color: self.get(Color::SecondLight),
-                text_color: Some(self.get(color)),
-            },
-            widget::radio::Status::Hovered { is_selected } => widget::radio::Style {
-                background: self.get_bg(Color::Dark),
-                dot_color: self.get(if is_selected {
-                    Color::White
-                } else {
-                    Color::SecondDark
-                }),
-                border_width: BORDER_WIDTH,
-                border_color: self.get(Color::SecondLight),
-                text_color: Some(self.get(color)),
-            },
+        widget::radio::Style {
+            background: self.get_bg(match status {
+                widget::radio::Status::Active { .. } => Color::Dark,
+                widget::radio::Status::Hovered { .. } => Color::SecondDark,
+            }),
+            dot_color: self.get(match status {
+                widget::radio::Status::Active { .. } => Color::Light,
+                widget::radio::Status::Hovered { .. } => Color::White,
+            }),
+            border_width: BORDER_WIDTH,
+            border_color: self.get(Color::SecondLight),
+            text_color: Some(self.get(color)),
         }
     }
 

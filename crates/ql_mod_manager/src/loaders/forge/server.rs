@@ -1,4 +1,4 @@
-use ql_core::{InstanceSelection, IntoIoError, Loader, json::instance_config::ModTypeInfo};
+use ql_core::{Instance, IntoIoError, Loader, json::instance_config::ModTypeInfo};
 
 use crate::loaders::{change_instance_type, forge::ForgeInstaller};
 
@@ -6,19 +6,14 @@ use super::{ForgeProgress, error::ForgeInstallError};
 
 pub async fn install_server(
     forge_version: Option<String>, // example: "11.15.1.2318" for 1.8.9
-    instance_name: String,
+    instance: Instance,
     mut progress: Option<sipper::Sender<ForgeProgress>>,
 ) -> Result<(), ForgeInstallError> {
     if let Some(progress) = &mut progress {
         progress.send(ForgeProgress::P1Start).await;
     }
 
-    let mut installer = ForgeInstaller::new(
-        forge_version,
-        progress,
-        InstanceSelection::Server(instance_name),
-    )
-    .await?;
+    let mut installer = ForgeInstaller::new(forge_version, progress, instance).await?;
 
     let (_, installer_name, installer_path) = installer.download_forge_installer().await?;
 

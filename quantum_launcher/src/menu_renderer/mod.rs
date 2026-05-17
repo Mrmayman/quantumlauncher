@@ -6,15 +6,18 @@ use ql_core::WEBSITE;
 use ql_instances::auth::AccountType;
 use widgets::generic_overlay::OverlayButton;
 
-use crate::stylesheet::styles::{BORDER_RADIUS, BORDER_WIDTH, LauncherThemeLightness};
 use crate::{
     config::LauncherConfig,
     icons,
     state::{
-        AccountMessage, LauncherSettingsMessage, LicenseTab, ManageModsMessage,
-        MenuCurseforgeManualDownload, MenuLauncherUpdate, MenuLicense, Message, ProgressBar,
+        AccountMessage, InfoMessageKind, LauncherSettingsMessage, LauncherSettingsTab, LicenseTab,
+        ManageModsMessage, MenuCurseforgeManualDownload, MenuLicense, Message, ProgressBar,
     },
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
+};
+use crate::{
+    state::InfoMessage,
+    stylesheet::styles::{BORDER_RADIUS, BORDER_WIDTH, LauncherThemeLightness},
 };
 
 mod create;
@@ -33,11 +36,13 @@ pub use onboarding::changelog;
 
 pub const DISCORD: &str = "https://discord.gg/bWqRaSXar5";
 pub const GITHUB: &str = "https://github.com/Mrmayman/quantumlauncher";
+pub const MATRIX: &str = "https://matrix.to/#/#quantumgroup:matrix.org";
 
 pub const FONT_MONO: iced::Font = iced::Font::with_name("JetBrains Mono");
 pub const FONT_DEFAULT: iced::Font = iced::Font::with_name("Inter");
 
 pub type Element<'a> = iced::Element<'a, Message, LauncherTheme>;
+pub type Column<'a> = widget::Column<'a, Message, LauncherTheme>;
 
 const PADDING_NOT_BOTTOM: iced::Padding = iced::Padding {
     top: 10.0,
@@ -62,9 +67,52 @@ fn ctx_button<'a>(
     .padding(2)
 }
 
+fn view_info_message(
+    message: &InfoMessage,
+    close: Message,
+) -> widget::Container<'_, Message, LauncherTheme> {
+    let (icon, color) = match &message.kind {
+        InfoMessageKind::Success | InfoMessageKind::AtPath(_) => {
+            (icons::checkmark(), Color::SecondLight)
+        }
+        InfoMessageKind::Error => (icons::qm(), Color::Mid),
+    };
+
+    widget::container(
+        row![
+            icon.style(move |t: &LauncherTheme| t.style_text(color))
+                .size(12),
+            widget::text(&message.text).size(12).style(tsubtitle),
+            widget::space::horizontal(),
+            if let InfoMessageKind::AtPath(path) = &message.kind {
+                Some(
+                    button_with_icon(icons::folder_s(10), "Open", 12)
+                        .padding([2, 8])
+                        .on_press_with(|| Message::CoreOpenPath(path.clone())),
+                )
+            } else {
+                None
+            },
+            widget::button(
+                icons::close()
+                    .style(|t: &LauncherTheme| t.style_text(Color::Mid))
+                    .size(12),
+            )
+            .padding(0)
+            .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::FlatExtraDark))
+            .on_press(close),
+        ]
+        .spacing(12)
+        .align_y(Alignment::Center),
+    )
+    .width(Length::Fill)
+    .padding([7, 10])
+    .style(|t: &LauncherTheme| t.style_container_sharp_box(0.0, Color::ExtraDark))
+}
+
 pub fn checkered_list<'a, Item: Into<Element<'a>>>(
     children: impl IntoIterator<Item = Item>,
-) -> widget::Column<'a, Message, LauncherTheme> {
+) -> Column<'a> {
     widget::column(children.into_iter().enumerate().map(|(i, e)| {
         widget::container(e)
             .width(Length::Fill)
@@ -246,6 +294,10 @@ fn tsubtitle(t: &LauncherTheme) -> widget::text::Style {
     t.style_text(Color::SecondLight)
 }
 
+fn barthin(t: &LauncherTheme) -> widget::rule::Style {
+    t.style_rule(Color::SecondDark)
+}
+
 fn sidebar<'a>(
     id: &'static str,
     header: Option<Element<'a>>,
@@ -257,7 +309,7 @@ fn sidebar<'a>(
             widget::scrollable(widget::column(children))
                 .style(LauncherTheme::style_scrollable_flat_extra_dark)
                 .height(Length::Fill)
-                .id(widget::Id::new(id))
+                .id(id)
         ]
         .spacing(10),
     )
@@ -269,7 +321,8 @@ fn dots(tick_timer: usize) -> String {
     ".".repeat((tick_timer % 3) + 1)
 }
 
-impl MenuLauncherUpdate {
+#[cfg(feature = "auto_update")]
+impl crate::state::MenuLauncherUpdate {
     pub fn view(&'_ self) -> Element<'_> {
         if let Some(progress) = &self.progress {
             return column!["Updating QuantumLauncher...", progress.view()]
@@ -282,13 +335,7 @@ impl MenuLauncherUpdate {
                 (!cfg!(target_os = "macos")).then_some(
                     button_with_icon(icons::download(), "Download", 16)
                         .on_press(Message::UpdateDownloadStart)),
-                back_button().on_press(
-                    Message::MScreenOpen {
-                        message: None,
-                        clear_selection: false,
-                        is_server: None
-                    }
-                ),
+                back_button().on_press(back_to_launch_screen(None)),
                 button_with_icon(icons::globe(), "Open Website", 16)
                     .on_press(Message::CoreOpenLink(WEBSITE.to_owned()))
             ].spacing(5).wrap(),
@@ -298,7 +345,10 @@ impl MenuLauncherUpdate {
                     "If you installed this launcher from a package manager/store (flatpak/apt/dnf/pacman/..) then update from there",
                     "If you downloaded it from website then it's fine."
                 ]
-            )
+            ),
+            back_button().on_press(back_to_launch_screen(None)),
+            button_with_icon(icons::globe(), "Open Website", 16)
+                .on_press(Message::CoreOpenLink(ql_core::WEBSITE.to_owned())),
         ]
         .padding(10)
         .spacing(10)
@@ -331,9 +381,7 @@ pub fn get_mode_selector(config: &LauncherConfig) -> Element<'static> {
                 .into()
         } else {
             widget::button(row![icon, name].spacing(5))
-                .on_press(Message::LauncherSettings(
-                    LauncherSettingsMessage::ThemePicked(*n),
-                ))
+                .on_press(LauncherSettingsMessage::ThemePicked(*n).into())
                 .into()
         }
     }))
@@ -342,16 +390,15 @@ pub fn get_mode_selector(config: &LauncherConfig) -> Element<'static> {
     .into()
 }
 
-fn back_to_launch_screen(is_server: Option<bool>, message: Option<String>) -> Message {
+pub fn back_to_launch_screen(message: Option<InfoMessage>) -> Message {
     Message::MScreenOpen {
         message,
         clear_selection: false,
-        is_server,
     }
 }
 
 impl ProgressBar {
-    pub fn view(&'_ self) -> widget::Column<'_, Message, LauncherTheme> {
+    pub fn view(&'_ self) -> Column<'_> {
         column![
             widget::progress_bar(0.0..=self.total, self.num),
             self.message.as_deref().map(widget::text),
@@ -412,11 +459,7 @@ impl MenuLicense {
                 "MenuLicense:sidebar",
                 Some(
                     back_button()
-                        .on_press(Message::LauncherSettings(
-                            LauncherSettingsMessage::ChangeTab(
-                                crate::state::LauncherSettingsTab::About
-                            ),
-                        ))
+                        .on_press(LauncherSettingsMessage::Open(LauncherSettingsTab::About).into())
                         .into()
                 ),
                 LicenseTab::ALL.iter().map(|tab| {
@@ -442,7 +485,7 @@ impl MenuLicense {
 
 pub fn view_account_login<'a>() -> Element<'a> {
     column![
-        back_button().on_press(back_to_launch_screen(None, None)),
+        back_button().on_press(back_to_launch_screen(None)),
         widget::space().height(Length::Fill),
         widget::row![
             widget::space().width(Length::Fill),
@@ -483,7 +526,7 @@ pub fn view_error(error: &'_ str) -> Element<'_> {
         column![
             widget::text!("Error: {error}"),
             row![
-                widget::button("Back").on_press(back_to_launch_screen(None, None)),
+                widget::button("Back").on_press(back_to_launch_screen(None)),
                 widget::button("Copy Error").on_press(Message::CoreCopyError),
                 widget::button("Copy Error + Log").on_press(Message::CoreCopyLog),
                 widget::button("Join Discord for help")
@@ -501,16 +544,12 @@ pub fn view_error(error: &'_ str) -> Element<'_> {
     .into()
 }
 
-pub fn view_log_upload_result(url: &'_ str, is_server: bool) -> Element<'_> {
+pub fn view_log_upload_result(url: &'_ str) -> Element<'_> {
     column![
-        back_button().on_press(back_to_launch_screen(Some(is_server), None)),
+        back_button().on_press(back_to_launch_screen(None)),
         column![
             widget::space().height(Length::Fill),
-            widget::text(format!(
-                "{} log uploaded successfully!",
-                if is_server { "Server" } else { "Game" }
-            ))
-            .size(20),
+            widget::text("Log uploaded successfully!").size(20),
             widget::text("Your log has been uploaded to mclo.gs. You can share the link below:")
                 .size(14),
             widget::container(
@@ -612,16 +651,15 @@ fn style_button_color(
     }
 }
 
-pub fn view_changelog() -> Element<'static> {
+pub fn view_changelog(config: &LauncherConfig) -> Element<'static> {
     let back_msg = Message::MScreenOpen {
         message: None,
         clear_selection: true,
-        is_server: None,
     };
     widget::scrollable(
         column![
             button_with_icon(icons::back(), "Skip", 16).on_press(back_msg.clone()),
-            changelog(),
+            changelog(config),
             button_with_icon(icons::back(), "Continue", 16).on_press(back_msg),
         ]
         .padding(10)

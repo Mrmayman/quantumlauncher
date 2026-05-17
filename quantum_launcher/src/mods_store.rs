@@ -3,7 +3,7 @@ use std::{collections::HashMap, time::Instant};
 use iced::futures::executor::block_on;
 use iced::{Task, widget::scrollable::AbsoluteOffset};
 use ql_core::{
-    InstanceSelection, IntoStringError, JsonFileError, StoreBackendType,
+    Instance, IntoStringError, JsonFileError, StoreBackendType,
     json::{instance_config::InstanceConfigJson, version::VersionDetails},
 };
 use ql_mod_manager::store::{ModIndex, Query, QueryType};
@@ -40,7 +40,7 @@ impl Launcher {
             query_type: QueryType::Mods,
         };
         let command = menu.search_store(
-            matches!(&self.selected_instance, Some(InstanceSelection::Server(_))),
+            matches!(&self.selected_instance, Some(Instance::Server(_))),
             0,
         );
         self.state = State::ModsDownload(menu);

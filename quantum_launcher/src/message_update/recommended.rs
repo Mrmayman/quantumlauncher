@@ -1,10 +1,10 @@
 use iced::{Task, futures::executor::block_on};
-use ql_core::{InstanceSelection, IntoStringError, JsonFileError, ModId, json::InstanceConfigJson};
-use ql_mod_manager::store::{RECOMMENDED_MODS, RecommendedMod};
+use ql_core::{Instance, IntoStringError, JsonFileError, json::InstanceConfigJson};
+use ql_mod_manager::store::{ModId, RECOMMENDED_MODS, RecommendedMod};
 
 use crate::sip;
 use crate::state::{
-    Launcher, MenuCurseforgeManualDownload, MenuRecommendedMods, Message, ProgressBar,
+    InfoMessage, Launcher, MenuCurseforgeManualDownload, MenuRecommendedMods, Message, ProgressBar,
     RecommendedModMessage, State,
 };
 
@@ -78,7 +78,9 @@ impl Launcher {
             RecommendedModMessage::DownloadEnd(result) => match result {
                 Ok(not_allowed) => {
                     if not_allowed.is_empty() {
-                        return self.go_to_edit_mods_menu();
+                        return self.go_to_edit_mods_menu(Some(InfoMessage::success(
+                            "Downloaded recommended mods",
+                        )));
                     }
                     self.state = State::CurseforgeManualDownload(MenuCurseforgeManualDownload {
                         not_allowed,
@@ -122,10 +124,7 @@ impl Launcher {
 }
 
 impl MenuRecommendedMods {
-    pub fn get_config(
-        &self,
-        instance: &InstanceSelection,
-    ) -> Result<InstanceConfigJson, JsonFileError> {
+    fn get_config(&self, instance: &Instance) -> Result<InstanceConfigJson, JsonFileError> {
         if let MenuRecommendedMods::Loaded { config, .. }
         | MenuRecommendedMods::Loading { config, .. } = self
         {

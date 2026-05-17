@@ -5,7 +5,7 @@ use std::{
 };
 
 use ql_core::{
-    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, err, info,
+    GenericProgress, Instance, IntoIoError, IntoJsonError, err, info,
     json::{InstanceConfigJson, VersionDetails},
     pt,
 };
@@ -31,7 +31,7 @@ use super::CurseforgeNotAllowed;
 ///
 /// # Arguments
 /// - `file: Vec<u8>`: The bytes of the modpack file.
-/// - `instance: InstanceSelection`: The selected instance you want to download this pack to.
+/// - `instance: Instance`: The selected instance you want to download this pack to.
 /// - `sender: Option<&Sender<GenericProgress>>`: Supply a [`Sender`] if you want
 ///   to see the progress of installation. Leave `None` if otherwise.
 ///
@@ -44,7 +44,7 @@ use super::CurseforgeNotAllowed;
 /// - `Err` - Any error that occurred.
 pub async fn install_modpack(
     file: Vec<u8>,
-    instance: InstanceSelection,
+    instance: Instance,
     mut sender: Option<&mut Sender<GenericProgress>>,
 ) -> Result<Option<HashSet<CurseforgeNotAllowed>>, PackError> {
     let mut zip = zip::ZipArchive::new(Cursor::new(file.as_slice()))?;
@@ -71,7 +71,7 @@ pub async fn install_modpack(
             ))
             .await
             .map(|n| if n.is_empty() { None } else { Some(n) })
-            .map_err(PackError::from);
+            .map_err(PackError::Mod);
         }
         return Err(PackError::NoBackendFound);
     }

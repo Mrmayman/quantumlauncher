@@ -24,6 +24,8 @@ pub enum GameLaunchError {
     InstanceNotFound(String),
     #[error("{GAME_ERR_PREFIX}no arguments field in details.json")]
     VersionJsonNoArgumentsField(Box<VersionDetails>),
+    #[error("your instance hadn't finished downloading, or files are missing")]
+    InstanceIncomplete,
 
     #[error("{GAME_ERR_PREFIX}semver error: {0}")]
     Semver(#[from] semver::Error),

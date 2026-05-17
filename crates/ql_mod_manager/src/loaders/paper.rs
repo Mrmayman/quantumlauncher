@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::path::Path;
 
+use ql_core::file_utils::exists;
 use ql_core::{
     IntoIoError, IntoJsonError, IoError, JsonError, LAUNCHER_DIR, Loader, RequestError, file_utils,
     info,
@@ -16,7 +17,7 @@ use crate::loaders::change_instance_type;
 /// Moves a directory from `old_path` to `new_path`.
 /// If `new_path` exists, it will be deleted before the move.
 async fn move_dir(old_path: &Path, new_path: &Path) -> Result<(), IoError> {
-    if new_path.exists() {
+    if exists(&new_path).await {
         tokio::fs::remove_dir_all(new_path).await.path(new_path)?;
     }
     file_utils::copy_dir_recursive(old_path, new_path).await?;
@@ -40,7 +41,7 @@ impl From<Option<PaperVersion>> for PaperVer {
 }
 
 impl PaperVer {
-    pub async fn get(&self, version: &str) -> Result<PaperVersion, PaperInstallerError> {
+    async fn get(&self, version: &str) -> Result<PaperVersion, PaperInstallerError> {
         if let PaperVer::Full(n) = self {
             return Ok(n.clone());
         }
@@ -110,8 +111,8 @@ pub async fn get_list_of_versions(
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct PaperVersion {
-    pub id: isize,
-    pub downloads: PaperDownloads,
+    id: isize,
+    downloads: PaperDownloads,
 }
 
 impl Display for PaperVersion {
@@ -123,7 +124,7 @@ impl Display for PaperVersion {
 #[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct PaperDownloads {
     #[serde(rename = "server:default")]
-    pub server: PaperDownloadsInner,
+    server: PaperDownloadsInner,
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]

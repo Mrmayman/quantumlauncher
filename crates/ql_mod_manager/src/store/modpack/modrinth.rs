@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::Path};
 
 use ql_core::{
-    GenericProgress, InstanceSelection, Loader, do_jobs, download,
+    GenericProgress, Instance, InstanceKind, Loader, do_jobs, download,
     json::{InstanceConfigJson, VersionDetails},
     pt,
 };
@@ -13,8 +13,8 @@ use super::PackError;
 
 #[derive(Deserialize)]
 pub struct PackIndex {
-    pub name: String,
-    pub files: Vec<PackFile>,
+    name: String,
+    files: Vec<PackFile>,
 
     /// Info about which Minecraft version
     /// and Loader version is required. May contain:
@@ -24,24 +24,24 @@ pub struct PackIndex {
     /// - `neoforge`
     /// - `fabric-loader`
     /// - `quilt-loader`
-    pub dependencies: HashMap<String, String>,
+    dependencies: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
 pub struct PackFile {
-    pub path: String,
-    pub env: PackEnv,
-    pub downloads: Vec<String>,
+    path: String,
+    env: PackEnv,
+    downloads: Vec<String>,
 }
 
 #[derive(Deserialize)]
 pub struct PackEnv {
-    pub client: String,
-    pub server: String,
+    client: String,
+    server: String,
 }
 
 pub async fn install(
-    instance: &InstanceSelection,
+    instance: &Instance,
     mc_dir: &Path,
     config: &InstanceConfigJson,
     json: &VersionDetails,
@@ -77,9 +77,9 @@ pub async fn install(
     let len = index.files.len();
 
     let job = async |sender, file: &PackFile, url| {
-        let required_field = match instance {
-            InstanceSelection::Instance(_) => &file.env.client,
-            InstanceSelection::Server(_) => &file.env.server,
+        let required_field = match instance.kind {
+            InstanceKind::Client => &file.env.client,
+            InstanceKind::Server => &file.env.server,
         };
         if required_field != "required" {
             pt!("Skipping {} (optional)", file.path);
@@ -156,8 +156,8 @@ async fn send_progress(
 fn expect_got_modrinth(index_json: &PackIndex, config: &InstanceConfigJson) -> PackError {
     match index_json
         .dependencies
-        .iter()
-        .filter_map(|(k, _)| (k != "minecraft").then_some(k.clone()))
+        .keys()
+        .filter_map(|k| (k != "minecraft").then_some(k.clone()))
         .map(|loader| {
             loader
                 .strip_suffix("-loader")

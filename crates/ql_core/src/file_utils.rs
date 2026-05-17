@@ -6,6 +6,7 @@ use std::{
     sync::LazyLock,
 };
 
+use flate2::read::GzDecoder;
 use reqwest::header::InvalidHeaderValue;
 use serde::de::DeserializeOwned;
 use thiserror::Error;
@@ -375,7 +376,7 @@ pub async fn copy_dir_recursive_ext(
         tokio::fs::copy(src, dst).await.path(src)?;
         return Ok(());
     }
-    if !dst.exists() {
+    if !exists(dst).await {
         tokio::fs::create_dir_all(dst).await.path(dst)?;
     }
 
@@ -405,7 +406,7 @@ pub async fn copy_dir_recursive_ext(
 /// that has broken encoding (not UTF-8 or ASCII).
 pub async fn read_filenames_from_dir<P: AsRef<Path>>(dir: P) -> Result<Vec<DirItem>, IoError> {
     let dir: &Path = dir.as_ref();
-    if !dir.exists() {
+    if !exists(dir).await {
         tokio::fs::create_dir_all(dir).await.path(dir)?;
         return Ok(Vec::new());
     }
@@ -599,4 +600,57 @@ pub fn canonicalize_s(p: impl AsRef<Path>) -> PathBuf {
 
 pub async fn exists(p: impl AsRef<Path>) -> bool {
     tokio::fs::try_exists(p).await.is_ok_and(|n| n)
+}
+
+/// Extracts a `.tar.gz` file from a `&[u8]` buffer into the given directory.
+///
+/// Does not create a top-level directory,
+/// extracting files directly into the target directory.
+///
+/// # Arguments
+/// - `data`: A reference to the `.tar.gz` file as a byte slice.
+/// - `output_dir`: Path to the directory where the contents will be extracted.
+///
+/// # Errors
+/// - `std::io::Error` if the `.tar.gz` file was invalid.
+pub fn extract_tar_gz(archive: &[u8], output_dir: &Path) -> std::io::Result<()> {
+    // For extracting the `.gz`
+    let decoder = GzDecoder::new(Cursor::new(archive));
+    // For extracting the `.tar`
+    let mut tar = tar::Archive::new(decoder);
+
+    // Get the first entry path to determine the top-level directory
+    let mut entries = tar.entries()?;
+    let top_level_dir = if let (Some(entry), None) = (entries.next(), entries.next()) {
+        entry?
+            .path()?
+            .components()
+            .next()
+            .map(|c| c.as_os_str().to_os_string())
+    } else {
+        None
+    };
+
+    let decoder = GzDecoder::new(Cursor::new(archive));
+    let mut tar = tar::Archive::new(decoder);
+
+    for entry in tar.entries()? {
+        let mut entry = entry?;
+        let entry_path = entry.path()?;
+
+        let new_path = top_level_dir
+            .as_ref()
+            .and_then(|top_level| entry_path.strip_prefix(top_level).ok())
+            .unwrap_or(&entry_path);
+        let full_path = output_dir.join(new_path);
+
+        if let Some(parent) = full_path.parent() {
+            // Not using async due to some weird thread safety error
+            std::fs::create_dir_all(parent)?;
+        }
+
+        entry.unpack(full_path)?;
+    }
+
+    Ok(())
 }

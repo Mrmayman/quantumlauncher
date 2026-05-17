@@ -1,4 +1,5 @@
 use std::process::ExitStatus;
+use std::sync::Arc;
 use std::{io::Write, time::Duration};
 
 use ql_core::read_log::Diagnostic;
@@ -6,12 +7,12 @@ use ql_core::{IntoStringError, err};
 
 use crate::{Cli, attempt, search::search_for_window, set_terminal};
 
-pub async fn launch(name: String, timeout: f32, cli: &Cli) -> bool {
+pub async fn launch(name: &str, timeout: f32, cli: &Cli) -> bool {
     print!("Testing {name} ");
     _ = std::io::stdout().flush();
     let child = attempt(
         ql_instances::launch(
-            name.clone(),
+            Arc::from(name),
             "test".to_owned(),
             None,
             None,
@@ -62,15 +63,14 @@ pub async fn launch(name: String, timeout: f32, cli: &Cli) -> bool {
     false
 }
 
-type ProcessExitResult = Result<
-    (ExitStatus, ql_core::InstanceSelection, Option<Diagnostic>),
-    ql_core::read_log::ReadError,
->;
+type ProcessExitResult =
+    Result<(ExitStatus, ql_core::Instance, Option<Diagnostic>), ql_core::read_log::ReadError>;
 
 async fn handle_process_exit(handle: tokio::task::JoinHandle<ProcessExitResult>) -> bool {
     let out = handle.await;
-    match out.strerr().map(|n| n.strerr()).flatten() {
-        Ok((code, _, diag)) => {
+
+    match out.strerr().map(|n| n.strerr()) {
+        Ok(Ok((code, _, diag))) => {
             if let Some(Diagnostic::MacOSPixelFormat) = diag {
                 println!("\nmacOS VM lacks GPU acceleration, test successful");
                 return true;
@@ -82,7 +82,7 @@ async fn handle_process_exit(handle: tokio::task::JoinHandle<ProcessExitResult>)
                 err!("\nProcess exited (code: {code})");
             }
         }
-        Err(err) => {
+        Ok(Err(err)) | Err(err) => {
             err!("Instance child process: {err}");
         }
     }

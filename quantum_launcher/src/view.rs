@@ -4,13 +4,14 @@ use crate::{
         Element, FONT_MONO, tooltip, view_account_login, view_changelog, view_confirm, view_error,
         view_log_upload_result,
     },
-    state::{Launcher, Message, State},
+    state::{Launcher, MenuCreateInstance, MenuCreateInstanceChoosing, Message, State},
     stylesheet::{styles::LauncherTheme, widgets::StyleButton},
 };
 use iced::{
     Length,
     widget::{self, column},
 };
+use ql_core::InstanceKind;
 
 impl Launcher {
     pub fn view(&'_ self) -> Element<'_> {
@@ -121,7 +122,24 @@ impl Launcher {
                 &self.images,
                 self.window_state.size.1,
             ),
-            State::Create(menu) => menu.view(self.client_list.as_deref(), self.tick_timer),
+            State::Create(menu) => {
+                let kind = if let MenuCreateInstance::Choosing(MenuCreateInstanceChoosing {
+                    kind,
+                    ..
+                }) = menu
+                {
+                    *kind
+                } else {
+                    self.selected_instance
+                        .as_ref()
+                        .map_or(InstanceKind::Client, |n| n.kind)
+                };
+                let list = match kind {
+                    InstanceKind::Server => self.server_list.as_deref(),
+                    InstanceKind::Client => self.client_list.as_deref(),
+                };
+                menu.view(list, self.tick_timer)
+            }
             State::ConfirmAction {
                 msg1,
                 msg2,
@@ -137,9 +155,12 @@ impl Launcher {
                     .into()
             }
             State::ModsDownload(menu) => menu.view(&self.images, self.tick_timer),
-            State::LauncherSettings(menu) => menu.view(&self.config),
+            State::ModDescription(menu) => menu.view(&self.images, self.tick_timer),
+            State::LauncherSettings(menu) => {
+                menu.view(&self.config, &self.discord_connection_state)
+            }
             State::InstallPaper(menu) => menu.view(self.tick_timer),
-            State::ChangeLog => view_changelog(),
+            State::ChangeLog => view_changelog(&self.config),
             State::Welcome(menu) => menu.view(&self.config),
             State::EditJarMods(menu) => menu.view(self.instance()),
             State::ImportModpack(progress) => {
@@ -148,9 +169,7 @@ impl Launcher {
                     .spacing(10)
                     .into()
             }
-            State::LogUploadResult { url } => {
-                view_log_upload_result(url, self.instance().is_server())
-            }
+            State::LogUploadResult { url } => view_log_upload_result(url),
             State::CreateShortcut(menu) => menu.view(&self.accounts_dropdown),
             State::LoginAlternate(menu) => menu.view(self.tick_timer),
             State::ExportInstance(menu) => menu.view(self.tick_timer),

@@ -6,9 +6,6 @@ use crate::{err, json::version::JavaVersionJson};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Loader {
-    #[serde(rename = "Vanilla")]
-    #[default]
-    Vanilla,
     #[serde(rename = "Fabric")]
     Fabric,
     #[serde(rename = "Quilt")]
@@ -32,6 +29,11 @@ pub enum Loader {
     Modloader,
     #[serde(rename = "Rift")]
     Rift,
+
+    #[serde(rename = "Vanilla")]
+    #[default]
+    #[serde(other)]
+    Vanilla,
 }
 
 impl Display for Loader {
@@ -140,17 +142,13 @@ impl JavaVersion {
 
 impl Display for JavaVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::Java8 => "java_8",
-                Self::Java16 => "java_16",
-                Self::Java17 => "java_17",
-                Self::Java21 => "java_21",
-                Self::Java25 => "java_25",
-            }
-        )
+        f.write_str(match self {
+            Self::Java8 => "java_8",
+            Self::Java16 => "java_16",
+            Self::Java17 => "java_17",
+            Self::Java21 => "java_21",
+            Self::Java25 => "java_25",
+        })
     }
 }
 

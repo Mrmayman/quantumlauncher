@@ -1,7 +1,7 @@
 use crate::auth::AccountData;
 use error::GameLaunchError;
 use ql_core::{
-    GenericProgress, InstanceSelection, LaunchedProcess, REDACT_SENSITIVE_INFO, err, info,
+    GenericProgress, Instance, LaunchedProcess, REDACT_SENSITIVE_INFO, err, info,
     json::GlobalSettings,
 };
 use sipper::Sender;
@@ -26,7 +26,7 @@ pub use launcher::GameLauncher;
 ///   like window width/height, etc.
 /// - `extra_java_args`
 pub async fn launch(
-    instance_name: String,
+    instance_name: Arc<str>,
     username: String,
     java_install_progress_sender: Option<Sender<GenericProgress>>,
     auth: Option<AccountData>,
@@ -105,14 +105,9 @@ pub async fn launch(
         err!("No ID found!");
     }
 
-    if game_launcher.config.close_on_start.unwrap_or(false) {
-        ql_core::logger_finish();
-        std::process::exit(0);
-    }
-
     Ok(LaunchedProcess {
         child: Arc::new(Mutex::new(child)),
-        instance: InstanceSelection::Instance(instance_name),
+        instance: Instance::client(&instance_name),
         is_classic_server: false,
     })
 }

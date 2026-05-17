@@ -4,7 +4,7 @@ use iced::{
     Length,
     widget::{self, column},
 };
-use ql_core::SelectedMod;
+use ql_mod_manager::store::SelectedMod;
 
 use crate::{
     icons,
@@ -60,7 +60,7 @@ Modrinth/Curseforge modpack"
                     .size(12)
                     .text_size(12),
                 button_with_icon(icons::floppydisk(), "Build Preset", 16)
-                    .on_press(EditPresetsMessage::BuildYourOwn.into()),
+                    .on_press(EditPresetsMessage::BuildStart.into()),
             ]
             .padding(10)
             .spacing(10),

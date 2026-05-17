@@ -1,6 +1,8 @@
 use crate::{
     icons,
-    menu_renderer::{Element, back_button, button_with_icon, tooltip, tsubtitle},
+    menu_renderer::{
+        Column, Element, back_button, back_to_launch_screen, button_with_icon, tooltip, tsubtitle,
+    },
     state::{MenuShortcut, Message, OFFLINE_ACCOUNT_NAME, ShortcutMessage},
     stylesheet::styles::LauncherTheme,
 };
@@ -33,11 +35,7 @@ impl MenuShortcut {
         widget::scrollable(
             column![
                 row![
-                    back_button().on_press(Message::MScreenOpen {
-                        message: None,
-                        clear_selection: false,
-                        is_server: None
-                    }),
+                    back_button().on_press(back_to_launch_screen(None)),
                     widget::text("Create Launch Shortcut").size(20),
                     widget::space().width(Length::Fill),
                     open_folder_button(),
@@ -144,10 +142,7 @@ impl MenuShortcut {
         }
     }
 
-    fn get_info_fields<'a>(
-        &'a self,
-        accounts: &'a [String],
-    ) -> widget::Column<'a, Message, LauncherTheme> {
+    fn get_info_fields<'a>(&'a self, accounts: &'a [String]) -> Column<'a> {
         fn ifield<'a>(
             name: &'a str,
             elem: impl Into<Element<'a>>,

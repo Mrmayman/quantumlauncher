@@ -5,8 +5,10 @@ use std::path::Path;
 
 use crate::{InstancePackageError, import::OUT_OF};
 use ql_core::{
-    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, LAUNCHER_DIR, ListEntry,
-    Loader, do_jobs, download, err, file_utils, info,
+    GenericProgress, Instance, IntoIoError, IntoJsonError, LAUNCHER_DIR, ListEntry, Loader,
+    do_jobs, download, err,
+    file_utils::{self, exists},
+    info,
     jarmod::{JarMod, JarMods},
     json::{
         FabricJSON, InstanceConfigJson, Manifest, V_1_12_2, V_OFFICIAL_FABRIC_SUPPORT,
@@ -20,15 +22,15 @@ use tokio::{fs, sync::Mutex};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MmcPack {
-    pub components: Vec<MmcPackComponent>,
+    components: Vec<MmcPackComponent>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct MmcPackComponent {
-    pub cachedName: String,
-    pub cachedVersion: Option<String>,
-    pub uid: String,
+    cachedName: String,
+    cachedVersion: Option<String>,
+    uid: String,
 }
 
 #[derive(Debug, Clone)]
@@ -70,7 +72,7 @@ pub async fn import(
     temp_dir: &Path,
     mmc_pack: &str,
     mut sender: Option<Sender<GenericProgress>>,
-) -> Result<InstanceSelection, InstancePackageError> {
+) -> Result<Instance, InstancePackageError> {
     info!("Importing MultiMC instance...");
     let mmc_pack: MmcPack = serde_json::from_str(mmc_pack).json(mmc_pack.to_owned())?;
 
@@ -123,12 +125,8 @@ pub async fn import(
     Ok(instance)
 }
 
-async fn setup_details(instance: &InstanceSelection) -> Result<(), InstancePackageError> {
-    if instance
-        .get_instance_path()
-        .join("patches/org.lwjgl.json")
-        .exists()
-    {
+async fn setup_details(instance: &Instance) -> Result<(), InstancePackageError> {
+    if exists(&instance.get_instance_path().join("patches/org.lwjgl.json")).await {
         let mut details = VersionDetails::load(instance).await?;
         details.libraries.retain(|lib| {
             if let Some(name) = &lib.name {
@@ -148,9 +146,6 @@ fn setup_config(ini: &Ini, instance_recipe: &InstanceRecipe, config: &mut Instan
     if instance_recipe.force_vanilla_launch {
         config.main_class_override = Some("net.minecraft.client.Minecraft".to_owned());
     }
-    if let Ok("true") = general_get(ini, "CloseAfterLaunch") {
-        config.close_on_start = Some(true);
-    }
     // TODO: `LaunchMaximized: bool`
 
     if let Ok(win_height) = general_get(ini, "MinecraftWinHeight") {
@@ -167,7 +162,7 @@ fn setup_config(ini: &Ini, instance_recipe: &InstanceRecipe, config: &mut Instan
     if let Ok(jvmargs) = general_get(ini, "JvmArgs") {
         config
             .java_args
-            .get_or_insert_with(Vec::new)
+            .get_or_insert_default()
             .extend(jvmargs.split_whitespace().map(str::to_owned));
     }
 
@@ -188,7 +183,7 @@ fn general_get<'a>(ini: &'a Ini, key: &str) -> Result<&'a str, InstancePackageEr
         .ok_or_else(|| InstancePackageError::IniFieldMissing("General".to_owned(), key.to_owned()))
 }
 
-async fn get_instance(ini: &Ini) -> Result<InstanceSelection, InstancePackageError> {
+async fn get_instance(ini: &Ini) -> Result<Instance, InstancePackageError> {
     let mut instance_name = general_get(ini, "name")?.to_owned();
 
     // If `MyInstance` exists, try `MyInstance (1)`, `(2)`...
@@ -206,7 +201,7 @@ async fn get_instance(ini: &Ini) -> Result<InstanceSelection, InstancePackageErr
         instance_name = name;
     }
 
-    Ok(InstanceSelection::new(&instance_name, false))
+    Ok(Instance::client(&instance_name))
 }
 
 async fn read_config_ini(temp_dir: &Path) -> Result<Ini, InstancePackageError> {
@@ -269,7 +264,7 @@ async fn get_instance_recipe(mmc_pack: &MmcPack) -> Result<InstanceRecipe, Insta
 
 async fn install_loader(
     sender: Option<Sender<GenericProgress>>,
-    instance: &InstanceSelection,
+    instance: &Instance,
     instance_recipe: &InstanceRecipe,
 ) -> Result<(), InstancePackageError> {
     if let Some(loader) = instance_recipe.loader {
@@ -302,7 +297,7 @@ async fn install_loader(
 
 async fn install_fabric(
     sender: Option<Sender<GenericProgress>>,
-    instance_selection: &InstanceSelection,
+    instance_selection: &Instance,
     version: Option<String>,
     is_quilt: bool,
 ) -> Result<(), InstancePackageError> {
@@ -330,7 +325,7 @@ async fn install_fabric(
             version
         } else {
             // Using 1.14.4 just to get the overall list of versions.
-            get_list_of_versions_from_backend("1.14.4", backend, false)
+            get_list_of_versions_from_backend("1.14.4", backend, ql_core::InstanceKind::Client)
                 .await?
                 .first()
                 .map_or_else(
@@ -415,7 +410,7 @@ async fn download_library_fabric(
 async fn copy_files(
     temp_dir: &Path,
     sender: Option<&mut Sender<GenericProgress>>,
-    instance_selection: &InstanceSelection,
+    instance_selection: &Instance,
 ) -> Result<(), InstancePackageError> {
     let src = temp_dir.join("minecraft");
     if src.is_dir() {
@@ -441,7 +436,7 @@ async fn copy_files(
 
 async fn copy_folder_over(
     temp_dir: &Path,
-    instance_selection: &InstanceSelection,
+    instance_selection: &Instance,
     path: &'static str,
 ) -> Result<(), InstancePackageError> {
     let src = temp_dir.join(path);
@@ -472,7 +467,7 @@ async fn create_minecraft_instance(
 
 async fn mmc_forge(
     sender: Option<Sender<GenericProgress>>,
-    instance_selection: &InstanceSelection,
+    instance_selection: &Instance,
     version: Option<String>,
     is_neoforge: bool,
 ) -> Result<(), InstancePackageError> {

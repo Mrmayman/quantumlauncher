@@ -1,6 +1,4 @@
-use ql_core::{
-    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, file_utils, info, pt,
-};
+use ql_core::{GenericProgress, Instance, IntoIoError, IntoJsonError, file_utils, info, pt};
 use sipper::Sender;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -16,10 +14,7 @@ pub const EXCEPTIONS: &[&str] = &[
     "forge",
 ];
 
-fn create_instance_info(
-    instance: &InstanceSelection,
-    mut exceptions: HashSet<String>,
-) -> InstanceInfo {
+fn create_instance_info(instance: &Instance, mut exceptions: HashSet<String>) -> InstanceInfo {
     exceptions.extend(EXCEPTIONS.iter().map(|n| (*n).to_owned()));
     InstanceInfo {
         instance_name: instance.get_name().to_owned(),
@@ -60,7 +55,7 @@ fn create_instance_info(
 /// - The instance directory doesn't exist.
 /// - File I/O operations (copying, deleting, zipping) fail.
 pub async fn export_instance(
-    instance: InstanceSelection,
+    instance: Instance,
     exceptions: HashSet<String>,
     mut progress: Option<Sender<GenericProgress>>,
 ) -> Result<Vec<u8>, InstancePackageError> {

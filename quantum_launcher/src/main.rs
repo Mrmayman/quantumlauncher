@@ -31,7 +31,9 @@ use owo_colors::OwoColorize;
 use sipper::Sipper;
 use state::{Launcher, Message, get_entries};
 
-use ql_core::{IntoStringError, JsonFileError, constants::OS_NAME, err, file_utils, info, pt};
+use ql_core::{
+    InstanceKind, IntoStringError, JsonFileError, constants::OS_NAME, err, file_utils, info, pt,
+};
 
 use crate::{
     menu_renderer::FONT_DEFAULT,
@@ -65,6 +67,9 @@ mod view;
 /// (called by [`view`]).
 mod menu_renderer;
 
+/// Checking/installing app updates
+#[cfg(feature = "auto_update")]
+mod launcher_update;
 /// Handles `mclo.gs` log uploads
 mod mclog_upload;
 /// Child functions of the
@@ -78,8 +83,6 @@ mod message_handler;
 /// This module has functions for handling each of
 /// these "child messages".
 mod message_update;
-/// Handles mod store
-mod mods_store;
 /// Stylesheet definitions (launcher themes)
 mod stylesheet;
 /// Code to tick every frame
@@ -90,16 +93,27 @@ const LAUNCHER_ICON: &[u8] = include_bytes!("../../assets/icon/ql_logo.ico");
 impl Launcher {
     fn new(is_new_user: bool, config: Result<LauncherConfig, String>) -> (Self, Task<Message>) {
         #[cfg(feature = "auto_update")]
-        let check_for_updates_command = Task::perform(
-            async move { ql_instances::check_for_launcher_updates().await.strerr() },
-            Message::UpdateCheckResult,
-        );
+        let check_for_updates_command = {
+            let should_check = if let Ok(c) = &config {
+                c.should_update_check()
+            } else {
+                true
+            };
+            if should_check {
+                Task::perform(
+                    async move { launcher_update::check().await.strerr() },
+                    Message::UpdateCheckResult,
+                )
+            } else {
+                Task::none()
+            }
+        };
         #[cfg(not(feature = "auto_update"))]
         let check_for_updates_command = Task::none();
 
-        let get_entries_command = Task::perform(get_entries(false), Message::CoreListLoaded);
         let mut launcher =
-            Launcher::load_new(None, is_new_user, config).unwrap_or_else(Launcher::with_error);
+            Launcher::load_new(is_new_user, config).unwrap_or_else(Launcher::with_error);
+        // let mut launcher = Launcher::with_error("test");
 
         let load_notes_command = if let (Some(instance), State::Launch(menu)) =
             (launcher.selected_instance.clone(), &mut launcher.state)
@@ -109,12 +123,20 @@ impl Launcher {
             Task::none()
         };
 
+        let presence_task = if launcher.config.c_rpc_enabled() {
+            launcher.start_discord_ipc_run()
+        } else {
+            Task::none()
+        };
+
         (
             launcher,
             Task::batch([
                 check_for_updates_command,
-                get_entries_command,
+                Task::perform(get_entries(InstanceKind::Client), Message::CoreListLoaded),
+                Task::perform(get_entries(InstanceKind::Server), Message::CoreListLoaded),
                 load_notes_command,
+                presence_task,
                 Task::perform(ql_core::clean::dir("logs"), |n| {
                     Message::CoreCleanComplete(n.strerr())
                 }),
@@ -234,6 +256,7 @@ fn main() {
     .title(|_: &Launcher| "Quantum Launcher".to_owned())
     .theme(Launcher::theme)
     .settings(Settings {
+        id: Some("io.github.Mrmayman.QuantumLauncher".to_owned()),
         fonts: load_fonts(),
         default_font: FONT_DEFAULT,
         antialiasing,
@@ -249,9 +272,14 @@ fn main() {
         }),
         decorations,
         transparent: true,
+        platform_specific: iced::window::settings::PlatformSpecific {
+            #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+            application_id: "io.github.Mrmayman.QuantumLauncher".to_owned(),
+            ..Default::default()
+        },
         ..Default::default()
     })
-    // .title(|_| "QuantumLauncher".to_owned())
+    .title(|_: &Launcher| "QuantumLauncher".to_owned())
     .run()
     .unwrap();
 }

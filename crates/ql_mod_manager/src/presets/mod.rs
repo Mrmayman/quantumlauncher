@@ -6,15 +6,14 @@ use std::{
 
 use owo_colors::OwoColorize;
 use ql_core::{
-    InstanceSelection, IntoIoError, IntoJsonError, LAUNCHER_VERSION_NAME, Loader, ModId,
-    SelectedMod, err, info,
+    Instance, IntoIoError, IntoJsonError, LAUNCHER_VERSION_NAME, Loader, err, info,
     json::{InstanceConfigJson, VersionDetails},
     pt,
 };
 use serde::{Deserialize, Serialize};
 use zip::ZipWriter;
 
-use crate::store::{ModConfig, ModError, ModIndex, install_modpack};
+use crate::store::{ModConfig, ModError, ModId, ModIndex, SelectedMod, install_modpack};
 
 #[must_use]
 #[derive(Debug, Clone, Default)]
@@ -53,12 +52,12 @@ pub struct PresetOutput {
 ///   to the `.minecraft/config/` folder
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Preset {
-    pub launcher_version: String,
-    pub minecraft_version: String,
-    pub instance_type: Loader,
+    launcher_version: String,
+    minecraft_version: String,
+    instance_type: Loader,
     #[serde(rename = "entries_modrinth")]
-    pub entries_downloaded: HashMap<String, ModConfig>,
-    pub entries_local: Vec<String>,
+    entries_downloaded: HashMap<ModId, ModConfig>,
+    entries_local: Vec<String>,
 }
 
 impl Preset {
@@ -81,7 +80,7 @@ impl Preset {
     /// the bytes of the final `.qmp` file that you can save
     /// anywhere you want.
     pub async fn generate(
-        instance: InstanceSelection,
+        instance: Instance,
         selected_mods: HashSet<SelectedMod>,
         include_config: bool,
     ) -> Result<Vec<u8>, ModError> {
@@ -152,7 +151,7 @@ impl Preset {
     /// See the module documentation for what a preset is.
     ///
     /// # Arguments
-    /// - `instance: InstanceSelection`:
+    /// - `instance: Instance`:
     ///   The instance to which the preset will be installed.
     /// - `zip: Vec<u8>`:
     ///   The `.qmp` file in binary form. Must be read from
@@ -176,7 +175,7 @@ impl Preset {
     /// ---
     /// - And many other things I probably forgot
     pub async fn load(
-        instance: InstanceSelection,
+        instance: Instance,
         file: Vec<u8>,
         apply: bool,
     ) -> Result<PresetOutput, ModError> {
@@ -268,7 +267,7 @@ impl Preset {
         let to_install = index
             .entries_downloaded
             .into_iter()
-            .filter_map(|(k, n)| n.manually_installed.then_some(ModId::from_index_str(&k)))
+            .filter_map(|(k, n)| n.manually_installed.then_some(k))
             .collect();
 
         Ok(PresetOutput {
@@ -278,30 +277,29 @@ impl Preset {
     }
 }
 
-async fn get_instance_type(instance_name: &InstanceSelection) -> Result<Loader, ModError> {
+async fn get_instance_type(instance_name: &Instance) -> Result<Loader, ModError> {
     let config = InstanceConfigJson::read(instance_name).await?;
     Ok(config.mod_type)
 }
 
 fn add_downloaded_mod_to_entries(
-    entries_modrinth: &mut HashMap<String, ModConfig>,
+    entries: &mut HashMap<ModId, ModConfig>,
     index: &ModIndex,
     id: &ModId,
 ) {
-    let id_str = id.get_index_str();
-    let Some(config) = index.mods.get(&id_str) else {
-        err!("Could not find id {id:?} ({id_str}) in index!");
+    let Some(config) = index.mods.get(id) else {
+        err!("Could not find id {id:?} in index!");
         return;
     };
 
-    entries_modrinth.insert(id_str, config.clone());
+    entries.insert(id.clone(), config.clone());
 
     for dep in &config.dependencies {
-        add_downloaded_mod_to_entries(entries_modrinth, index, &ModId::from_index_str(dep));
+        add_downloaded_mod_to_entries(entries, index, dep);
     }
 }
 
-async fn get_minecraft_version(instance_name: &InstanceSelection) -> Result<String, ModError> {
+async fn get_minecraft_version(instance_name: &Instance) -> Result<String, ModError> {
     let version_json = VersionDetails::load(instance_name).await?;
     let minecraft_version = version_json.get_id().to_owned();
     Ok(minecraft_version)

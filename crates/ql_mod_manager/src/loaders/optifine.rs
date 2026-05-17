@@ -6,12 +6,11 @@ use std::{
 };
 
 use ql_core::{
-    CLASSPATH_SEPARATOR, GenericProgress, InstanceSelection, IntoIoError, IoError, JsonError,
-    LAUNCHER_DIR, Loader, OptifineUniqueVersion, Progress, RequestError, download, file_utils,
+    CLASSPATH_SEPARATOR, GenericProgress, Instance, InstanceKind, IntoIoError, IoError, JsonError,
+    LAUNCHER_DIR, Loader, OptifineUniqueVersion, Progress, RequestError, download,
+    file_utils::{self, exists},
     impl_3_errs_jri, info, jarmod,
-    json::{
-        InstanceConfigJson, VersionDetails, instance_config::ModTypeInfo, optifine::JsonOptifine,
-    },
+    json::{InstanceConfigJson, VersionDetails, optifine::JsonOptifine},
     no_window, pipe_progress_ext, pt,
 };
 use ql_java_handler::{JAVA, JavaInstallError, JavaVersion, get_java_binary};
@@ -20,10 +19,7 @@ use thiserror::Error;
 
 use super::change_instance_type;
 
-pub async fn install_b173(
-    instance: InstanceSelection,
-    url: &'static str,
-) -> Result<(), OptifineError> {
+pub async fn install_b173(instance: Instance, url: &'static str) -> Result<(), OptifineError> {
     info!("Installing OptiFine for Beta 1.7.3...");
     let bytes = file_utils::download_file_to_bytes(url, true).await?;
     jarmod::insert(instance, bytes, "Optifine").await?;
@@ -92,16 +88,23 @@ impl Progress for OptifineProgress {
 }
 
 pub async fn install(
-    instance_name: String,
+    instance: Instance,
     path_to_installer: PathBuf,
     mut progress: Option<Sender<OptifineProgress>>,
     optifine_unique_version: Option<OptifineUniqueVersion>,
 ) -> Result<(), OptifineError> {
-    if !path_to_installer.exists() || !path_to_installer.is_file() {
+    if let InstanceKind::Server = instance.kind {
+        return Err(OptifineError::DoesntSupportServer);
+    }
+
+    if !tokio::fs::metadata(&path_to_installer)
+        .await
+        .is_ok_and(|n| n.is_file())
+    {
         return Err(OptifineError::InstallerDoesNotExist);
     }
 
-    let instance_path = LAUNCHER_DIR.join("instances").join(&instance_name);
+    let instance_path = instance.get_instance_path();
 
     info!("Started installing OptiFine");
     send_progress(progress.as_mut(), OptifineProgress::P1Start).await;
@@ -120,10 +123,7 @@ pub async fn install(
             tokio::fs::copy(&path_to_installer, &dest)
                 .await
                 .path(&path_to_installer)?;
-            config
-                .mod_type_info
-                .get_or_insert_with(ModTypeInfo::default)
-                .optifine_jar = Some(filename.to_owned());
+            config.mod_type_info.get_or_insert_default().optifine_jar = Some(filename.to_owned());
             config.save_to_dir(&instance_path).await?;
             return Ok(());
         }
@@ -131,12 +131,7 @@ pub async fn install(
             let installer = tokio::fs::read(&path_to_installer)
                 .await
                 .path(&path_to_installer)?;
-            jarmod::insert(
-                InstanceSelection::Instance(instance_name),
-                installer,
-                "Optifine",
-            )
-            .await?;
+            jarmod::insert(instance, installer, "Optifine").await?;
             pt!("Finished installing OptiFine (old version)");
             return Ok(());
         }
@@ -166,7 +161,7 @@ pub async fn install(
     send_progress(progress.as_mut(), OptifineProgress::P4RunningHook).await;
     run_hook(&new_installer_path, &optifine_path).await?;
 
-    download_libraries(&instance_name, &dot_minecraft_path, progress.clone()).await?;
+    download_libraries(instance.get_name(), &dot_minecraft_path, progress.clone()).await?;
     change_instance_type(&instance_path, Loader::OptiFine, None).await?;
     send_progress(progress.as_mut(), OptifineProgress::P6Done).await;
     pt!("Finished installing OptiFine");
@@ -280,7 +275,7 @@ async fn download_libraries(
                 .await;
         }
 
-        if jar_path.exists() {
+        if exists(&jar_path).await {
             continue;
         }
         download(&url).path(&jar_path).await?;
@@ -375,6 +370,8 @@ pub enum OptifineError {
     Request(#[from] RequestError),
     #[error("{OPTIFINE_ERR_PREFIX}{0}")]
     Json(#[from] JsonError),
+    #[error("OptiFine only supports clients, not servers")]
+    DoesntSupportServer,
 }
 
 impl_3_errs_jri!(OptifineError, Json, Request, Io);

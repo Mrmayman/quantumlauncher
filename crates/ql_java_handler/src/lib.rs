@@ -68,14 +68,11 @@ use ql_core::{
     RequestError,
     constants::OS_NAME,
     do_jobs_with_limit, err,
-    file_utils::{self, DirItem, canonicalize_a, exists},
+    file_utils::{self, DirItem, canonicalize_a, exists, extract_tar_gz},
     info, pt,
 };
 
-mod compression;
-pub use compression::extract_tar_gz;
 pub use ql_core::JavaVersion;
-
 mod alternate_java;
 mod json;
 
@@ -150,7 +147,7 @@ pub async fn get_java_binary(
     let java_dir = LAUNCHER_DIR.join("java_installs").join(version.to_string());
     let is_incomplete_install = exists(java_dir.join("install.lock")).await;
 
-    if !java_dir.exists() || is_incomplete_install {
+    if !exists(&java_dir).await || is_incomplete_install {
         info!("Installing Java: {version}");
         install_java(version, progress).await?;
     }
@@ -193,7 +190,10 @@ pub async fn find_java_bin_in_dir(name: &str, path: &Path) -> Result<PathBuf, Ja
 
     let entries = file_utils::read_filenames_from_dir(path).await;
     if let Ok(entries) = entries.as_deref() {
-        if let Some(entry) = entries.iter().find(|n| n.name.contains("bellsoft")) {
+        if let Some(entry) = entries
+            .iter()
+            .find(|n| n.name.contains("bellsoft") || n.name.contains("zulu"))
+        {
             return Box::pin(find_java_bin_in_dir(name, &path.join(&entry.name))).await;
         }
     }
@@ -429,7 +429,7 @@ at: {path:?}
 pub async fn delete_java_installs() {
     info!("Clearing Java installs");
     let java_installs = LAUNCHER_DIR.join("java_installs");
-    if !java_installs.exists() {
+    if !exists(&java_installs).await {
         return;
     }
     if let Err(err) = tokio::fs::remove_dir_all(&java_installs).await {

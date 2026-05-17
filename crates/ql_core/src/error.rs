@@ -57,10 +57,19 @@ macro_rules! impl_3_errs_jri {
     };
 }
 
-#[derive(Clone, Debug, Error)]
+#[derive(Debug, Error)]
 pub enum IoError {
     #[error("at path {path:?}, error: {error}")]
-    Io { error: String, path: PathBuf },
+    Io {
+        error: std::io::Error,
+        path: PathBuf,
+    },
+    #[error("at path: {path}\nfrom url: {url}\n\nerror: {error}")]
+    FromUrl {
+        error: std::io::Error,
+        path: PathBuf,
+        url: String,
+    },
     #[error("couldn't read directory {parent:?}, error {error}")]
     ReadDir { error: String, parent: PathBuf },
     #[error(".local/share or AppData directory not found")]
@@ -96,8 +105,8 @@ pub trait IntoIoError<T = ()> {
 impl<T> IntoIoError<T> for std::io::Result<T> {
     type Output = Result<T, IoError>;
     fn path(self, p: impl Into<PathBuf>) -> Result<T, IoError> {
-        self.map_err(|err| IoError::Io {
-            error: err.to_string(),
+        self.map_err(|error| IoError::Io {
+            error,
             path: p.into().clone(),
         })
     }
@@ -114,7 +123,7 @@ impl IntoIoError for std::io::Error {
     type Output = IoError;
     fn path(self, p: impl Into<PathBuf>) -> IoError {
         IoError::Io {
-            error: self.to_string(),
+            error: self,
             path: p.into().clone(),
         }
     }

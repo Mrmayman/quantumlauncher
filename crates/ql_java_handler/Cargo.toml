@@ -20,8 +20,5 @@ serde.workspace = true
 owo-colors.workspace = true
 cfg-if.workspace = true
 
-# Avengers assemble
-flate2 = "1"
-tar = "0.4"
 zip.workspace = true
 lzma-rs = "0.3"

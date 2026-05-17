@@ -2,7 +2,9 @@ use sipper::Sender;
 
 use ql_core::{
     DownloadProgress, IntoIoError, IntoJsonError, IntoStringError, LAUNCHER_DIR, ListEntry,
-    download, file_utils, info,
+    download,
+    file_utils::{self, exists},
+    info,
     json::{InstanceConfigJson, Manifest, VersionDetails, instance_config::VersionInfo},
     pt, sanitize_instance_name,
 };
@@ -104,8 +106,11 @@ async fn write_config(
     server_dir: &std::path::Path,
     version_json: &VersionDetails,
 ) -> Result<(), ServerError> {
-    let server_config =
-        InstanceConfigJson::new(true, is_classic_server, VersionInfo::new(&version_json.id));
+    let server_config = InstanceConfigJson::new(
+        ql_core::InstanceKind::Server,
+        is_classic_server,
+        VersionInfo::new(&version_json.id),
+    );
     let server_config_path = server_dir.join("config.json");
     tokio::fs::write(
         &server_config_path,
@@ -118,7 +123,7 @@ async fn write_config(
 
 async fn get_server_dir(name: &str) -> Result<std::path::PathBuf, ServerError> {
     let server_dir = LAUNCHER_DIR.join("servers").join(name);
-    if server_dir.exists() {
+    if exists(&server_dir).await {
         return Err(ServerError::ServerAlreadyExists);
     }
     tokio::fs::create_dir_all(&server_dir)

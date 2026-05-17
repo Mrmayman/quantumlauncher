@@ -1,34 +1,32 @@
 use std::path::Path;
 
 use crate::{
-    config::{UiSettings, UiWindowDecorations},
+    config::UiWindowDecorations,
     sip,
     state::{
-        self, GameLogMessage, InstallFabricMessage, InstallModsMessage, InstallOptifineMessage,
-        InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsMessage,
-        MenuCurseforgeManualDownload, MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper,
-        MenuLaunch, MenuModsDownload, Message, ModOperation, NotesMessage, ProgressBar, State,
-        WindowMessage,
+        self, AutoSaveKind, GameLogMessage, InfoMessage, InstallFabricMessage,
+        InstallOptifineMessage, InstallPaperMessage, InstanceNotes, Launcher,
+        LauncherSettingsMessage, LauncherSettingsTab, MenuInstallFabric, MenuInstallOptifine,
+        MenuInstallPaper, MenuLaunch, MenuModDescription, Message, ModDescriptionMessage,
+        NotesMessage, ProgressBar, State, WindowMessage,
     },
 };
 use frostmark::MarkState;
-use iced::futures::executor::block_on;
-use iced::widget::text_editor;
-use iced::{Task, widget::scrollable::AbsoluteOffset};
-use ql_core::{InstanceSelection, IntoStringError, Loader, ModId, OptifineUniqueVersion, err};
-use ql_mod_manager::{
-    loaders,
-    store::{QueryType, get_description},
-};
+use iced::{Task, futures::executor::block_on, widget::text_editor};
+use ql_core::{IntoStringError, Loader, OptifineUniqueVersion, err};
+use ql_mod_manager::{loaders, store};
 
 mod accounts;
 mod create_instance;
+mod discord_rpc;
 mod edit_instance;
-mod launch;
+mod main_menu;
 mod manage_mods;
+mod mod_store;
 mod presets;
 mod recommended;
 mod shortcuts;
+pub use discord_rpc::PresenceConnectionState;
 
 pub const MSG_RESIZE: &str = "Resize your window to apply the changes.";
 
@@ -36,7 +34,10 @@ impl Launcher {
     pub fn update_install_fabric(&mut self, message: InstallFabricMessage) -> Task<Message> {
         match message {
             InstallFabricMessage::End(result) => match result {
-                Ok(()) => return self.go_to_edit_mods_menu(),
+                Ok(()) => {
+                    return self
+                        .go_to_edit_mods_menu(Some(InfoMessage::success("Installed Fabric")));
+                }
                 Err(err) => self.set_error(err),
             },
             InstallFabricMessage::VersionSelected(selection) => {
@@ -129,257 +130,6 @@ impl Launcher {
         Task::none()
     }
 
-    pub fn update_install_mods(&mut self, message: InstallModsMessage) -> Task<Message> {
-        let is_server = matches!(&self.selected_instance, Some(InstanceSelection::Server(_)));
-
-        match message {
-            InstallModsMessage::LoadData(Err(err))
-            | InstallModsMessage::DownloadComplete(Err(err))
-            | InstallModsMessage::SearchResult(Err(err))
-            | InstallModsMessage::IndexUpdated(Err(err))
-            | InstallModsMessage::UninstallComplete(Err(err)) => {
-                self.set_error(err);
-            }
-
-            InstallModsMessage::SearchResult(Ok(search)) => {
-                if let State::ModsDownload(menu) = &mut self.state {
-                    menu.is_loading_continuation = false;
-                    menu.has_continuation_ended = search.reached_end;
-
-                    if search.start_time > menu.latest_load {
-                        menu.latest_load = search.start_time;
-
-                        if let (Some(results), true) = (&mut menu.results, search.offset > 0) {
-                            results.mods.extend(search.mods);
-                        } else {
-                            menu.results = Some(search);
-                        }
-                    }
-                }
-            }
-            InstallModsMessage::Scrolled(viewport) => {
-                let total_height =
-                    viewport.content_bounds().height - (viewport.bounds().height * 2.0);
-                let absolute_offset = viewport.absolute_offset();
-                let scroll_px = absolute_offset.y;
-
-                if let State::ModsDownload(menu) = &mut self.state {
-                    if menu.results.is_none() {
-                        menu.has_continuation_ended = false;
-                    }
-
-                    menu.scroll_offset = absolute_offset;
-                    if (scroll_px > total_height)
-                        && !menu.is_loading_continuation
-                        && !menu.has_continuation_ended
-                    {
-                        menu.is_loading_continuation = true;
-
-                        let offset = if let Some(results) = &menu.results {
-                            results.offset + results.mods.len()
-                        } else {
-                            0
-                        };
-                        return menu.search_store(is_server, offset);
-                    }
-                }
-            }
-            InstallModsMessage::Open => match self.open_mods_store() {
-                Ok(command) => return command,
-                Err(err) => self.set_error(err),
-            },
-            InstallModsMessage::TickDesc(update_msg) => {
-                if let State::ModsDownload(MenuModsDownload {
-                    description: Some(description),
-                    ..
-                }) = &mut self.state
-                {
-                    description.update(update_msg);
-                }
-            }
-            InstallModsMessage::SearchInput(input) => {
-                if let State::ModsDownload(menu) = &mut self.state {
-                    menu.query = input;
-                    return menu.search_store(is_server, 0);
-                }
-            }
-            InstallModsMessage::Click(i) => {
-                if let State::ModsDownload(menu) = &mut self.state {
-                    menu.opened_mod = Some(i);
-                    menu.reload_description(&mut self.images);
-                    if let Some(results) = &menu.results {
-                        let hit = results.mods.get(i).unwrap();
-                        if !menu
-                            .mod_descriptions
-                            .contains_key(&ModId::from_pair(&hit.id, results.backend))
-                        {
-                            let backend = menu.backend;
-                            let id = ModId::from_pair(&hit.id, backend);
-
-                            return Task::perform(get_description(id), |n| {
-                                InstallModsMessage::LoadData(n.strerr()).into()
-                            });
-                        }
-                    }
-                }
-            }
-            InstallModsMessage::BackToMainScreen => {
-                if let State::ModsDownload(menu) = &mut self.state {
-                    menu.opened_mod = None;
-                    menu.description = None;
-                    return iced::widget::operation::scroll_to(
-                        iced::widget::Id::new("MenuModsDownload:main:mods_list"),
-                        menu.scroll_offset,
-                    );
-                }
-            }
-            InstallModsMessage::LoadData(Ok((id, description))) => {
-                if let State::ModsDownload(menu) = &mut self.state {
-                    menu.mod_descriptions.insert(id, description);
-                    menu.reload_description(&mut self.images);
-                }
-            }
-            InstallModsMessage::Download(index) => {
-                return self.mod_download(index);
-            }
-            InstallModsMessage::DownloadComplete(Ok((id, not_allowed))) => {
-                let task = if let State::ModsDownload(menu) = &mut self.state {
-                    menu.mods_download_in_progress.remove(&id);
-                    Task::none()
-                } else {
-                    match self.open_mods_store() {
-                        Ok(n) => n,
-                        Err(err) => {
-                            self.set_error(err);
-                            Task::none()
-                        }
-                    }
-                };
-
-                if not_allowed.is_empty() {
-                    return task;
-                }
-                self.state = State::CurseforgeManualDownload(MenuCurseforgeManualDownload {
-                    not_allowed,
-                    delete_mods: true,
-                });
-            }
-            InstallModsMessage::IndexUpdated(Ok(idx)) => {
-                if let State::ModsDownload(menu) = &mut self.state {
-                    menu.mod_index = idx;
-                }
-            }
-
-            InstallModsMessage::ChangeBackend(backend) => {
-                if let State::ModsDownload(menu) = &mut self.state {
-                    menu.backend = backend;
-                    menu.results = None;
-                    menu.scroll_offset = AbsoluteOffset::default();
-                    return menu.search_store(is_server, 0);
-                }
-            }
-            InstallModsMessage::ChangeQueryType(query) => {
-                if let State::ModsDownload(menu) = &mut self.state {
-                    menu.query_type = query;
-                    menu.results = None;
-                    menu.scroll_offset = AbsoluteOffset::default();
-                    return menu.search_store(is_server, 0);
-                }
-            }
-            InstallModsMessage::InstallModpack(id) => {
-                self.state = State::ImportModpack(ProgressBar::new());
-
-                let selected_instance = self.selected_instance.clone().unwrap();
-
-                return sip(
-                    |sender| async move {
-                        ql_mod_manager::store::download_mod(&id, &selected_instance, Some(sender))
-                            .await
-                            .map(|not_allowed| (id, not_allowed))
-                    },
-                    |n| InstallModsMessage::DownloadComplete(n.strerr()).into(),
-                );
-            }
-            InstallModsMessage::Uninstall(index) => {
-                let State::ModsDownload(MenuModsDownload {
-                    results: Some(results),
-                    mods_download_in_progress,
-                    ..
-                }) = &mut self.state
-                else {
-                    return Task::none();
-                };
-                let Some(hit) = results.mods.get(index) else {
-                    err!("Couldn't uninstall mod: Index out of range");
-                    return Task::none();
-                };
-
-                let mod_id = ModId::from_pair(&hit.id, results.backend);
-                mods_download_in_progress
-                    .insert(mod_id.clone(), (hit.title.clone(), ModOperation::Deleting));
-                let selected_instance = self.instance().clone();
-
-                return Task::perform(
-                    ql_mod_manager::store::delete_mods(vec![mod_id], selected_instance),
-                    |n| InstallModsMessage::UninstallComplete(n.strerr()).into(),
-                );
-            }
-            InstallModsMessage::UninstallComplete(Ok(ids)) => {
-                if let State::ModsDownload(menu) = &mut self.state {
-                    for id in ids {
-                        menu.mods_download_in_progress.remove(&id);
-                        menu.mod_index.mods.remove(&id.get_index_str());
-                    }
-                }
-            }
-        }
-        Task::none()
-    }
-
-    fn mod_download(&mut self, index: usize) -> Task<Message> {
-        let selected_instance = self.instance().clone();
-        let State::ModsDownload(menu) = &mut self.state else {
-            return Task::none();
-        };
-        let Some(results) = &menu.results else {
-            err!("Couldn't download mod: Search results empty");
-            return Task::none();
-        };
-        let Some(hit) = results.mods.get(index) else {
-            err!("Couldn't download mod: Not present in results");
-            return Task::none();
-        };
-
-        menu.mods_download_in_progress.insert(
-            ModId::from_pair(&hit.id, results.backend),
-            (hit.title.clone(), ModOperation::Downloading),
-        );
-
-        let project_id = hit.id.clone();
-        let backend = menu.backend;
-        let id = ModId::from_pair(&project_id, backend);
-
-        if let QueryType::ModPacks = menu.query_type {
-            self.state = State::ConfirmAction {
-                msg1: format!("install the modpack: {}", hit.title),
-                msg2: "This might take a while, install many files, and use a lot of network..."
-                    .to_owned(),
-                yes: InstallModsMessage::InstallModpack(id).into(),
-                no: InstallModsMessage::Open.into(),
-            };
-            Task::none()
-        } else {
-            Task::perform(
-                async move {
-                    ql_mod_manager::store::download_mod(&id, &selected_instance, None)
-                        .await
-                        .map(|not_allowed| (id, not_allowed))
-                },
-                |n| InstallModsMessage::DownloadComplete(n.strerr()).into(),
-            )
-        }
-    }
-
     pub fn update_install_optifine(&mut self, message: InstallOptifineMessage) -> Task<Message> {
         match message {
             InstallOptifineMessage::ScreenOpen => {
@@ -421,19 +171,28 @@ impl Launcher {
                 }
             }
             InstallOptifineMessage::SelectInstallerStart => {
-                if let Some(path) = rfd::FileDialog::new()
-                    .add_filter("jar/zip", &["jar", "zip"])
-                    .set_title("Select OptiFine Installer")
-                    .pick_file()
-                {
-                    return self.install_optifine_confirm(&path);
-                }
+                return Task::perform(
+                    rfd::AsyncFileDialog::new()
+                        .add_filter("jar/zip", &["jar", "zip"])
+                        .set_title("Select OptiFine Installer")
+                        .pick_file(),
+                    |n| {
+                        n.map(|p| {
+                            InstallOptifineMessage::SelectedInstaller(p.path().to_owned()).into()
+                        })
+                        .unwrap_or_default()
+                    },
+                );
+            }
+            InstallOptifineMessage::SelectedInstaller(path) => {
+                return self.install_optifine_confirm(&path);
             }
             InstallOptifineMessage::End(result) => {
                 if let Err(err) = result {
                     self.set_error(err);
                 } else {
-                    return self.go_to_edit_mods_menu();
+                    return self
+                        .go_to_edit_mods_menu(Some(InfoMessage::success("Installed Optifine")));
                 }
             }
         }
@@ -441,11 +200,7 @@ impl Launcher {
     }
 
     pub fn install_optifine_confirm(&mut self, installer_path: &Path) -> Task<Message> {
-        let instance = self.instance();
-        let instance_name = instance.get_name().to_owned();
-
-        // OptiFine does not support servers
-        // so it's safe to assume we've selected an instance.
+        let instance = self.instance().clone();
         debug_assert!(!instance.is_server());
 
         let optifine_unique_version =
@@ -456,7 +211,7 @@ impl Launcher {
             {
                 *optifine_unique_version
             } else {
-                block_on(OptifineUniqueVersion::get(instance))
+                block_on(OptifineUniqueVersion::get(&instance))
             };
 
         let delete_installer = if let State::InstallOptifine(MenuInstallOptifine::Choosing {
@@ -472,11 +227,11 @@ impl Launcher {
         self.state = State::InstallOptifine(MenuInstallOptifine::Installing(ProgressBar::new()));
 
         let installer_path2 = installer_path.to_owned();
-        let installer_path3 = installer_path.to_owned();
+        let installer_path3 = installer_path2.clone();
         sip(
             move |sender| {
                 loaders::optifine::install(
-                    instance_name,
+                    instance,
                     installer_path2,
                     Some(sender),
                     optifine_unique_version,
@@ -503,10 +258,10 @@ impl Launcher {
         match msg {
             LauncherSettingsMessage::ThemePicked(theme) => {
                 self.config.ui_mode = Some(theme);
-                self.theme.mode = theme;
+                self.theme.lightness = theme;
             }
-            LauncherSettingsMessage::Open => {
-                self.go_to_launcher_settings();
+            LauncherSettingsMessage::Open(tab) => {
+                self.go_to_launcher_settings(tab);
             }
             LauncherSettingsMessage::ColorSchemePicked(color) => {
                 self.config.ui_theme = Some(color);
@@ -518,10 +273,7 @@ impl Launcher {
                 }
             }
             LauncherSettingsMessage::UiOpacity(opacity) => {
-                self.config
-                    .ui
-                    .get_or_insert_with(UiSettings::default)
-                    .window_opacity = opacity;
+                self.config.ui.get_or_insert_default().window_opacity = opacity;
                 self.theme.alpha = opacity;
             }
             LauncherSettingsMessage::UiScaleApply => {
@@ -532,26 +284,15 @@ impl Launcher {
             }
             LauncherSettingsMessage::UiIdleFps(fps) => {
                 debug_assert!(fps > 0.0);
-                self.config
-                    .ui
-                    .get_or_insert_with(UiSettings::default)
-                    .idle_fps = Some(fps as u64);
+                self.config.ui.get_or_insert_default().idle_fps = Some(fps as u64);
             }
             LauncherSettingsMessage::ClearJavaInstalls => {
                 self.confirm_clear_java_installs();
             }
             LauncherSettingsMessage::ClearJavaInstallsConfirm => {
                 return Task::perform(ql_instances::delete_java_installs(), |()| {
-                    Message::LauncherSettings(LauncherSettingsMessage::ChangeTab(
-                        state::LauncherSettingsTab::Internal,
-                    ))
+                    LauncherSettingsMessage::Open(LauncherSettingsTab::Game).into()
                 });
-            }
-            LauncherSettingsMessage::ChangeTab(tab) => {
-                self.go_to_launcher_settings();
-                if let State::LauncherSettings(menu) = &mut self.state {
-                    menu.selected_tab = tab;
-                }
             }
             LauncherSettingsMessage::ToggleAntialiasing(t) => {
                 self.config.ui_antialiasing = Some(t);
@@ -564,8 +305,15 @@ impl Launcher {
                 persistent.selected_remembered = t;
                 if !t {
                     persistent.selected_instance = None;
-                    persistent.selected_server = None;
+                    persistent.selected_instance_kind = None;
                 }
+            }
+            LauncherSettingsMessage::ToggleModUpdateChangelog(t) => {
+                self.config.c_persistent().write_mod_update_changelog = t;
+            }
+            LauncherSettingsMessage::AfterLaunchBehaviorChanged(behavior) => {
+                self.config.ui.get_or_insert_default().after_game_opens = behavior;
+                self.autosave.remove(&AutoSaveKind::LauncherConfig);
             }
             LauncherSettingsMessage::DefaultMinecraftWidthChanged(input) => {
                 self.config.c_global().window_width = input.trim().parse::<u32>().ok();
@@ -575,10 +323,7 @@ impl Launcher {
             }
             LauncherSettingsMessage::GlobalJavaArgs(msg) => {
                 let split = self.should_split_args();
-                msg.apply(
-                    self.config.extra_java_args.get_or_insert_with(Vec::new),
-                    split,
-                );
+                msg.apply(self.config.extra_java_args.get_or_insert_default(), split);
             }
             LauncherSettingsMessage::GlobalPreLaunchPrefix(msg) => {
                 let split = self.should_split_args();
@@ -586,7 +331,7 @@ impl Launcher {
                     self.config
                         .c_global()
                         .pre_launch_prefix
-                        .get_or_insert_with(Vec::new),
+                        .get_or_insert_default(),
                     split,
                 );
             }
@@ -596,10 +341,7 @@ impl Launcher {
                 } else {
                     UiWindowDecorations::System
                 };
-                self.config
-                    .ui
-                    .get_or_insert_with(UiSettings::default)
-                    .window_decorations = decor;
+                self.config.ui.get_or_insert_default().window_decorations = decor;
             }
             LauncherSettingsMessage::LoadedSystemTheme(res) => match res {
                 Ok(mode) => {
@@ -617,11 +359,12 @@ impl Launcher {
                     err!(no_log, "while loading system theme: {err}");
                 }
             },
+            LauncherSettingsMessage::Rpc(msg) => return self.update_rpc(msg),
         }
         Task::none()
     }
 
-    pub fn should_split_args(&self) -> bool {
+    fn should_split_args(&self) -> bool {
         if let State::Launch(MenuLaunch {
             edit_instance: Some(menu),
             ..
@@ -640,17 +383,14 @@ impl Launcher {
             msg1: "delete auto-installed Java files".to_owned(),
             msg2: "They will get reinstalled automatically as needed".to_owned(),
             yes: LauncherSettingsMessage::ClearJavaInstallsConfirm.into(),
-            no: LauncherSettingsMessage::ChangeTab(state::LauncherSettingsTab::Internal).into(),
+            no: LauncherSettingsMessage::Open(LauncherSettingsTab::Game).into(),
         }
     }
 
-    pub fn go_to_launcher_settings(&mut self) {
-        if let State::LauncherSettings(_) = &self.state {
-            return;
-        }
+    pub fn go_to_launcher_settings(&mut self, selected_tab: LauncherSettingsTab) {
         self.state = State::LauncherSettings(state::MenuLauncherSettings {
             temp_scale: self.config.ui_scale.unwrap_or(1.0),
-            selected_tab: state::LauncherSettingsTab::UserInterface,
+            selected_tab,
             arg_split_by_space: true,
         });
     }
@@ -684,7 +424,9 @@ impl Launcher {
                         |n| Message::InstallPaper(InstallPaperMessage::VersionsLoaded(n.strerr())),
                     )
                     .abortable();
-                    self.state = State::InstallPaper(MenuInstallPaper::Loading { _handle: handle });
+                    self.state = State::InstallPaper(MenuInstallPaper::Loading {
+                        _handle: handle.abort_on_drop(),
+                    });
                     return task;
                 }
             }
@@ -708,7 +450,8 @@ impl Launcher {
                 if let Err(err) = res {
                     self.set_error(err);
                 } else {
-                    return self.go_to_edit_mods_menu();
+                    return self
+                        .go_to_edit_mods_menu(Some(InfoMessage::success("Installed Paper")));
                 }
             }
         }
@@ -730,7 +473,7 @@ impl Launcher {
             //         .map(Some)
             //         .and_then(move |max| iced::window::maximize(id, !max))
             // }),
-            // WindowMessage::ClickClose => std::process::exit(0),
+            // WindowMessage::ClickClose => self.close_launcher(),
             // WindowMessage::IsMaximized(n) => {
             //     self.window_state.is_maximized = n;
             //     Task::none()
@@ -858,6 +601,51 @@ impl Launcher {
                     };
                 }
             },
+        }
+        Task::none()
+    }
+
+    pub fn update_mod_description(&mut self, msg: ModDescriptionMessage) -> Task<Message> {
+        match msg {
+            ModDescriptionMessage::Open(mod_id) => {
+                // Load metadata/details
+                let id = mod_id.clone();
+                let (load_details, h1) =
+                    Task::perform(async move { store::get_info(&id).await }, |res| {
+                        ModDescriptionMessage::LoadedDetails(res.strerr()).into()
+                    })
+                    .abortable();
+
+                // Load long description (HTML/Markdown)
+                let id = mod_id.clone();
+                let (load_description, h2) =
+                    Task::perform(async move { store::get_description(id).await }, |res| {
+                        ModDescriptionMessage::LoadedDescription(res.map(|n| n.1).strerr()).into()
+                    })
+                    .abortable();
+
+                self.state = State::ModDescription(MenuModDescription {
+                    description: Ok(None),
+                    details: None,
+                    mod_id,
+                    _handle: [h1.abort_on_drop(), h2.abort_on_drop()],
+                });
+
+                return Task::batch([load_details, load_description]);
+            }
+            ModDescriptionMessage::LoadedDetails(details) => match details {
+                Ok(details) => {
+                    if let State::ModDescription(menu) = &mut self.state {
+                        menu.details = Some(details);
+                    }
+                }
+                Err(err) => self.set_error(err),
+            },
+            ModDescriptionMessage::LoadedDescription(desc) => {
+                if let State::ModDescription(menu) = &mut self.state {
+                    menu.description = desc.map(|n| Some(MarkState::with_html_and_markdown(&n)));
+                }
+            }
         }
         Task::none()
     }

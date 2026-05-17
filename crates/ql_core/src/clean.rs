@@ -5,7 +5,7 @@ use tokio::fs;
 
 use crate::{
     IntoIoError, IntoJsonError, IoError, JsonFileError, LAUNCHER_DIR,
-    file_utils::get_launcher_dir,
+    file_utils::{exists, get_launcher_dir},
     info,
     json::{AssetIndex, VersionDetails},
     pt,
@@ -32,7 +32,7 @@ pub async fn dir(dir_name: &str) -> Result<(), IoError> {
     if dir == launcher_dir || dir_name.trim().is_empty() {
         return Ok(());
     }
-    if !dir.exists() {
+    if !exists(&dir).await {
         fs::create_dir_all(&dir).await.path(dir)?;
         return Ok(());
     }

@@ -93,7 +93,13 @@ impl DownloadRequest<'_> {
             }
 
             let mut file = tokio::fs::File::create(&path).await.path(path)?;
-            tokio::io::copy(&mut stream, &mut file).await.path(path)?;
+            tokio::io::copy(&mut stream, &mut file)
+                .await
+                .map_err(|error| crate::IoError::FromUrl {
+                    error,
+                    path: path.to_owned(),
+                    url: self.url.to_owned(),
+                })?;
             Ok(())
         })
         .await

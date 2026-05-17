@@ -1,8 +1,10 @@
 use error::Is404NotFound;
 use owo_colors::OwoColorize;
 use ql_core::{
-    CLASSPATH_SEPARATOR, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError,
-    Loader, Progress, do_jobs, download, err, file_utils, info,
+    CLASSPATH_SEPARATOR, GenericProgress, Instance, InstanceKind, IntoIoError, IntoJsonError,
+    IoError, Loader, Progress, do_jobs, download, err,
+    file_utils::{self, exists},
+    info,
     json::{
         VersionDetails,
         forge::{JsonDetails, JsonDetailsLibrary, JsonInstallProfile, JsonVersions},
@@ -40,14 +42,14 @@ struct ForgeInstaller {
 
     instance_dir: PathBuf,
     forge_dir: PathBuf,
-    is_server: bool,
+    kind: InstanceKind,
     version_json: VersionDetails,
 }
 
 impl ForgeInstaller {
-    pub async fn delete(&self, path: &str) -> Result<(), IoError> {
+    async fn delete(&self, path: &str) -> Result<(), IoError> {
         let delete_path = self.forge_dir.join(path);
-        if delete_path.exists() {
+        if exists(&delete_path).await {
             fs::remove_file(&delete_path).await.path(delete_path)?;
         }
         Ok(())
@@ -56,7 +58,7 @@ impl ForgeInstaller {
     async fn new(
         forge_version: Option<String>, // example: "11.15.1.2318" for 1.8.9
         mut f_progress: Option<Sender<ForgeProgress>>,
-        instance: InstanceSelection,
+        instance: Instance,
     ) -> Result<Self, ForgeInstallError> {
         let instance_dir = instance.get_instance_path();
         let forge_dir = if instance.is_server() {
@@ -105,7 +107,7 @@ impl ForgeInstaller {
 
             instance_dir,
             forge_dir,
-            is_server: instance.is_server(),
+            kind: instance.kind,
             version_json,
         })
     }
@@ -203,10 +205,9 @@ impl ForgeInstaller {
     }
 
     async fn run_installer(&mut self, installer_name: &str) -> Result<(), ForgeInstallError> {
-        let installer = if self.is_server {
-            FORGE_INSTALLER_SERVER
-        } else {
-            FORGE_INSTALLER_CLIENT
+        let installer = match self.kind {
+            InstanceKind::Client => FORGE_INSTALLER_CLIENT,
+            InstanceKind::Server => FORGE_INSTALLER_SERVER,
         };
         let installer_class = self.forge_dir.join("ForgeInstaller.class");
         fs::write(&installer_class, installer)
@@ -258,7 +259,7 @@ impl ForgeInstaller {
     }
 
     async fn run_installer_create_garbage_files(&self) -> Result<(), ForgeInstallError> {
-        if !self.is_server {
+        if matches!(self.kind, InstanceKind::Client) {
             let launcher_profiles_json_path = self.forge_dir.join("launcher_profiles.json");
             fs::write(&launcher_profiles_json_path, "{}")
                 .await
@@ -351,7 +352,7 @@ impl ForgeInstaller {
             .path(&lib_dir_path)?;
 
         let dest = lib_dir_path.join(&file);
-        if !dest.exists() {
+        if !exists(&dest).await {
             let result = download(&url).path(&dest).await;
             if result.is_not_found() {
                 err!("Error 404 not found. Skipping...");
@@ -442,12 +443,12 @@ async fn create_mods_dir(instance_dir: &Path) -> Result<(), ForgeInstallError> {
 
 pub async fn install(
     forge_version: Option<String>, // example: "11.15.1.2318" for 1.8.9
-    instance: InstanceSelection,
+    instance: Instance,
     progress: Option<Sender<ForgeProgress>>,
 ) -> Result<(), ForgeInstallError> {
-    match instance {
-        InstanceSelection::Instance(name) => install_client(forge_version, name, progress).await,
-        InstanceSelection::Server(name) => install_server(forge_version, name, progress).await,
+    match instance.kind {
+        InstanceKind::Client => install_client(forge_version, instance, progress).await,
+        InstanceKind::Server => install_server(forge_version, instance, progress).await,
     }
 }
 
@@ -501,7 +502,7 @@ impl Progress for ForgeProgress {
 
 pub async fn install_client(
     forge_version: Option<String>,
-    instance_name: String,
+    instance: Instance,
     mut progress: Option<Sender<ForgeProgress>>,
 ) -> Result<(), ForgeInstallError> {
     info!("Started installing forge");
@@ -509,21 +510,11 @@ pub async fn install_client(
         progress.send(ForgeProgress::P1Start).await;
     }
 
-    let mut installer = ForgeInstaller::new(
-        forge_version,
-        progress,
-        InstanceSelection::Instance(instance_name.clone()),
-    )
-    .await?;
+    let mut installer = ForgeInstaller::new(forge_version, progress, instance.clone()).await?;
 
     let (installer_file, installer_name, _) = installer.download_forge_installer().await?;
     if installer.version_json.is_legacy_version() && installer.version_json.get_id() != "1.5.2" {
-        ql_core::jarmod::insert(
-            InstanceSelection::Instance(instance_name.clone()),
-            installer_file,
-            "Forge",
-        )
-        .await?;
+        ql_core::jarmod::insert(instance.clone(), installer_file, "Forge").await?;
         return Ok(());
     }
 

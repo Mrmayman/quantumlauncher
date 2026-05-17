@@ -1,3 +1,4 @@
+use ql_core::file_utils::exists;
 use ql_core::{IntoIoError, pt};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
@@ -33,7 +34,7 @@ pub async fn make_launch_jar(
     library_files: &[PathBuf],
     shade_libraries: bool,
 ) -> Result<(), FabricInstallError> {
-    if file.exists() {
+    if exists(&file).await {
         tokio::fs::remove_file(file).await.path(file)?;
     }
 

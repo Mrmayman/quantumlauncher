@@ -48,15 +48,11 @@ pub enum AccountType {
 
 impl Display for AccountType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                AccountType::Microsoft => "Microsoft",
-                AccountType::ElyBy => "ElyBy",
-                AccountType::LittleSkin => "LittleSkin",
-            }
-        )
+        f.write_str(match self {
+            AccountType::Microsoft => "Microsoft",
+            AccountType::ElyBy => "ElyBy",
+            AccountType::LittleSkin => "LittleSkin",
+        })
     }
 }
 
@@ -69,8 +65,7 @@ impl AccountType {
         }
     }
 
-    #[must_use]
-    pub fn yggdrasil_authenticate(self) -> &'static str {
+    fn yggdrasil_authenticate(self) -> &'static str {
         match self {
             AccountType::Microsoft => unreachable!(),
             AccountType::ElyBy => "https://authserver.ely.by/auth/authenticate",
@@ -81,7 +76,7 @@ impl AccountType {
     }
 
     #[must_use]
-    pub fn yggdrasil_refresh(self) -> &'static str {
+    fn yggdrasil_refresh(self) -> &'static str {
         match self {
             AccountType::Microsoft => unreachable!(),
             AccountType::ElyBy => "https://authserver.ely.by/auth/refresh",
@@ -90,7 +85,7 @@ impl AccountType {
     }
 
     #[must_use]
-    pub fn yggdrasil_needs_agent_field(self) -> bool {
+    fn yggdrasil_needs_agent_field(self) -> bool {
         match self {
             AccountType::Microsoft | AccountType::ElyBy => false,
             AccountType::LittleSkin => true,
@@ -141,14 +136,6 @@ impl AccountType {
 }
 
 impl AccountData {
-    #[must_use]
-    pub fn is_elyby(&self) -> bool {
-        matches!(self.account_type, AccountType::ElyBy)
-    }
-    #[must_use]
-    pub fn is_littleskin(&self) -> bool {
-        matches!(self.account_type, AccountType::LittleSkin)
-    }
     #[must_use]
     pub fn is_microsoft(&self) -> bool {
         matches!(self.account_type, AccountType::Microsoft)
