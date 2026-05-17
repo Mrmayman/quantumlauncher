@@ -90,10 +90,10 @@ pub async fn poll_device_token(
     let uuid = profile.id;
     let mut mc_token_resp = create_minecraft_token(&oauth_access_token, &uuid).await?;
     // If server didn't include selectedProfile, fetch via sessionserver
-    if mc_token_resp.selected_profile.is_none() {
-        if let Ok(profile) = get_minecraft_profile(&oauth_access_token).await {
-            mc_token_resp.selected_profile = Some(profile);
-        }
+    if mc_token_resp.selected_profile.is_none()
+        && let Ok(profile) = get_minecraft_profile(&oauth_access_token).await
+    {
+        mc_token_resp.selected_profile = Some(profile);
     }
 
     // Store Minecraft token in keyring (same convention as password flow)

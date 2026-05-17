@@ -1,7 +1,6 @@
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
-    sync::mpsc::Sender,
 };
 
 use chrono::DateTime;
@@ -9,6 +8,7 @@ use ql_core::{
     GenericProgress, Instance, InstanceConfigJson, download, err, file_utils, info,
     json::VersionDetails, pt,
 };
+use sipper::Sender;
 
 use crate::store::{
     DirStructure, ModError, ModId, QueryType, StoreBackendType, install_modpack,
@@ -120,15 +120,15 @@ impl ModDownloader {
             ModError::UnknownProjectType(project_info.project_type.clone()),
         )?;
 
-        if let QueryType::Mods | QueryType::ModPacks = query_type {
-            if !self.has_compatible_loader(&project_info) {
-                if let Some(loader) = &self.loader {
-                    pt!("Mod {} doesn't support {loader}", project_info.title);
-                } else {
-                    err!("Mod {} doesn't support unknown loader!", project_info.title);
-                }
-                return Ok(());
+        if let QueryType::Mods | QueryType::ModPacks = query_type
+            && !self.has_compatible_loader(&project_info)
+        {
+            if let Some(loader) = &self.loader {
+                pt!("Mod {} doesn't support {loader}", project_info.title);
+            } else {
+                err!("Mod {} doesn't support unknown loader!", project_info.title);
             }
+            return Ok(());
         }
 
         print_downloading_message(&project_info, dependent);
@@ -269,13 +269,13 @@ impl ModDownloader {
     }
 
     async fn download_file(
-        &self,
+        &mut self,
         project_type: QueryType,
         file: &crate::store::ModFile,
     ) -> Result<(), ModError> {
         if let QueryType::ModPacks = project_type {
             let bytes = file_utils::download_file_to_bytes(&file.url, true).await?;
-            let incompatible = install_modpack(bytes, self.instance.clone(), self.sender.as_ref())
+            let incompatible = install_modpack(bytes, self.instance.clone(), self.sender.as_mut())
                 .await
                 .map_err(Box::new)?;
             debug_assert!(

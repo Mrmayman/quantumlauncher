@@ -56,7 +56,7 @@ pub(super) fn view() -> Column<'static> {
             .on_press(Message::CoreOpenLink("https://iced.rs".to_owned()))
             .padding(5)
             .style(|n: &LauncherTheme, status| n.style_button(status, StyleButton::Flat)),
-        widget::horizontal_rule(1),
+        widget::rule::horizontal(1),
         widget::column![
             widget::row![
                 widget::text("QuantumLauncher is free and open source software under the ")

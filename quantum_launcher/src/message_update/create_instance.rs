@@ -1,10 +1,11 @@
+use std::sync::Arc;
+
 use iced::{Task, widget::pane_grid};
-use ql_core::{
-    DownloadProgress, Instance, InstanceKind, IntoStringError, ListEntry, ListEntryKind,
-};
+use ql_core::{Instance, InstanceKind, IntoStringError, ListEntry, ListEntryKind};
 
 use crate::{
     message_handler::{SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
+    sip,
     state::{
         AutoSaveKind, CreateInstanceMessage, InfoMessage, Launcher, MenuCreateInstance,
         MenuCreateInstanceChoosing, Message, ProgressBar, State,
@@ -35,8 +36,7 @@ impl Launcher {
                 self.create_instance_finish_loading_versions_list(res);
             }
             CreateInstanceMessage::VersionSelected(ver) => {
-                iflet!(self, selected_version, show_category_dropdown; {
-                    *show_category_dropdown = false;
+                iflet!(self, selected_version; {
                     *selected_version = ver;
                 });
             }
@@ -78,10 +78,6 @@ impl Launcher {
                 });
             }
 
-            // Filters dropdown
-            CreateInstanceMessage::ContextMenuToggle => iflet!(self, show_category_dropdown; {
-                *show_category_dropdown = !*show_category_dropdown;
-            }),
             CreateInstanceMessage::CategoryToggle(kind) => iflet!(self, selected_categories; {
                 if selected_categories.contains(&kind) {
                     // Don't allow removing the last category
@@ -117,20 +113,24 @@ impl Launcher {
                 *download_assets = t;
             }),
             CreateInstanceMessage::Import => {
-                if let Some(file) = rfd::FileDialog::new()
-                    .set_title("Select an instance...")
-                    .pick_file()
-                {
-                    let (send, recv) = std::sync::mpsc::channel();
-                    let progress = ProgressBar::with_recv(recv);
+                return Task::perform(
+                    rfd::AsyncFileDialog::new()
+                        .set_title("Select an instance...")
+                        .pick_file(),
+                    |n| {
+                        n.map(|p| CreateInstanceMessage::ImportSelected(p.path().to_owned()).into())
+                            .unwrap_or_default()
+                    },
+                );
+            }
+            CreateInstanceMessage::ImportSelected(file) => {
+                let progress = ProgressBar::new();
+                self.state = State::Create(MenuCreateInstance::ImportingInstance(progress));
 
-                    self.state = State::Create(MenuCreateInstance::ImportingInstance(progress));
-
-                    return Task::perform(
-                        ql_packager::import_instance(file.clone(), true, Some(send)),
-                        |n| CreateInstanceMessage::ImportResult(n.strerr()).into(),
-                    );
-                }
+                return sip(
+                    |send| ql_packager::import_instance(file, true, Some(send)),
+                    |n| CreateInstanceMessage::ImportResult(n.strerr()).into(),
+                );
             }
             CreateInstanceMessage::ImportResult(Ok(instance)) => {
                 let is_valid_modpack = instance.is_some();
@@ -200,7 +200,6 @@ then go to "Mods->Add File""#,
             instance_name: String::new(),
             download_assets: true,
             search_box: String::new(),
-            show_category_dropdown: false,
             selected_categories: self.config.c_persistent().get_create_instance_filters(),
             kind,
             sidebar_grid_state,
@@ -227,14 +226,6 @@ then go to "Mods->Add File""#,
                 return Task::none();
             }
 
-            let (sender, receiver) = std::sync::mpsc::channel::<DownloadProgress>();
-            let progress = ProgressBar {
-                num: 0.0,
-                message: Some("Started download".to_owned()),
-                receiver,
-                progress: DownloadProgress::DownloadingJsonManifest,
-            };
-
             let version = selected_version.clone();
             let instance_name = if instance_name.trim().is_empty() {
                 version.name.clone()
@@ -244,22 +235,19 @@ then go to "Mods->Add File""#,
             let download_assets = *download_assets;
             let kind = *kind;
 
-            self.state = State::Create(MenuCreateInstance::DownloadingInstance(progress));
+            self.state = State::Create(MenuCreateInstance::DownloadingInstance(ProgressBar::new()));
 
             return match kind {
-                InstanceKind::Server => Task::perform(
-                    async move {
-                        let sender = sender;
-                        ql_servers::create_server(instance_name.clone(), version, Some(&sender))
-                            .await
-                            .strerr()
-                            .map(|n| Instance::server(&n))
-                    },
-                    |n| CreateInstanceMessage::End(n).into(),
+                InstanceKind::Server => sip(|sender|
+                    ql_servers::create_server(instance_name, version, Some(sender)),
+                    |n| CreateInstanceMessage::End(n.map(|n| Instance {
+                        name: Arc::from(n),
+                        kind: ql_core::InstanceKind::Server
+                    }).strerr()).into(),
                 ),
-                InstanceKind::Client => Task::perform(
-                    ql_instances::create_instance(
-                        instance_name.clone(),
+                InstanceKind::Client => sip(
+                    move |sender| ql_instances::create_instance(
+                        instance_name,
                         version,
                         Some(sender),
                         download_assets,

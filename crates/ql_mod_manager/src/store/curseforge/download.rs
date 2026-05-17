@@ -1,7 +1,5 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::mpsc::Sender,
-};
+use sipper::Sender;
+use std::collections::{HashMap, HashSet};
 
 use ql_core::{
     GenericProgress, Instance, InstanceConfigJson, download, err, file_utils, info,
@@ -17,7 +15,7 @@ use crate::store::{
 
 use super::Mod;
 
-pub struct ModDownloader<'a> {
+pub struct ModDownloader {
     version: String,
     instance: Instance,
     loader: Option<&'static str>,
@@ -28,13 +26,13 @@ pub struct ModDownloader<'a> {
     pub query_cache: HashMap<String, Mod>,
     pub not_allowed: HashSet<CurseforgeNotAllowed>,
     already_installed: HashSet<String>,
-    pub sender: Option<&'a Sender<GenericProgress>>,
+    pub sender: Option<Sender<GenericProgress>>,
 }
 
-impl<'a> ModDownloader<'a> {
+impl ModDownloader {
     pub async fn new(
         instance: Instance,
-        sender: Option<&'a Sender<GenericProgress>>,
+        sender: Option<Sender<GenericProgress>>,
     ) -> Result<Self, ModError> {
         let version_json = VersionDetails::load(&instance).await?;
         let config = InstanceConfigJson::read(&instance).await?;
@@ -159,7 +157,7 @@ impl<'a> ModDownloader<'a> {
                 let bytes = file_utils::download_file_to_bytes(&url, true).await?;
                 self.index.save(&self.instance).await?;
                 if let Some(not_allowed_new) =
-                    install_modpack(bytes, self.instance.clone(), self.sender)
+                    install_modpack(bytes, self.instance.clone(), self.sender.as_mut())
                         .await
                         .map_err(Box::new)?
                 {

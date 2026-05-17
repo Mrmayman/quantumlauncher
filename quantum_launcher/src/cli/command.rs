@@ -244,18 +244,12 @@ pub async fn launch_instance(
         censors.push(token.clone());
     }
 
-    match child.read_logs(censors, None).await {
-        Some(Ok((s, _, diag))) => {
-            info!("Game exited with code {s}");
-            if let Some(diag) = diag {
-                err!("{diag}");
-            }
-            exit(s.code().unwrap_or_default());
-        }
-        Some(Err(err)) => Err(err)?,
-        None => {}
+    let (s, _, diag) = child.read_logs(censors, None).await?;
+    info!("Game exited with code {s}");
+    if let Some(diag) = diag {
+        err!("{diag}");
     }
-    Ok(())
+    exit(s.code().unwrap_or_default());
 }
 
 pub async fn loader(cmd: QLoader, kind: InstanceKind) -> Result<(), Box<dyn std::error::Error>> {
@@ -365,7 +359,6 @@ async fn install_optifine(
     ql_mod_manager::loaders::optifine::install(
         instance,
         PathBuf::from(more),
-        None,
         None,
         OptifineUniqueVersion::from_version(details.get_id()),
     )

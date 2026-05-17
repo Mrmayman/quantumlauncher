@@ -20,6 +20,8 @@ use std::ffi::OsStr;
 use std::path::Path;
 
 impl Launcher {
+    // Note: If you're adding more events,
+    // make sure to register it at `Launcher::subscription` in `main.rs`
     pub fn iced_event(&mut self, event: iced::Event, status: iced::event::Status) -> Task<Message> {
         match event {
             iced::Event::Window(event) => match event {
@@ -40,13 +42,13 @@ impl Launcher {
 
                     // Clear the "Resize the window to apply changes"
                     // after changing UI scale
-                    if let State::GenericMessage(msg) = &self.state {
-                        if msg == MSG_RESIZE {
-                            return self.update(
-                                LauncherSettingsMessage::Open(LauncherSettingsTab::UserInterface)
-                                    .into(),
-                            );
-                        }
+                    if let State::GenericMessage(msg) = &self.state
+                        && msg == MSG_RESIZE
+                    {
+                        return self.update(
+                            LauncherSettingsMessage::Open(LauncherSettingsTab::UserInterface)
+                                .into(),
+                        );
                     }
                 }
                 iced::window::Event::FileHovered(_) => {
@@ -65,12 +67,7 @@ impl Launcher {
                         return self.drag_and_drop(&path, &extension, filename);
                     }
                 }
-                iced::window::Event::Closed
-                | iced::window::Event::RedrawRequested(_)
-                | iced::window::Event::Moved { .. }
-                | iced::window::Event::Opened { .. }
-                | iced::window::Event::Focused
-                | iced::window::Event::Unfocused => {}
+                _ => {}
             },
             iced::Event::Keyboard(event) => match event {
                 keyboard::Event::KeyPressed {
@@ -102,7 +99,7 @@ impl Launcher {
                 }
                 _ => {}
             },
-            iced::Event::Touch(_) => {}
+            iced::Event::InputMethod(_) | iced::Event::Touch(_) => {}
         }
         Task::none()
     }
@@ -177,13 +174,13 @@ impl Launcher {
                 _ => Message::Nothing,
             };
             return Task::done(msg);
-        } else if let State::LauncherSettings(menu) = &mut self.state {
+        } else if let State::LauncherSettings(menu) = &self.state {
             if let Key::Named(Named::ArrowUp) = key {
                 return Task::done(LauncherSettingsMessage::Open(menu.selected_tab.prev()).into());
             } else if let Key::Named(Named::ArrowDown) = key {
                 return Task::done(LauncherSettingsMessage::Open(menu.selected_tab.next()).into());
             }
-        } else if let State::License(menu) = &mut self.state {
+        } else if let State::License(menu) = &self.state {
             if let Key::Named(Named::ArrowUp) = key {
                 return Task::done(Message::LicenseChangeTab(menu.selected_tab.prev()));
             } else if let Key::Named(Named::ArrowDown) = key {
@@ -198,36 +195,36 @@ impl Launcher {
                 if modifiers.command() {
                     return Task::done(LaunchMessage::Start.into());
                 }
-            } else if let Key::Named(Named::Backspace) = key {
-                if modifiers.command() {
-                    return Task::done(LaunchMessage::Kill.into());
-                }
+            } else if let Key::Named(Named::Backspace) = key
+                && modifiers.command()
+            {
+                return Task::done(LaunchMessage::Kill.into());
             }
         } else if let State::Create(MenuCreateInstance::Choosing(MenuCreateInstanceChoosing {
             list: Ok(Some(_)),
             ..
         })) = &self.state
         {
-            if let Key::Named(Named::Enter) = key {
-                if modifiers.command() {
-                    return Task::done(CreateInstanceMessage::Start.into());
+            if let Key::Named(Named::Enter) = key
+                && modifiers.command()
+            {
+                return Task::done(CreateInstanceMessage::Start.into());
+            }
+        } else if let State::Welcome(menu) = &mut self.state
+            && let Key::Named(Named::Enter) = key
+        {
+            *menu = match menu {
+                MenuWelcome::P1InitialScreen => MenuWelcome::P2Theme,
+                MenuWelcome::P2Theme => MenuWelcome::P3Auth,
+                MenuWelcome::P3Auth => {
+                    return Task::done(Message::MScreenOpen {
+                        message: Some(InfoMessage::success(
+                            "Install Minecraft by clicking \"+ New\"",
+                        )),
+                        clear_selection: true,
+                    });
                 }
-            }
-        } else if let State::Welcome(menu) = &mut self.state {
-            if let Key::Named(Named::Enter) = key {
-                *menu = match menu {
-                    MenuWelcome::P1InitialScreen => MenuWelcome::P2Theme,
-                    MenuWelcome::P2Theme => MenuWelcome::P3Auth,
-                    MenuWelcome::P3Auth => {
-                        return Task::done(Message::MScreenOpen {
-                            message: Some(InfoMessage::success(
-                                "Install Minecraft by clicking \"+ New\"",
-                            )),
-                            clear_selection: true,
-                        });
-                    }
-                };
-            }
+            };
         }
         self.keys_pressed.insert(key);
 
@@ -375,8 +372,8 @@ impl Launcher {
             State::UpdateFound(_) => {}
             State::InstallPaper(_)
             | State::ExportInstance(_)
-            | State::InstallForge(_)
-            | State::InstallJava
+            | State::InstallForge(_, _)
+            | State::InstallJava(_)
             | State::InstallOptifine(_)
             | State::InstallFabric(_)
             | State::EditMods(_)
@@ -400,18 +397,17 @@ impl Launcher {
             if ret_to_mods {
                 return (true, self.go_to_edit_mods_menu(None));
             }
-            if ret_to_mod_store {
-                if let State::ModsDownload(menu) = &mut self.state {
-                    menu.opened_mod = None;
-                    menu.description = None;
-                    return (
-                        true,
-                        iced::widget::scrollable::scroll_to(
-                            iced::widget::scrollable::Id::new("MenuModsDownload:main:mods_list"),
-                            menu.scroll_offset,
-                        ),
-                    );
-                }
+            if ret_to_mod_store && let State::ModsDownload(menu) = &mut self.state {
+                // Go from description back to main page
+                menu.opened_mod = None;
+                menu.description = None;
+                return (
+                    true,
+                    iced::widget::operation::scroll_to(
+                        "MenuModsDownload:main:mods_list",
+                        menu.scroll_offset,
+                    ),
+                );
             }
         }
 
@@ -423,28 +419,19 @@ impl Launcher {
 
     pub fn hide_submenu(&mut self) -> bool {
         if let State::EditMods(menu) = &mut self.state {
-            if menu.modal.is_some() {
-                menu.modal = None;
+            if menu.right_click.is_some() {
+                menu.right_click = None;
                 return true;
             }
             if menu.search.is_some() {
                 menu.search = None;
                 return true;
             }
-        } else if let State::Create(MenuCreateInstance::Choosing(MenuCreateInstanceChoosing {
-            show_category_dropdown,
-            ..
-        })) = &mut self.state
+        } else if let State::Launch(menu) = &mut self.state
+            && menu.modal.is_some()
         {
-            if *show_category_dropdown {
-                *show_category_dropdown = false;
-                return true;
-            }
-        } else if let State::Launch(menu) = &mut self.state {
-            if menu.modal.is_some() {
-                menu.modal = None;
-                return true;
-            }
+            menu.modal = None;
+            return true;
         }
         false
     }

@@ -1,7 +1,5 @@
-use std::{
-    path::{Path, PathBuf},
-    sync::{Mutex, mpsc::Sender},
-};
+use sipper::Sender;
+use std::path::{Path, PathBuf};
 
 use ql_core::{
     GenericProgress, Instance, InstanceKind, IntoIoError, IntoJsonError, LAUNCHER_DIR, Loader,
@@ -11,6 +9,7 @@ use ql_core::{
     json::{FabricJSON, V_1_12_2, VersionDetails, instance_config::ModTypeInfo},
     pt,
 };
+use tokio::sync::Mutex;
 use version_compare::compare_versions;
 
 use crate::loaders::fabric::version_list::get_latest_cursed_legacy_commit;
@@ -36,12 +35,12 @@ const CURSED_LEGACY_JSON: &str =
 pub async fn install_server(
     loader_version: String,
     server_name: &str,
-    progress: Option<&Sender<GenericProgress>>,
+    mut progress: Option<Sender<GenericProgress>>,
     backend: BackendType,
 ) -> Result<(), FabricInstallError> {
     info!("Installing {backend} (version {loader_version}) for server");
-    if let Some(progress) = &progress {
-        _ = progress.send(GenericProgress::default());
+    if let Some(progress) = &mut progress {
+        progress.send(GenericProgress::default()).await;
     }
 
     let server_dir = LAUNCHER_DIR.join("servers").join(server_name);
@@ -72,7 +71,7 @@ pub async fn install_server(
             &version_json,
             &i,
             number_of_libraries,
-            progress,
+            progress.clone(),
         )
     }))
     .await?
@@ -111,8 +110,8 @@ pub async fn install_server(
     )
     .await?;
 
-    if let Some(progress) = &progress {
-        _ = progress.send(GenericProgress::finished());
+    if let Some(progress) = &mut progress {
+        progress.send(GenericProgress::finished()).await;
     }
 
     info!("Finished installing {backend}");
@@ -126,7 +125,7 @@ async fn download_library(
     version_json: &VersionDetails,
     i: &Mutex<usize>,
     number_of_libraries: usize,
-    progress: Option<&Sender<GenericProgress>>,
+    mut progress: Option<Sender<GenericProgress>>,
 ) -> Result<Option<PathBuf>, FabricInstallError> {
     if !library.is_allowed() || (library.is_lwjgl2() && version_json.is_before_or_eq(V_1_12_2)) {
         pt!("Skipping {}", library.name);
@@ -148,14 +147,14 @@ async fn download_library(
     };
     download(&url).path(&library_path).await?;
 
-    send_progress(i, library, progress, number_of_libraries);
+    send_progress(i, library, progress.as_mut(), number_of_libraries).await;
     Ok::<_, FabricInstallError>(Some(library_path.clone()))
 }
 
 pub async fn install_client(
     loader_version: String,
     instance_name: &str,
-    progress: Option<&Sender<GenericProgress>>,
+    mut progress: Option<Sender<GenericProgress>>,
     backend: BackendType,
 ) -> Result<(), FabricInstallError> {
     let instance_dir = LAUNCHER_DIR.join("instances").join(instance_name);
@@ -177,8 +176,8 @@ pub async fn install_client(
     };
 
     info!("Started installing {backend}: {game_version}, {loader_version}");
-    if let Some(progress) = &progress {
-        _ = progress.send(GenericProgress::default());
+    if let Some(progress) = &mut progress {
+        progress.send(GenericProgress::default()).await;
     }
 
     let number_of_libraries = json.libraries.len();
@@ -191,7 +190,7 @@ pub async fn install_client(
             &version_json,
             &i,
             number_of_libraries,
-            progress,
+            progress.clone(),
         )
     }))
     .await?;
@@ -211,8 +210,8 @@ pub async fn install_client(
     )
     .await?;
 
-    if let Some(progress) = &progress {
-        _ = progress.send(GenericProgress::default());
+    if let Some(progress) = &mut progress {
+        progress.send(GenericProgress::default()).await;
     }
     info!("Finished installing {backend}");
 
@@ -281,13 +280,13 @@ async fn migrate_index_file(instance_dir: &Path) -> Result<(), FabricInstallErro
     Ok(())
 }
 
-fn send_progress(
+async fn send_progress(
     i: &Mutex<usize>,
     library: &ql_core::json::fabric::Library,
-    progress: Option<&Sender<GenericProgress>>,
+    progress: Option<&mut Sender<GenericProgress>>,
     number_of_libraries: usize,
 ) {
-    let mut i = i.lock().unwrap();
+    let mut i = i.lock().await;
     *i += 1;
     let i = *i;
     let message = format!(
@@ -297,12 +296,14 @@ fn send_progress(
     );
     pt!("{message}");
     if let Some(progress) = progress {
-        _ = progress.send(GenericProgress {
-            done: i + 1,
-            total: number_of_libraries,
-            message: Some(message),
-            has_finished: false,
-        });
+        progress
+            .send(GenericProgress {
+                done: i + 1,
+                total: number_of_libraries,
+                message: Some(message),
+                has_finished: false,
+            })
+            .await;
     }
 }
 
@@ -317,7 +318,7 @@ fn send_progress(
 pub async fn install(
     loader_version: Option<String>,
     instance: Instance,
-    progress: Option<&Sender<GenericProgress>>,
+    progress: Option<Sender<GenericProgress>>,
     mut backend: BackendType,
 ) -> Result<(), FabricInstallError> {
     let loader_version = if let Some(n) = loader_version {

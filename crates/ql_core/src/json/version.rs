@@ -61,7 +61,7 @@ pub struct VersionDetails {
 
 impl VersionDetails {
     /// Loads a Minecraft instance JSON from disk,
-    /// based on a specific `InstanceSelection`
+    /// based on a specific `Instance`
     ///
     /// # Errors
     /// - `details.json` file couldn't be loaded
@@ -87,7 +87,7 @@ impl VersionDetails {
     }
 
     /// Saves the Minecraft instance JSON to disk
-    /// to a specific [`InstanceSelection`] (Minecraft installation).
+    /// to a specific [`Instance`] (Minecraft installation).
     pub async fn save(&self, instance: &Instance) -> Result<(), JsonFileError> {
         self.save_to_dir(&instance.get_instance_path()).await
     }

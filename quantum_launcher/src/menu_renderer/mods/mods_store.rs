@@ -18,7 +18,7 @@ use crate::{
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
 
-const MOD_HEIGHT: u16 = 55;
+const MOD_HEIGHT: u32 = 55;
 
 impl MenuModsDownload {
     /// Renders the main store page, with the search bar,
@@ -26,7 +26,7 @@ impl MenuModsDownload {
     fn view_main<'a>(&'a self, images: &'a ImageState, tick_timer: usize) -> Element<'a> {
         column![
             self.get_top_bar(),
-            widget::horizontal_rule(1).style(barthin),
+            widget::rule::horizontal(1).style(barthin),
             row![
                 self.get_side_panel(tick_timer),
                 self.mods_display(images, tick_timer)
@@ -77,9 +77,7 @@ impl MenuModsDownload {
         self.mods_view_warnings().push(
             widget::scrollable(mods_list.spacing(5))
                 .style(|theme: &LauncherTheme, status| theme.style_scrollable_flat_dark(status))
-                .id(widget::scrollable::Id::new(
-                    "MenuModsDownload:main:mods_list",
-                ))
+                .id("MenuModsDownload:main:mods_list")
                 .height(Length::Fill)
                 .width(Length::Fill)
                 .spacing(0)
@@ -89,40 +87,37 @@ impl MenuModsDownload {
 
     fn mods_view_warnings(&self) -> widget::Column<'static, Message, LauncherTheme> {
         // WARN: various mod-related stuff
-        widget::Column::new()
-            .push_maybe(
-                (self.query_type == QueryType::Shaders
-                    && self.config.mod_type != Loader::OptiFine
-                    // Iris Shaders Mod
-                    && !self.mod_index.mods.contains_key(&ModId::Modrinth("YL57xq9U".to_owned())) // Modrinth ID
-                    && !self.mod_index.mods.contains_key(&ModId::Curseforge("455508".to_owned()))) // CurseForge ID
-                .then_some(
-                    column![
-                        widget::text(
-                            "You haven't installed any shader mod! Either install:\n- Fabric + Sodium + Iris (recommended), or\n- OptiFine"
-                        ).size(12)
-                    ].padding(10)
-                )
-            )
-            .push_maybe(
-                (self.query_type == QueryType::Mods
-                    && self.config.mod_type.is_vanilla())
-                .then_some(
-                    widget::container(
-                        widget::text(
-                            "You haven't installed any mod loader! Install Fabric (recommended), Forge, Quilt or NeoForge"
-                        ).size(12)
-                    ).padding(10).width(Length::Fill).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
-                )
-            ).push_maybe((self.query_type == QueryType::Mods && self.version_json.is_legacy_version())
-                .then_some(
-                    widget::container(
-                        widget::text(
-                            "Installing Mods for old versions is experimental and may be broken"
-                        ).size(12)
-                    ).padding(10).width(Length::Fill).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
-                )
-            )
+        column![
+            (self.query_type == QueryType::Shaders
+                && self.config.mod_type != Loader::OptiFine
+                // Iris Shaders Mod
+                && !self.mod_index.mods.contains_key(&ModId::Modrinth("YL57xq9U".to_owned())) // Modrinth ID
+                && !self.mod_index.mods.contains_key(&ModId::Curseforge("455508".to_owned()))) // CurseForge ID
+            .then_some(
+                column![
+                    widget::text(
+                        "You haven't installed any shader mod! Either install:\n- Fabric + Sodium + Iris (recommended), or\n- OptiFine"
+                    ).size(12)
+                ].padding(10)
+            ),
+            (self.query_type == QueryType::Mods
+                && self.config.mod_type.is_vanilla())
+            .then_some(
+                widget::container(
+                    widget::text(
+                        "You haven't installed any mod loader! Install Fabric (recommended), Forge, Quilt or NeoForge"
+                    ).size(12)
+                ).padding(10).width(Length::Fill).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
+            ),
+            (self.query_type == QueryType::Mods && self.version_json.is_legacy_version())
+            .then_some(
+                widget::container(
+                    widget::text(
+                        "Installing Mods for old versions is experimental and may be broken"
+                    ).size(12)
+                ).padding(10).width(Length::Fill).style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark)),
+            ),
+        ]
     }
 
     fn get_side_panel(
@@ -137,7 +132,7 @@ impl MenuModsDownload {
                 .mods_download_in_progress
                 .values()
                 .map(|(title, operation)| {
-                    const SIZE: u16 = 12;
+                    const SIZE: u32 = 12;
                     widget::container(
                         widget::row![
                             match operation {
@@ -177,7 +172,7 @@ impl MenuModsDownload {
                     .size(12)
                     .into()
                 })),
-                widget::Space::with_height(5),
+                widget::space().height(5),
                 self.categories
                     .view(self.backend, self.force_open_source, tick_timer),
             ]
@@ -203,11 +198,12 @@ impl MenuModsDownload {
                 )
                 .padding(5)
             }
-            .push(widget::horizontal_space())
+            .push(widget::space().width(Length::Fill))
         } else {
             let dots = ".".repeat((tick_timer % 3) + 1);
             column![widget::text!("Loading{dots}")].padding(10)
         }
+        .padding(10)
     }
 
     /// Renders a single mod entry (and button) in the search results.
@@ -297,49 +293,53 @@ impl ModCategoryState {
         let m = |n| InstallModsMessage::CategoriesUseAll(n).into();
 
         column![
-            row![icons::filter_s(14), widget::text("Filters:").size(18)]
-                // TODO
-                .push_maybe(show_any_all.then(|| {
+            row![
+                icons::filter_s(14),
+                widget::text("Filters:").size(18),
+                show_any_all.then_some(
                     widget::radio("All", true, Some(self.use_all), m)
                         .spacing(4)
                         .text_size(13)
                         .size(11)
-                }))
-                .push_maybe(show_any_all.then(|| {
+                ),
+                show_any_all.then_some(
                     widget::radio("Any", false, Some(self.use_all), m)
                         .spacing(4)
                         .text_size(13)
                         .size(11)
-                }))
-                .spacing(5)
-                .align_y(Alignment::Center),
+                )
+            ]
+            .spacing(5)
+            .align_y(Alignment::Center),
+            backend.can_filter_open_source().then_some(
+                widget::checkbox(open_source)
+                    .label("Open-source only")
+                    .size(12)
+                    .text_size(12)
+                    .style(|n: &LauncherTheme, s| n.style_checkbox(s, Some(Color::SecondLight)))
+                    .on_toggle(|n| InstallModsMessage::ForceOpenSource(n).into())
+            ),
+            category_view
         ]
-        .push_maybe(backend.can_filter_open_source().then(|| {
-            widget::checkbox("Open-source only", open_source)
-                .size(12)
-                .text_size(12)
-                .style(|n: &LauncherTheme, s| n.style_checkbox(s, Some(Color::SecondLight)))
-                .on_toggle(|n| InstallModsMessage::ForceOpenSource(n).into())
-        }))
-        .push(category_view)
         .spacing(5)
     }
 
     fn view_category<'a>(&'a self, category: &'a Category) -> Column<'a> {
-        widget::Column::new()
-            .push_maybe(category.is_usable.then(|| {
-                widget::checkbox(&category.name, self.selected.contains(&category.slug))
+        column![
+            category.is_usable.then_some(
+                widget::checkbox(self.selected.contains(&category.slug))
+                    .label(&category.name)
                     .on_toggle(|_| {
                         InstallModsMessage::CategoriesToggle(category.slug.clone()).into()
                     })
                     .size(12)
                     .text_size(14)
                     .style(|n: &LauncherTheme, s| n.style_checkbox(s, Some(Color::SecondLight)))
-            }))
-            .push_maybe((!category.is_usable).then(|| widget::text(&category.name).size(14)))
-            .push(widget::stack!(
+            ),
+            (!category.is_usable).then(|| widget::text(&category.name).size(14)),
+            widget::stack!(
                 row![
-                    widget::Space::with_width(10),
+                    widget::space().width(10),
                     widget::column(
                         category
                             .children
@@ -347,8 +347,9 @@ impl ModCategoryState {
                             .map(|n| self.view_category(n).into())
                     )
                 ],
-                widget::vertical_rule(1).style(barthin)
-            ))
+                widget::rule::vertical(1).style(barthin)
+            ),
+        ]
     }
 }
 
@@ -372,7 +373,7 @@ fn action_button(
     is_installed: bool,
     is_downloading: bool,
 ) -> Element<'static> {
-    const WIDTH: u16 = 40;
+    const WIDTH: u32 = 40;
 
     if is_installed && !is_downloading {
         // Uninstall button - darker to respect theme

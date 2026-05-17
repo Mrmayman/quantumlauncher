@@ -2,7 +2,7 @@
 name = "quantum_launcher"
 version = "0.5.1"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 
 authors = ["Mrmayman <navneetkrishna22@gmail.com>"]
 description = "A simple, powerful Minecraft Launcher"
@@ -24,10 +24,9 @@ embed-resource = "3"
 default = ["wgpu", "tiny_skia", "auto_update"]
 wgpu = ["iced/wgpu"]
 tiny_skia = ["iced/tiny-skia"]
-# checking for updates, autoupdater
+# debug = ["iced/debug"]
+# checking for updates, auto-updater
 auto_update = []
-
-debug = ["iced/debug"]
 simulate_linux_arm64 = ["ql_instances/simulate_linux_arm64"]
 simulate_linux_arm32 = ["ql_instances/simulate_linux_arm32"]
 simulate_macos_arm64 = ["ql_instances/simulate_macos_arm64"]
@@ -41,15 +40,26 @@ ql_packager.path = "../crates/ql_packager"
 ezshortcut.path = "../crates/ezshortcut"
 
 # For the GUI
-iced = { version = "0.13", default-features = false, features = [
+iced = { version = "0.14", default-features = false, features = [
     "tokio",
     "image",
     "svg",
     "lazy",
     "advanced",
+    "sipper",
+    # Display backend
+    "x11",
+    "wayland"
+] }
+sipper.workspace = true
+widgets = { git = "https://github.com/A-Disruption/widgets.git" , features = [
+    # "tree",
+    # "collapsible",
+    "generic_overlay",
+    # "color_picker"
 ] }
 # The HTML/Markdown renderer
-frostmark = { version = "0.2", default-features = false, features = ["markdown"] }
+frostmark = { version = "0.3", default-features = false, features = ["markdown"] }
 # For table widget, I don't need this
 # tabular = { git = "https://github.com/Mrmayman/tabular.git" }
 

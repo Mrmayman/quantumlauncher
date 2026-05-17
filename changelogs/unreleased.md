@@ -33,6 +33,10 @@ TODO: Add screenshots
 - Now servers and instances are unified in one list
   - The list now reloads in real time if your instances change on disk
 
+# Technical
+
+- Updated iced UI framework to 0.14, with many fixes and optimizations
+
 # Fixes
 
 - Fixed "system theme" error spam on Raspberry Pi OS, LXDE, Openbox, etc

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use ql_core::{Instance, InstanceKind};
 use serde::{Deserialize, Serialize};
@@ -8,11 +8,11 @@ use crate::config::sidebar::SidebarNode;
 impl PartialEq<SidebarSelection> for SidebarNode {
     fn eq(&self, other: &SidebarSelection) -> bool {
         match other {
-            SidebarSelection::Instance(name, instance_kind) => {
-                if let SidebarNodeKind::Instance(kind) = &self.kind {
-                    if kind == instance_kind {
-                        return self.name == *name;
-                    }
+            SidebarSelection::Instance(inst) => {
+                if let SidebarNodeKind::Instance(kind) = &self.kind
+                    && *kind == inst.kind
+                {
+                    return self.name == inst.name;
                 }
             }
             SidebarSelection::Folder(folder_id) => {
@@ -39,9 +39,7 @@ impl PartialEq<Instance> for SidebarNode {
 impl PartialEq<Instance> for SidebarSelection {
     fn eq(&self, other: &Instance) -> bool {
         match self {
-            SidebarSelection::Instance(name, instance_kind) => {
-                instance_kind.is_server() == other.is_server() && &**name == other.get_name()
-            }
+            SidebarSelection::Instance(inst) => inst == other,
             SidebarSelection::Folder(_) => false,
         }
     }
@@ -100,16 +98,17 @@ impl FolderId {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SidebarSelection {
-    Instance(Arc<str>, InstanceKind),
+    Instance(Instance),
     Folder(FolderId),
 }
 
 impl SidebarSelection {
     pub fn from_node(node: &SidebarNode) -> Self {
         match &node.kind {
-            SidebarNodeKind::Instance(instance_kind) => {
-                Self::Instance(node.name.clone(), *instance_kind)
-            }
+            SidebarNodeKind::Instance(instance_kind) => Self::Instance(Instance {
+                name: node.name.clone(),
+                kind: *instance_kind,
+            }),
             SidebarNodeKind::Folder(f) => Self::Folder(f.id),
         }
     }

@@ -2,16 +2,16 @@ use iced::{
     Alignment, Length,
     widget::{self, column, row, tooltip::Position},
 };
-use ql_core::Progress;
+use ql_core::WEBSITE;
 use ql_instances::auth::AccountType;
+use widgets::generic_overlay::OverlayButton;
 
 use crate::{
     config::LauncherConfig,
     icons,
     state::{
-        AccountMessage, InfoMessageKind, InstallModsMessage, LauncherSettingsMessage,
-        LauncherSettingsTab, LicenseTab, ManageModsMessage, MenuCurseforgeManualDownload,
-        MenuLicense, Message, ProgressBar,
+        AccountMessage, InfoMessageKind, LauncherSettingsMessage, LauncherSettingsTab, LicenseTab,
+        ManageModsMessage, MenuCurseforgeManualDownload, MenuLicense, Message, ProgressBar,
     },
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
@@ -30,6 +30,7 @@ mod onboarding;
 mod settings;
 mod shortcuts;
 mod sidebar;
+mod ui;
 
 pub use onboarding::changelog;
 
@@ -50,7 +51,7 @@ const PADDING_NOT_BOTTOM: iced::Padding = iced::Padding {
     right: 10.0,
 };
 
-const CTXI_SIZE: u16 = 10;
+const CTXI_SIZE: u32 = 10;
 
 fn ctx_button<'a>(
     icon: widget::Text<'a, LauncherTheme>,
@@ -82,18 +83,16 @@ fn view_info_message(
             icon.style(move |t: &LauncherTheme| t.style_text(color))
                 .size(12),
             widget::text(&message.text).size(12).style(tsubtitle),
-            widget::horizontal_space(),
-        ]
-        .push_maybe(if let InfoMessageKind::AtPath(path) = &message.kind {
-            Some(
-                button_with_icon(icons::folder_s(10), "Open", 12)
-                    .padding([2, 8])
-                    .on_press_with(|| Message::CoreOpenPath(path.clone())),
-            )
-        } else {
-            None
-        })
-        .push(
+            widget::space::horizontal(),
+            if let InfoMessageKind::AtPath(path) = &message.kind {
+                Some(
+                    button_with_icon(icons::folder_s(10), "Open", 12)
+                        .padding([2, 8])
+                        .on_press_with(|| Message::CoreOpenPath(path.clone())),
+                )
+            } else {
+                None
+            },
             widget::button(
                 icons::close()
                     .style(|t: &LauncherTheme| t.style_text(Color::Mid))
@@ -102,7 +101,7 @@ fn view_info_message(
             .padding(0)
             .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::FlatExtraDark))
             .on_press(close),
-        )
+        ]
         .spacing(12)
         .align_y(Alignment::Center),
     )
@@ -168,9 +167,9 @@ pub fn underline<'a>(
     widget::stack!(
         column![e.into()],
         column![
-            widget::vertical_space(),
-            widget::horizontal_rule(1).style(move |t: &LauncherTheme| t.style_rule(color, 1)),
-            widget::Space::with_height(1),
+            widget::space().height(Length::Fill),
+            widget::rule::horizontal(1).style(move |t: &LauncherTheme| t.style_rule(color)),
+            widget::space().height(1),
         ]
     )
 }
@@ -184,10 +183,10 @@ pub fn underline_maybe<'a>(e: impl Into<Element<'a>>, color: Color, un: bool) ->
 }
 
 pub fn center_x<'a>(e: impl Into<Element<'a>>) -> widget::Row<'a, Message, LauncherTheme> {
-    row![
-        widget::horizontal_space(),
+    widget::row![
+        widget::space().width(Length::Fill),
         e.into(),
-        widget::horizontal_space(),
+        widget::space().width(Length::Fill),
     ]
 }
 
@@ -212,16 +211,34 @@ pub fn ctxbox<'a>(inner: impl Into<Element<'a>>) -> widget::Container<'a, Messag
         })
 }
 
+pub fn overlaybox<'a>(
+    button_label: impl Into<Element<'a>>,
+    overlay_content: impl Into<Element<'a>>,
+) -> OverlayButton<'a, Message, LauncherTheme> {
+    OverlayButton::new(button_label, "", overlay_content)
+        .hide_header()
+        .close_on_click_outside()
+        .hover_positions_on_click()
+        .reset_on_close()
+        .overlay_width(Length::Fixed(200.0))
+        .overlay_padding(1.0)
+        .overlay_radius(BORDER_RADIUS)
+        .hover_gap(10.0)
+        .hover_alignment(Alignment::Start)
+}
+
 pub fn subbutton_with_icon<'a>(
     icon: impl Into<Element<'a>>,
     text: &'a str,
 ) -> widget::Button<'a, Message, LauncherTheme> {
     widget::button(
-        row![icon.into()]
-            .push_maybe((!text.is_empty()).then_some(widget::text(text).size(12)))
-            .align_y(Alignment::Center)
-            .spacing(8)
-            .padding(1),
+        widget::row![
+            icon.into(),
+            (!text.is_empty()).then_some(widget::text(text).size(12))
+        ]
+        .align_y(Alignment::Center)
+        .spacing(8)
+        .padding(1),
     )
     .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::RoundDark))
 }
@@ -229,13 +246,15 @@ pub fn subbutton_with_icon<'a>(
 pub fn button_with_icon<'a>(
     icon: impl Into<Element<'a>>,
     text: &'a str,
-    size: u16,
+    size: u32,
 ) -> widget::Button<'a, Message, LauncherTheme> {
     widget::button(
-        row![icon.into()]
-            .push_maybe((!text.is_empty()).then_some(widget::text(text).size(size)))
-            .align_y(Alignment::Center)
-            .spacing(f32::from(size) / 1.6),
+        row![
+            icon.into(),
+            (!text.is_empty()).then_some(widget::text(text).size(size))
+        ]
+        .align_y(Alignment::Center)
+        .spacing(size as f32 / 1.6),
     )
     .padding([7, 13])
 }
@@ -260,7 +279,15 @@ fn sidebar_button<'a, A: PartialEq>(
         .style(|n: &LauncherTheme, status| n.style_button(status, StyleButton::FlatExtraDark))
         .width(Length::Fill);
 
-    underline_maybe(button, Color::SecondDark, !is_selected)
+    if is_selected {
+        button.into()
+    } else {
+        column![
+            button,
+            widget::rule::horizontal(1).style(move |t: &LauncherTheme| t.style_rule(Color::Dark))
+        ]
+        .into()
+    }
 }
 
 fn tsubtitle(t: &LauncherTheme) -> widget::text::Style {
@@ -268,7 +295,7 @@ fn tsubtitle(t: &LauncherTheme) -> widget::text::Style {
 }
 
 fn barthin(t: &LauncherTheme) -> widget::rule::Style {
-    t.style_rule(Color::SecondDark, 1)
+    t.style_rule(Color::SecondDark)
 }
 
 fn sidebar<'a>(
@@ -278,30 +305,16 @@ fn sidebar<'a>(
 ) -> widget::Container<'a, Message, LauncherTheme> {
     widget::container(
         column![
-            widget::Column::new()
-                .push_maybe(header)
-                .padding(PADDING_NOT_BOTTOM),
+            column![header].padding(PADDING_NOT_BOTTOM),
             widget::scrollable(widget::column(children))
                 .style(LauncherTheme::style_scrollable_flat_extra_dark)
                 .height(Length::Fill)
-                .id(widget::scrollable::Id::new(id))
+                .id(id)
         ]
         .spacing(10),
     )
     .width(190)
     .style(|n: &LauncherTheme| n.style_container_sharp_box(0.0, Color::ExtraDark))
-}
-
-fn offset<'a>(
-    e: impl Into<Element<'a>>,
-    x: impl Into<Length>,
-    y: impl Into<Length>,
-) -> Element<'a> {
-    row![
-        widget::Space::with_width(x),
-        column![widget::Space::with_height(y), e.into()]
-    ]
-    .into()
 }
 
 fn dots(tick_timer: usize) -> String {
@@ -318,23 +331,25 @@ impl crate::state::MenuLauncherUpdate {
         }
         column![
             "A new launcher update has been found! Do you want to download it?",
-            widget::Row::new()
-            .push_maybe((!cfg!(target_os = "macos")).then_some(
-                button_with_icon(icons::download(), "Download", 16)
-                    .on_press(Message::UpdateDownloadStart))
-            )
-            .push(back_button().on_press(back_to_launch_screen(None)))
-            .push(button_with_icon(icons::globe(), "Open Website", 16)
-                .on_press(Message::CoreOpenLink(ql_core::WEBSITE.to_owned())))
-            .spacing(5).wrap(),
+            widget::row![
+                (!cfg!(target_os = "macos")).then_some(
+                    button_with_icon(icons::download(), "Download", 16)
+                        .on_press(Message::UpdateDownloadStart)),
+                back_button().on_press(back_to_launch_screen(None)),
+                button_with_icon(icons::globe(), "Open Website", 16)
+                    .on_press(Message::CoreOpenLink(WEBSITE.to_owned()))
+            ].spacing(5).wrap(),
+            // WARN: Auto update configurations
+            cfg!(target_os = "linux").then_some(
+                column![
+                    "If you installed this launcher from a package manager/store (flatpak/apt/dnf/pacman/..) then update from there",
+                    "If you downloaded it from website then it's fine."
+                ]
+            ),
+            back_button().on_press(back_to_launch_screen(None)),
+            button_with_icon(icons::globe(), "Open Website", 16)
+                .on_press(Message::CoreOpenLink(ql_core::WEBSITE.to_owned())),
         ]
-        // WARN: Auto update configurations
-        .push_maybe(cfg!(target_os = "linux").then_some(
-            column![
-                "If you installed this launcher from a package manager/store (flatpak/apt/dnf/pacman/..) then update from there",
-                "If you downloaded it from website then it's fine."
-            ]
-        ))
         .padding(10)
         .spacing(10)
         .into()
@@ -382,12 +397,13 @@ pub fn back_to_launch_screen(message: Option<InfoMessage>) -> Message {
     }
 }
 
-impl<T: Progress> ProgressBar<T> {
+impl ProgressBar {
     pub fn view(&'_ self) -> Column<'_> {
-        let total = T::total();
-        column![widget::progress_bar(0.0..=total, self.num)]
-            .push_maybe(self.message.as_deref().map(widget::text))
-            .spacing(10)
+        column![
+            widget::progress_bar(0.0..=self.total, self.num),
+            self.message.as_deref().map(widget::text),
+        ]
+        .spacing(10)
     }
 }
 
@@ -422,10 +438,12 @@ impl MenuCurseforgeManualDownload {
             "Warning: Ignoring this may lead to crashes!",
             row![
                 widget::button(widget::text("+ Select above downloaded files").size(14)).on_press(ManageModsMessage::AddFile(self.delete_mods).into()),
-                widget::button(widget::text("Continue").size(14)).on_press(InstallModsMessage::Open.into()),
-                widget::checkbox("Delete files when done", self.delete_mods)
-                    .text_size(14)
-                    .on_toggle(|t| ManageModsMessage::CurseforgeManualToggleDelete(t).into())
+                widget::button(widget::text("Continue").size(14)).on_press(ManageModsMessage::Open.into()),
+                widget::checkbox(self.delete_mods)
+                    .label("Delete files when done")
+                    .on_toggle(|t|
+                        Message::ManageMods(ManageModsMessage::CurseforgeManualToggleDelete(t))
+                    ).text_size(14),
             ].spacing(5).align_y(Alignment::Center).wrap()
         ]
             .padding(10)
@@ -468,9 +486,9 @@ impl MenuLicense {
 pub fn view_account_login<'a>() -> Element<'a> {
     column![
         back_button().on_press(back_to_launch_screen(None)),
-        widget::vertical_space(),
-        row![
-            widget::horizontal_space(),
+        widget::space().height(Length::Fill),
+        widget::row![
+            widget::space().width(Length::Fill),
             column![
                 widget::text("Login").size(20),
                 widget::button("Login with Microsoft").on_press(Message::Account(
@@ -494,9 +512,9 @@ pub fn view_account_login<'a>() -> Element<'a> {
             ]
             .align_x(Alignment::Center)
             .spacing(5),
-            widget::horizontal_space(),
+            widget::space().width(Length::Fill),
         ],
-        widget::vertical_space(),
+        widget::space().height(Length::Fill),
     ]
     .padding(10)
     .spacing(5)
@@ -530,7 +548,7 @@ pub fn view_log_upload_result(url: &'_ str) -> Element<'_> {
     column![
         back_button().on_press(back_to_launch_screen(None)),
         column![
-            widget::vertical_space(),
+            widget::space().height(Length::Fill),
             widget::text("Log uploaded successfully!").size(20),
             widget::text("Your log has been uploaded to mclo.gs. You can share the link below:")
                 .size(14),
@@ -544,7 +562,7 @@ pub fn view_log_upload_result(url: &'_ str) -> Element<'_> {
                 .align_y(Alignment::Center)
             )
             .padding(10),
-            widget::vertical_space(),
+            widget::space().height(Length::Fill),
         ]
         .height(Length::Fill)
         .width(Length::Fill)
@@ -566,7 +584,7 @@ pub fn view_confirm<'a>(
     };
 
     column![
-        widget::vertical_space(),
+        widget::space().height(Length::Fill),
         widget::text!("Are you sure you want to {msg1}?").size(20),
         msg2,
         row![
@@ -599,7 +617,7 @@ pub fn view_confirm<'a>(
         ]
         .spacing(5)
         .wrap(),
-        widget::vertical_space(),
+        widget::space().height(Length::Fill),
     ]
     .align_x(Alignment::Center)
     .width(Length::Fill)
@@ -639,11 +657,11 @@ pub fn view_changelog(config: &LauncherConfig) -> Element<'static> {
         clear_selection: true,
     };
     widget::scrollable(
-        widget::column!(
+        column![
             button_with_icon(icons::back(), "Skip", 16).on_press(back_msg.clone()),
             changelog(config),
             button_with_icon(icons::back(), "Continue", 16).on_press(back_msg),
-        )
+        ]
         .padding(10)
         .spacing(10),
     )

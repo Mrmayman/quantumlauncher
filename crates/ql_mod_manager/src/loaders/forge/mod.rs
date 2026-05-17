@@ -10,18 +10,17 @@ use ql_core::{
         forge::{JsonDetails, JsonDetailsLibrary, JsonInstallProfile, JsonVersions},
         instance_config::ModTypeInfo,
     },
-    pt,
+    pipe_progress_ext, pt,
 };
 use ql_java_handler::{JAVA, JavaVersion, get_java_binary};
-use std::sync::Mutex;
+use sipper::Sender;
 use std::{
     fmt::Write,
     io::Cursor,
     path::{Path, PathBuf},
     process::Command,
-    sync::mpsc::Sender,
 };
-use tokio::fs;
+use tokio::{fs, sync::Mutex};
 
 use crate::loaders::{FORGE_INSTALLER_CLIENT, FORGE_INSTALLER_SERVER, change_instance_type};
 
@@ -34,7 +33,7 @@ pub use error::ForgeInstallError;
 pub use uninstall::uninstall;
 
 struct ForgeInstaller {
-    f_progress: Option<Sender<ForgeInstallProgress>>,
+    progress: Option<Sender<ForgeProgress>>,
 
     version: String,
     norm_forge_version: String,
@@ -58,7 +57,7 @@ impl ForgeInstaller {
 
     async fn new(
         forge_version: Option<String>, // example: "11.15.1.2318" for 1.8.9
-        f_progress: Option<Sender<ForgeInstallProgress>>,
+        mut f_progress: Option<Sender<ForgeProgress>>,
         instance: Instance,
     ) -> Result<Self, ForgeInstallError> {
         let instance_dir = instance.get_instance_path();
@@ -74,10 +73,8 @@ impl ForgeInstaller {
         create_mods_dir(&instance_dir).await?;
 
         pt!("Downloading JSON");
-        if let Some(progress) = &f_progress {
-            progress
-                .send(ForgeInstallProgress::P2DownloadingJson)
-                .unwrap();
+        if let Some(progress) = &mut f_progress {
+            progress.send(ForgeProgress::P2DownloadingJson).await;
         }
 
         let version = if let Some(n) = forge_version {
@@ -101,7 +98,7 @@ impl ForgeInstaller {
         let major_version: usize = version.split('.').next().unwrap_or(&version).parse()?;
 
         Ok(Self {
-            f_progress,
+            progress: f_progress,
 
             version,
             norm_forge_version,
@@ -116,7 +113,7 @@ impl ForgeInstaller {
     }
 
     async fn download_forge_installer(
-        &self,
+        &mut self,
     ) -> Result<(Vec<u8>, String, PathBuf), ForgeInstallError> {
         let (file_type, file_type_flipped) = if self.major_version < 14 {
             ("universal", "installer")
@@ -125,7 +122,8 @@ impl ForgeInstaller {
         };
 
         info!("Downloading Installer");
-        self.send_progress(ForgeInstallProgress::P3DownloadingInstaller);
+        self.send_progress(ForgeProgress::P3DownloadingInstaller)
+            .await;
 
         let installer_file = self.try_downloading_from_urls(&[
             &format!("https://files.minecraftforge.net/maven/net/minecraftforge/forge/{ver}/forge-{ver}-{file_type}.jar", ver = self.short_version),
@@ -148,9 +146,9 @@ impl ForgeInstaller {
         Ok((installer_file, installer_name, installer_path))
     }
 
-    fn send_progress(&self, message: ForgeInstallProgress) {
-        if let Some(progress) = &self.f_progress {
-            progress.send(message).unwrap();
+    async fn send_progress(&mut self, message: ForgeProgress) {
+        if let Some(progress) = &mut self.progress {
+            progress.send(message).await;
         }
     }
 
@@ -177,9 +175,8 @@ impl ForgeInstaller {
     }
 
     async fn run_installer_and_get_classpath(
-        &self,
+        &mut self,
         installer_name: &str,
-        j_progress: Option<&Sender<GenericProgress>>,
     ) -> Result<(PathBuf, String), ForgeInstallError> {
         let libraries_dir = self.forge_dir.join("libraries");
         fs::create_dir_all(&libraries_dir)
@@ -188,7 +185,7 @@ impl ForgeInstaller {
 
         let classpath = if self.major_version >= 14 {
             // 1.12+
-            self.run_installer(j_progress, installer_name).await?;
+            self.run_installer(installer_name).await?;
 
             if self.major_version < 39 {
                 // 1.12 - 1.18
@@ -207,11 +204,7 @@ impl ForgeInstaller {
         Ok((libraries_dir, classpath))
     }
 
-    async fn run_installer(
-        &self,
-        j_progress: Option<&Sender<GenericProgress>>,
-        installer_name: &str,
-    ) -> Result<(), ForgeInstallError> {
+    async fn run_installer(&mut self, installer_name: &str) -> Result<(), ForgeInstallError> {
         let installer = match self.kind {
             InstanceKind::Client => FORGE_INSTALLER_CLIENT,
             InstanceKind::Server => FORGE_INSTALLER_SERVER,
@@ -233,9 +226,14 @@ impl ForgeInstaller {
         } else {
             JavaVersion::Java8
         };
-        let java_path = get_java_binary(java_version, JAVA, j_progress).await?;
+        let java_path = pipe_progress_ext::<GenericProgress, ForgeProgress, _, _, _>(
+            self.progress.clone(),
+            |j_progress| get_java_binary(java_version, JAVA, j_progress),
+            ForgeProgress::P4InstallingJava,
+        )
+        .await?;
         info!("Running Installer...");
-        self.send_progress(ForgeInstallProgress::P4RunningInstaller);
+        self.send_progress(ForgeProgress::P5RunningInstaller).await;
         let mut command = Command::new(&java_path);
         pt!(
             "{}: {:?}",
@@ -328,7 +326,7 @@ impl ForgeInstaller {
         let lib = parts[1];
         let ver = parts[2];
 
-        _ = writeln!(clean_classpath.lock().unwrap(), "{class}:{lib}");
+        _ = writeln!(clean_classpath.lock().await, "{class}:{lib}");
 
         let (file, path) = Self::get_filename_and_path(lib, ver, &library, class)?;
 
@@ -364,25 +362,29 @@ impl ForgeInstaller {
         }
 
         {
-            let mut i = library_i.lock().unwrap();
+            let mut i = library_i.lock().await;
             *i += 1;
             pt!("({}/{num_libraries}): {}", *i, library.name.bright_black());
 
-            self.send_progress(ForgeInstallProgress::P5DownloadingLibrary {
-                num: *i,
-                out_of: num_libraries,
-            });
+            if let Some(mut progress) = self.progress.clone() {
+                progress
+                    .send(ForgeProgress::P6DownloadingLibrary {
+                        num: *i,
+                        out_of: num_libraries,
+                    })
+                    .await;
+            }
         }
 
-        Self::add_to_classpath(classpath, &path, &file);
+        Self::add_to_classpath(classpath, &path, &file).await;
 
         Ok(())
     }
 
-    fn add_to_classpath(classpath: &Mutex<String>, path: &str, file: &str) {
+    async fn add_to_classpath(classpath: &Mutex<String>, path: &str, file: &str) {
         let classpath_item = format!("../forge/libraries/{path}/{file}{CLASSPATH_SEPARATOR}");
         // println!("adding library to classpath {classpath_item}");
-        classpath.lock().unwrap().push_str(&classpath_item);
+        classpath.lock().await.push_str(&classpath_item);
     }
 
     fn get_filename_and_path(
@@ -442,62 +444,58 @@ async fn create_mods_dir(instance_dir: &Path) -> Result<(), ForgeInstallError> {
 pub async fn install(
     forge_version: Option<String>, // example: "11.15.1.2318" for 1.8.9
     instance: Instance,
-    f_progress: Option<Sender<ForgeInstallProgress>>,
-    j_progress: Option<Sender<GenericProgress>>,
+    progress: Option<Sender<ForgeProgress>>,
 ) -> Result<(), ForgeInstallError> {
     match instance.kind {
-        InstanceKind::Client => {
-            install_client(forge_version, instance, f_progress, j_progress).await
-        }
-        InstanceKind::Server => {
-            install_server(forge_version, instance, j_progress, f_progress).await
-        }
+        InstanceKind::Client => install_client(forge_version, instance, progress).await,
+        InstanceKind::Server => install_server(forge_version, instance, progress).await,
     }
 }
 
-#[derive(Default, Clone, Copy)]
-pub enum ForgeInstallProgress {
+#[derive(Default, Clone, Debug)]
+pub enum ForgeProgress {
     #[default]
     P1Start,
     P2DownloadingJson,
     P3DownloadingInstaller,
-    P4RunningInstaller,
-    P5DownloadingLibrary {
+    P4InstallingJava(GenericProgress),
+    P5RunningInstaller,
+    P6DownloadingLibrary {
         num: usize,
         out_of: usize,
     },
     P7Done,
 }
 
-impl Progress for ForgeInstallProgress {
+impl Progress for ForgeProgress {
     fn get_num(&self) -> f32 {
         match self {
-            ForgeInstallProgress::P1Start | ForgeInstallProgress::P2DownloadingJson => 0.0,
-            ForgeInstallProgress::P3DownloadingInstaller => 1.0,
-            ForgeInstallProgress::P4RunningInstaller => 2.0,
-            ForgeInstallProgress::P5DownloadingLibrary { num, out_of } => {
+            Self::P1Start | Self::P2DownloadingJson => 0.0,
+            Self::P3DownloadingInstaller => 1.0,
+            Self::P5RunningInstaller => 2.0,
+            Self::P6DownloadingLibrary { num, out_of } => {
                 4.0 + (*num as f32 * 2.0 / *out_of as f32)
             }
-            ForgeInstallProgress::P7Done => 8.0,
+            Self::P7Done => 8.0,
+            Self::P4InstallingJava(p) => p.get_num(),
         }
     }
 
     fn get_message(&self) -> Option<String> {
         Some(match self {
-            ForgeInstallProgress::P1Start => "Installing forge...".to_owned(),
-            ForgeInstallProgress::P2DownloadingJson => "Downloading JSON".to_owned(),
-            ForgeInstallProgress::P3DownloadingInstaller => "Downloading installer".to_owned(),
-            ForgeInstallProgress::P4RunningInstaller => {
-                "Running Installer (this might take a while)".to_owned()
-            }
-            ForgeInstallProgress::P5DownloadingLibrary { num, out_of } => {
+            Self::P1Start => "Installing forge...".to_owned(),
+            Self::P2DownloadingJson => "Downloading JSON".to_owned(),
+            Self::P3DownloadingInstaller => "Downloading installer".to_owned(),
+            Self::P5RunningInstaller => "Running Installer (this might take a while)".to_owned(),
+            Self::P6DownloadingLibrary { num, out_of } => {
                 format!("Downloading Library ({num}/{out_of})")
             }
-            ForgeInstallProgress::P7Done => "Done!".to_owned(),
+            Self::P7Done => "Done!".to_owned(),
+            Self::P4InstallingJava(p) => p.get_message()?,
         })
     }
 
-    fn total() -> f32 {
+    fn total(&self) -> f32 {
         8.0
     }
 }
@@ -505,15 +503,14 @@ impl Progress for ForgeInstallProgress {
 pub async fn install_client(
     forge_version: Option<String>,
     instance: Instance,
-    f_progress: Option<Sender<ForgeInstallProgress>>,
-    j_progress: Option<Sender<GenericProgress>>,
+    mut progress: Option<Sender<ForgeProgress>>,
 ) -> Result<(), ForgeInstallError> {
     info!("Started installing forge");
-    if let Some(progress) = &f_progress {
-        _ = progress.send(ForgeInstallProgress::P1Start);
+    if let Some(progress) = &mut progress {
+        progress.send(ForgeProgress::P1Start).await;
     }
 
-    let installer = ForgeInstaller::new(forge_version, f_progress, instance.clone()).await?;
+    let mut installer = ForgeInstaller::new(forge_version, progress, instance.clone()).await?;
 
     let (installer_file, installer_name, _) = installer.download_forge_installer().await?;
     if installer.version_json.is_legacy_version() && installer.version_json.get_id() != "1.5.2" {
@@ -522,7 +519,7 @@ pub async fn install_client(
     }
 
     let (libraries_dir, classpath) = installer
-        .run_installer_and_get_classpath(&installer_name, j_progress.as_ref())
+        .run_installer_and_get_classpath(&installer_name)
         .await?;
 
     let classpath = Mutex::new(classpath);
@@ -554,13 +551,13 @@ pub async fn install_client(
     do_jobs(jobs.into_iter()).await?;
 
     let classpath_path = installer.forge_dir.join("classpath.txt");
-    let classpath = classpath.lock().unwrap().clone();
+    let classpath = classpath.lock().await.clone();
     fs::write(&classpath_path, classpath)
         .await
         .path(classpath_path)?;
 
     let clean_classpath_path = installer.forge_dir.join("clean_classpath.txt");
-    let clean_classpath = clean_classpath.lock().unwrap().clone();
+    let clean_classpath = clean_classpath.lock().await.clone();
     fs::write(&clean_classpath_path, clean_classpath)
         .await
         .path(clean_classpath_path)?;

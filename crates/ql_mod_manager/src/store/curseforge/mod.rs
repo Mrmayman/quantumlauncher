@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::{atomic::AtomicI32, mpsc::Sender},
+    sync::atomic::AtomicI32,
     time::Instant,
 };
 
@@ -11,6 +11,7 @@ use ql_core::{
 };
 use reqwest::header::HeaderValue;
 use serde::Deserialize;
+use sipper::Sender;
 
 use crate::{
     rate_limiter::{RATE_LIMITER, lock},
@@ -376,7 +377,7 @@ impl Backend for CurseforgeBackend {
         sender: Option<Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
         let _guard = lock().await;
-        let mut downloader = ModDownloader::new(instance.clone(), sender.as_ref()).await?;
+        let mut downloader = ModDownloader::new(instance.clone(), sender.clone()).await?;
 
         downloader.ensure_essential_mods().await?;
 
@@ -391,10 +392,11 @@ impl Backend for CurseforgeBackend {
         instance: &ql_core::Instance,
         ignore_incompatible: bool,
         set_manually_installed: bool,
-        sender: Option<&Sender<GenericProgress>>,
+        sender: Option<Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
         let _guard = lock().await;
-        let mut downloader = ModDownloader::new(instance.clone(), sender).await?;
+        let mut downloader =
+            ModDownloader::new(instance.clone(), sender.as_ref().map(|n| (*n).clone())).await?;
         downloader.ensure_essential_mods().await?;
         downloader.query_cache.extend(
             CFSearchResult::get_from_ids(ids)
@@ -406,40 +408,41 @@ impl Backend for CurseforgeBackend {
 
         let len = ids.len();
         for (i, id) in ids.iter().enumerate() {
-            if let Some(sender) = &downloader.sender {
-                _ = sender.send(GenericProgress {
-                    done: i,
-                    total: len,
-                    message: None,
-                    has_finished: false,
-                });
+            if let Some(sender) = &mut downloader.sender {
+                sender
+                    .send(GenericProgress {
+                        done: i,
+                        total: len,
+                        message: None,
+                        has_finished: false,
+                    })
+                    .await;
             }
 
             let result = downloader.download(id, None).await;
 
-            if let Err(ModError::NoCompatibleVersionFound(name)) = &result {
-                if ignore_incompatible {
-                    pt!("No compatible version found for mod {name} ({id}), skipping...");
-                    continue;
-                }
+            if let Err(ModError::NoCompatibleVersionFound(name)) = &result
+                && ignore_incompatible
+            {
+                pt!("No compatible version found for mod {name} ({id}), skipping...");
+                continue;
             }
             result?;
 
-            if set_manually_installed {
-                if let Some(config) = downloader
+            if set_manually_installed
+                && let Some(config) = downloader
                     .index
                     .mods
                     .get_mut(&ModId::Curseforge(id.clone()))
-                {
-                    config.manually_installed = true;
-                }
+            {
+                config.manually_installed = true;
             }
         }
 
         downloader.index.save(instance).await?;
         pt!("Finished");
-        if let Some(sender) = &downloader.sender {
-            _ = sender.send(GenericProgress::finished());
+        if let Some(sender) = &mut downloader.sender {
+            sender.send(GenericProgress::finished()).await;
         }
 
         Ok(downloader.not_allowed)

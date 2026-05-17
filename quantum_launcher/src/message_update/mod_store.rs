@@ -1,6 +1,10 @@
 use std::{collections::HashMap, time::Instant};
 
-use iced::{Task, futures::executor::block_on, widget::scrollable::AbsoluteOffset};
+use iced::{
+    Task,
+    futures::executor::block_on,
+    widget::{self, scrollable::AbsoluteOffset},
+};
 use ql_core::{
     InstanceConfigJson, InstanceKind, IntoStringError, JsonFileError, err, json::VersionDetails,
 };
@@ -8,9 +12,12 @@ use ql_mod_manager::store::{
     self, ModId, ModIndex, Query, QueryType, StoreBackendType, get_description,
 };
 
-use crate::state::{
-    InstallModsMessage, Launcher, MenuCurseforgeManualDownload, MenuModsDownload, Message,
-    ModCategoryState, ModOperation, ProgressBar, State,
+use crate::{
+    sip,
+    state::{
+        InstallModsMessage, Launcher, MenuCurseforgeManualDownload, MenuModsDownload, Message,
+        ModCategoryState, ModOperation, ProgressBar, State,
+    },
 };
 
 impl Launcher {
@@ -43,11 +50,9 @@ impl Launcher {
                         } else {
                             menu.results = Some(search);
                             menu.scroll_offset = AbsoluteOffset::default();
-                            return iced::widget::scrollable::scroll_to(
-                                iced::widget::scrollable::Id::new(
-                                    "MenuModsDownload:main:mods_list",
-                                ),
-                                AbsoluteOffset::default(),
+                            return widget::operation::scroll_to(
+                                "MenuModsDownload:main:mods_list",
+                                menu.scroll_offset,
                             );
                         }
                     }
@@ -135,8 +140,8 @@ impl Launcher {
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.opened_mod = None;
                     menu.description = None;
-                    return iced::widget::scrollable::scroll_to(
-                        iced::widget::scrollable::Id::new("MenuModsDownload:main:mods_list"),
+                    return widget::operation::scroll_to(
+                        "MenuModsDownload:main:mods_list",
                         menu.scroll_offset,
                     );
                 }
@@ -238,13 +243,12 @@ impl Launcher {
             }
 
             InstallModsMessage::InstallModpack(id) => {
-                let (sender, receiver) = std::sync::mpsc::channel();
-                self.state = State::ImportModpack(ProgressBar::with_recv(receiver));
+                self.state = State::ImportModpack(ProgressBar::new());
 
                 let selected_instance = self.selected_instance.clone().unwrap();
 
-                return Task::perform(
-                    async move {
+                return sip(
+                    |sender| async move {
                         store::download_mod(&id, &selected_instance, Some(sender))
                             .await
                             .map(|not_allowed| (id, not_allowed))

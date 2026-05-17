@@ -11,7 +11,7 @@ use crate::{
 };
 use iced::{
     Alignment, Length,
-    widget::{self, column, horizontal_space, row},
+    widget::{self, column, row},
 };
 use ql_core::{Instance, InstanceKind};
 use ql_core::{
@@ -27,7 +27,7 @@ use super::Element;
 impl MenuEditInstance {
     pub fn view<'a>(
         &'a self,
-        selected_instance: &Instance,
+        selected_instance: &'a Instance,
         jar_choices: Option<&'a CustomJarState>,
     ) -> Element<'a> {
         widget::scrollable(
@@ -44,11 +44,12 @@ impl MenuEditInstance {
                             |n| EditInstanceMessage::WindowHeightChanged(n).into(),
                         ),
                         column![
-                            widget::Space::with_height(5),
-                            widget::checkbox("DEBUG: Enable log system (recommended)", self.config.enable_logger.unwrap_or(true))
+                            widget::space().height(5),
+                            widget::checkbox(self.config.enable_logger.unwrap_or(true))
+                                .label("DEBUG: Enable log system (recommended)")
                                 .on_toggle(|t| EditInstanceMessage::LoggingToggle(t).into()),
                             widget::text("Once disabled, logs will be printed in launcher STDOUT.\nRun the launcher executable from the terminal/command prompt to see it").size(12).style(tsubtitle),
-                            horizontal_space(),
+                            widget::space::horizontal(),
                         ].spacing(5),
                     ].spacing(20),
                     // TODO: Add option to edit server.properties in user-friendly way
@@ -64,14 +65,12 @@ impl MenuEditInstance {
         ).style(LauncherTheme::style_scrollable_flat_extra_dark).spacing(1).into()
     }
 
-    fn item_rename(&self, selected_instance: &Instance) -> Column<'_> {
+    fn item_rename<'a>(&'a self, selected_instance: &'a Instance) -> Column<'a> {
         column![
             row![
-                widget::text(selected_instance.get_name().to_owned())
+                widget::text(selected_instance.get_name())
                     .size(20)
-                    .font(FONT_MONO)
-            ]
-            .push_maybe(
+                    .font(FONT_MONO),
                 (!self.state_rename.is_editing).then_some(
                     widget::button(
                         icons::edit_s(12).style(|t: &LauncherTheme| t.style_text(Color::Mid))
@@ -79,7 +78,7 @@ impl MenuEditInstance {
                     .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::FlatDark))
                     .on_press(EditInstanceMessage::RenameToggle.into())
                 )
-            )
+            ]
             .spacing(5),
             widget::text!(
                 "{} {}",
@@ -92,25 +91,27 @@ impl MenuEditInstance {
             )
             .style(|t: &LauncherTheme| t.style_text(Color::Mid))
             .size(14),
+            self.item_rename_controls()
         ]
         .width(Length::Fill)
         .spacing(5)
-        .push_maybe(
-            self.state_rename.is_editing.then_some(
-                column![
-                    widget::Space::with_height(1),
-                    widget::text_input("Rename Instance", &self.state_rename.name)
-                        .on_input(|n| EditInstanceMessage::RenameEdit(n).into()),
-                    row![
-                        widget::button(widget::text("Rename").size(12))
-                            .on_press(EditInstanceMessage::RenameApply.into()),
-                        widget::button(widget::text("Cancel").size(12))
-                            .on_press(EditInstanceMessage::RenameToggle.into())
-                    ]
-                    .spacing(5)
+    }
+
+    fn item_rename_controls(&self) -> Option<Column<'_>> {
+        self.state_rename.is_editing.then_some(
+            column![
+                widget::space().height(1),
+                widget::text_input("Rename Instance", &self.state_rename.name)
+                    .on_input(|n| EditInstanceMessage::RenameEdit(n).into()),
+                row![
+                    widget::button(widget::text("Rename").size(12))
+                        .on_press(EditInstanceMessage::RenameApply.into()),
+                    widget::button(widget::text("Cancel").size(12))
+                        .on_press(EditInstanceMessage::RenameToggle.into())
                 ]
-                .spacing(5),
-            ),
+                .spacing(5)
+            ]
+            .spacing(5),
         )
     }
 
@@ -118,17 +119,20 @@ impl MenuEditInstance {
         let current_mode = self.config.global_java_args_enable.unwrap_or(true);
         let prefix_mode = self.config.pre_launch_prefix_mode.unwrap_or_default();
 
-        let sp = || widget::Space::with_height(5);
+        let sp = || widget::space().height(5);
+
+        let java_checkbox = widget::checkbox(current_mode)
+            .label("Use global arguments")
+            .on_toggle(|t| EditInstanceMessage::JavaArgsModeChanged(t).into())
+            .style(|t: &LauncherTheme, s| t.style_checkbox(s, Some(Color::SecondLight)))
+            .size(12)
+            .text_size(12);
 
         column![
-            row![
+            widget::row![
                 "Java arguments:",
-                widget::horizontal_space(),
-                widget::checkbox("Use global arguments", current_mode)
-                    .on_toggle(|t| EditInstanceMessage::JavaArgsModeChanged(t).into())
-                    .style(|t: &LauncherTheme, s| t.style_checkbox(s, Some(Color::SecondLight)))
-                    .size(12)
-                    .text_size(12)
+                widget::space().width(Length::Fill),
+                java_checkbox
             ]
             .align_y(Alignment::Center),
             get_args_list(self.config.java_args.as_deref(), |n| Message::EditInstance(
@@ -149,7 +153,11 @@ impl MenuEditInstance {
     }
 
     fn item_args_prefix(&self, prefix_mode: PreLaunchPrefixMode) -> Column<'_> {
-        let checkbox = widget::checkbox("Use global prefix", !prefix_mode.is_disabled())
+        let checkbox = widget::checkbox(!prefix_mode.is_disabled())
+            .label("Use global prefix")
+            .style(|t: &LauncherTheme, s| t.style_checkbox(s, Some(Color::SecondLight)))
+            .size(12)
+            .text_size(12)
             .on_toggle(|t| {
                 EditInstanceMessage::PreLaunchPrefixModeChanged(if t {
                     PreLaunchPrefixMode::default()
@@ -157,21 +165,23 @@ impl MenuEditInstance {
                     PreLaunchPrefixMode::Disable
                 })
                 .into()
-            })
-            .style(|t: &LauncherTheme, s| t.style_checkbox(s, Some(Color::SecondLight)))
-            .size(12)
-            .text_size(12);
+            });
 
         column![
-            row!["Pre-launch prefix:", horizontal_space(), checkbox].align_y(Alignment::Center),
-            row![get_args_list(
-                self.config
-                    .global_settings
-                    .as_ref()
-                    .and_then(|n| n.pre_launch_prefix.as_deref()),
-                |n| EditInstanceMessage::PreLaunchPrefix(n).into(),
-            )]
-            .push_maybe(
+            widget::row![
+                "Pre-launch prefix:",
+                widget::space().width(Length::Fill),
+                checkbox
+            ]
+            .align_y(Alignment::Center),
+            widget::row![
+                get_args_list(
+                    self.config
+                        .global_settings
+                        .as_ref()
+                        .and_then(|n| n.pre_launch_prefix.as_deref()),
+                    |n| EditInstanceMessage::PreLaunchPrefix(n).into(),
+                ),
                 (!prefix_mode.is_disabled()).then_some(
                     widget::column(
                         [
@@ -192,8 +202,8 @@ impl MenuEditInstance {
                         }),
                     )
                     .spacing(1),
-                ),
-            )
+                )
+            ]
             .spacing(10),
             widget::text(PREFIX_EXPLANATION).size(12).style(tsubtitle),
         ]
@@ -217,7 +227,7 @@ Heavy modpacks / High settings: 4-8 GB+"
             )
             .size(12)
             .style(tsubtitle),
-            widget::Space::with_height(5),
+            widget::space().height(5),
             row![
                 widget::text(&self.state_ram.slider_text),
                 widget::slider(
@@ -238,16 +248,14 @@ Heavy modpacks / High settings: 4-8 GB+"
                 widget::text("MB").size(12).style(tsubtitle),
             ]
             .align_y(Alignment::Center)
-            .spacing(5)
-        ]
-        .push_maybe(
+            .spacing(5),
             (self.config.ram_in_mb > mem_warning_threshold).then_some(
                 widget::text(
                     "Warning: Very high RAM allocated! (More than 70% of total)\nYour system may struggle",
                 )
                 .size(14),
             ),
-        )
+        ]
         .spacing(5)
     }
 
@@ -255,10 +263,10 @@ Heavy modpacks / High settings: 4-8 GB+"
         fn radio(
             l: &str,
             a: bool,
-            b: Option<bool>,
+            b: bool,
             f: impl Fn() -> Message,
         ) -> widget::Radio<'_, Message, LauncherTheme> {
-            widget::radio(l, a, b, |n| if n { f() } else { Message::Nothing })
+            widget::radio(l, a, Some(b), |n| if n { f() } else { Message::Nothing })
                 .text_size(14)
                 .size(14)
         }
@@ -270,58 +278,56 @@ Heavy modpacks / High settings: 4-8 GB+"
             radio(
                 "Auto-managed by launcher",
                 true,
-                Some(java_override.trim().is_empty() && java_override_ver.is_none()),
+                java_override.trim().is_empty() && java_override_ver.is_none(),
                 || EditInstanceMessage::JavaOverride(String::new()).into()
             ),
-            row![radio(
-                "Specific Java version",
-                true,
-                Some(java_override_ver.is_some()),
-                || EditInstanceMessage::JavaOverrideVersion(25).into()
-            )]
-            .push_maybe(java_override_ver.map(|n| {
-                widget::row(JavaVersion::ALL.iter().map(|v| {
-                    let v = *v as usize;
-                    widget::radio(format!("{v}"), v, Some(n), |v| {
-                        EditInstanceMessage::JavaOverrideVersion(v).into()
-                    })
-                    .text_size(13)
-                    .size(11)
-                    .spacing(4)
-                    .into()
-                }))
-                .spacing(5)
-                .wrap()
-            }))
+            row![
+                radio(
+                    "Specific Java version",
+                    true,
+                    java_override_ver.is_some(),
+                    || EditInstanceMessage::JavaOverrideVersion(25).into()
+                ),
+                java_override_ver.map(|n| {
+                    widget::row(JavaVersion::ALL.iter().map(|v| {
+                        let v = *v as usize;
+                        widget::radio(format!("{v}"), v, Some(n), |v| {
+                            EditInstanceMessage::JavaOverrideVersion(v).into()
+                        })
+                        .text_size(13)
+                        .size(11)
+                        .spacing(4)
+                        .into()
+                    }))
+                    .spacing(5)
+                    .wrap()
+                })
+            ]
             .spacing(16)
             .align_y(Alignment::Center),
             radio(
                 "Custom path",
                 true,
-                Some(!java_override.trim().is_empty()),
+                !java_override.trim().is_empty(),
                 || EditInstanceMessage::JavaOverride("path/to/java".to_owned()).into() // ugly hack
             ),
             row![
-                widget::Space::with_width(16),
+                widget::space().width(16),
                 widget::text_input("Leave blank if none", java_override)
                     .size(14)
                     .font(FONT_MONO)
-                    .on_input(|t| EditInstanceMessage::JavaOverride(t).into())
-            ]
-            .push_maybe(
+                    .on_input(|t| EditInstanceMessage::JavaOverride(t).into()),
                 (!java_override.trim().is_empty()).then_some(
                     button_with_icon(icons::close_s(9), "", 13)
                         .padding([8.0, 11.0])
                         .on_press(EditInstanceMessage::JavaOverride(String::new()).into()),
-                )
-            )
-            .push(
+                ),
                 button_with_icon(icons::folder_s(14), "", 13)
                     .padding([5, 10])
                     .on_press(Message::EditInstance(
-                        EditInstanceMessage::BrowseJavaOverride
+                        EditInstanceMessage::JavaOverrideBrowse
                     ))
-            )
+            ]
             .spacing(5)
         ]
         .spacing(5)
@@ -337,7 +343,7 @@ Heavy modpacks / High settings: 4-8 GB+"
                         .as_ref()
                         .map_or_else(|| NONE_JAR_NAME.to_owned(), |n| n.name.clone()),
                 ),
-                |t| EditInstanceMessage::CustomJarPathChanged(t).into(),
+                |t| EditInstanceMessage::CustomJarChanged(t).into(),
             )
             .into()
         } else {
@@ -345,13 +351,13 @@ Heavy modpacks / High settings: 4-8 GB+"
         };
 
         column![
-            row!["Custom JAR file", horizontal_space(), picker].align_y(Alignment::Center),
+            row!["Custom JAR file", widget::space().width(Length::Fill), picker].align_y(Alignment::Center),
             widget::text(
                 "For *replacing* the Minecraft JAR, not adding to it.\nTo patch your existing JAR file, use \"Mods->Jarmod Patches\""
             )
             .size(12)
             .style(tsubtitle),
-            widget::Space::with_height(10),
+            widget::space().height(10),
             widget::text("Main Class:"),
             widget::radio("Default", None, Some(self.main_class_mode), |t| {
                 EditInstanceMessage::SetMainClass(t, None).into()
@@ -366,18 +372,18 @@ Heavy modpacks / High settings: 4-8 GB+"
             )
             .size(14)
             .text_size(13),
-            row![widget::radio(
-                "Custom",
-                Some(MainClassMode::Custom),
-                Some(self.main_class_mode),
-                |t| EditInstanceMessage::SetMainClass(
-                    t,
-                    Some(String::new())
-                ).into()
-            )
-            .size(14)
-            .text_size(13)]
-            .push_maybe(
+            row![
+                widget::radio(
+                    "Custom",
+                    Some(MainClassMode::Custom),
+                    Some(self.main_class_mode),
+                    |t| EditInstanceMessage::SetMainClass(
+                        t,
+                        Some(String::new())
+                    ).into(),
+                )
+                .size(14)
+                .text_size(13),
                 (self.main_class_mode == Some(MainClassMode::Custom)).then_some(
                     widget::text_input(
                         "Enter main class...",
@@ -392,7 +398,7 @@ Heavy modpacks / High settings: 4-8 GB+"
                     .font(FONT_MONO)
                     .size(13)
                 )
-            )
+            ]
             .spacing(10),
         ]
         .spacing(5)
@@ -414,7 +420,7 @@ fn item_footer(kind: InstanceKind) -> widget::Column<'static, Message, LauncherT
             ]
             .spacing(5)
             .wrap(),
-            widget::horizontal_rule(2),
+            widget::rule::horizontal(2),
             button_with_icon(icons::bin(), "Delete Instance", 16)
                 .on_press(Message::DeleteInstanceMenu)
         ]
@@ -468,50 +474,45 @@ pub fn get_args_list(
     args: Option<&[String]>,
     msg: impl Fn(ListMessage) -> Message + Clone + 'static,
 ) -> Element<'_> {
+    const ITEM_SIZE: u32 = 10;
+
     fn opt(icon: widget::Text<'_, LauncherTheme>) -> widget::Button<'_, Message, LauncherTheme> {
         widget::button(icon)
             .padding([6, 8])
             .style(move |t: &LauncherTheme, s| t.style_button(s, StyleButton::FlatDark))
     }
 
-    const ITEM_SIZE: u16 = 10;
-
     let args = args.unwrap_or_default();
 
-    widget::Column::new()
-        .push_maybe(
-            (!args.is_empty()).then_some(widget::column(args.iter().enumerate().map(
-                |(i, arg)| {
-                    row![
-                        opt(icons::bin_s(ITEM_SIZE)).on_press(msg(ListMessage::Delete(i))),
-                        opt(icons::arrow_up_s(ITEM_SIZE)).on_press(msg(ListMessage::ShiftUp(i))),
-                        opt(icons::arrow_down_s(ITEM_SIZE))
-                            .on_press(msg(ListMessage::ShiftDown(i))),
-                        widget::text_input("Enter argument...", arg)
-                            .size(ITEM_SIZE + 4)
-                            .font(FONT_MONO)
-                            .on_input({
-                                let msg = msg.clone();
-                                move |n| msg(ListMessage::Edit(n, i))
-                            })
-                    ]
-                    .align_y(Alignment::Center)
-                    .into()
-                },
-            ))),
-        )
-        .push(row![get_args_list_add_button(msg)].spacing(10))
-        .spacing(5)
-        .width(Length::Fill)
+    widget::column(args.iter().enumerate().map(|(i, arg)| {
+        widget::row![
+            opt(icons::bin_s(ITEM_SIZE)).on_press(msg(ListMessage::Delete(i))),
+            opt(icons::arrow_up_s(ITEM_SIZE)).on_press(msg(ListMessage::ShiftUp(i))),
+            opt(icons::arrow_down_s(ITEM_SIZE)).on_press(msg(ListMessage::ShiftDown(i))),
+            widget::text_input("Enter argument...", arg)
+                .size(ITEM_SIZE + 4)
+                .font(FONT_MONO)
+                .on_input({
+                    let msg = msg.clone();
+                    move |n| msg(ListMessage::Edit(n, i))
+                })
+        ]
+        .align_y(Alignment::Center)
         .into()
+    }))
+    .push(widget::row![get_args_list_add_button(msg)].spacing(10))
+    .spacing(5)
+    .width(Length::Fill)
+    .into()
 }
 
 pub fn args_split_by_space(split: bool) -> widget::Checkbox<'static, Message, LauncherTheme> {
-    widget::checkbox("Split arguments by spaces", split)
+    widget::checkbox(split)
+        .label("Split arguments by space")
         .style(|t: &LauncherTheme, s| t.style_checkbox(s, Some(Color::SecondLight)))
         .size(12)
         .text_size(12)
-        .on_toggle(|t| EditInstanceMessage::ToggleSplitArg(t).into())
+        .on_toggle(|t| Message::EditInstance(EditInstanceMessage::ToggleSplitArg(t)))
 }
 
 fn get_args_list_add_button(

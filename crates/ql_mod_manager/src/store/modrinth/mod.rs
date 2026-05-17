@@ -1,11 +1,11 @@
-use std::{collections::HashSet, sync::mpsc::Sender, time::Instant};
+use std::{collections::HashSet, time::Instant};
 
 use chrono::DateTime;
 use download::version_sort;
 use indexmap::IndexMap;
 use info::ProjectInfo;
-use ql_core::{GenericProgress, Instance, Loader, download, pt};
-use serde::Deserialize;
+use ql_core::{GenericProgress, Instance, Loader, pt};
+use sipper::Sender;
 use versions::ModVersion;
 
 use crate::{
@@ -129,7 +129,7 @@ impl Backend for ModrinthBackend {
         instance: &Instance,
         ignore_incompatible: bool,
         set_manually_installed: bool,
-        sender: Option<&Sender<GenericProgress>>,
+        mut sender: Option<Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
         let _guard = lock().await;
 
@@ -143,46 +143,48 @@ impl Backend for ModrinthBackend {
         let len = ids.len();
 
         for (i, id) in ids.iter().enumerate() {
-            if let Some(sender) = &sender {
-                _ = sender.send(GenericProgress {
-                    done: i,
-                    total: len,
-                    message: downloader
-                        .info
-                        .get(id)
-                        .map(|n| format!("Downloading mod: {}", n.title)),
-                    has_finished: false,
-                });
+            if let Some(sender) = sender.as_mut() {
+                sender
+                    .send(GenericProgress {
+                        done: i,
+                        total: len,
+                        message: downloader
+                            .info
+                            .get(id)
+                            .map(|n| format!("Downloading mod: {}", n.title)),
+                        has_finished: false,
+                    })
+                    .await;
             }
 
             let result = downloader.download(id, None, true).await;
-            if let Err(ModError::NoCompatibleVersionFound(name)) = &result {
-                if ignore_incompatible {
-                    pt!("No compatible version found for mod {name} ({id}), skipping...");
-                    continue;
-                }
+            if let Err(ModError::NoCompatibleVersionFound(name)) = &result
+                && ignore_incompatible
+            {
+                pt!("No compatible version found for mod {name} ({id}), skipping...");
+                continue;
             }
             result?;
 
-            if set_manually_installed {
-                if let Some(config) = downloader.index.mods.get_mut(&ModId::Modrinth(id.clone())) {
-                    config.manually_installed = true;
-                }
+            if set_manually_installed
+                && let Some(config) = downloader.index.mods.get_mut(&ModId::Modrinth(id.clone()))
+            {
+                config.manually_installed = true;
             }
         }
 
         downloader.index.save(instance).await?;
 
         pt!("Finished");
-        if let Some(sender) = &sender {
-            _ = sender.send(GenericProgress::finished());
+        if let Some(sender) = &mut sender {
+            sender.send(GenericProgress::finished()).await;
         }
 
         Ok(HashSet::new())
     }
 
     async fn get_categories(kind: super::QueryType) -> Result<Vec<Category>, ModError> {
-        #[derive(Deserialize, Clone)]
+        #[derive(serde::Deserialize, Clone)]
         struct MCategory {
             name: String,
             project_type: String,
@@ -193,7 +195,7 @@ impl Backend for ModrinthBackend {
 
         let mcategories = CACHE
             .get_or_try_init(|| async {
-                download("https://api.modrinth.com/v2/tag/category")
+                ql_core::download("https://api.modrinth.com/v2/tag/category")
                     .json()
                     .await
             })

@@ -1,7 +1,7 @@
+use sipper::Sender;
 use std::{
     collections::HashSet,
     io::{Cursor, Read},
-    sync::mpsc::Sender,
 };
 
 use ql_core::{
@@ -31,7 +31,7 @@ use super::CurseforgeNotAllowed;
 ///
 /// # Arguments
 /// - `file: Vec<u8>`: The bytes of the modpack file.
-/// - `instance: InstanceSelection`: The selected instance you want to download this pack to.
+/// - `instance: Instance`: The selected instance you want to download this pack to.
 /// - `sender: Option<&Sender<GenericProgress>>`: Supply a [`Sender`] if you want
 ///   to see the progress of installation. Leave `None` if otherwise.
 ///
@@ -45,7 +45,7 @@ use super::CurseforgeNotAllowed;
 pub async fn install_modpack(
     file: Vec<u8>,
     instance: Instance,
-    sender: Option<&Sender<GenericProgress>>,
+    mut sender: Option<&mut Sender<GenericProgress>>,
 ) -> Result<Option<HashSet<CurseforgeNotAllowed>>, PackError> {
     let mut zip = zip::ZipArchive::new(Cursor::new(file.as_slice()))?;
 
@@ -88,11 +88,19 @@ pub async fn install_modpack(
 
     if let Some(index) = index_json_modrinth {
         is_valid = true;
-        modrinth::install(&instance, &mc_dir, &config, &json, &index, sender).await?;
+        modrinth::install(
+            &instance,
+            &mc_dir,
+            &config,
+            &json,
+            &index,
+            sender.as_ref().map(|n| (*n).clone()),
+        )
+        .await?;
     }
     let not_allowed = if let Some(index) = index_json_curseforge {
         is_valid = true;
-        curseforge::install(&instance, &config, &json, &index, sender).await?
+        curseforge::install(&instance, &config, &json, &index, sender.as_deref()).await?
     } else {
         HashSet::new()
     };
@@ -110,16 +118,18 @@ pub async fn install_modpack(
             continue;
         }
 
-        if let Some(sender) = sender {
-            _ = sender.send(GenericProgress {
-                done: i,
-                total: len,
-                message: Some(format!(
-                    "Modpack: Creating overrides: {name} ({i}/{len})",
-                    i = i + 1
-                )),
-                has_finished: false,
-            });
+        if let Some(sender) = &mut sender {
+            sender
+                .send(GenericProgress {
+                    done: i,
+                    total: len,
+                    message: Some(format!(
+                        "Modpack: Creating overrides: {name} ({i}/{len})",
+                        i = i + 1
+                    )),
+                    has_finished: false,
+                })
+                .await;
         }
 
         if let Some(name) = name

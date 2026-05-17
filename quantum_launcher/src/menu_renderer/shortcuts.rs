@@ -15,15 +15,15 @@ use iced::{
 cfg_if!(if #[cfg(target_os = "windows")] {
     const MENU_NAME: &str = "the Start Menu";
     const SHOW_DESC: bool = true;
-    const FOLDER_BUTTON_WIDTH: u16 = 120;
+    const FOLDER_BUTTON_WIDTH: u32 = 120;
 } else if #[cfg(target_os = "macos")] {
     const MENU_NAME: &str = "Applications";
     const SHOW_DESC: bool = false; // Shortcut description is unsupported on macOS
-    const FOLDER_BUTTON_WIDTH: u16 = 140;
+    const FOLDER_BUTTON_WIDTH: u32 = 140;
 } else {
     const MENU_NAME: &str = "the Applications Menu";
     const SHOW_DESC: bool = true;
-    const FOLDER_BUTTON_WIDTH: u16 = 150;
+    const FOLDER_BUTTON_WIDTH: u32 = 150;
 });
 const ACTION_BUTTON_MENU: &str = constcat::concat!("Add to ", MENU_NAME);
 const FOLDER_BUTTON: &str = constcat::concat!("Open ", MENU_NAME, " Folder");
@@ -37,7 +37,7 @@ impl MenuShortcut {
                 row![
                     back_button().on_press(back_to_launch_screen(None)),
                     widget::text("Create Launch Shortcut").size(20),
-                    widget::horizontal_space(),
+                    widget::space().width(Length::Fill),
                     open_folder_button(),
                 ]
                 .align_y(Alignment::Center)
@@ -79,15 +79,17 @@ impl MenuShortcut {
         row![
             widget::container(
                 column![
-                    widget::checkbox(ACTION_BUTTON_MENU, self.add_to_menu)
+                    widget::checkbox(self.add_to_menu)
+                        .label(ACTION_BUTTON_MENU)
                         .on_toggle(|t| ShortcutMessage::ToggleAddToMenu(t).into())
                         .size(12)
                         .text_size(12),
-                    widget::checkbox("Add to Desktop", self.add_to_desktop)
+                    widget::checkbox(self.add_to_desktop)
+                        .label("Add to Desktop")
                         .on_toggle(|t| ShortcutMessage::ToggleAddToDesktop(t).into())
                         .size(12)
                         .text_size(12),
-                    widget::Space::with_height(4),
+                    widget::space().height(4),
                     tooltip_maybe(
                         disabled_tooltip,
                         button_with_icon(icons::checkmark_s(14), "Create Shortcut", 14)
@@ -108,7 +110,7 @@ impl MenuShortcut {
                 widget::text("(May not work everywhere)")
                     .size(12)
                     .style(tsubtitle),
-                widget::Space::with_height(5),
+                widget::space().height(5),
                 tooltip_maybe(
                     disabled_tooltip,
                     button_with_icon(icons::floppydisk_s(14), "Export Shortcut File...", 14)
@@ -150,39 +152,39 @@ impl MenuShortcut {
                 .align_y(Alignment::Center)
         }
 
-        column![ifield(
-            "Name:",
-            widget::text_input("(Required)", &self.shortcut.name)
-                .size(14)
-                .on_input(|n| ShortcutMessage::EditName(n).into())
-        )]
-        .push_maybe(SHOW_DESC.then(|| {
+        column![
             ifield(
-                "Description:",
-                widget::text_input("Leave blank for none", &self.shortcut.description)
+                "Name:",
+                widget::text_input("(Required)", &self.shortcut.name)
                     .size(14)
-                    .on_input(|n| ShortcutMessage::EditDescription(n).into()),
-            )
-        }))
-        .push(ifield(
-            "Account:",
-            row![
-                widget::pick_list(accounts, Some(&self.account), |n| {
-                    ShortcutMessage::AccountSelected(n).into()
-                })
-                .text_size(14)
-                .width(Length::Fill)
-            ]
-            .push_maybe(
-                (self.account == OFFLINE_ACCOUNT_NAME).then_some(
-                    widget::text_input("Enter username...", &self.account_offline)
+                    .on_input(|n| ShortcutMessage::EditName(n).into())
+            ),
+            SHOW_DESC.then(|| {
+                ifield(
+                    "Description:",
+                    widget::text_input("Leave blank for none", &self.shortcut.description)
                         .size(14)
-                        .width(Length::Fill)
-                        .on_input(|n| ShortcutMessage::AccountOffline(n).into()),
-                ),
+                        .on_input(|n| ShortcutMessage::EditDescription(n).into()),
+                )
+            }),
+            ifield(
+                "Account:",
+                row![
+                    widget::pick_list(accounts, Some(&self.account), |n| {
+                        ShortcutMessage::AccountSelected(n).into()
+                    })
+                    .text_size(14)
+                    .width(Length::Fill),
+                    (self.account == OFFLINE_ACCOUNT_NAME).then_some(
+                        widget::text_input("Enter username...", &self.account_offline)
+                            .size(14)
+                            .width(Length::Fill)
+                            .on_input(|n| ShortcutMessage::AccountOffline(n).into()),
+                    ),
+                ]
+                .spacing(5),
             )
-            .spacing(5),
-        ))
+        ]
         .spacing(5)
         .padding([0, 1])
     }

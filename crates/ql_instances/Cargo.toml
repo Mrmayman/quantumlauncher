@@ -2,7 +2,7 @@
 name = "ql_instances"
 version = "0.0.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "GPL-3.0-only"
 
 [features]
@@ -20,6 +20,7 @@ semver.workspace = true
 zip.workspace = true
 cfg-if.workspace = true
 
+sipper.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
 

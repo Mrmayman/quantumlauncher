@@ -2,7 +2,6 @@ use std::{
     collections::BTreeMap,
     io::Cursor,
     path::{Path, PathBuf},
-    sync::Mutex,
 };
 
 use cfg_if::cfg_if;
@@ -19,7 +18,7 @@ use ql_core::{
     },
     pt,
 };
-use tokio::fs;
+use tokio::{fs, sync::Mutex};
 
 use super::{DownloadError, GameDownloader};
 
@@ -32,13 +31,18 @@ impl GameDownloader {
         self.prepare_library_directories().await?;
 
         let total_libraries = self.version_json.libraries.len();
-        let num_library = Mutex::new(0);
+        let library_i = Mutex::new(0);
 
-        let results = self
-            .version_json
-            .libraries
-            .iter()
-            .map(|lib| self.download_library_fn(lib, &num_library, total_libraries));
+        let results = self.version_json.libraries.iter().map(async |lib| {
+            if !lib.is_allowed() {
+                pt!("{} {lib:?}", "Skipping".underline());
+                return Ok::<_, DownloadError>(());
+            }
+            self.download_library(lib, None).await?;
+            self.send_library_progress(&library_i, total_libraries)
+                .await;
+            Ok(())
+        });
 
         // (a) Synchronous downloader. WAY slower,
         // but easier to debug/inspect,
@@ -68,32 +72,17 @@ impl GameDownloader {
         }
     }
 
-    async fn download_library_fn(
-        &self,
-        library: &Library,
-        library_i: &Mutex<usize>,
-        library_len: usize,
-    ) -> Result<(), DownloadError> {
-        if !library.is_allowed() {
-            pt!("{} {library:?}", "Skipping".underline());
-            return Ok(());
-        }
-
-        self.download_library(library, None).await?;
-
-        {
-            let mut library_i = library_i.lock().unwrap();
-            self.send_progress(
-                DownloadProgress::DownloadingLibraries {
-                    progress: *library_i,
-                    out_of: library_len,
-                },
-                true,
-            );
-            *library_i += 1;
-        }
-
-        Ok(())
+    async fn send_library_progress(&self, library_i: &Mutex<usize>, library_len: usize) {
+        let mut library_i = library_i.lock().await;
+        self.send_progress(
+            DownloadProgress::DownloadingLibraries {
+                progress: *library_i,
+                out_of: library_len,
+            },
+            true,
+        )
+        .await;
+        *library_i += 1;
     }
 
     async fn prepare_library_directories(&self) -> Result<(), IoError> {

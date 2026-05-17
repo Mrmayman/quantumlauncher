@@ -2,6 +2,7 @@ use iced::{Task, futures::executor::block_on};
 use ql_core::{Instance, IntoStringError, JsonFileError, json::InstanceConfigJson};
 use ql_mod_manager::store::{ModId, RECOMMENDED_MODS, RecommendedMod};
 
+use crate::sip;
 use crate::state::{
     InfoMessage, Launcher, MenuCurseforgeManualDownload, MenuRecommendedMods, Message, ProgressBar,
     RecommendedModMessage, State,
@@ -44,18 +45,15 @@ impl Launcher {
             RecommendedModMessage::Toggle(idx, toggle) => {
                 if let State::RecommendedMods(MenuRecommendedMods::Loaded { mods, .. }) =
                     &mut self.state
+                    && let Some((t, _)) = mods.get_mut(idx)
                 {
-                    if let Some((t, _)) = mods.get_mut(idx) {
-                        *t = toggle;
-                    }
+                    *t = toggle;
                 }
             }
             RecommendedModMessage::Download => {
                 if let State::RecommendedMods(MenuRecommendedMods::Loaded { mods, config }) =
                     &mut self.state
                 {
-                    let (sender, receiver) = std::sync::mpsc::channel();
-
                     let ids: Vec<ModId> = mods
                         .iter()
                         .filter(|n| n.0)
@@ -63,14 +61,16 @@ impl Launcher {
                         .collect();
 
                     self.state = State::RecommendedMods(MenuRecommendedMods::Loading {
-                        progress: ProgressBar::with_recv(receiver),
+                        progress: ProgressBar::new(),
                         config: config.clone(),
                     });
 
                     let instance = self.selected_instance.clone().unwrap();
 
-                    return Task::perform(
-                        ql_mod_manager::store::download_mods_bulk(ids, instance, Some(sender)),
+                    return sip(
+                        |sender| {
+                            ql_mod_manager::store::download_mods_bulk(ids, instance, Some(sender))
+                        },
                         |n| RecommendedModMessage::DownloadEnd(n.strerr()).into(),
                     );
                 }
@@ -105,10 +105,8 @@ impl Launcher {
                 }
             }
         };
-        let (sender, recv) = std::sync::mpsc::channel();
-        let progress = ProgressBar::with_recv(recv);
         self.state = State::RecommendedMods(MenuRecommendedMods::Loading {
-            progress,
+            progress: ProgressBar::new(),
             config: config.clone(),
         });
         let loader = config.mod_type;
@@ -117,13 +115,9 @@ impl Launcher {
             return Task::none();
         }
         let ids = RECOMMENDED_MODS.to_owned();
-        Task::perform(
-            RecommendedMod::get_compatible_mods(
-                ids,
-                self.selected_instance.clone().unwrap(),
-                loader,
-                sender,
-            ),
+        let instance = self.selected_instance.clone().unwrap();
+        sip(
+            move |sender| RecommendedMod::get_compatible_mods(ids, instance, loader, sender),
             |n| RecommendedModMessage::ModCheckResult(n.strerr()).into(),
         )
     }

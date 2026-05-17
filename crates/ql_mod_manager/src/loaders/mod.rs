@@ -1,16 +1,11 @@
-use std::{
-    path::Path,
-    sync::{
-        Arc,
-        mpsc::{Receiver, Sender},
-    },
-};
+use sipper::Sender;
+use std::path::Path;
 
 use crate::loaders::paper::PaperVer;
-use forge::ForgeInstallProgress;
 use ql_core::{
-    GenericProgress, Instance, IntoStringError, JsonFileError, Loader, Progress,
+    GenericProgress, Instance, IntoStringError, JsonFileError, Loader,
     json::{InstanceConfigJson, instance_config::ModTypeInfo},
+    pipe_progress,
 };
 
 pub mod fabric;
@@ -46,7 +41,7 @@ pub enum LoaderInstallResult {
 pub async fn install_specified_loader(
     instance: Instance,
     loader: Loader,
-    progress: Option<Arc<Sender<GenericProgress>>>,
+    progress: Option<Sender<GenericProgress>>,
     specified_version: Option<String>,
 ) -> Result<LoaderInstallResult, String> {
     match loader {
@@ -56,7 +51,7 @@ pub async fn install_specified_loader(
             fabric::install(
                 specified_version,
                 instance,
-                progress.as_deref(),
+                progress,
                 fabric::BackendType::Fabric,
             )
             .await
@@ -66,7 +61,7 @@ pub async fn install_specified_loader(
             fabric::install(
                 specified_version,
                 instance,
-                progress.as_deref(),
+                progress,
                 fabric::BackendType::Quilt,
             )
             .await
@@ -74,29 +69,18 @@ pub async fn install_specified_loader(
         }
 
         Loader::Forge => {
-            let (send, recv) = std::sync::mpsc::channel();
-            if let Some(progress) = progress {
-                std::thread::spawn(move || {
-                    pipe_progress(recv, &progress);
-                });
-            }
-
-            // TODO: Java install progress
-            forge::install(specified_version, instance, Some(send), None)
-                .await
-                .strerr()?;
+            pipe_progress(progress, |sender| {
+                forge::install(specified_version, instance, sender)
+            })
+            .await
+            .strerr()?;
         }
         Loader::Neoforge => {
-            let (send, recv) = std::sync::mpsc::channel();
-            if let Some(progress) = progress {
-                std::thread::spawn(move || {
-                    pipe_progress(recv, &progress);
-                });
-            }
-
-            neoforge::install(specified_version, instance, Some(send), None)
-                .await
-                .strerr()?;
+            pipe_progress(progress, |sender| {
+                neoforge::install(specified_version, instance, sender)
+            })
+            .await
+            .strerr()?;
         }
 
         Loader::Paper => {
@@ -128,12 +112,6 @@ pub async fn install_specified_loader(
         }
     }
     Ok(LoaderInstallResult::Ok)
-}
-
-fn pipe_progress(rec: Receiver<ForgeInstallProgress>, snd: &Sender<GenericProgress>) {
-    for item in rec {
-        _ = snd.send(item.into_generic());
-    }
 }
 
 pub async fn uninstall_loader(instance: Instance) -> Result<(), String> {

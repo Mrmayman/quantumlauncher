@@ -1,28 +1,27 @@
-use iced::{Alignment, Length, widget};
-use ql_core::InstanceKind;
-
 use crate::{
-    DEBUG_LOG_BUTTON_HEIGHT,
-    config::UiWindowDecorations,
-    icons,
     menu_renderer::{
         Element, FONT_MONO, tooltip, view_account_login, view_changelog, view_confirm, view_error,
         view_log_upload_result,
     },
-    state::{
-        Launcher, MenuCreateInstance, MenuCreateInstanceChoosing, Message, State, WindowMessage,
-    },
-    stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
+    state::{Launcher, MenuCreateInstance, MenuCreateInstanceChoosing, Message, State},
+    stylesheet::{styles::LauncherTheme, widgets::StyleButton},
 };
+use iced::{
+    Length,
+    widget::{self, column},
+};
+use ql_core::InstanceKind;
+
+const DEBUG_LOG_BUTTON_HEIGHT: f32 = 16.0;
 
 impl Launcher {
     pub fn view(&'_ self) -> Element<'_> {
         let round = !self.config.uses_system_decorations();
         let toggler = tooltip(
             widget::button(widget::row![
-                widget::horizontal_space(),
+                widget::space().width(Length::Fill),
                 widget::text(if self.is_log_open { "v" } else { "^" }).size(10),
-                widget::horizontal_space()
+                widget::space().width(Length::Fill)
             ])
             .padding(0)
             .height(DEBUG_LOG_BUTTON_HEIGHT)
@@ -43,44 +42,54 @@ impl Launcher {
             widget::tooltip::Position::Top,
         );
 
-        let view = widget::column![
-            widget::column![self.view_menu()],
-            widget::row![toggler].push_maybe(self.is_log_open.then(|| {
-                widget::button(widget::text("Copy Log").size(10))
-                    .padding(0)
-                    .height(DEBUG_LOG_BUTTON_HEIGHT)
-                    .style(|n: &LauncherTheme, status| {
-                        n.style_button(status, StyleButton::FlatDark)
-                    })
-                    .on_press(Message::CoreCopyLog)
-            })),
-        ]
-        .push_maybe(self.is_log_open.then(|| {
-            const TEXT_SIZE: f32 = 12.0;
+        let view = column![
+            column![self.view_menu()],
+            widget::row![
+                toggler,
+                self.is_log_open.then(|| {
+                    widget::button(widget::text("Copy Log").size(10))
+                        .padding(0)
+                        .height(DEBUG_LOG_BUTTON_HEIGHT)
+                        .style(|n: &LauncherTheme, status| {
+                            n.style_button(status, StyleButton::FlatDark)
+                        })
+                        .on_press(Message::CoreCopyLog)
+                }),
+                self.is_log_open.then(|| {
+                    const TEXT_SIZE: f32 = 12.0;
 
-            Self::view_launcher_log(
-                ql_core::print::get(),
-                TEXT_SIZE,
-                self.log_scroll,
-                Message::CoreLogScroll,
-                Message::CoreLogScrollAbsolute,
-                |(msg, kind)| {
-                    widget::row![
-                        widget::rich_text![widget::span(kind.to_string()).color(match kind {
-                            ql_core::LogType::Info => iced::Color::from_rgb8(0xf9, 0xe2, 0xaf),
-                            ql_core::LogType::Error => iced::Color::from_rgb8(0xe3, 0x44, 0x59),
-                            ql_core::LogType::Point => iced::Color::from_rgb8(128, 128, 128),
-                        })]
-                        .size(12)
-                        .font(FONT_MONO),
-                        widget::text!(" {msg}").font(FONT_MONO).size(12)
-                    ]
-                    .width(Length::Fill)
-                    .into()
-                },
-                |(msg, kind)| format!("{kind} {msg}"),
-            )
-        }));
+                    Self::view_launcher_log(
+                        ql_core::print::get(),
+                        TEXT_SIZE,
+                        self.log_scroll,
+                        Message::CoreLogScroll,
+                        Message::CoreLogScrollAbsolute,
+                        |(msg, kind)| {
+                            widget::row![
+                                widget::rich_text![
+                                    widget::span::<Message, _>(kind.to_string()).color(
+                                        match kind {
+                                            ql_core::LogType::Info =>
+                                                iced::Color::from_rgb8(0xf9, 0xe2, 0xaf),
+                                            ql_core::LogType::Error =>
+                                                iced::Color::from_rgb8(0xe3, 0x44, 0x59),
+                                            ql_core::LogType::Point =>
+                                                iced::Color::from_rgb8(128, 128, 128),
+                                        }
+                                    )
+                                ]
+                                .size(12)
+                                .font(FONT_MONO),
+                                widget::text!(" {msg}").font(FONT_MONO).size(12)
+                            ]
+                            .width(Length::Fill)
+                            .into()
+                        },
+                        |(msg, kind)| format!("{kind} {msg}"),
+                    )
+                })
+            ],
+        ];
 
         // if self.window_state.is_maximized || self.config.c_window_decorations() {
         view.into()
@@ -91,15 +100,15 @@ impl Launcher {
 
     fn view_menu(&'_ self) -> Element<'_> {
         let menu = match &self.state {
-            State::Launch(menu) => self.view_main_menu(menu),
-            State::AccountLoginProgress(progress) => widget::column![
+            State::Launch(menu) => self.view_main_menu(menu).into(),
+            State::AccountLoginProgress(progress) => column![
                 widget::text("Logging into Microsoft account").size(20),
                 progress.view()
             ]
             .spacing(10)
             .padding(10)
             .into(),
-            State::GenericMessage(msg) => widget::column![widget::text(msg)].padding(10).into(),
+            State::GenericMessage(msg) => column![widget::text(msg)].padding(10).into(),
             State::AccountLogin => view_account_login(),
             State::EditMods(menu) => menu.view(
                 self.instance(),
@@ -117,8 +126,7 @@ impl Launcher {
                 } else {
                     self.selected_instance
                         .as_ref()
-                        .map(|n| n.kind)
-                        .unwrap_or(InstanceKind::Client)
+                        .map_or(InstanceKind::Client, |n| n.kind)
                 };
                 let list = match kind {
                     InstanceKind::Server => self.server_list.as_deref(),
@@ -134,11 +142,12 @@ impl Launcher {
             } => view_confirm(msg1, msg2, yes, no),
             State::Error { error } => view_error(error),
             State::InstallFabric(menu) => menu.view(self.instance(), self.tick_timer),
-            State::InstallJava => widget::column!(widget::text("Downloading Java").size(20))
-                .push_maybe(self.java_recv.as_ref().map(|n| n.view()))
-                .padding(10)
-                .spacing(10)
-                .into(),
+            State::InstallJava(bar) => {
+                column![widget::text("Downloading Java").size(20), bar.view()]
+                    .padding(16)
+                    .spacing(10)
+                    .into()
+            }
             State::ModsDownload(menu) => menu.view(&self.images, self.tick_timer),
             State::ModDescription(menu) => menu.view(&self.images, self.tick_timer),
             State::LauncherSettings(menu) => {
@@ -149,8 +158,8 @@ impl Launcher {
             State::Welcome(menu) => menu.view(&self.config),
             State::EditJarMods(menu) => menu.view(self.instance()),
             State::ImportModpack(progress) => {
-                widget::column![widget::text("Installing mods..."), progress.view()]
-                    .padding(10)
+                column![widget::text("Installing mods..."), progress.view()]
+                    .padding(16)
                     .spacing(10)
                     .into()
             }
@@ -163,8 +172,18 @@ impl Launcher {
             State::CurseforgeManualDownload(menu) => menu.view(),
             State::License(menu) => menu.view(),
             State::ExportMods(menu) => menu.view(),
-            State::InstallForge(menu) => menu.view(),
-            #[cfg(feature = "auto_update")]
+            State::InstallForge(menu, is_neoforge) => column![
+                widget::text(if *is_neoforge {
+                    "Installing NeoForge"
+                } else {
+                    "Installing Forge"
+                })
+                .size(20),
+                menu.view()
+            ]
+            .padding(16)
+            .spacing(10)
+            .into(),
             State::UpdateFound(menu) => menu.view(),
             State::InstallOptifine(menu) => menu.view(),
             State::ManagePresets(menu) => menu.view(),
@@ -174,9 +193,9 @@ impl Launcher {
         widget::mouse_area(if let State::Launch(_) = &self.state {
             menu
         } else {
-            let round = !self.config.uses_system_decorations();
+            // let round = !self.config.uses_system_decorations();
             widget::Column::new()
-                .push_maybe({
+                /*.push_maybe({
                     let maximized = self.window_state.is_maximized;
                     let custom_decor = widget::mouse_area(
                         widget::container(self.view_window_decorations())
@@ -191,7 +210,7 @@ impl Launcher {
                     )
                     .on_press(Message::Window(WindowMessage::Dragged));
                     round.then_some(custom_decor)
-                })
+                })*/
                 .push(
                     widget::container(menu)
                         .style(move |t: &LauncherTheme| t.style_container_bg(0.0, None))
@@ -204,8 +223,8 @@ impl Launcher {
         .into()
     }
 
-    fn view_window_decorations(&self) -> widget::Row<'_, Message, LauncherTheme> {
-        const ICON_SIZE: u16 = 10;
+    /*pub fn view_window_decorations(&self) -> widget::Row<'_, Message, LauncherTheme> {
+        const ICON_SIZE: u32 = 10;
 
         fn win_button(icon: widget::Text<'_, LauncherTheme>, m: Message) -> Element<'_> {
             widget::mouse_area(
@@ -236,7 +255,7 @@ impl Launcher {
             UiWindowDecorations::Right
         );
 
-        let wcls_space = widget::mouse_area(widget::column![].height(Length::Fill).width(6.5))
+        let wcls_space = widget::mouse_area(column![].height(Length::Fill).width(6.5))
             .on_press(WindowMessage::ClickClose.into());
         let wcls = win_button(icons::close_s(ICON_SIZE), WindowMessage::ClickClose.into());
         let wmax = win_button(
@@ -249,7 +268,7 @@ impl Launcher {
         );
         if right {
             widget::Row::new()
-                .push(widget::horizontal_space())
+                .push(widget::space().width(Length::Fill))
                 .push(wmin)
                 .push(wmax)
                 .push(wcls)
@@ -261,7 +280,7 @@ impl Launcher {
                 .push(wmax)
                 .push(wmin)
         }
-    }
+    }*/
 }
 
 // HOOK: Decorations
@@ -271,13 +290,13 @@ impl Launcher {
         i: Interaction,
         d: Direction,
     ) -> widget::MouseArea<'static, Message, LauncherTheme> {
-        widget::mouse_area(widget::column![].width(w).height(h))
+        widget::mouse_area(column![].width(w).height(h))
             .interaction(i)
             .on_press(WindowMessage::Resized(d).into())
     }
 
     widget::stack!(
-        widget::column![widget::container(view).padding(1)].padding(2),
+        column![widget::container(view).padding(1)].padding(2),
         widget::row![
             // Left
             widget::Column::new()
@@ -296,13 +315,13 @@ impl Launcher {
                     Interaction::ResizingDiagonallyUp,
                     Direction::SouthWest
                 )),
-            widget::column![
+            column![
                 m(
                     (Length::Fill, 10),
                     Interaction::ResizingVertically,
                     Direction::North
                 ),
-                widget::vertical_space(),
+                widget::space().height(Length::Fill),
                 m(
                     (Length::Fill, 10),
                     Interaction::ResizingVertically,

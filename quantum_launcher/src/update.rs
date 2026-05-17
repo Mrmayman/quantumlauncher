@@ -9,6 +9,7 @@ use owo_colors::OwoColorize;
 #[cfg(feature = "auto_update")]
 use crate::launcher_update::UpdateCheckInfo;
 use crate::{
+    sip,
     state::{
         AutoSaveKind, CustomJarState, DirWatcher, GameProcess, InfoMessage, Launcher,
         LauncherSettingsMessage, ManageModsMessage, MenuExportInstance, MenuLicense, MenuWelcome,
@@ -43,6 +44,7 @@ impl Launcher {
             Message::CoreCleanComplete(Err(err)) => {
                 err!(no_log, "{err}");
             }
+            Message::CoreProgress(prog) => self.update_progress(prog),
 
             Message::UninstallLoaderEnd(Err(err))
             | Message::InstallForgeEnd(Err(err))
@@ -324,14 +326,11 @@ impl Launcher {
                 }
             }
             Message::ExportInstanceToggleItem(idx, t) => {
-                if let State::ExportInstance(MenuExportInstance {
-                    entries: Some(entries),
-                    ..
-                }) = &mut self.state
+                if let State::ExportInstance(menu) = &mut self.state
+                    && let Some(entries) = &mut menu.entries
+                    && let Some((_, b)) = entries.get_mut(idx)
                 {
-                    if let Some((_, b)) = entries.get_mut(idx) {
-                        *b = t;
-                    }
+                    *b = t;
                 }
             }
             Message::ExportInstanceStart => {
@@ -340,20 +339,16 @@ impl Launcher {
                     progress,
                 }) = &mut self.state
                 {
-                    let (send, recv) = std::sync::mpsc::channel();
-                    *progress = Some(ProgressBar::with_recv(recv));
+                    *progress = Some(ProgressBar::new());
 
                     let exceptions = entries
                         .iter()
                         .filter_map(|(n, b)| (!b).then_some(format!(".minecraft/{}", n.name)))
                         .collect();
+                    let instance = self.selected_instance.clone().unwrap();
 
-                    return Task::perform(
-                        ql_packager::export_instance(
-                            self.selected_instance.clone().unwrap(),
-                            exceptions,
-                            Some(send),
-                        ),
+                    return sip(
+                        |send| ql_packager::export_instance(instance, exceptions, Some(send)),
                         |n| Message::ExportInstanceFinished(n.strerr()),
                     );
                 }
@@ -393,7 +388,7 @@ impl Launcher {
                 }
             }
             Message::CoreFocusNext => {
-                return iced::widget::focus_next();
+                return iced::widget::operation::focus_next();
             }
             Message::CoreHideModal => {
                 self.hide_submenu();
@@ -447,7 +442,7 @@ impl Launcher {
             .config
             .ui_mode
             .is_none_or(|n| n == LauncherThemeLightness::Auto);
-        let interval = self.tick_timer % INTERVAL == 0;
+        let interval = self.tick_timer.is_multiple_of(INTERVAL);
 
         if is_auto_theme && interval {
             Task::perform(tokio::task::spawn_blocking(dark_light::detect), |n| {

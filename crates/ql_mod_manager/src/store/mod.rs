@@ -1,7 +1,8 @@
-use std::{collections::HashSet, path::PathBuf, sync::mpsc::Sender};
+use std::{collections::HashSet, path::PathBuf};
 
 use chrono::DateTime;
 use ql_core::{GenericProgress, Instance, IntoIoError, Loader, do_jobs, json::VersionDetails, pt};
+use sipper::Sender;
 
 mod add_file;
 mod curseforge;
@@ -82,13 +83,13 @@ pub trait Backend {
         instance: &Instance,
         ignore_incompatible: bool,
         _set_manually_installed: bool,
-        sender: Option<&Sender<GenericProgress>>,
+        sender: Option<Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
         // Fallback implementation
         let mut not_allowed = HashSet::new();
         for id in ids {
             // We don't do this concurrently as there's likely a lock on the index
-            match Self::download(id, instance, sender.cloned()).await {
+            match Self::download(id, instance, sender.clone()).await {
                 Ok(n) => not_allowed.extend(n),
                 Err(ModError::NoCompatibleVersionFound(name)) if ignore_incompatible => {
                     pt!("No compatible version found for mod {name} {id}, skipping...");
@@ -204,11 +205,11 @@ pub async fn download_mods_bulk(
     // }
 
     let not_allowed =
-        ModrinthBackend::download_bulk(&modrinth, &instance, true, true, sender.as_ref()).await?;
+        ModrinthBackend::download_bulk(&modrinth, &instance, true, true, sender.clone()).await?;
     debug_assert!(not_allowed.is_empty());
 
     let not_allowed =
-        CurseforgeBackend::download_bulk(&curseforge, &instance, true, true, sender.as_ref())
+        CurseforgeBackend::download_bulk(&curseforge, &instance, true, true, sender.clone())
             .await?;
 
     Ok(not_allowed)

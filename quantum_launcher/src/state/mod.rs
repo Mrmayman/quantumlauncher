@@ -12,8 +12,8 @@ use filthy_rich::PresenceClient;
 use iced::Task;
 use notify::Watcher;
 use ql_core::{
-    GenericProgress, Instance, InstanceKind, IntoIoError, IntoStringError, IoError, JsonFileError,
-    LAUNCHER_DIR, LAUNCHER_VERSION_NAME, LaunchedProcess, Progress, err,
+    Instance, InstanceKind, IntoIoError, IntoStringError, IoError, LAUNCHER_DIR,
+    LAUNCHER_VERSION_NAME, LaunchedProcess, Progress, err,
     file_utils::{self, exists},
     read_log::LogLine,
 };
@@ -63,8 +63,6 @@ pub struct Launcher {
 
     pub discord_ipc_client: Option<PresenceClient>,
     pub discord_connection_state: Arc<Mutex<PresenceConnectionState>>,
-
-    pub java_recv: Option<ProgressBar<GenericProgress>>,
     pub custom_jar: Option<CustomJarState>,
     /// See [`AutoSaveKind`]
     pub autosave: HashSet<AutoSaveKind>,
@@ -105,7 +103,18 @@ pub enum AutoSaveKind {
 pub struct WindowState {
     pub size: (f32, f32),
     pub mouse_pos: (f32, f32),
+    #[allow(unused)]
     pub is_maximized: bool,
+}
+
+impl WindowState {
+    pub fn new(width: f32, height: f32) -> Self {
+        Self {
+            size: (width, height),
+            mouse_pos: (0.0, 0.0),
+            is_maximized: false,
+        }
+    }
 }
 
 pub struct CustomJarState {
@@ -145,8 +154,8 @@ pub struct GameProcess {
 impl Launcher {
     pub fn load_new(
         is_new_user: bool,
-        config: Result<LauncherConfig, JsonFileError>,
-    ) -> Result<Self, JsonFileError> {
+        config: Result<LauncherConfig, String>,
+    ) -> Result<Self, String> {
         if let Err(err) = file_utils::get_launcher_dir() {
             err!("Could not get launcher dir (This is a bug):");
             return Ok(Self::with_error(format!(
@@ -201,18 +210,13 @@ impl Launcher {
             accounts,
             accounts_dropdown,
 
-            window_state: WindowState {
-                size: (window_width, window_height),
-                mouse_pos: (0.0, 0.0),
-                is_maximized: false,
-            },
+            window_state: WindowState::new(window_width, window_height),
             account_selected,
 
             client_list: None,
             server_list: None,
             client_watcher: None,
             server_watcher: None,
-            java_recv: None,
             custom_jar: None,
 
             logs: HashMap::new(),
@@ -267,7 +271,6 @@ impl Launcher {
 
             state: State::Error { error },
 
-            java_recv: None,
             client_list: None,
             server_list: None,
             client_watcher: None,
@@ -290,11 +293,7 @@ impl Launcher {
             keys_pressed: HashSet::new(),
 
             images: ImageState::default(),
-            window_state: WindowState {
-                size: (window_width, window_height),
-                mouse_pos: (0.0, 0.0),
-                is_maximized: false,
-            },
+            window_state: WindowState::new(window_width, window_height),
             autosave: HashSet::new(),
             accounts_dropdown: vec![OFFLINE_ACCOUNT_NAME.to_owned(), NEW_ACCOUNT_NAME.to_owned()],
             account_selected: OFFLINE_ACCOUNT_NAME.to_owned(),
@@ -434,43 +433,35 @@ pub async fn get_entries(kind: InstanceKind) -> Res<(Vec<String>, InstanceKind)>
     ))
 }
 
-pub struct ProgressBar<T: Progress> {
+pub struct ProgressBar {
     pub num: f32,
+    pub total: f32,
     pub message: Option<String>,
-    pub receiver: Receiver<T>,
-    pub progress: T,
 }
 
-impl<T: Default + Progress> ProgressBar<T> {
-    pub fn with_recv(receiver: Receiver<T>) -> Self {
+impl ProgressBar {
+    pub fn new() -> Self {
         Self {
             num: 0.0,
+            total: 1.0,
             message: None,
-            receiver,
-            progress: T::default(),
         }
     }
 
-    pub fn with_recv_and_msg(receiver: Receiver<T>, msg: String) -> Self {
+    pub fn with_message(m: String) -> Self {
         Self {
             num: 0.0,
-            message: Some(msg),
-            receiver,
-            progress: T::default(),
+            total: 1.0,
+            message: Some(m),
         }
     }
 }
 
-impl<T: Progress> ProgressBar<T> {
-    pub fn tick(&mut self) -> bool {
-        let mut has_ticked = false;
-        while let Ok(progress) = self.receiver.try_recv() {
-            self.num = progress.get_num();
-            self.message = progress.get_message();
-            self.progress = progress;
-            has_ticked = true;
-        }
-        has_ticked
+impl ProgressBar {
+    pub fn update<T: Progress>(&mut self, progress: T) {
+        self.num = progress.get_num();
+        self.message = progress.get_message();
+        self.total = progress.total();
     }
 }
 

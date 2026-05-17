@@ -1,8 +1,10 @@
-use std::sync::{Arc, Mutex, mpsc::Sender};
+use std::sync::Arc;
 
 use futures::StreamExt;
 use owo_colors::colored::OwoColorize;
 use ql_core::{GenericProgress, Instance, Loader, err, info, json::VersionDetails, pt};
+use sipper::Sender;
+use tokio::sync::Mutex;
 
 use crate::store::{ModId, ModIndex, StoreBackendType, get_latest_version_date};
 
@@ -39,11 +41,18 @@ impl RecommendedMod {
         let mut tasks = futures::stream::FuturesOrdered::new();
         for id in ids {
             let i = i.clone();
-            tasks.push_back(id.check_compatibility(&sender, i, len, loader, version, &index));
-            if tasks.len() > LIMIT {
-                if let Some(task) = tasks.next().await.flatten() {
-                    mods.push(task);
-                }
+            tasks.push_back(id.check_compatibility(
+                sender.clone(),
+                i,
+                len,
+                loader,
+                version,
+                &index,
+            ));
+            if tasks.len() > LIMIT
+                && let Some(task) = tasks.next().await.flatten()
+            {
+                mods.push(task);
             }
         }
 
@@ -58,7 +67,7 @@ impl RecommendedMod {
 
     async fn check_compatibility(
         self,
-        sender: &Sender<GenericProgress>,
+        mut sender: Sender<GenericProgress>,
         i: Arc<Mutex<usize>>,
         len: usize,
         loader: Loader,
@@ -91,20 +100,16 @@ impl RecommendedMod {
         };
 
         {
-            let mut i = i.lock().unwrap();
+            let mut i = i.lock().await;
             *i += 1;
-            if sender
+            sender
                 .send(GenericProgress {
                     done: *i,
                     total: len,
                     message: Some(format!("Checked compatibility: {}", self.name)),
                     has_finished: false,
                 })
-                .is_err()
-            {
-                info!(no_log, "Cancelled recommended mod check");
-                return None;
-            }
+                .await;
         }
 
         is_compatible.then_some(self)

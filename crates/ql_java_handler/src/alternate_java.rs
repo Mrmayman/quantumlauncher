@@ -1,34 +1,32 @@
 //! A module to install Java from various third party sources
 //! if Mojang doesn't provide Java for your specific platform.
 
-use std::{
-    env::consts::{ARCH, OS},
-    io::Cursor,
-    path::Path,
-    sync::mpsc::Sender,
-};
-
+use crate::{JavaInstallError, extract_tar_gz, send_progress};
 use cfg_if::cfg_if;
 use owo_colors::OwoColorize;
 use ql_core::{GenericProgress, JavaVersion, file_utils, pt};
 use serde::Deserialize;
-
-use crate::{JavaInstallError, extract_tar_gz, send_progress};
+use sipper::Sender;
+use std::{
+    env::consts::{ARCH, OS},
+    io::Cursor,
+    path::Path,
+};
 
 pub(crate) async fn install(
     version: JavaVersion,
-    sender: Option<&Sender<GenericProgress>>,
+    mut sender: Option<Sender<GenericProgress>>,
     install_dir: &Path,
 ) -> Result<(), JavaInstallError> {
     let Some(url) = get_url(version).await? else {
         return Err(JavaInstallError::UnsupportedPlatform);
     };
 
-    progress(sender, "Getting compressed archive", 0);
+    progress(sender.as_mut(), "Getting compressed archive", 0).await;
     pt!("URL: {}", url.bright_black());
     let file_bytes = file_utils::download_file_to_bytes(&url, false).await?;
 
-    progress(sender, "Extracting archive", 1);
+    progress(sender.as_mut(), "Extracting archive", 1).await;
     if url.ends_with("tar.gz") {
         extract_tar_gz(&file_bytes, install_dir).map_err(JavaInstallError::TarGzExtract)?;
     } else if url.ends_with("zip") {
@@ -39,7 +37,7 @@ pub(crate) async fn install(
     Ok(())
 }
 
-fn progress(sender: Option<&Sender<GenericProgress>>, msg: &str, done: usize) {
+async fn progress(sender: Option<&mut Sender<GenericProgress>>, msg: &str, done: usize) {
     pt!("{msg}");
     send_progress(
         sender,
@@ -49,7 +47,8 @@ fn progress(sender: Option<&Sender<GenericProgress>>, msg: &str, done: usize) {
             message: Some(msg.to_owned()),
             has_finished: false,
         },
-    );
+    )
+    .await;
 }
 
 async fn get_url(mut version: JavaVersion) -> Result<Option<String>, JavaInstallError> {

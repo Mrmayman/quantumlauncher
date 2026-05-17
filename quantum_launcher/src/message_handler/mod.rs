@@ -1,15 +1,16 @@
 use crate::{
     Launcher, Message,
     menu_renderer::back_to_launch_screen,
+    sip,
     state::{
         AutoSaveKind, EditPresetsMessage, InfoMessage, LaunchTab, LogState, ManageModsMessage,
-        MenuEditMods, MenuInstallForge, MenuInstallOptifine, ProgressBar, SelectedState, State,
+        MenuEditMods, MenuInstallOptifine, ProgressBar, SelectedState, State,
     },
     tick::sort_dependencies,
 };
 use iced::{Task, futures::executor::block_on, widget::scrollable::AbsoluteOffset};
 use ql_core::{
-    GenericProgress, Instance, IntoIoError, IntoStringError, JsonFileError, err,
+    Instance, IntoIoError, IntoStringError, JsonFileError, err,
     file_utils::exists,
     json::{VersionDetails, instance_config::InstanceConfigJson},
 };
@@ -18,7 +19,6 @@ use std::{
     collections::HashSet,
     ffi::OsStr,
     path::{Path, PathBuf},
-    sync::mpsc::{Receiver, Sender},
 };
 
 pub const SIDEBAR_LIMIT_RIGHT: f32 = 140.0;
@@ -128,7 +128,7 @@ impl Launcher {
                 drag_and_drop_hovered: false,
                 update_check_handle: None,
                 version_json,
-                modal: None,
+                right_click: None,
                 search: None,
                 // If you wanna test stuff out...
                 // info_message: Some(crate::state::ModInfoMessage {
@@ -157,32 +157,18 @@ impl Launcher {
     }
 
     pub fn install_forge(&mut self, kind: ForgeKind) -> Task<Message> {
-        let (f_sender, f_receiver) = std::sync::mpsc::channel();
-        let (j_sender, j_receiver): (Sender<GenericProgress>, Receiver<GenericProgress>) =
-            std::sync::mpsc::channel();
-
         let instance_selection = self.selected_instance.clone().unwrap();
         let instance_selection2 = instance_selection.clone();
 
-        let command = Task::perform(
-            async move {
+        self.state = State::InstallForge(ProgressBar::new(), matches!(kind, ForgeKind::NeoForge));
+
+        sip(
+            move |sender| async move {
                 if matches!(kind, ForgeKind::NeoForge) {
                     // TODO: Add UI to specify NeoForge version
-                    loaders::neoforge::install(
-                        None,
-                        instance_selection2,
-                        Some(f_sender),
-                        Some(j_sender),
-                    )
-                    .await
+                    loaders::neoforge::install(None, instance_selection2, Some(sender)).await
                 } else {
-                    loaders::forge::install(
-                        None,
-                        instance_selection2,
-                        Some(f_sender),
-                        Some(j_sender),
-                    )
-                    .await
+                    loaders::forge::install(None, instance_selection2, Some(sender)).await
                 }
                 .strerr()?;
                 if matches!(kind, ForgeKind::OptiFine) {
@@ -196,27 +182,15 @@ impl Launcher {
                 Ok(())
             },
             Message::InstallForgeEnd,
-        );
-
-        self.state = State::InstallForge(MenuInstallForge {
-            forge_progress: ProgressBar::with_recv(f_receiver),
-            java_progress: ProgressBar::with_recv(j_receiver),
-            is_java_getting_installed: false,
-        });
-        command
+        )
     }
 
     fn load_modpack_from_path(&mut self, path: PathBuf) -> Task<Message> {
-        let (sender, receiver) = std::sync::mpsc::channel();
+        self.state = State::ImportModpack(ProgressBar::new());
+        let instance = self.selected_instance.clone().unwrap();
 
-        self.state = State::ImportModpack(ProgressBar::with_recv(receiver));
-
-        Task::perform(
-            ql_mod_manager::add_files(
-                self.selected_instance.clone().unwrap(),
-                vec![path],
-                Some(sender),
-            ),
+        sip(
+            move |sender| ql_mod_manager::add_files(instance, vec![path], Some(sender)),
             |n| ManageModsMessage::AddFileDone(n.strerr()).into(),
         )
     }
@@ -227,10 +201,10 @@ impl Launcher {
             .get_dot_minecraft_path()
             .join("mods")
             .join(filename);
-        if *path != new_path {
-            if let Err(err) = std::fs::copy(path, &new_path) {
-                err!("Couldn't drag and drop mod file in: {err}");
-            }
+        if *path != new_path
+            && let Err(err) = std::fs::copy(path, &new_path)
+        {
+            err!("Couldn't drag and drop mod file in: {err}");
         }
     }
 
@@ -248,20 +222,21 @@ impl Launcher {
             true,
         )) {
             Ok(mods) => {
-                let (sender, receiver) = std::sync::mpsc::channel();
                 if let State::EditMods(_) = &self.state {
                     self.go_to_edit_presets_menu();
                 }
                 if let State::ManagePresets(menu) = &mut self.state {
-                    menu.progress = Some(ProgressBar::with_recv(receiver));
+                    menu.progress = Some(ProgressBar::new());
                 }
                 let instance_name = self.selected_instance.clone().unwrap();
-                Task::perform(
-                    ql_mod_manager::store::download_mods_bulk(
-                        mods.to_install,
-                        instance_name,
-                        Some(sender),
-                    ),
+                sip(
+                    |sender| {
+                        ql_mod_manager::store::download_mods_bulk(
+                            mods.to_install,
+                            instance_name,
+                            Some(sender),
+                        )
+                    },
                     |n| EditPresetsMessage::LoadComplete(n.strerr()).into(),
                 )
             }
@@ -292,16 +267,11 @@ impl Launcher {
         if let State::UpdateFound(crate::state::MenuLauncherUpdate { url, progress, .. }) =
             &mut self.state
         {
-            let (sender, update_receiver) = std::sync::mpsc::channel();
-            *progress = Some(ProgressBar::with_recv_and_msg(
-                update_receiver,
-                "Starting Update".to_owned(),
-            ));
-
+            *progress = Some(ProgressBar::new());
             let url = url.clone();
 
-            Task::perform(
-                async move { crate::launcher_update::install(url, sender).await.strerr() },
+            sip(
+                |sender| async move { crate::launcher_update::install(url, sender).await.strerr() },
                 Message::UpdateDownloadEnd,
             )
         } else {

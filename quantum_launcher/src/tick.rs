@@ -11,45 +11,116 @@ use ql_core::{
 };
 use ql_mod_manager::store::{ModConfig, ModId, ModIndex};
 
+use crate::config::SIDEBAR_WIDTH;
 use crate::state::{
     AutoSaveKind, EditInstanceMessage, GameProcess, InstallModsMessage, InstanceLog, LaunchModal,
     LaunchTab, Launcher, LogState, ManageJarModsMessage, MenuCreateInstance, MenuEditMods,
     MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuLaunch, MenuLoginMS,
     MenuModsDownload, MenuRecommendedMods, Message, ModListEntry, State,
 };
-use crate::{config::SIDEBAR_WIDTH, state::InfoMessage};
 
 impl Launcher {
+    pub fn update_progress(&mut self, progress: Arc<dyn ql_core::Progress>) {
+        match &mut self.state {
+            State::InstallFabric(menu) => {
+                if let MenuInstallFabric::Loaded {
+                    progress: Some(progress_bar),
+                    ..
+                } = menu
+                {
+                    progress_bar.update(progress);
+                }
+            }
+            State::InstallForge(bar, _)
+            | State::AccountLoginProgress(bar)
+            | State::ImportModpack(bar)
+            | State::ExportInstance(MenuExportInstance {
+                progress: Some(bar),
+                ..
+            }) => bar.update(progress),
+            State::InstallOptifine(menu) => {
+                if let MenuInstallOptifine::Installing(p) = menu {
+                    p.update(progress);
+                }
+            }
+            State::Create(menu) => match menu {
+                MenuCreateInstance::Choosing { .. } => {}
+                MenuCreateInstance::DownloadingInstance(bar)
+                | MenuCreateInstance::ImportingInstance(bar) => {
+                    bar.update(progress);
+                }
+            },
+            #[cfg(feature = "auto_update")]
+            State::UpdateFound(menu) => {
+                if let Some(p) = &mut menu.progress {
+                    p.update(progress);
+                }
+            }
+            State::ManagePresets(menu) => {
+                if let Some(p) = &mut menu.progress {
+                    p.update(progress);
+                }
+            }
+            State::RecommendedMods(menu) => {
+                if let MenuRecommendedMods::Loading { progress: bar, .. } = menu {
+                    bar.update(progress);
+                }
+            }
+
+            State::EditMods(menu) => {
+                if let Some(bar) = &mut menu.mod_update_progress {
+                    if progress.generic().has_finished {
+                        menu.mod_update_progress = None;
+                    } else {
+                        bar.update(progress);
+                    }
+                }
+            }
+            State::EditJarMods(_)
+            | State::ModsDownload(_)
+            | State::LauncherSettings(_)
+            | State::Launch(_)
+            | State::Error { .. }
+            | State::LoginAlternate(_)
+            | State::AccountLogin
+            | State::ExportInstance(_)
+            | State::ConfirmAction { .. }
+            | State::ChangeLog
+            | State::Welcome(_)
+            | State::License(_)
+            | State::LoginMS(MenuLoginMS { .. })
+            | State::GenericMessage(_)
+            | State::CurseforgeManualDownload(_)
+            | State::LogUploadResult { .. }
+            | State::InstallPaper(_)
+            | State::InstallJava(_)
+            | State::CreateShortcut(_)
+            | State::ExportMods(_)
+            | State::ModDescription(_) => {}
+        }
+    }
+
     pub fn tick(&mut self) -> Task<Message> {
+        self.autosave_launcher_config();
+
         match &mut self.state {
             State::Launch(_) => {
-                if let Some(receiver) = &mut self.java_recv {
-                    if receiver.tick() {
-                        self.state = State::InstallJava;
-                        return Task::none();
-                    }
-                }
-
-                let mut commands = Vec::new();
-
-                let edit_config = if let State::Launch(MenuLaunch {
-                    edit_instance: Some(edit),
+                let autosave_instancecfg = if let State::Launch(MenuLaunch {
                     tab: LaunchTab::Edit,
+                    edit_instance: Some(edit),
                     ..
                 }) = &self.state
+                    && self.autosave.insert(AutoSaveKind::InstanceConfig)
+                    && let Some(instance) = self.selected_instance.clone()
                 {
-                    Some(edit.config.clone())
+                    // Autosave instance config
+                    let config = (*edit.config).clone();
+                    Task::perform(Launcher::save_config(instance, config), |n| {
+                        EditInstanceMessage::ConfigSaved(n.strerr()).into()
+                    })
                 } else {
-                    None
+                    Task::none()
                 };
-
-                if let Some(config) = edit_config {
-                    if self.autosave.insert(AutoSaveKind::InstanceConfig)
-                        || self.tick_timer % 5 == 0
-                    {
-                        self.autosave_instance_config(config, &mut commands);
-                    }
-                }
 
                 for (instance, process) in &mut self.processes {
                     let log_state = if let State::Launch(menu) = &mut self.state {
@@ -66,54 +137,18 @@ impl Launcher {
                     );
                 }
 
-                if let State::Launch(menu) = &self.state {
-                    self.tick_sidebar_auto_scroll(menu, &mut commands);
-                }
-                self.autosave_launcher_config();
+                let sidebar_scroll = if let State::Launch(menu) = &self.state {
+                    self.tick_sidebar_auto_scroll(menu)
+                } else {
+                    Task::none()
+                };
 
-                return Task::batch(commands);
-            }
-            State::Create(menu) => {
-                menu.tick();
-                self.autosave_launcher_config();
+                return Task::batch([autosave_instancecfg, sidebar_scroll]);
             }
             State::EditMods(menu) => {
                 let instance_selection = self.selected_instance.as_ref().unwrap();
                 let update_locally_installed_mods = menu.tick(instance_selection);
                 return update_locally_installed_mods;
-            }
-            State::InstallFabric(menu) => {
-                if let MenuInstallFabric::Loaded {
-                    progress: Some(progress),
-                    ..
-                } = menu
-                {
-                    progress.tick();
-                }
-            }
-            State::InstallForge(menu) => {
-                menu.forge_progress.tick();
-                if menu.java_progress.tick() {
-                    menu.is_java_getting_installed = true;
-                }
-            }
-            #[cfg(feature = "auto_update")]
-            State::UpdateFound(menu) => {
-                if let Some(progress) = &mut menu.progress {
-                    progress.tick();
-                }
-            }
-            State::InstallJava => {
-                let has_finished = if let Some(progress) = &mut self.java_recv {
-                    progress.tick();
-                    progress.progress.has_finished
-                } else {
-                    true
-                };
-                if has_finished {
-                    self.java_recv = None;
-                    return self.go_to_main_menu(Some(InfoMessage::success("Installed Java")));
-                }
             }
             State::ModsDownload(_) => {
                 return MenuModsDownload::tick(self.selected_instance.clone().unwrap());
@@ -132,90 +167,40 @@ impl Launcher {
                     );
                 }
             }
-            State::InstallOptifine(menu) => match menu {
-                MenuInstallOptifine::Choosing { .. } | MenuInstallOptifine::InstallingB173 => {}
-                MenuInstallOptifine::Installing {
-                    optifine_install_progress,
-                    java_install_progress,
-                    is_java_being_installed,
-                    ..
-                } => {
-                    optifine_install_progress.tick();
-                    if let Some(java_progress) = java_install_progress {
-                        if java_progress.tick() {
-                            *is_java_being_installed = true;
-                        }
-                    }
-                }
-            },
-            State::ManagePresets(menu) => {
-                if let Some(progress) = &mut menu.progress {
-                    progress.tick();
-                }
-            }
-            State::RecommendedMods(menu) => {
-                if let MenuRecommendedMods::Loading { progress, .. } = menu {
-                    progress.tick();
-                }
-            }
-            State::AccountLoginProgress(progress)
-            | State::ImportModpack(progress)
-            | State::ExportInstance(MenuExportInstance {
-                progress: Some(progress),
-                ..
-            }) => {
-                progress.tick();
-            }
 
-            // These menus don't require background ticking
-            State::Error { .. }
-            | State::LoginAlternate(_)
-            | State::AccountLogin
-            | State::ExportInstance(_)
-            | State::ConfirmAction { .. }
-            | State::ChangeLog
-            | State::Welcome(_)
-            | State::License(_)
-            | State::LoginMS(MenuLoginMS { .. })
-            | State::GenericMessage(_)
-            | State::CurseforgeManualDownload(_)
-            | State::LogUploadResult { .. }
-            | State::InstallPaper(_)
-            | State::CreateShortcut(_)
-            | State::ModDescription(_)
-            | State::ExportMods(_) => {}
+            _ => {}
         }
 
         Task::none()
     }
 
     pub fn tick_interval(&self) -> u64 {
-        if let State::Launch(menu) = &self.state {
-            if let Some(LaunchModal::SDragging { .. }) = &menu.modal {
-                // Faster tick rate for smoother auto-scrolling
-                // while dragging in the sidebar
-                return 15;
-            }
+        if let State::Launch(menu) = &self.state
+            && let Some(LaunchModal::Dragging { .. }) = &menu.modal
+        {
+            // Faster tick rate for smoother auto-scrolling
+            // while dragging in the sidebar
+            return 15;
         }
 
         self.config.c_idle_fps()
     }
 
     /// Automatically scrolls the sidebar when dragging near the edges
-    fn tick_sidebar_auto_scroll(&self, menu: &MenuLaunch, commands: &mut Vec<Task<Message>>) {
+    fn tick_sidebar_auto_scroll(&self, menu: &MenuLaunch) -> Task<Message> {
         const EDGE_THRESHOLD: f32 = 36.0;
         const MIN_SPEED: f32 = 2.0;
         const MAX_SPEED: f32 = 14.0;
         const FALLBACK_TOP: f32 = 60.0;
         const FALLBACK_BOTTOM: f32 = 80.0;
 
-        let Some(LaunchModal::SDragging { .. }) = menu.modal.as_ref() else {
-            return;
+        let Some(LaunchModal::Dragging { .. }) = menu.modal.as_ref() else {
+            return Task::none();
         };
 
         let scroll = menu.sidebar_scroll;
         if scroll.remaining <= 0.0 {
-            return;
+            return Task::none();
         }
 
         let bounds = scroll.bounds.unwrap_or_else(|| {
@@ -232,7 +217,7 @@ impl Launcher {
 
         let (mouse_x, mouse_y) = self.window_state.mouse_pos;
         if mouse_x < bounds.x || mouse_x > bounds.x + bounds.width {
-            return;
+            return Task::none();
         }
 
         let top_dist = mouse_y - bounds.y;
@@ -250,22 +235,22 @@ impl Launcher {
         }
 
         if delta.abs() < f32::EPSILON {
-            return;
+            return Task::none();
         }
 
         let new_offset = (scroll.offset + delta).clamp(0.0, scroll.remaining);
 
         if (new_offset - scroll.offset).abs() < 0.25 {
-            return;
+            return Task::none();
         }
 
-        commands.push(iced::widget::scrollable::scroll_to(
-            iced::widget::scrollable::Id::new("MenuLaunch:sidebar"),
+        iced::widget::operation::scroll_to(
+            "MenuLaunch:sidebar",
             iced::widget::scrollable::AbsoluteOffset {
                 x: 0.0,
                 y: new_offset,
             },
-        ));
+        )
     }
 
     fn autosave_launcher_config(&mut self) {
@@ -273,20 +258,6 @@ impl Launcher {
             let launcher_config = self.config.clone();
             tokio::spawn(async move { launcher_config.save().await });
         }
-    }
-
-    fn autosave_instance_config(
-        &self,
-        config: InstanceConfigJson,
-        commands: &mut Vec<Task<Message>>,
-    ) {
-        let Some(instance) = self.selected_instance.clone() else {
-            return;
-        };
-        let cmd = Task::perform(Launcher::save_config(instance, config), |n| {
-            EditInstanceMessage::ConfigSaved(n.strerr()).into()
-        });
-        commands.push(cmd);
     }
 
     pub fn read_game_logs(
@@ -413,28 +384,7 @@ impl MenuEditMods {
     fn tick(&mut self, instance_selection: &Instance) -> Task<Message> {
         self.sorted_mods_list = sort_dependencies(&self.mods.mods, &self.locally_installed_mods);
 
-        if let Some(progress) = &mut self.mod_update_progress {
-            progress.tick();
-            if progress.progress.has_finished {
-                self.mod_update_progress = None;
-            }
-        }
-
         MenuEditMods::update_locally_installed_mods(&self.mods, instance_selection)
-    }
-}
-
-impl MenuCreateInstance {
-    fn tick(&mut self) {
-        match self {
-            MenuCreateInstance::Choosing { .. } => {}
-            MenuCreateInstance::DownloadingInstance(progress) => {
-                progress.tick();
-            }
-            MenuCreateInstance::ImportingInstance(progress) => {
-                progress.tick();
-            }
-        }
     }
 }
 

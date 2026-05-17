@@ -106,13 +106,13 @@ fn opt_after_launch(config: &LauncherConfig) -> Column<'_> {
 fn opt_changelog(config: &LauncherConfig) -> Column<'_> {
     column![
         widget::checkbox(
-            "Write changelog after mod updates",
             config
                 .persistent
                 .clone()
                 .unwrap_or_default()
                 .write_mod_update_changelog,
         )
+        .label("Write changelog after mod updates")
         .on_toggle(|n| LauncherSettingsMessage::ToggleModUpdateChangelog(n).into()),
         widget::text("Writes mod update changes to .minecraft/changelogs")
             .size(12)

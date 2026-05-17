@@ -63,24 +63,14 @@ pub async fn launch(name: &str, timeout: f32, cli: &Cli) -> bool {
     false
 }
 
-type ProcessExitResult = Option<
-    Result<(ExitStatus, ql_core::Instance, Option<Diagnostic>), ql_core::read_log::ReadError>,
->;
+type ProcessExitResult =
+    Result<(ExitStatus, ql_core::Instance, Option<Diagnostic>), ql_core::read_log::ReadError>;
 
 async fn handle_process_exit(handle: tokio::task::JoinHandle<ProcessExitResult>) -> bool {
     let out = handle.await;
 
-    match {
-        let this = out.strerr().map(|n| {
-            n.expect("stdout/stderr should exist, unless you turned switched off logging")
-                .strerr()
-        });
-        match this {
-            Ok(inner) => inner,
-            Err(e) => Err(e),
-        }
-    } {
-        Ok((code, _, diag)) => {
+    match out.strerr().map(|n| n.strerr()) {
+        Ok(Ok((code, _, diag))) => {
             if let Some(Diagnostic::MacOSPixelFormat) = diag {
                 println!("\nmacOS VM lacks GPU acceleration, test successful");
                 return true;
@@ -92,7 +82,7 @@ async fn handle_process_exit(handle: tokio::task::JoinHandle<ProcessExitResult>)
                 err!("\nProcess exited (code: {code})");
             }
         }
-        Err(err) => {
+        Ok(Err(err)) | Err(err) => {
             err!("Instance child process: {err}");
         }
     }

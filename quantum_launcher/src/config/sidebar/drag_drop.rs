@@ -27,12 +27,12 @@ impl SidebarConfig {
             .find(|(_, n)| **n == location.sel)
         {
             // Inserting directly in top level of list
-            if let SidebarNodeKind::Folder(f) = &mut folder.kind {
-                if location.offset == SDragTo::Inside {
-                    f.children.push(yoinked);
-                    f.is_expanded = true;
-                    return;
-                }
+            if let SidebarNodeKind::Folder(f) = &mut folder.kind
+                && location.offset == SDragTo::Inside
+            {
+                f.children.push(yoinked);
+                f.is_expanded = true;
+                return;
             }
             self.list.insert(index + location.offset as usize, yoinked);
             return;
@@ -66,14 +66,12 @@ impl SidebarConfig {
         selection: &SidebarSelection,
         location: Option<&SDragLocation>,
     ) -> bool {
-        if let Some(location) = location {
-            if let (Some(selection), Some(location)) =
-                (self.get_node(selection), self.get_node(&location.sel))
-            {
-                if location.is_contained_by(selection) {
-                    return true;
-                }
-            }
+        if let Some(location) = location
+            && let Some(selection) = self.get_node(selection)
+            && let Some(location) = self.get_node(&location.sel)
+            && location.is_contained_by(selection)
+        {
+            return true;
         }
         false
     }
@@ -100,10 +98,10 @@ impl SidebarNode {
         let SidebarNodeKind::Folder(f) = &mut self.kind else {
             return false;
         };
-        if let SidebarNodeKind::Folder(f2) = &node.kind {
-            if f2.id == f.id {
-                return false;
-            }
+        if let SidebarNodeKind::Folder(f2) = &node.kind
+            && f2.id == f.id
+        {
+            return false;
         }
 
         if let Some((index, folder)) = f

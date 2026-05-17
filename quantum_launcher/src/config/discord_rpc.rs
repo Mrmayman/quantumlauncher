@@ -60,10 +60,10 @@ pub struct RpcText {
 
 impl RpcText {
     fn fix(&mut self) {
-        if self.top_text.as_ref().is_some_and(|n| n.is_empty()) {
+        if self.top_text.as_ref().is_some_and(String::is_empty) {
             self.top_text = None;
         }
-        if self.bottom_text.as_ref().is_some_and(|n| n.is_empty()) {
+        if self.bottom_text.as_ref().is_some_and(String::is_empty) {
             self.bottom_text = None;
         }
 

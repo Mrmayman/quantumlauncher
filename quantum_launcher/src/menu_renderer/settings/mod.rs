@@ -1,11 +1,15 @@
 use std::sync::{LazyLock, Mutex};
 
-use iced::{Length, widget};
+use iced::{
+    Length,
+    widget::{self, row},
+};
 
-use super::{Element, back_button, back_to_launch_screen, sidebar, sidebar_button};
+use super::Element;
 use crate::{
     config::LauncherConfig,
     icons,
+    menu_renderer::{back_button, back_to_launch_screen, sidebar, sidebar_button},
     message_update::PresenceConnectionState,
     state::{LauncherSettingsMessage, LauncherSettingsTab, MenuLauncherSettings, Message},
     stylesheet::{
@@ -32,7 +36,7 @@ impl MenuLauncherSettings {
         config: &'a LauncherConfig,
         discord_connection_state: &Mutex<PresenceConnectionState>,
     ) -> Element<'a> {
-        widget::row![
+        row![
             sidebar(
                 "MenuLauncherSettings:sidebar",
                 Some(
@@ -57,7 +61,8 @@ impl MenuLauncherSettings {
                 text_color: None,
                 background: None,
                 border: iced::Border::default(),
-                shadow: iced::Shadow::default()
+                shadow: iced::Shadow::default(),
+                snap: true,
             }),
             widget::scrollable(
                 self.selected_tab
@@ -71,7 +76,7 @@ impl MenuLauncherSettings {
     }
 
     fn get_heading() -> widget::Row<'static, Message, LauncherTheme> {
-        widget::row![icons::gear_s(20), widget::text("Settings").size(20)]
+        row![icons::gear_s(20), widget::text("Settings").size(20)]
             .padding(iced::Padding {
                 top: 5.0,
                 right: 0.0,

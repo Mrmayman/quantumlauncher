@@ -60,11 +60,8 @@ impl Launcher {
                         .set_title("Save shortcut to...")
                         .save_file(),
                     |f| {
-                        if let Some(f) = f {
-                            ShortcutMessage::SaveCustomPicked(f.path().to_owned()).into()
-                        } else {
-                            Message::Nothing
-                        }
+                        f.map(|f| ShortcutMessage::SaveCustomPicked(f.path().to_owned()).into())
+                            .unwrap_or_default()
                     },
                 ));
             }),
@@ -136,13 +133,13 @@ impl Launcher {
                 .push("--enable-server-manager".to_owned());
             shortcut.exec_args.push("-s".to_owned());
         }
-        if let Some(n) = dirs::data_dir().map(|d| d.join("QuantumLauncher")) {
-            if *LAUNCHER_DIR != n {
-                shortcut.exec_args.push("--dir".to_owned());
-                shortcut
-                    .exec_args
-                    .push(LAUNCHER_DIR.to_string_lossy().to_string());
-            }
+        if let Some(default_dir) = dirs::data_dir().map(|d| d.join("QuantumLauncher"))
+            && *LAUNCHER_DIR != default_dir
+        {
+            shortcut.exec_args.push("--dir".to_owned());
+            shortcut
+                .exec_args
+                .push(LAUNCHER_DIR.to_string_lossy().to_string());
         }
 
         // Launch command

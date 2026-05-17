@@ -72,12 +72,11 @@ impl Launcher {
                     }
                     self.discord_ipc_client = Some(c);
                     return self.set_custom_discord_presence();
-                } else {
-                    pt!(
-                        no_log,
-                        "Rich presence couldn't be set as client wasn't found post-run."
-                    )
                 }
+                pt!(
+                    no_log,
+                    "Rich presence couldn't be set as client wasn't found post-run."
+                );
             }
             RpcMessage::Toggle(enable) => {
                 rpc.enable = enable;
@@ -135,7 +134,7 @@ impl Launcher {
         let rpc_config = self.config.discord_rpc.clone().unwrap_or_default();
 
         if rpc_config.basic.top_text.is_none() && rpc_config.basic.bottom_text.is_none() {
-            return Task::perform(async move { _ = c.clear_activity().await }, |_| {
+            return Task::perform(async move { _ = c.clear_activity().await }, |()| {
                 Message::Nothing
             });
         }
@@ -160,7 +159,7 @@ impl Launcher {
                     Err(e) => err!(no_log, "Failed to bake custom RPC activity: {e}"),
                 }
             },
-            |_| Message::Nothing,
+            |()| Message::Nothing,
         )
     }
 

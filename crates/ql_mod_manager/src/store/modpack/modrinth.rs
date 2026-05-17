@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path, sync::mpsc::Sender};
+use std::{collections::HashMap, path::Path};
 
 use ql_core::{
     GenericProgress, Instance, InstanceKind, Loader, do_jobs, download,
@@ -6,6 +6,7 @@ use ql_core::{
     pt,
 };
 use serde::Deserialize;
+use sipper::Sender;
 use tokio::sync::Mutex;
 
 use super::PackError;
@@ -45,15 +46,15 @@ pub async fn install(
     config: &InstanceConfigJson,
     json: &VersionDetails,
     index: &PackIndex,
-    sender: Option<&Sender<GenericProgress>>,
+    sender: Option<Sender<GenericProgress>>,
 ) -> Result<(), PackError> {
-    if let Some(version) = index.dependencies.get("minecraft") {
-        if json.get_id() != *version {
-            return Err(PackError::GameVersion {
-                expect: version.clone(),
-                got: json.get_id().to_owned(),
-            });
-        }
+    if let Some(version) = index.dependencies.get("minecraft")
+        && json.get_id() != *version
+    {
+        return Err(PackError::GameVersion {
+            expect: version.clone(),
+            got: json.get_id().to_owned(),
+        });
     }
 
     pt!("Modrinth Modpack: {}", index.name);
@@ -74,40 +75,48 @@ pub async fn install(
     let i = &i;
 
     let len = index.files.len();
+
+    let job = async |sender, file: &PackFile, url| {
+        let required_field = match instance.kind {
+            InstanceKind::Client => &file.env.client,
+            InstanceKind::Server => &file.env.server,
+        };
+        if required_field != "required" {
+            pt!("Skipping {} (optional)", file.path);
+            return Ok(());
+        }
+
+        // Known broken mods, included in Re-Console modpack
+        // https://modrinth.com/modpack/legacy-minecraft
+        // These fix the crash, but I still get a black screen
+        let url = if url
+            == "https://cdn.modrinth.com/data/u58R1TMW/versions/WFiIDhbD/connector-2.0.0-beta.2%2B1.21.1-full.jar"
+        {
+            "https://cdn.modrinth.com/data/u58R1TMW/versions/k3UrqfQk/connector-2.0.0-beta.6%2B1.21.1-full.jar"
+        } else if url
+            == "https://cdn.modrinth.com/data/gHvKJofA/versions/GvTZJhPo/Legacy4J-1.21-1.7.2-neoforge.jar"
+            || url
+                == "https://cdn.modrinth.com/data/gHvKJofA/versions/fYlGcfZd/Legacy4J-1.21-1.7.3-neoforge.jar"
+        {
+            "https://cdn.modrinth.com/data/gHvKJofA/versions/RD8XgI0Y/Legacy4J-1.21-1.7.4-neoforge.jar"
+        } else {
+            url
+        };
+
+        let bytes_path = mc_dir.join(&file.path);
+        download(url).user_agent_ql().path(&bytes_path).await?;
+
+        send_progress(sender, i, len, file).await;
+        Ok(())
+    };
+
+    #[rustfmt::skip]
     let jobs: Result<Vec<()>, PackError> = do_jobs(
         index
             .files
             .iter()
             .filter_map(|file| file.downloads.first().map(|n| (file, n)))
-            .map(|(file, url)| async move {
-                let required_field = match instance.kind {
-                    InstanceKind::Client => &file.env.client,
-                    InstanceKind::Server => &file.env.server,
-                };
-                if required_field != "required" {
-                    pt!("Skipping {} (optional)", file.path);
-                    return Ok(());
-                }
-
-                // Known broken mods, included in Re-Console modpack
-                // https://modrinth.com/modpack/legacy-minecraft
-                // These fix the crash, but I still get a black screen
-                let url = if url == "https://cdn.modrinth.com/data/u58R1TMW/versions/WFiIDhbD/connector-2.0.0-beta.2%2B1.21.1-full.jar" {
-                    "https://cdn.modrinth.com/data/u58R1TMW/versions/k3UrqfQk/connector-2.0.0-beta.6%2B1.21.1-full.jar"
-                } else if url == "https://cdn.modrinth.com/data/gHvKJofA/versions/GvTZJhPo/Legacy4J-1.21-1.7.2-neoforge.jar"
-                    || url == "https://cdn.modrinth.com/data/gHvKJofA/versions/fYlGcfZd/Legacy4J-1.21-1.7.3-neoforge.jar" {
-                    "https://cdn.modrinth.com/data/gHvKJofA/versions/RD8XgI0Y/Legacy4J-1.21-1.7.4-neoforge.jar"
-                } else {
-                    url
-                };
-
-                let bytes_path = mc_dir.join(&file.path);
-                download(url).user_agent_ql().path(&bytes_path).await?;
-
-                send_progress(sender, i, len, file).await;
-
-                Ok(())
-            }),
+            .map(|(file, url)| { job(sender.clone(), file, url) }),
     )
     .await;
     jobs?;
@@ -116,23 +125,25 @@ pub async fn install(
 }
 
 async fn send_progress(
-    sender: Option<&Sender<GenericProgress>>,
+    sender: Option<Sender<GenericProgress>>,
     i: &Mutex<usize>,
     len: usize,
     file: &PackFile,
 ) {
-    if let Some(sender) = sender {
+    if let Some(mut sender) = sender {
         let mut i = i.lock().await;
-        _ = sender.send(GenericProgress {
-            done: *i,
-            total: len,
-            message: Some(format!(
-                "Modpack: Installed mod (modrinth) ({i}/{len}):\n{}",
-                file.path,
-                i = *i + 1
-            )),
-            has_finished: false,
-        });
+        sender
+            .send(GenericProgress {
+                done: *i,
+                total: len,
+                message: Some(format!(
+                    "Modpack: Installed mod (modrinth) ({i}/{len}):\n{}",
+                    file.path,
+                    i = *i + 1
+                )),
+                has_finished: false,
+            })
+            .await;
         pt!(
             "Installed mod (modrinth) ({i}/{len}): {}",
             file.path,

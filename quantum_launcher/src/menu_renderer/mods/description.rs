@@ -80,7 +80,7 @@ pub fn view_project_description<'a, T: iced::advanced::text::IntoFragment<'a>>(
             button_with_icon(icons::back_s(12), "Back", 13)
                 .padding([5, 8])
                 .on_press(back_msg.into()),
-            widget::Space::with_width(0),
+            widget::space().width(0),
             images.view(hit.icon_url.as_deref(), Some(20.0), Some(20.0)),
             widget::text(&hit.title)
                 .shaping(widget::text::Shaping::Advanced)
@@ -118,7 +118,7 @@ pub fn view_project_description<'a, T: iced::advanced::text::IntoFragment<'a>>(
             widget::text(&hit.description)
                 .size(14)
                 .shaping(widget::text::Shaping::Advanced),
-            widget::horizontal_rule(1).style(barthin),
+            widget::rule::horizontal(1).style(barthin),
             // Note: When upgrading to iced 0.14, make sure to update link click handling
             widget::column(hit.urls.iter().map(|(kind, url)| {
                 tooltip(
@@ -137,32 +137,9 @@ pub fn view_project_description<'a, T: iced::advanced::text::IntoFragment<'a>>(
                 .into()
             }))
             .spacing(5),
+            // ========
+            view_gallery(hit, images),
         ]
-        .push_maybe((!hit.gallery.is_empty()).then(|| {
-            column![
-                widget::horizontal_rule(1).style(barthin),
-                widget::text("Gallery").size(20),
-                widget::text("Hover to enlarge").size(12).style(tsubtitle),
-                widget::column(hit.gallery.iter().map(|n| {
-                    let img = || images.view(Some(&n.url), None, None);
-                    column![widget::tooltip(
-                        img(),
-                        img(),
-                        widget::tooltip::Position::Left
-                    )]
-                    .push_maybe(n.title.as_deref().map(|n| widget::text(n).size(14)))
-                    .push_maybe(
-                        n.description
-                            .as_deref()
-                            .map(|n| widget::text(n).size(12).style(tsubtitle)),
-                    )
-                    .spacing(5)
-                    .into()
-                }))
-                .spacing(20),
-            ]
-            .spacing(10)
-        }))
         .spacing(10)
         .padding(20)
         .width(Length::FillPortion(1)),
@@ -172,8 +149,35 @@ pub fn view_project_description<'a, T: iced::advanced::text::IntoFragment<'a>>(
 
     column![
         top_bar,
-        widget::horizontal_rule(1).style(barthin),
+        widget::rule::horizontal(1).style(barthin),
         row![side_description, side_extra_info]
     ]
     .into()
+}
+
+fn view_gallery<'a>(
+    hit: &'a SearchMod,
+    images: &ImageState,
+) -> Option<widget::Column<'a, Message, LauncherTheme>> {
+    (!hit.gallery.is_empty()).then(|| {
+        column![
+            widget::rule::horizontal(1).style(barthin),
+            widget::text("Gallery").size(20),
+            widget::text("Hover to enlarge").size(12).style(tsubtitle),
+            widget::column(hit.gallery.iter().map(|n| {
+                let img = || images.view(Some(&n.url), None, None);
+                column![
+                    widget::tooltip(img(), img(), widget::tooltip::Position::Left),
+                    n.title.as_deref().map(|n| widget::text(n).size(14)),
+                    n.description
+                        .as_deref()
+                        .map(|n| widget::text(n).size(12).style(tsubtitle)),
+                ]
+                .spacing(5)
+                .into()
+            }))
+            .spacing(20),
+        ]
+        .spacing(10)
+    })
 }

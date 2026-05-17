@@ -23,11 +23,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #![allow(clippy::cast_sign_loss)]
 #![allow(clippy::cast_precision_loss)]
 
-use std::{borrow::Cow, time::Duration};
+use std::{borrow::Cow, cell::RefCell, sync::Arc, time::Duration};
 
 use config::LauncherConfig;
-use iced::{Settings, Task};
+use iced::{Settings, Task, mouse, window};
 use owo_colors::OwoColorize;
+use sipper::Sipper;
 use state::{Launcher, Message, get_entries};
 
 use ql_core::{
@@ -90,10 +91,7 @@ mod tick;
 const LAUNCHER_ICON: &[u8] = include_bytes!("../../assets/icon/ql_logo.ico");
 
 impl Launcher {
-    fn new(
-        is_new_user: bool,
-        config: Result<LauncherConfig, JsonFileError>,
-    ) -> (Self, Task<Message>) {
+    fn new(is_new_user: bool, config: Result<LauncherConfig, String>) -> (Self, Task<Message>) {
         #[cfg(feature = "auto_update")]
         let check_for_updates_command = {
             let should_check = if let Ok(c) = &config {
@@ -150,28 +148,57 @@ impl Launcher {
         )
     }
 
-    #[allow(clippy::unused_self)]
     fn subscription(&self) -> iced::Subscription<Message> {
-        let tick = iced::time::every(Duration::from_millis(1000 / self.tick_interval()))
-            .map(|_| Message::CoreTick);
-        let events = iced::event::listen_with(|a, b, _| Some(Message::CoreEvent(a, b)));
+        let events = iced::event::listen_with(|a, b, _| {
+            let needed = matches!(
+                a,
+                iced::Event::Window(
+                    window::Event::CloseRequested
+                        | window::Event::Resized(_)
+                        | window::Event::FileHovered(_)
+                        | window::Event::FilesHoveredLeft
+                        | window::Event::FileDropped(_)
+                ) | iced::Event::Keyboard(_)
+                    | iced::Event::Mouse(
+                        mouse::Event::ButtonPressed(_) | mouse::Event::CursorMoved { .. }
+                    )
+            );
+            needed.then_some(Message::CoreEvent(a, b))
+        });
+        let idle_enable = self
+            .config
+            .ui
+            .as_ref()
+            .and_then(|n| n.idle_enable)
+            .unwrap_or_default();
 
-        iced::Subscription::batch(vec![tick, events])
+        let should_tick = idle_enable
+            || matches!(
+                self.state,
+                State::Launch(_)
+                    | State::Create(_)
+                    | State::EditMods(_)
+                    | State::ModsDownload(_)
+                    | State::LauncherSettings(_)
+                    | State::EditJarMods(_)
+            );
+        if should_tick {
+            let tick = iced::time::every(Duration::from_millis(1000 / self.tick_interval()))
+                .map(|_| Message::CoreTick);
+            iced::Subscription::batch([tick, events])
+        } else {
+            events
+        }
     }
 
     fn theme(&self) -> stylesheet::styles::LauncherTheme {
         self.theme.clone()
     }
 
-    fn scale_factor(&self) -> f64 {
+    fn scale_factor(&self) -> f32 {
         self.config.ui_scale.unwrap_or(1.0).max(0.05)
     }
 }
-
-const DEBUG_LOG_BUTTON_HEIGHT: f32 = 16.0;
-
-const WINDOW_HEIGHT: f32 = 400.0;
-const WINDOW_WIDTH: f32 = 600.0;
 
 fn main() {
     #[cfg(target_os = "windows")]
@@ -197,46 +224,59 @@ fn main() {
     }
 
     let icon = load_icon();
-    let config = load_config(launcher_dir.is_some());
+    let config = load_config(launcher_dir.is_some()).strerr();
 
     let c = config.as_ref().cloned().unwrap_or_default();
     let decorations = c.uses_system_decorations();
     let (width, height) = c.c_window_size();
+    let antialiasing = c.ui_antialiasing.unwrap_or(true);
 
-    iced::application("QuantumLauncher", Launcher::update, Launcher::view)
-        .subscription(Launcher::subscription)
-        .scale_factor(Launcher::scale_factor)
-        .theme(Launcher::theme)
-        .settings(Settings {
-            id: Some("io.github.Mrmayman.QuantumLauncher".to_owned()),
-            fonts: load_fonts(),
-            default_font: FONT_DEFAULT,
-            antialiasing: config
-                .as_ref()
-                .ok()
-                .and_then(|n| n.ui_antialiasing)
-                .unwrap_or(true),
+    // https://discourse.iced.rs/t/solved-new-boot-trait-no-longer-able-to-use-a-capturing-closure-to-initialize-application-state/1012/6
+    type MaybeData = Option<(Result<LauncherConfig, String>, bool)>;
+    let once_boot: RefCell<MaybeData> = RefCell::new(Some((config, is_new_user)));
+
+    iced::application(
+        move || {
+            let (config, is_new_user) = once_boot
+                .borrow_mut()
+                .clone()
+                .expect("state should already be initialized");
+            Launcher::new(is_new_user, config)
+        },
+        Launcher::update,
+        Launcher::view,
+    )
+    .subscription(Launcher::subscription)
+    .scale_factor(Launcher::scale_factor)
+    .title(|_: &Launcher| "Quantum Launcher".to_owned())
+    .theme(Launcher::theme)
+    .settings(Settings {
+        id: Some("io.github.Mrmayman.QuantumLauncher".to_owned()),
+        fonts: load_fonts(),
+        default_font: FONT_DEFAULT,
+        antialiasing,
+        ..Default::default()
+    })
+    .window(iced::window::Settings {
+        icon,
+        exit_on_close_request: false,
+        size: iced::Size { width, height },
+        min_size: Some(iced::Size {
+            width: 420.0,
+            height: 310.0,
+        }),
+        decorations,
+        transparent: true,
+        platform_specific: iced::window::settings::PlatformSpecific {
+            #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+            application_id: "io.github.Mrmayman.QuantumLauncher".to_owned(),
             ..Default::default()
-        })
-        .window(iced::window::Settings {
-            icon,
-            exit_on_close_request: false,
-            size: iced::Size { width, height },
-            min_size: Some(iced::Size {
-                width: 420.0,
-                height: 310.0,
-            }),
-            decorations,
-            transparent: true,
-            platform_specific: iced::window::settings::PlatformSpecific {
-                #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-                application_id: "io.github.Mrmayman.QuantumLauncher".to_owned(),
-                ..Default::default()
-            },
-            ..Default::default()
-        })
-        .run_with(move || Launcher::new(is_new_user, config))
-        .unwrap();
+        },
+        ..Default::default()
+    })
+    .title(|_: &Launcher| "QuantumLauncher".to_owned())
+    .run()
+    .unwrap();
 }
 
 fn load_launcher_dir() -> (Option<std::path::PathBuf>, bool) {
@@ -357,4 +397,18 @@ fn do_migration() {
             );
         }
     }
+}
+
+fn sip<P: ql_core::Progress + 'static, Out: Send, F>(
+    builder: impl FnOnce(sipper::Sender<P>) -> F + 'static,
+    on_output: impl Fn(Out) -> Message + iced::advanced::graphics::futures::MaybeSend + 'static,
+) -> Task<Message>
+where
+    F: std::future::Future<Output = Out> + Send + 'static,
+{
+    Task::sip(
+        sipper::sipper(builder).with(Arc::new),
+        |m| Message::CoreProgress(m),
+        on_output,
+    )
 }

@@ -1,4 +1,4 @@
-use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
+use std::{collections::HashSet, path::PathBuf, process::ExitStatus, sync::Arc};
 
 use crate::{
     config::{
@@ -6,13 +6,13 @@ use crate::{
         sidebar::{FolderId, SDragLocation, SidebarSelection},
     },
     message_handler::ForgeKind,
-    state::{InfoMessage, LaunchModal, MenuEditModsModal, SidebarScroll},
+    state::{InfoMessage, LaunchModal, SidebarScroll},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
 use filthy_rich::PresenceClient;
 use iced::widget::{self, scrollable::AbsoluteOffset};
 use ql_core::{
-    Instance, InstanceKind, LaunchedProcess, ListEntry, Loader,
+    GenericProgress, Instance, InstanceKind, LaunchedProcess, ListEntry, Loader,
     file_utils::DirItem,
     jarmod::JarMods,
     json::instance_config::{MainClassMode, PreLaunchPrefixMode},
@@ -64,7 +64,6 @@ pub enum CreateInstanceMessage {
 
     SearchInput(String),
     SearchSubmit,
-    ContextMenuToggle,
     CategoryToggle(ql_core::ListEntryKind),
 
     Start,
@@ -72,6 +71,7 @@ pub enum CreateInstanceMessage {
 
     #[allow(unused)]
     Import,
+    ImportSelected(PathBuf),
     ImportResult(Res<Option<Instance>>),
 }
 
@@ -80,7 +80,8 @@ pub enum EditInstanceMessage {
     ConfigSaved(Res),
     ReinstallLibraries,
     UpdateAssets,
-    BrowseJavaOverride,
+    JavaOverrideBrowse,
+    JavaOverrideBrowsePicked(PathBuf),
 
     JavaOverride(String),
     JavaOverrideVersion(usize),
@@ -104,7 +105,8 @@ pub enum EditInstanceMessage {
     WindowWidthChanged(String),
     WindowHeightChanged(String),
 
-    CustomJarPathChanged(String),
+    CustomJarChanged(String),
+    CustomJarPicked(String, PathBuf),
     CustomJarLoaded(Res<Vec<String>>),
 }
 
@@ -137,10 +139,10 @@ pub enum ManageModsMessage {
     /// Add a mod, preset or modpack to the current instance.
     /// The field represents whether to delete the file after importing it.
     AddFile(bool),
+    AddFilePicked(Vec<PathBuf>, bool),
     AddFileDone(Res<HashSet<CurseforgeNotAllowed>>),
 
     SelectAll,
-    SetModal(Option<MenuEditModsModal>),
     RightClick(ModId),
     SetSearch(Option<String>),
 
@@ -162,6 +164,7 @@ pub enum ManageJarModsMessage {
     ToggleCheckbox(String, bool),
     DeleteSelected,
     AddFile,
+    AddFilePicked(String, PathBuf),
     ToggleSelected,
     SelectAll,
     AutosaveFinished((Res, JarMods)),
@@ -202,6 +205,7 @@ pub enum InstallModsMessage {
 pub enum InstallOptifineMessage {
     ScreenOpen,
     SelectInstallerStart,
+    SelectedInstaller(PathBuf),
     DeleteInstallerToggle(bool),
     End(Res),
 }
@@ -213,9 +217,11 @@ pub enum EditPresetsMessage {
     ToggleCheckboxLocal(String, bool),
     ToggleIncludeConfig(bool),
     SelectAll,
-    BuildYourOwn,
-    BuildYourOwnEnd(Res<Vec<u8>>),
     LoadComplete(Res<HashSet<CurseforgeNotAllowed>>),
+
+    BuildStart,
+    BuildSave(Res<Vec<u8>>),
+    BuildSavePicked(PathBuf, Vec<u8>),
 }
 
 #[derive(Debug, Clone)]
@@ -232,9 +238,9 @@ pub enum WindowMessage {
     Dragged,
     // HOOK: Decorations
     // Resized(iced::window::Direction),
-    ClickClose,
-    ClickMinimize,
-    ClickMaximize,
+    // ClickClose,
+    // ClickMinimize,
+    // ClickMaximize,
     // IsMaximized(bool),
 }
 
@@ -281,7 +287,7 @@ pub enum LauncherSettingsMessage {
     LoadedSystemTheme(Res<dark_light::Mode>),
     ThemePicked(LauncherThemeLightness),
     ColorSchemePicked(LauncherThemeColor),
-    UiScale(f64),
+    UiScale(f32),
     UiScaleApply,
     UiOpacity(f32),
     UiIdleFps(f64),
@@ -463,11 +469,13 @@ pub enum LaunchMessage {
     Start,
     End(Res<LaunchedProcess>),
     Kill,
+    JavaInstallProgress(GenericProgress),
     GameExited(Res<(ExitStatus, Instance, Option<Diagnostic>)>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum Message {
+    #[default]
     Nothing,
     Error(String),
     Multiple(Vec<Message>),
@@ -522,6 +530,7 @@ pub enum Message {
 
     CoreCopyError,
     CoreCopyLog,
+    CoreProgress(Arc<dyn ql_core::Progress>),
     CoreOpenLink(String),
     CoreOpenPath(PathBuf),
     CoreCopyText(String),

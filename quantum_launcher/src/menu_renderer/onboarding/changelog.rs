@@ -35,11 +35,11 @@ pub fn changelog(config: &LauncherConfig) -> Element<'static> {
         text("Discord Rich Presence").size(32),
         column![].spacing(10),
 
-        widget::horizontal_rule(1),
+        widget::rule::horizontal(1),
         text("UX").size(32),
         column![].spacing(5),
 
-        widget::horizontal_rule(1),
+        widget::rule::horizontal(1),
         text("Fixes").size(20),
         column![
             text("- Fixed \"system theme\" error spam on Raspberry Pi OS, LXDE, Openbox, etc").size(12),
@@ -49,7 +49,7 @@ pub fn changelog(config: &LauncherConfig) -> Element<'static> {
             text("- Fixed Java binary not being found on Linux ARM").size(12),
         ].spacing(5),
 
-        widget::Space::with_height(10),
+        widget::space().height(10),
         text("Ready to experience your new launcher now? Hit continue!").size(20),
     ]
     .padding(10)

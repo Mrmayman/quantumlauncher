@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use iced::Task;
 use ql_core::{
@@ -12,6 +12,7 @@ use ql_core::{
 
 use crate::{
     config::sidebar::SidebarSelection,
+    sip,
     state::{
         ADD_JAR_NAME, AutoSaveKind, CustomJarState, EditInstanceMessage, EditInstanceRam,
         EditInstanceRename, LaunchTab, Launcher, MainMenuMessage, MenuCreateInstance,
@@ -31,13 +32,10 @@ macro_rules! iflet_config {
         $body
     };
 
-    ($state:expr, $field:ident : $pat:pat, $body:block) => {
+    ($state:expr, $field:ident, $body:block) => {
         if let State::Launch(MenuLaunch {
             edit_instance: Some(MenuEditInstance {
-                config: InstanceConfigJson {
-                    $field: $pat,
-                    ..
-                },
+                $field,
                 ..
             }),
             ..
@@ -45,14 +43,10 @@ macro_rules! iflet_config {
         $body
     };
 
-    ($state:expr, $field:ident, $body:block) => {
-        iflet_config!($state, $field : $field, $body);
-    };
-
     ($state:expr, prefix, |$prefix:ident| $body:block) => {
-        iflet_config!($state, global_settings: global_settings, {
+        iflet_config!($state, config, {
             let global_settings =
-                global_settings.get_or_insert_default();
+                config.global_settings.get_or_insert_default();
             let $prefix =
                 &mut global_settings.pre_launch_prefix;
             $body
@@ -88,15 +82,25 @@ impl Launcher {
                     config.java_override_version = Some(n);
                 });
             }
-            EditInstanceMessage::BrowseJavaOverride => {
-                if let Some(file) = rfd::FileDialog::new()
-                    .set_title("Select Java Executable (./bin/java)")
-                    .pick_file()
-                {
-                    iflet_config!(&mut self.state, config <- {
-                        config.java_override = Some(file.to_string_lossy().to_string());
-                    });
-                }
+            EditInstanceMessage::JavaOverrideBrowse => {
+                let pick_file = rfd::AsyncFileDialog::new()
+                    .set_title(if cfg!(windows) {
+                        "Select Java Executable (./bin/javaw.exe)"
+                    } else {
+                        "Select Java Executable (./bin/java)"
+                    })
+                    .pick_file();
+                return Ok(Task::perform(pick_file, |n| {
+                    n.map(|n| {
+                        EditInstanceMessage::JavaOverrideBrowsePicked(n.path().to_owned()).into()
+                    })
+                    .unwrap_or_default()
+                }));
+            }
+            EditInstanceMessage::JavaOverrideBrowsePicked(file) => {
+                iflet_config!(&mut self.state, config <- {
+                    config.java_override = Some(file.to_string_lossy().to_string());
+                });
             }
             EditInstanceMessage::MemoryChanged(new_slider_value) => {
                 if let State::Launch(MenuLaunch {
@@ -116,12 +120,12 @@ impl Launcher {
                     ..
                 }) = &mut self.state
                 {
-                    if let Ok(mb) = input.parse::<usize>() {
-                        if mb > 0 {
-                            menu.config.ram_in_mb = mb;
-                            menu.state_ram.slider_value = f32::log2(mb as f32);
-                            menu.state_ram.slider_text = format_memory(mb);
-                        }
+                    if let Ok(mb) = input.parse::<usize>()
+                        && mb > 0
+                    {
+                        menu.config.ram_in_mb = mb;
+                        menu.state_ram.slider_value = f32::log2(mb as f32);
+                        menu.state_ram.slider_text = format_memory(mb);
                     }
                     menu.state_ram.memory_input = input;
                 }
@@ -130,20 +134,20 @@ impl Launcher {
                 config.enable_logger = Some(t);
             }),
             EditInstanceMessage::JavaArgsModeChanged(mode) => {
-                iflet_config!(&mut self.state, global_java_args_enable, {
-                    *global_java_args_enable = Some(mode);
+                iflet_config!(&mut self.state, config, {
+                    config.global_java_args_enable = Some(mode);
                 });
             }
             EditInstanceMessage::JavaArgs(msg) => {
                 let split = self.should_split_args();
-                iflet_config!(&mut self.state, java_args, {
-                    msg.apply(java_args.get_or_insert_default(), split);
+                iflet_config!(&mut self.state, config, {
+                    msg.apply(config.java_args.get_or_insert_default(), split);
                 });
             }
             EditInstanceMessage::GameArgs(msg) => {
                 let split = self.should_split_args();
-                iflet_config!(&mut self.state, game_args, {
-                    msg.apply(game_args.get_or_insert_default(), split);
+                iflet_config!(&mut self.state, config, {
+                    msg.apply(config.game_args.get_or_insert_default(), split);
                 });
             }
             EditInstanceMessage::PreLaunchPrefix(msg) => {
@@ -153,8 +157,8 @@ impl Launcher {
                 });
             }
             EditInstanceMessage::PreLaunchPrefixModeChanged(mode) => {
-                iflet_config!(&mut self.state, pre_launch_prefix_mode, {
-                    *pre_launch_prefix_mode = Some(mode);
+                iflet_config!(&mut self.state, config, {
+                    config.pre_launch_prefix_mode = Some(mode);
                 });
             }
             EditInstanceMessage::RenameToggle => {
@@ -192,15 +196,34 @@ impl Launcher {
                     config.c_global_settings().window_height = height.parse::<u32>().ok();
                 });
             }
-            EditInstanceMessage::CustomJarPathChanged(path) => {
-                if path == ADD_JAR_NAME {
-                    return Ok(self.add_custom_jar());
-                } else if let State::Launch(MenuLaunch {
+            EditInstanceMessage::CustomJarChanged(path) => {
+                let State::Launch(MenuLaunch {
                     edit_instance: Some(menu),
                     ..
                 }) = &mut self.state
-                {
-                    if path == REMOVE_JAR_NAME {
+                else {
+                    return Ok(Task::none());
+                };
+
+                match path.as_str() {
+                    ADD_JAR_NAME => {
+                        let pick_file = rfd::AsyncFileDialog::new()
+                            .set_title("Select Custom Minecraft JAR")
+                            .add_filter("Java Archive", &["jar"])
+                            .pick_file();
+                        return Ok(Task::perform(pick_file, |n| {
+                            n.map(|n| {
+                                EditInstanceMessage::CustomJarPicked(
+                                    n.file_name(),
+                                    n.path().to_owned(),
+                                )
+                                .into()
+                            })
+                            .unwrap_or_default()
+                        }));
+                    }
+
+                    REMOVE_JAR_NAME => {
                         if let (Some(jar), Some(list)) =
                             (&menu.config.custom_jar, &mut self.custom_jar)
                         {
@@ -212,16 +235,23 @@ impl Launcher {
                                 |_| Message::Nothing,
                             ));
                         }
-                    } else if path == NONE_JAR_NAME {
+                    }
+
+                    NONE_JAR_NAME => {
                         menu.config.custom_jar = None;
-                    } else if path == OPEN_FOLDER_JAR_NAME {
+                    }
+
+                    OPEN_FOLDER_JAR_NAME => {
                         return Ok(Task::done(Message::CoreOpenPath(
                             LAUNCHER_DIR.join("custom_jars"),
                         )));
-                    } else {
-                        menu.config.custom_jar.get_or_insert_default().name = path;
                     }
+
+                    _ => menu.config.custom_jar.get_or_insert_default().name = path,
                 }
+            }
+            EditInstanceMessage::CustomJarPicked(filename, path) => {
+                return Ok(self.add_custom_jar(filename, path));
             }
             EditInstanceMessage::CustomJarLoaded(items) => match items {
                 Ok(items) => {
@@ -290,7 +320,7 @@ impl Launcher {
 
             *edit_instance = Some(MenuEditInstance {
                 main_class_mode: config.get_main_class_mode(),
-                config,
+                config: Box::new(config),
                 state_ram: EditInstanceRam {
                     slider_value,
                     slider_text: format_memory(memory_mb),
@@ -337,12 +367,12 @@ impl Launcher {
     }
 
     fn instance_redownload_stage(&mut self, stage: ql_core::DownloadProgress) -> Task<Message> {
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let bar = ProgressBar::with_recv(receiver);
+        let bar = ProgressBar::new();
         self.state = State::Create(MenuCreateInstance::DownloadingInstance(bar));
+        let instance = self.instance().clone();
 
-        Task::perform(
-            ql_instances::repeat_stage(self.instance().clone(), stage, Some(sender)),
+        sip(
+            move |sender| ql_instances::repeat_stage(instance, stage, Some(sender)),
             |t| {
                 if let Err(err) = t {
                     Message::Error(err)
@@ -356,17 +386,13 @@ impl Launcher {
     fn loaded_custom_jar(&mut self, choices: Vec<String>) -> Task<Message> {
         // If the currently selected jar got deleted/renamed
         // then unselect it
-        if let State::Launch(MenuLaunch {
-            edit_instance: Some(menu),
-            ..
-        }) = &mut self.state
+        if let State::Launch(menu) = &mut self.state
+            && let Some(menu) = &mut menu.edit_instance
+            && let Some(jar) = &menu.config.custom_jar
+            && !choices.contains(&jar.name)
         {
-            if let Some(jar) = &menu.config.custom_jar {
-                if !choices.contains(&jar.name) {
-                    self.autosave.remove(&AutoSaveKind::InstanceConfig);
-                    menu.config.custom_jar = None;
-                }
-            }
+            self.autosave.remove(&AutoSaveKind::InstanceConfig);
+            menu.config.custom_jar = None;
         }
 
         if let Some(cx) = &mut self.custom_jar {
@@ -385,38 +411,27 @@ impl Launcher {
         Task::none()
     }
 
-    fn add_custom_jar(&mut self) -> Task<Message> {
-        if let (
-            Some(custom_jars),
-            State::Launch(MenuLaunch {
-                edit_instance: Some(menu),
-                ..
-            }),
-            Some((path, file_name)),
-        ) = (
-            &mut self.custom_jar,
-            &mut self.state,
-            rfd::FileDialog::new()
-                .set_title("Select Custom Minecraft JAR")
-                .add_filter("Java Archive", &["jar"])
-                .pick_file()
-                .and_then(|n| n.file_name().map(|f| (n.clone(), f.to_owned()))),
-        ) {
-            let file_name = file_name.to_string_lossy().to_string();
-            if !custom_jars.choices.contains(&file_name) {
-                custom_jars.choices.insert(1, file_name.clone());
-            }
-
-            *menu.config.custom_jar.get_or_insert_default() =
-                CustomJarConfig::new(file_name.clone());
-
-            Task::perform(
-                tokio::fs::copy(path, LAUNCHER_DIR.join("custom_jars").join(file_name)),
-                |_| Message::Nothing,
-            )
-        } else {
-            Task::none()
+    fn add_custom_jar(&mut self, file_name: String, path: PathBuf) -> Task<Message> {
+        let Some(custom_jars) = &mut self.custom_jar else {
+            return Task::none();
+        };
+        let State::Launch(MenuLaunch {
+            edit_instance: Some(menu),
+            ..
+        }) = &mut self.state
+        else {
+            return Task::none();
+        };
+        if !custom_jars.choices.contains(&file_name) {
+            custom_jars.choices.insert(1, file_name.clone());
         }
+
+        *menu.config.custom_jar.get_or_insert_default() = CustomJarConfig::new(file_name.clone());
+
+        Task::perform(
+            tokio::fs::copy(path, LAUNCHER_DIR.join("custom_jars").join(file_name)),
+            |_| Message::Nothing,
+        )
     }
 
     fn rename_instance(&mut self) -> Result<Task<Message>, String> {
@@ -468,7 +483,10 @@ impl Launcher {
 
         if let Some(s) = &mut self.config.sidebar {
             s.rename(
-                &SidebarSelection::Instance(old_name, instance.kind),
+                &SidebarSelection::Instance(Instance {
+                    name: old_name,
+                    kind: instance.kind,
+                }),
                 &sanitized_name,
             );
         }
@@ -492,7 +510,8 @@ impl EditInstanceMessage {
             EditInstanceMessage::RenameEdit(_) |
             EditInstanceMessage::RenameApply | // ?
             EditInstanceMessage::CustomJarLoaded(_) |
-            EditInstanceMessage::ConfigSaved(_) => false,
+            EditInstanceMessage::ConfigSaved(_) |
+            EditInstanceMessage::JavaOverrideBrowse => false,
 
             EditInstanceMessage::MemoryChanged(_) |
             EditInstanceMessage::MemoryInputChanged(_) |
@@ -507,8 +526,9 @@ impl EditInstanceMessage {
             EditInstanceMessage::JavaOverrideVersion(_) |
             EditInstanceMessage::WindowWidthChanged(_) |
             EditInstanceMessage::WindowHeightChanged(_) |
-            EditInstanceMessage::CustomJarPathChanged(_) |
-            EditInstanceMessage::BrowseJavaOverride => true,
+            EditInstanceMessage::CustomJarChanged(_) |
+            EditInstanceMessage::CustomJarPicked(_, _) |
+            EditInstanceMessage::JavaOverrideBrowsePicked(_) => true,
         }
     }
 }

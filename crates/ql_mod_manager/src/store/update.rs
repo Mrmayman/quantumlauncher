@@ -1,10 +1,10 @@
 use std::path::PathBuf;
-use std::sync::mpsc::Sender;
 
-use chrono::DateTime;
-use chrono::Local;
-use ql_core::InstanceConfigJson;
-use ql_core::{GenericProgress, Instance, do_jobs, err, info, json::VersionDetails};
+use chrono::{DateTime, Local};
+use ql_core::{
+    GenericProgress, Instance, InstanceConfigJson, do_jobs, err, info, json::VersionDetails,
+};
+use sipper::Sender;
 
 use crate::store::{get_latest_version_date, toggle_mods};
 

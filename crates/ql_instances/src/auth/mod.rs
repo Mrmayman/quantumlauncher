@@ -58,6 +58,13 @@ impl Display for AccountType {
 
 impl AccountType {
     #[must_use]
+    pub fn is_yggdrasil(self) -> bool {
+        match self {
+            AccountType::ElyBy | AccountType::LittleSkin => true,
+            AccountType::Microsoft => false,
+        }
+    }
+
     fn yggdrasil_authenticate(self) -> &'static str {
         match self {
             AccountType::Microsoft => unreachable!(),

@@ -1,4 +1,4 @@
-use std::sync::mpsc::Sender;
+use sipper::Sender;
 
 use ql_core::{
     DownloadProgress, Instance, IntoIoError, IntoStringError, LAUNCHER_DIR, LAUNCHER_VERSION_NAME,

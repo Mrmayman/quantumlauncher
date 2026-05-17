@@ -154,7 +154,7 @@ impl InstanceConfigJson {
     }
 
     /// Loads the launcher-specific instance configuration from disk,
-    /// based on a specific `InstanceSelection`
+    /// based on a specific `Instance`
     ///
     /// # Errors
     /// - `config.json` file couldn't be loaded
@@ -178,7 +178,7 @@ impl InstanceConfigJson {
     }
 
     /// Saves the launcher-specific instance configuration to disk,
-    /// based on a specific `InstanceSelection`
+    /// based on a specific `Instance`
     ///
     /// # Errors
     /// - `config.json` file couldn't be written to

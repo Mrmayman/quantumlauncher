@@ -22,18 +22,18 @@ pub fn drag_drop_receiver(
         (n.sel == *selection, n.offset)
     });
 
-    Some(
-        column![drop_box(
+    Some(column![
+        drop_box(
             SDragTo::Before,
             is_hovered && matches!(offset, SDragTo::Before),
             selection
-        ),]
-        .push_maybe(bottom_drop_box(
+        ),
+        bottom_drop_box(
             node,
             is_hovered && matches!(offset, SDragTo::After | SDragTo::Inside),
             selection,
-        )),
-    )
+        )
+    ])
 }
 
 fn bottom_drop_box(
@@ -68,11 +68,15 @@ fn drop_box<'a>(
 
     let elem = show.then_some(bar(4));
     widget::mouse_area(match offset {
-        SDragTo::Before => widget::Column::new().push_maybe(elem).push(empty()),
-        SDragTo::After => widget::column![empty()].push_maybe(elem),
-        SDragTo::Inside => widget::column![empty()].push_maybe(
-            show.then(|| widget::row![widget::Space::new(LEVEL_WIDTH, Length::Fill), bar(12)]),
-        ),
+        SDragTo::Before => column![elem, empty()],
+        SDragTo::After => column![empty(), elem],
+        SDragTo::Inside => column![
+            empty(),
+            show.then(|| widget::row![
+                widget::space().width(LEVEL_WIDTH).height(Length::Fill),
+                bar(12)
+            ]),
+        ],
     })
     .on_press(
         SidebarMessage::DragDrop(Some(SDragLocation {
@@ -86,10 +90,9 @@ fn drop_box<'a>(
 }
 
 fn empty() -> widget::Space {
-    widget::Space::new(Length::Fill, Length::Fill)
+    widget::space().width(Length::Fill).height(Length::Fill)
 }
 
-fn bar(thickness: u16) -> widget::Rule<'static, LauncherTheme> {
-    widget::horizontal_rule(thickness)
-        .style(move |t: &LauncherTheme| t.style_rule(Color::SecondLight, thickness))
+fn bar(thickness: u32) -> widget::Rule<'static, LauncherTheme> {
+    widget::rule::horizontal(thickness).style(|t: &LauncherTheme| t.style_rule(Color::SecondLight))
 }

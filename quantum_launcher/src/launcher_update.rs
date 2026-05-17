@@ -1,16 +1,14 @@
-use std::{
-    ffi::OsStr,
-    path::Path,
-    process::Command,
-    sync::{Arc, mpsc::Sender},
-};
+use std::path::Path;
+use std::{ffi::OsStr, process::Command, sync::Arc};
 
+use ql_core::download;
 use ql_core::{
     GenericProgress, IntoIoError, IoError, JsonError, LAUNCHER_VERSION, RequestError, err,
     file_utils::{self, exists},
     impl_3_errs_jri, pt,
 };
 use serde::Deserialize;
+use sipper::Sender;
 use thiserror::Error;
 use tokio::task::JoinError;
 
@@ -145,8 +143,11 @@ pub async fn check() -> Result<UpdateCheckInfo, UpdateError> {
 /// ## Current executable:
 /// - Couldn't be found
 /// - Has a name with invalid UNICODE
-pub async fn install(url: String, progress: Sender<GenericProgress>) -> Result<(), UpdateError> {
-    _ = progress.send(GenericProgress::default());
+pub async fn install(
+    url: String,
+    mut progress: Sender<GenericProgress>,
+) -> Result<(), UpdateError> {
+    progress.send(GenericProgress::default()).await;
 
     let exe_path = std::env::current_exe().map_err(UpdateError::CurrentExeError)?;
     let exe_location = exe_path.parent().ok_or(UpdateError::ExeParentPathError)?;
@@ -161,16 +162,16 @@ pub async fn install(url: String, progress: Sender<GenericProgress>) -> Result<(
         backup_idx += 1;
     }
 
-    send_progress(&progress, 1, "Backing up existing launcher");
+    send_progress(&mut progress, 1, "Backing up existing launcher").await;
     let backup_path = exe_location.join(format!("backup_{backup_idx}_{exe_name}"));
     tokio::fs::rename(&exe_path, &backup_path)
         .await
         .path(backup_path)?;
 
-    send_progress(&progress, 2, "Downloading new launcher version");
-    let download_zip = file_utils::download_file_to_bytes(&url, false).await?;
+    send_progress(&mut progress, 2, "Downloading new launcher version").await;
+    let download_zip = download(&url).bytes().await?;
 
-    send_progress(&progress, 3, "Extracting new launcher");
+    send_progress(&mut progress, 3, "Extracting new launcher").await;
     let url_cmp = url.to_lowercase();
     if url_cmp.ends_with(".tar.gz") {
         let exe_location = exe_location.to_owned();
@@ -209,14 +210,16 @@ async fn clean_file(parent: &Path, name: &str) -> Result<(), UpdateError> {
     Ok(())
 }
 
-fn send_progress(progress: &Sender<GenericProgress>, done: usize, msg: &str) {
+async fn send_progress(progress: &mut Sender<GenericProgress>, done: usize, msg: &str) {
     pt!("({done}/4) {msg}");
-    _ = progress.send(GenericProgress {
-        done,
-        total: 4,
-        message: Some(msg.to_owned()),
-        has_finished: false,
-    });
+    progress
+        .send(GenericProgress {
+            done,
+            total: 4,
+            message: Some(msg.to_owned()),
+            has_finished: false,
+        })
+        .await;
 }
 
 const ERR_PREFIX: &str = "launcher update:\n";

@@ -8,6 +8,7 @@ use ql_instances::auth::{self, AccountType};
 use crate::{
     config::ConfigAccount,
     menu_renderer::back_to_launch_screen,
+    sip,
     state::{
         AccountMessage, AutoSaveKind, Launcher, LittleSkinOauth, MenuLoginAlternate, MenuLoginMS,
         Message, NEW_ACCOUNT_NAME, OFFLINE_ACCOUNT_NAME, ProgressBar, State,
@@ -32,7 +33,6 @@ impl Launcher {
             }
             AccountMessage::RefreshComplete(Err(err)) => {
                 self.is_launching_game = false;
-                self.java_recv = None;
                 self.set_error(err);
             }
             AccountMessage::Selected(account) => self.account_selected(account),
@@ -260,15 +260,11 @@ impl Launcher {
     pub fn account_refresh(&mut self, account: &AccountData) -> Task<Message> {
         match account.account_type {
             AccountType::Microsoft => {
-                let (sender, receiver) = std::sync::mpsc::channel();
-                self.state = State::AccountLoginProgress(ProgressBar::with_recv(receiver));
-
-                Task::perform(
-                    auth::ms::login_refresh(
-                        account.username.clone(),
-                        account.refresh_token.clone(),
-                        Some(sender),
-                    ),
+                self.state = State::AccountLoginProgress(ProgressBar::new());
+                let username = account.username.clone();
+                let refresh_token = account.refresh_token.clone();
+                sip(
+                    |sender| auth::ms::login_refresh(username, refresh_token, Some(sender)),
                     |n| AccountMessage::RefreshComplete(n.strerr()).into(),
                 )
             }
@@ -306,11 +302,11 @@ impl Launcher {
     }
 
     fn account_response_2(&mut self, token: auth::ms::AuthTokenResponse) -> Task<Message> {
-        let (sender, receiver) = std::sync::mpsc::channel();
-        self.state = State::AccountLoginProgress(ProgressBar::with_recv(receiver));
-        Task::perform(auth::ms::login_3_xbox(token, Some(sender), true), |n| {
-            AccountMessage::Response3(n.strerr()).into()
-        })
+        self.state = State::AccountLoginProgress(ProgressBar::new());
+        sip(
+            |sender| auth::ms::login_3_xbox(token, Some(sender), true),
+            |n| AccountMessage::Response3(n.strerr()).into(),
+        )
     }
 
     fn account_response_1(

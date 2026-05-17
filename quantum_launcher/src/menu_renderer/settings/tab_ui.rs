@@ -1,5 +1,5 @@
 use iced::{
-    Alignment,
+    Alignment, Length,
     widget::{self, column, row},
 };
 
@@ -12,12 +12,12 @@ use crate::{
     stylesheet::styles::LauncherTheme,
 };
 
-const SETTING_WIDTH: u16 = 180;
+const SETTING_WIDTH: u32 = 180;
 
 impl MenuLauncherSettings {
     pub(super) fn view_ui_tab<'a>(&'a self, config: &'a LauncherConfig) -> Column<'a> {
         let ui_scale_apply = row![
-            widget::horizontal_space(),
+            widget::space().width(Length::Fill),
             widget::button(widget::text("Apply").size(12))
                 .padding([1.8, 5.0])
                 .on_press(LauncherSettingsMessage::UiScaleApply.into())
@@ -29,20 +29,19 @@ impl MenuLauncherSettings {
             column![widget::text("User Interface").size(20)],
 
             column![
-                widget::row!["Mode: ", get_mode_selector(config)]
+                row!["Mode: ", get_mode_selector(config)]
                     .spacing(5)
                     .align_y(Alignment::Center),
-                widget::Space::with_height(5),
-                widget::row!["Theme:", get_theme_selector().wrap()].spacing(5),
+                widget::space().height(5),
+                row!["Theme:", get_theme_selector().wrap()].spacing(5),
             ]
             .spacing(5),
             column![row![
-                widget::row![widget::text!("UI Scale ({:.2}x)  ", self.temp_scale).size(15)]
-                    .push_maybe(
-                        ((self.temp_scale - config.ui_scale.unwrap_or(1.0)).abs() > 0.01)
-                            .then_some(ui_scale_apply)
-                    )
-                    .align_y(Alignment::Center).width(SETTING_WIDTH),
+                row![
+                    widget::text!("UI Scale ({:.2}x)  ", self.temp_scale).size(15),
+                    ((self.temp_scale - config.ui_scale.unwrap_or(1.0)).abs() > 0.01)
+                        .then_some(ui_scale_apply)
+                ].align_y(Alignment::Center).width(SETTING_WIDTH),
                 widget::slider(
                     0.5..=3.0,
                     self.temp_scale,
@@ -60,19 +59,26 @@ impl MenuLauncherSettings {
                 //     LauncherSettingsMessage::ToggleWindowDecorations(n).into()
                 // }),
                 // widget::text("Use custom window borders and close/minimize/maximize buttons").size(12),
-                // widget::Space::with_height(5),
+                // widget::space().height(5),
 
-                widget::checkbox("Antialiasing (UI) - Requires Restart", config.ui_antialiasing.unwrap_or(true))
+                widget::toggler(config.ui_antialiasing.unwrap_or(true))
+                    .label("Antialiasing (UI) - Requires Restart")
                     .on_toggle(|n| LauncherSettingsMessage::ToggleAntialiasing(n).into()),
                 widget::text("Makes text/menus crisper. Also nudges the launcher into using your dedicated GPU for the User Interface")
                     .size(12).style(tsubtitle),
-                widget::Space::with_height(5),
+                widget::space().height(5),
 
-                widget::checkbox("Remember window size", config.window.as_ref().is_none_or(|n| n.save_window_size))
-                    .on_toggle(|n| LauncherSettingsMessage::ToggleWindowSize(n).into()),
-                widget::Space::with_height(5),
-                widget::checkbox("Remember last selected instance", config.persistent.clone().unwrap_or_default().selected_remembered)
-                    .on_toggle(|n| LauncherSettingsMessage::ToggleInstanceRemembering(n).into()),
+                widget::toggler(
+                    config.window.as_ref().is_none_or(|n| n.save_window_size)
+                )
+                .label("Remember window size")
+                .on_toggle(|n| LauncherSettingsMessage::ToggleWindowSize(n).into()),
+                widget::space().height(5),
+                widget::toggler(
+                    config.persistent.clone().unwrap_or_default().selected_remembered
+                )
+                .label("Remember last selected instance")
+                .on_toggle(|n| LauncherSettingsMessage::ToggleInstanceRemembering(n).into()),
             ]
             .spacing(5),
 
@@ -98,8 +104,8 @@ fn get_ui_opacity(config: &LauncherConfig) -> widget::Column<'static, Message, L
     let ui_opacity = config.c_ui_opacity();
     let t = |t| widget::text(t).size(12).style(tsubtitle);
 
-    widget::column![
-        widget::row![
+    column![
+        row![
             widget::text!("Window Opacity ({ui_opacity:.2}x)")
                 .width(SETTING_WIDTH)
                 .size(15),
@@ -107,6 +113,7 @@ fn get_ui_opacity(config: &LauncherConfig) -> widget::Column<'static, Message, L
                 LauncherSettingsMessage::UiOpacity(n).into()
             })
             .step(0.1)
+            .shift_step(0.02)
         ]
         .spacing(5)
         .align_y(Alignment::Center),

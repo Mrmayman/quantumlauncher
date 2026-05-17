@@ -1,5 +1,16 @@
 use std::path::Path;
 
+use crate::{
+    config::UiWindowDecorations,
+    sip,
+    state::{
+        self, AutoSaveKind, GameLogMessage, InfoMessage, InstallFabricMessage,
+        InstallOptifineMessage, InstallPaperMessage, InstanceNotes, Launcher,
+        LauncherSettingsMessage, LauncherSettingsTab, MenuInstallFabric, MenuInstallOptifine,
+        MenuInstallPaper, MenuLaunch, MenuModDescription, Message, ModDescriptionMessage,
+        NotesMessage, ProgressBar, State, WindowMessage,
+    },
+};
 use frostmark::MarkState;
 use iced::{Task, futures::executor::block_on, widget::text_editor};
 use ql_core::{IntoStringError, Loader, OptifineUniqueVersion, err};
@@ -15,15 +26,6 @@ mod mod_store;
 mod presets;
 mod recommended;
 mod shortcuts;
-
-use crate::config::UiWindowDecorations;
-use crate::state::{
-    self, AutoSaveKind, GameLogMessage, InfoMessage, InstallFabricMessage, InstallOptifineMessage,
-    InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsMessage, LauncherSettingsTab,
-    MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLaunch, MenuModDescription,
-    Message, ModDescriptionMessage, NotesMessage, ProgressBar, State, WindowMessage,
-};
-
 pub use discord_rpc::PresenceConnectionState;
 
 pub const MSG_RESIZE: &str = "Resize your window to apply the changes.";
@@ -91,21 +93,19 @@ impl Launcher {
                     ..
                 }) = &mut self.state
                 {
-                    let (sender, receiver) = std::sync::mpsc::channel();
-                    *progress = Some(ProgressBar::with_recv(receiver));
+                    *progress = Some(ProgressBar::new());
                     let loader_version = fabric_version.clone();
 
                     let instance_name = self.selected_instance.clone().unwrap();
                     let backend = *backend;
-                    return Task::perform(
-                        async move {
+                    return sip(
+                        move |sender| {
                             loaders::fabric::install(
                                 Some(loader_version),
                                 instance_name,
-                                Some(&sender),
+                                Some(sender),
                                 backend,
                             )
-                            .await
                         },
                         |m| InstallFabricMessage::End(m.strerr()).into(),
                     );
@@ -171,13 +171,21 @@ impl Launcher {
                 }
             }
             InstallOptifineMessage::SelectInstallerStart => {
-                if let Some(path) = rfd::FileDialog::new()
-                    .add_filter("jar/zip", &["jar", "zip"])
-                    .set_title("Select OptiFine Installer")
-                    .pick_file()
-                {
-                    return self.install_optifine_confirm(&path);
-                }
+                return Task::perform(
+                    rfd::AsyncFileDialog::new()
+                        .add_filter("jar/zip", &["jar", "zip"])
+                        .set_title("Select OptiFine Installer")
+                        .pick_file(),
+                    |n| {
+                        n.map(|p| {
+                            InstallOptifineMessage::SelectedInstaller(p.path().to_owned()).into()
+                        })
+                        .unwrap_or_default()
+                    },
+                );
+            }
+            InstallOptifineMessage::SelectedInstaller(path) => {
+                return self.install_optifine_confirm(&path);
             }
             InstallOptifineMessage::End(result) => {
                 if let Err(err) = result {
@@ -192,9 +200,6 @@ impl Launcher {
     }
 
     pub fn install_optifine_confirm(&mut self, installer_path: &Path) -> Task<Message> {
-        let (p_sender, p_recv) = std::sync::mpsc::channel();
-        let (j_sender, j_recv) = std::sync::mpsc::channel();
-
         let instance = self.instance().clone();
         debug_assert!(!instance.is_server());
 
@@ -219,34 +224,30 @@ impl Launcher {
             false
         };
 
-        self.state = State::InstallOptifine(MenuInstallOptifine::Installing {
-            optifine_install_progress: ProgressBar::with_recv(p_recv),
-            java_install_progress: Some(ProgressBar::with_recv(j_recv)),
-            is_java_being_installed: false,
-        });
+        self.state = State::InstallOptifine(MenuInstallOptifine::Installing(ProgressBar::new()));
 
-        let installer_path = installer_path.to_owned();
-        Task::perform(
-            // OptiFine does not support servers
-            // so it's safe to assume we've selected an instance.
-            loaders::optifine::install(
-                instance,
-                installer_path.clone(),
-                Some(p_sender),
-                Some(j_sender),
-                optifine_unique_version,
-            ),
+        let installer_path2 = installer_path.to_owned();
+        let installer_path3 = installer_path2.clone();
+        sip(
+            move |sender| {
+                loaders::optifine::install(
+                    instance,
+                    installer_path2,
+                    Some(sender),
+                    optifine_unique_version,
+                )
+            },
             |n| InstallOptifineMessage::End(n.strerr()).into(),
         )
         .chain(Task::perform(
             async move {
                 if delete_installer
-                    && installer_path.extension().is_some_and(|n| {
+                    && installer_path3.extension().is_some_and(|n| {
                         let n = n.to_ascii_lowercase();
                         n == "jar" || n == "zip"
                     })
                 {
-                    _ = tokio::fs::remove_file(installer_path).await;
+                    _ = tokio::fs::remove_file(installer_path3).await;
                 }
             },
             |()| Message::Nothing,
@@ -459,20 +460,20 @@ impl Launcher {
 
     pub fn update_window_msg(&mut self, msg: WindowMessage) -> Task<Message> {
         match msg {
-            WindowMessage::Dragged => iced::window::get_latest().and_then(iced::window::drag),
+            WindowMessage::Dragged => iced::window::latest().and_then(iced::window::drag),
             // WindowMessage::Resized(dir) => {
-            //     return iced::window::get_latest()
+            //     return iced::window::latest()
             //         .and_then(move |id| iced::window::drag_resize(id, dir));
             // }
-            WindowMessage::ClickMinimize => {
-                iced::window::get_latest().and_then(|id| iced::window::minimize(id, true))
-            }
-            WindowMessage::ClickMaximize => iced::window::get_latest().and_then(|id| {
-                iced::window::get_maximized(id)
-                    .map(Some)
-                    .and_then(move |max| iced::window::maximize(id, !max))
-            }),
-            WindowMessage::ClickClose => self.close_launcher(),
+            // WindowMessage::ClickMinimize => {
+            //     iced::window::latest().and_then(|id| iced::window::minimize(id, true))
+            // }
+            // WindowMessage::ClickMaximize => iced::window::latest().and_then(|id| {
+            //     iced::window::is_maximized(id)
+            //         .map(Some)
+            //         .and_then(move |max| iced::window::maximize(id, !max))
+            // }),
+            // WindowMessage::ClickClose => self.close_launcher(),
             // WindowMessage::IsMaximized(n) => {
             //     self.window_state.is_maximized = n;
             //     Task::none()
@@ -519,25 +520,24 @@ impl Launcher {
                 if let State::Launch(MenuLaunch {
                     notes: Some(notes), ..
                 }) = &mut self.state
+                    && let InstanceNotes::Editing { text_editor, .. } = notes
                 {
-                    if let InstanceNotes::Editing { text_editor, .. } = notes {
-                        let content = text_editor.text();
+                    let content = text_editor.text();
 
-                        *notes = InstanceNotes::Viewing {
-                            mark_state: MarkState::with_html_and_markdown(&content),
-                            content: content.clone(),
-                        };
+                    *notes = InstanceNotes::Viewing {
+                        mark_state: MarkState::with_html_and_markdown(&content),
+                        content: content.clone(),
+                    };
 
-                        return Task::perform(
-                            ql_instances::notes::write(self.instance().clone(), content),
-                            |r| {
-                                if let Err(err) = r {
-                                    err!(no_log, "While saving instance notes: {err}");
-                                }
-                                Message::Nothing
-                            },
-                        );
-                    }
+                    return Task::perform(
+                        ql_instances::notes::write(self.instance().clone(), content),
+                        |r| {
+                            if let Err(err) = r {
+                                err!(no_log, "While saving instance notes: {err}");
+                            }
+                            Message::Nothing
+                        },
+                    );
                 }
             }
             NotesMessage::CancelEdit => {
@@ -563,10 +563,9 @@ impl Launcher {
                     log_state: Some(logs),
                     ..
                 }) = &mut self.state
+                    && !action.is_edit()
                 {
-                    if !action.is_edit() {
-                        logs.content.perform(action);
-                    }
+                    logs.content.perform(action);
                 }
             }
             GameLogMessage::Copy => {

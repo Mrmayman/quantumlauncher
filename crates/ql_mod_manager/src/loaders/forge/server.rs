@@ -2,25 +2,22 @@ use ql_core::{Instance, IntoIoError, Loader, json::instance_config::ModTypeInfo}
 
 use crate::loaders::{change_instance_type, forge::ForgeInstaller};
 
-use super::{ForgeInstallProgress, error::ForgeInstallError};
+use super::{ForgeProgress, error::ForgeInstallError};
 
 pub async fn install_server(
     forge_version: Option<String>, // example: "11.15.1.2318" for 1.8.9
     instance: Instance,
-    j_progress: Option<std::sync::mpsc::Sender<ql_core::GenericProgress>>,
-    f_progress: Option<std::sync::mpsc::Sender<ForgeInstallProgress>>,
+    mut progress: Option<sipper::Sender<ForgeProgress>>,
 ) -> Result<(), ForgeInstallError> {
-    if let Some(progress) = &f_progress {
-        _ = progress.send(ForgeInstallProgress::P1Start);
+    if let Some(progress) = &mut progress {
+        progress.send(ForgeProgress::P1Start).await;
     }
 
-    let installer = ForgeInstaller::new(forge_version, f_progress, instance).await?;
+    let mut installer = ForgeInstaller::new(forge_version, progress, instance).await?;
 
     let (_, installer_name, installer_path) = installer.download_forge_installer().await?;
 
-    installer
-        .run_installer(j_progress.as_ref(), &installer_name)
-        .await?;
+    installer.run_installer(&installer_name).await?;
 
     tokio::fs::remove_file(&installer_path)
         .await

@@ -1,4 +1,7 @@
-use iced::{Task, widget::scrollable};
+use iced::{
+    Task,
+    widget::operation::{self, AbsoluteOffset},
+};
 use ql_core::Instance;
 
 use crate::{
@@ -236,9 +239,9 @@ impl Launcher {
                     (walker.next_selected_idx as f32 - 0.7) / (walker.total_len as f32 - 1.0);
                 let scroll_pos = scroll_pos.max(0.0) * sidebar_height;
 
-                let scroll_task = scrollable::scroll_to(
-                    scrollable::Id::new("MenuLaunch:sidebar"),
-                    scrollable::AbsoluteOffset {
+                let scroll_task = operation::scroll_to(
+                    "MenuLaunch:sidebar",
+                    AbsoluteOffset {
                         x: 0.0,
                         y: scroll_pos,
                     },

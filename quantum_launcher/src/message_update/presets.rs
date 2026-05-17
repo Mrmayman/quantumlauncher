@@ -51,7 +51,7 @@ impl Launcher {
                     *include_config = enable;
                 });
             }
-            EditPresetsMessage::BuildYourOwn => {
+            EditPresetsMessage::BuildStart => {
                 iflet_manage_preset!(self, selected_mods, is_building, include_config, {
                     *is_building = true;
                     let selected_instance = self.selected_instance.clone().unwrap();
@@ -63,15 +63,31 @@ impl Launcher {
                             selected_mods,
                             include_config,
                         ),
-                        |n| EditPresetsMessage::BuildYourOwnEnd(n.strerr()).into(),
+                        |n| EditPresetsMessage::BuildSave(n.strerr()).into(),
                     );
                 });
             }
-            EditPresetsMessage::BuildYourOwnEnd(result) => {
-                match result.map(|n| self.build_end(n)) {
-                    Ok(task) => return task,
-                    Err(err) => self.set_error(err),
+            EditPresetsMessage::BuildSave(result) => match result {
+                Ok(bytes) => {
+                    let pick_file = rfd::AsyncFileDialog::new()
+                        .add_filter("QuantumLauncher Preset", &["qmp"])
+                        .set_file_name("my_preset.qmp")
+                        .set_title("Save your QuantumLauncher Preset")
+                        .save_file();
+                    return Task::perform(pick_file, |n| {
+                        n.map(|n| {
+                            EditPresetsMessage::BuildSavePicked(n.path().to_owned(), bytes).into()
+                        })
+                        .unwrap_or_default()
+                    });
                 }
+                Err(err) => self.set_error(err),
+            },
+            EditPresetsMessage::BuildSavePicked(path, preset) => {
+                if let Err(err) = std::fs::write(&path, preset).path(&path) {
+                    self.set_error(err);
+                }
+                return self.go_to_edit_mods_menu(Some(InfoMessage::success("Created Preset")));
             }
             EditPresetsMessage::LoadComplete(result) => {
                 match result.map(|not_allowed| {
@@ -144,21 +160,5 @@ impl Launcher {
         };
 
         self.state = State::ManagePresets(menu);
-    }
-
-    fn build_end(&mut self, preset: Vec<u8>) -> Task<Message> {
-        if let Some(path) = rfd::FileDialog::new()
-            .add_filter("QuantumLauncher Preset", &["qmp"])
-            .set_file_name("my_preset.qmp")
-            .set_title("Save your QuantumLauncher Preset")
-            .save_file()
-        {
-            if let Err(err) = std::fs::write(&path, preset).path(&path) {
-                self.set_error(err);
-            }
-            self.go_to_edit_mods_menu(Some(InfoMessage::success("Created Preset")))
-        } else {
-            Task::none()
-        }
     }
 }

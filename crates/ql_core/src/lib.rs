@@ -56,7 +56,7 @@ pub use error::{
 };
 pub use file_utils::{LAUNCHER_DIR, RequestError};
 pub use print::{LOGGER, LogType, LoggingState, logger_finish};
-pub use progress::{DownloadProgress, GenericProgress, Progress};
+pub use progress::{DownloadProgress, GenericProgress, Progress, pipe_progress, pipe_progress_ext};
 pub use request::download;
 pub use structs::{JavaVersion, Loader};
 
@@ -637,29 +637,18 @@ pub struct LaunchedProcess {
 type ReadLogOut = Result<(ExitStatus, Instance, Option<Diagnostic>), ReadError>;
 
 impl LaunchedProcess {
-    /// Reads log output from the game process.
+    /// Reads log output from a launched game/server
+    /// process until it closes
     ///
-    /// Runs until the process exits, then returns exit status
-    /// and returns an optional [`Diagnostic`] (for troubleshooting common issues)
-    ///
-    /// # Arguments
-    /// - `censors`: Any strings to censor (like session id, password, etc.).
-    ///   Leave blank if not needed
-    /// - `sender`: Sender to send [`LogLine`]s to
-    ///   (pretty printed in terminal if not present)
-    ///
-    /// # Errors
-    /// - `details.json` couldn't be read or parsed into JSON
-    ///   (for checking if XML logs are used)
-    /// - Tokio *somehow* fails to read the `stdout`/`stderr`
-    /// - And many more
-    #[must_use]
+    /// Returns an exit code, the instance identifier,
+    /// and optionally a [`Diagnostic`] if any fix was
+    /// detected for a crash
     pub async fn read_logs(
-        &self,
+        self,
         censors: Vec<String>,
         sender: Option<Sender<LogLine>>,
-    ) -> Option<ReadLogOut> {
-        Some(read_logs(self.child.clone(), sender, self.instance.clone(), censors).await)
+    ) -> ReadLogOut {
+        read_logs(self.child, sender, self.instance, censors).await
     }
 }
 

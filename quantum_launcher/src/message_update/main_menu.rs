@@ -31,6 +31,21 @@ impl Launcher {
             LaunchMessage::Start => self.launch_start(),
             LaunchMessage::End(result) => self.finish_launching(result),
             LaunchMessage::Kill => self.kill_selected_instance(),
+            LaunchMessage::JavaInstallProgress(prog) => {
+                let has_finished = prog.has_finished;
+                if let State::InstallJava(bar) = &mut self.state {
+                    bar.update(prog);
+                } else {
+                    let mut bar = ProgressBar::new();
+                    bar.update(prog);
+                    self.state = State::InstallJava(bar);
+                }
+                if has_finished {
+                    self.go_to_main_menu(Some(InfoMessage::success("Installed Java")))
+                } else {
+                    Task::none()
+                }
+            }
         }
     }
 
@@ -55,23 +70,24 @@ impl Launcher {
                 let account_data = self.get_selected_account_data();
                 // If the user is loading an existing login from disk
                 // then first refresh the tokens
-                if let Some(account) = &account_data {
-                    if account.access_token.is_none() || account.needs_refresh {
-                        return self.account_refresh(account);
-                    }
+                if let Some(account) = &account_data
+                    && (account.access_token.is_none() || account.needs_refresh)
+                {
+                    return self.account_refresh(account);
                 }
                 // Or, if the account is already refreshed/freshly added,
                 // directly launch the game
                 self.launch_game(account_data)
             }
             InstanceKind::Server => {
-                let (sender, receiver) = std::sync::mpsc::channel();
-                self.java_recv = Some(ProgressBar::with_recv(receiver));
-
                 let server = selected_instance.name.clone();
-                Task::perform(ql_servers::run(server, Some(sender)), |n| {
-                    LaunchMessage::End(n.strerr()).into()
-                })
+                Task::sip(
+                    sipper::sipper(|sender| async move {
+                        ql_servers::run(server, Some(sender)).await.strerr()
+                    }),
+                    |n| LaunchMessage::JavaInstallProgress(n).into(),
+                    |n| LaunchMessage::End(n).into(),
+                )
             }
         }
     }
@@ -85,23 +101,27 @@ impl Launcher {
             self.config.username.clone()
         };
 
-        let (sender, receiver) = std::sync::mpsc::channel();
-        self.java_recv = Some(ProgressBar::with_recv(receiver));
-
         let global_settings = self.config.global_settings.clone();
         let extra_java_args = self.config.extra_java_args.clone().unwrap_or_default();
 
         let instance_name = self.instance().name.clone();
-        Task::perform(
+
+        let builder = |send| async move {
             ql_instances::launch(
                 instance_name,
                 username,
-                Some(sender),
+                Some(send),
                 account_data,
                 global_settings,
                 extra_java_args,
-            ),
-            |n| LaunchMessage::End(n.strerr()).into(),
+            )
+            .await
+            .strerr()
+        };
+        Task::sip(
+            sipper::sipper(builder),
+            |n| LaunchMessage::JavaInstallProgress(n).into(),
+            |n| LaunchMessage::End(n).into(),
         )
     }
 
@@ -116,7 +136,7 @@ impl Launcher {
         } else {
             "Game"
         };
-        info!("Game exited ({status})");
+        info!("{kind} exited ({status})");
 
         let log_state = if let State::Launch(MenuLaunch {
             message, log_state, ..
@@ -153,7 +173,6 @@ impl Launcher {
     }
 
     fn finish_launching(&mut self, result: Result<LaunchedProcess, String>) -> Task<Message> {
-        self.java_recv = None;
         self.is_launching_game = false;
         match result {
             Ok(child) => {
@@ -186,19 +205,17 @@ impl Launcher {
                 let log_task = Task::perform(
                     async move {
                         let result = child.read_logs(censors, Some(sender)).await;
-                        let default_output = Ok((ExitStatus::default(), selected_instance, None));
 
-                        match result {
-                            Some(Err(ReadError::Io(io)))
-                                if io.kind() == std::io::ErrorKind::InvalidData =>
-                            {
-                                err!("Minecraft log contains invalid unicode! Stopping logs");
-                                pt!("The game will continue to run");
-                                default_output
-                            }
-                            Some(result) => result.strerr(),
-                            None => default_output,
+                        if let Err(ReadError::Io(io)) = &result
+                            && io.kind() == std::io::ErrorKind::InvalidData
+                        {
+                            err!("Minecraft log contains invalid unicode! Stopping logs");
+                            pt!("The game will continue to run");
+
+                            return Ok((ExitStatus::default(), selected_instance, None));
                         }
+
+                        result.strerr()
                     },
                     |n| LaunchMessage::GameExited(n).into(),
                 );
@@ -210,8 +227,8 @@ impl Launcher {
                         self.close_launcher();
                     }
                     AfterLaunchBehavior::MinimizeLauncher => {
-                        let minimize_task = iced::window::get_latest()
-                            .and_then(|id| iced::window::minimize(id, true));
+                        let minimize_task =
+                            iced::window::latest().and_then(|id| iced::window::minimize(id, true));
                         return Task::batch([log_task, minimize_task, version_presence_task]);
                     }
                 }
@@ -259,13 +276,13 @@ impl Launcher {
             MainMenuMessage::ChangeTab(tab) => {
                 // UX tweak: dragging instance to tab will open tab for that instance
                 if let State::Launch(MenuLaunch { modal, .. }) = &mut self.state {
-                    if let Some(LaunchModal::SDragging {
-                        being_dragged: SidebarSelection::Instance(name, kind),
+                    if let Some(LaunchModal::Dragging {
+                        being_dragged: SidebarSelection::Instance(instance),
                         ..
                     }) = modal
                     {
                         if self.selected_instance.is_none() {
-                            self.selected_instance = Some(Instance::new(name, *kind));
+                            self.selected_instance = Some(instance.clone());
                         }
                     }
                     *modal = None;
@@ -278,19 +295,12 @@ impl Launcher {
             }
             MainMenuMessage::Modal(modal) => {
                 if let State::Launch(menu) = &mut self.state {
-                    let t = if let Some(LaunchModal::SRenamingFolder(_, _, _)) = &modal {
-                        iced::widget::text_input::focus("MenuLaunch:rename_folder")
+                    let t = if let Some(LaunchModal::RenamingFolder(_, _, _)) = &modal {
+                        iced::widget::operation::focus("MenuLaunch:rename_folder")
                     } else {
                         Task::none()
                     };
-                    menu.modal = match (&modal, &menu.modal) {
-                        // Unset if you click on it again
-                        (
-                            Some(LaunchModal::InstanceOptions),
-                            Some(LaunchModal::InstanceOptions),
-                        ) => None,
-                        _ => modal.clone(),
-                    };
+                    menu.modal = modal;
                     return t;
                 }
             }
@@ -341,12 +351,12 @@ impl Launcher {
                     .new_folder_at(at_position, "New Folder");
                 self.sidebar_update_state();
                 if let State::Launch(menu) = &mut self.state {
-                    menu.modal = Some(LaunchModal::SRenamingFolder(
+                    menu.modal = Some(LaunchModal::RenamingFolder(
                         folder_id,
                         "New Folder".to_owned(),
                         true,
                     ));
-                    return iced::widget::text_input::focus("MenuLaunch:rename_folder");
+                    return iced::widget::operation::focus("MenuLaunch:rename_folder");
                 }
             }
             SidebarMessage::DeleteFolder(folder) => {
@@ -360,7 +370,7 @@ impl Launcher {
             }
             SidebarMessage::DragDrop(location) => {
                 if let State::Launch(MenuLaunch {
-                    modal: Some(LaunchModal::SDragging { being_dragged, .. }),
+                    modal: Some(LaunchModal::Dragging { being_dragged, .. }),
                     ..
                 }) = &mut self.state
                 {
@@ -370,7 +380,7 @@ impl Launcher {
             }
             SidebarMessage::DragHover { location, entered } => {
                 if let State::Launch(MenuLaunch {
-                    modal: Some(LaunchModal::SDragging { dragged_to, .. }),
+                    modal: Some(LaunchModal::Dragging { dragged_to, .. }),
                     ..
                 }) = &mut self.state
                 {
@@ -383,7 +393,7 @@ impl Launcher {
             }
             SidebarMessage::FolderRenameConfirm => {
                 if let State::Launch(MenuLaunch {
-                    modal: Some(LaunchModal::SRenamingFolder(id, name, _)),
+                    modal: Some(LaunchModal::RenamingFolder(id, name, _)),
                     ..
                 }) = &self.state
                 {
