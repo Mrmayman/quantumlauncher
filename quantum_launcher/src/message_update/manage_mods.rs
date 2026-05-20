@@ -791,13 +791,14 @@ impl Launcher {
 }
 
 async fn delete_file_wrapper(path: PathBuf) -> Result<(), String> {
-    let Ok(f) = tokio::fs::metadata(&path).await else {
-        return Ok(());
-    };
-    if f.is_dir() {
-        tokio::fs::remove_dir_all(&path).await
-    } else {
-        tokio::fs::remove_file(&path).await
+    match tokio::fs::metadata(&path).await {
+        Ok(n) if n.is_dir() => tokio::fs::remove_dir_all(&path).await,
+        Ok(_) => tokio::fs::remove_file(&path).await,
+
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(());
+        }
+        Err(err) => return Err(err.to_string()),
     }
     .path(path)
     .strerr()

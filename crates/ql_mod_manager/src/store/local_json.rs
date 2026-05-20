@@ -207,7 +207,7 @@ async fn load_inner(selected_instance: &Instance) -> Result<ModIndex, JsonFileEr
             return Ok(mod_index);
         }
         Ok(_) => {
-            let _ = fs::remove_file(&old_index_path).await;
+            let _ = fs::remove_file(&old_index_path).await; // empty
         }
         Err(e) if e.kind() != ErrorKind::NotFound => {
             return Err(e.path(index_path).into());
@@ -219,6 +219,9 @@ async fn load_inner(selected_instance: &Instance) -> Result<ModIndex, JsonFileEr
     match fs::read_to_string(&index_path).await {
         Ok(index) if !index.trim().is_empty() => {
             return Ok(serde_json::from_str::<ModIndex>(&index).json(index)?);
+        }
+        Ok(_) => {
+            let _ = fs::remove_file(&old_index_path).await; // empty
         }
         Err(e) if e.kind() != ErrorKind::NotFound => {
             return Err(e.path(index_path).into());

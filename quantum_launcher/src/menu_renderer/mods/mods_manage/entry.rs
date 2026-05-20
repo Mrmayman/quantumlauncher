@@ -160,7 +160,7 @@ impl MenuEditMods {
                 let occupied =
                     measured + self.ui_state.width_name + PADDING.left + PADDING.right + 150.0;
                 let space = size.width - occupied;
-                (space > -10.0).then_some(widget::Space::with_width(space))
+                (space > 0.0).then_some(widget::Space::with_width(space))
             })
             .align_y(Alignment::Center)
             .padding(PADDING)
