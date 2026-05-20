@@ -99,6 +99,7 @@ impl PackFile {
             query,
             url,
             query_type,
+            dirs,
         )
         .await;
 
@@ -130,6 +131,7 @@ async fn add_to_index(
     query: CurseforgeFileQuery,
     url: String,
     project_type: QueryType,
+    dirs: &DirStructure,
 ) {
     let mut index = index.lock().await;
     let project_id = ModId::Curseforge(project_id);
@@ -161,6 +163,18 @@ async fn add_to_index(
                 dependencies: HashSet::new(),
                 dependents: HashSet::new(),
                 project_type,
+                project_type_extra: if let QueryType::ResourcePacks = project_type {
+                    Some(
+                        if dirs.is_legacy {
+                            "texturepacks"
+                        } else {
+                            "resourcepacks"
+                        }
+                        .to_owned(),
+                    )
+                } else {
+                    None
+                },
                 extra: HashMap::new(),
             },
         );

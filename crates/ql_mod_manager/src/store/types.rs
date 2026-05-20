@@ -299,6 +299,7 @@ pub struct DirStructure {
     resource_packs: PathBuf,
     shaders: PathBuf,
     data_packs: PathBuf,
+    pub is_legacy: bool,
 }
 
 impl DirStructure {
@@ -311,9 +312,13 @@ impl DirStructure {
         let data_packs = mc_dir.join("datapacks");
         fs::create_dir_all(&data_packs).await.path(&data_packs)?;
 
-        let old = version_json.is_before_or_eq(V_LAST_TEXTUREPACK);
+        let is_legacy = version_json.is_before_or_eq(V_LAST_TEXTUREPACK);
 
-        let resource_packs = if old { "texturepacks" } else { "resourcepacks" };
+        let resource_packs = if is_legacy {
+            "texturepacks"
+        } else {
+            "resourcepacks"
+        };
 
         let resource_packs = mc_dir.join(resource_packs);
         fs::create_dir_all(&resource_packs)
@@ -332,6 +337,7 @@ impl DirStructure {
             resource_packs,
             shaders,
             data_packs,
+            is_legacy,
         })
     }
 

@@ -34,7 +34,12 @@ pub struct ModConfig {
     pub dependents: HashSet<ModId>,
     #[serde(default = "QueryType::default")]
     pub project_type: QueryType,
-    #[serde(flatten)]
+    /// If resource pack:
+    /// - Whether in `resourcepacks` directory or `texturepacks` directory.
+    ///
+    /// More info may come for other project types in the future.
+    pub project_type_extra: Option<String>,
+    #[serde(flatten)] // Retain future fields for forward-compatibility
     pub extra: HashMap<String, serde_json::Value>,
 }
 

@@ -253,6 +253,18 @@ impl<'a> ModDownloader<'a> {
                     HashSet::new()
                 },
                 project_type,
+                project_type_extra: if let QueryType::ResourcePacks = project_type {
+                    Some(
+                        if self.dirs.is_legacy {
+                            "texturepacks"
+                        } else {
+                            "resourcepacks"
+                        }
+                        .to_owned(),
+                    )
+                } else {
+                    None
+                },
                 extra: HashMap::new(),
             },
         );

@@ -330,6 +330,18 @@ impl ModDownloader {
             version_release_time: download_version.date_published.clone(),
             project_source: StoreBackendType::Modrinth,
             project_type,
+            project_type_extra: if let QueryType::ResourcePacks = project_type {
+                Some(
+                    if self.dirs.is_legacy {
+                        "texturepacks"
+                    } else {
+                        "resourcepacks"
+                    }
+                    .to_owned(),
+                )
+            } else {
+                None
+            },
             extra: HashMap::new(),
         };
 
