@@ -18,10 +18,7 @@ use iced::{
     Alignment, Length,
     widget::{self, column, row},
 };
-use ql_core::{
-    Instance, InstanceKind, Loader,
-    json::{InstanceConfigJson, V_LAST_TEXTUREPACK},
-};
+use ql_core::{Instance, InstanceKind, Loader, json::InstanceConfigJson};
 use ql_mod_manager::store::QueryType;
 
 pub const MODS_SIDEBAR_WIDTH: u16 = 190;
@@ -123,7 +120,7 @@ impl MenuEditMods {
                     }),
                     ctx_button("Resource Packs Folder").on_press_with(|| Message::CoreOpenPath(
                         selected_instance.get_dot_minecraft_path().join(
-                            if self.file_data.details.is_before_or_eq(V_LAST_TEXTUREPACK) {
+                            if self.file_data.details.is_legacy_texturepacks() {
                                 "texturepacks"
                             } else {
                                 "resourcepacks"

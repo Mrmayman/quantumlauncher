@@ -165,6 +165,11 @@ impl VersionDetails {
     }
 
     #[must_use]
+    pub fn is_legacy_texturepacks(&self) -> bool {
+        self.is_before_or_eq(V_LAST_TEXTUREPACK)
+    }
+
+    #[must_use]
     pub fn is_before_or_eq(&self, release_time: &str) -> bool {
         match (
             DateTime::parse_from_rfc3339(&self.releaseTime),

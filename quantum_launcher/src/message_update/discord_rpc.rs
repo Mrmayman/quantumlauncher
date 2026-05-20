@@ -72,12 +72,11 @@ impl Launcher {
                     }
                     self.discord_ipc_client = Some(c);
                     return self.set_custom_discord_presence();
-                } else {
-                    pt!(
-                        no_log,
-                        "Rich presence couldn't be set as client wasn't found post-run."
-                    )
                 }
+                pt!(
+                    no_log,
+                    "Rich presence couldn't be set as client wasn't found post-run."
+                );
             }
             RpcMessage::Toggle(enable) => {
                 rpc.enable = enable;

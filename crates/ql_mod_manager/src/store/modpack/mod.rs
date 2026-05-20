@@ -51,6 +51,7 @@ pub async fn install_modpack(
     let mut zip = zip::ZipArchive::new(Cursor::new(file.as_slice()))?;
 
     info!("Installing modpack");
+    let json = VersionDetails::load(&instance).await?;
 
     // If user accidentally added regular file
     if zip.by_name("pack.mcmeta").is_ok() {
@@ -58,10 +59,15 @@ pub async fn install_modpack(
             write_regular_file(&file, name, &instance, "datapacks").await?;
         } else {
             // Resource Pack/Canvas Shader
-            write_regular_file(&file, name, &instance, "resourcepacks").await?;
+            let dir = if json.is_legacy_texturepacks() {
+                "texturepacks"
+            } else {
+                "resourcepacks"
+            };
+            write_regular_file(&file, name, &instance, dir).await?;
         }
         return Ok(Some(HashSet::new()));
-    } else if zip.by_name("shaders/pack.json").is_ok() {
+    } else if zip.file_names().any(|n| n.starts_with("shaders/")) {
         // Shader pack
         write_regular_file(&file, name, &instance, "shaderpacks").await?;
         return Ok(Some(HashSet::new()));
@@ -98,7 +104,6 @@ pub async fn install_modpack(
 
     let mc_dir = instance.get_dot_minecraft_path();
     let config = InstanceConfigJson::read(&instance).await?;
-    let json = VersionDetails::load(&instance).await?;
 
     let mut is_valid = false;
 

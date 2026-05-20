@@ -5,10 +5,7 @@ use std::{
     time::Instant,
 };
 
-use ql_core::{
-    Instance, IntoIoError, IoError, Loader,
-    json::{V_LAST_TEXTUREPACK, VersionDetails},
-};
+use ql_core::{Instance, IntoIoError, IoError, Loader, json::VersionDetails};
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 
@@ -312,7 +309,7 @@ impl DirStructure {
         let data_packs = mc_dir.join("datapacks");
         fs::create_dir_all(&data_packs).await.path(&data_packs)?;
 
-        let is_legacy = version_json.is_before_or_eq(V_LAST_TEXTUREPACK);
+        let is_legacy = version_json.is_legacy_texturepacks();
 
         let resource_packs = if is_legacy {
             "texturepacks"
