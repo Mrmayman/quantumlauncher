@@ -8,8 +8,7 @@ use std::{
 use chrono::{Datelike, Timelike};
 use regex::Regex;
 
-use crate::{LAUNCHER_DIR, REDACT_SENSITIVE_INFO, eeprintln};
-use crate::{eeprintln, file_utils, flags::redact_sensitive_info};
+use crate::{LAUNCHER_DIR, eeprintln, flags::redact_sensitive_info};
 
 pub mod macros;
 
