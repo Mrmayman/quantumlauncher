@@ -6,7 +6,7 @@ use std::{
 };
 
 use ql_core::{
-    Instance, IntoIoError, IntoJsonError, IoError, JsonFileError, file_utils::exists, info,
+    Instance, IntoIoError, IntoJsonError, JsonFileError, file_utils::exists, info,
     json::VersionDetails,
 };
 use serde::{Deserialize, Serialize};
@@ -79,9 +79,12 @@ impl ModIndex {
         }
     }
 
-    async fn fix(&mut self, instance: Instance) -> Result<(), IoError> {
-        // We'll have special logic for resourcepacks later so default is fine
-        let dirs = DirStructure::new(instance, &VersionDetails::default()).await?;
+    async fn fix(&mut self, instance: Instance) -> Result<(), JsonFileError> {
+        // I know this is inefficient, but modern OSes have automatic file caching
+        // that basically guarantees this is fast.
+        let details = VersionDetails::load(&instance).await?;
+
+        let dirs = DirStructure::new(instance, &details).await?;
 
         self.fix_nonexistent_mods(&dirs).await;
         self.fix_cf_modpack_id_bug();
