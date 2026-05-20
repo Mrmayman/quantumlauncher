@@ -80,7 +80,9 @@ impl ModIndex {
     }
 
     async fn fix(&mut self, instance: Instance) -> Result<(), IoError> {
+        // We'll have special logic for resourcepacks later so default is fine
         let dirs = DirStructure::new(instance, &VersionDetails::default()).await?;
+
         self.fix_nonexistent_mods(&dirs).await;
         self.fix_cf_modpack_id_bug();
 

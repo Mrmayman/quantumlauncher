@@ -545,6 +545,8 @@ impl MenuEditMods {
             self.content_filter.is_none(),
             None
         )]
+        // The launcher doesn't support datapacks yet, so
+        // not including that (only `INDEX_SUPPORTED`)
         .extend(QueryType::INDEX_SUPPORTED.iter().map(|filter| {
             let is_selected = self.content_filter.is_some_and(|n| n == *filter);
             query_button(widget::text(filter.to_string()), is_selected, Some(*filter)).into()

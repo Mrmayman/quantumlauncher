@@ -54,7 +54,7 @@ pub async fn install_modpack(
 
     // If user accidentally added regular file
     if zip.by_name("pack.mcmeta").is_ok() {
-        if zip.by_name("data/").is_ok() {
+        if zip.file_names().any(|n| n.starts_with("data/")) {
             write_regular_file(&file, name, &instance, "datapacks").await?;
         } else {
             // Resource Pack/Canvas Shader
