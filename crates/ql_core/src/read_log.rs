@@ -16,7 +16,7 @@ use tokio::{
 };
 
 use crate::{
-    Instance, InstanceKind, IoError, JsonError, JsonFileError, REDACT_SENSITIVE_INFO, err,
+    Instance, InstanceKind, IoError, JsonError, JsonFileError, err, flags::redact_sensitive_info,
     json::VersionDetails, print::REDACTION_USERNAME,
 };
 
@@ -133,7 +133,7 @@ async fn read_log_from_stream<R: AsyncBufRead + Unpin>(
 }
 
 fn censor(input: &str, censors: &[String]) -> String {
-    if *REDACT_SENSITIVE_INFO.lock().unwrap() {
+    if redact_sensitive_info() {
         let mut out = censors.iter().fold(input.to_string(), |acc, censor| {
             acc.replace(censor, "[REDACTED]")
         });

@@ -15,6 +15,16 @@ TODO: Add screenshots
 - Added support for displaying your status in Discord through Rich Presence
 - Customizable, can display any text or info (game version/instance name) of your choice
 
+# Mods
+
+- Resource packs, shaders and datapacks can now be managed from the
+  Mods screen, and are visible in the list
+- Added "Copy ID" context menu option in Mods list
+
+TODO: Add better datapack handling
+
+TODO: Add screenshots
+
 # UX
 
 - You can now automatically create changelogs after updating mods,

@@ -1,4 +1,4 @@
-use std::{collections::HashSet, path::PathBuf, process::ExitStatus};
+use std::{collections::HashSet, path::PathBuf, process::ExitStatus, sync::Arc};
 
 use crate::{
     config::{
@@ -25,8 +25,8 @@ use ql_instances::auth::{
 use ql_mod_manager::{
     loaders::{fabric, paper::PaperVersion},
     store::{
-        Category, CurseforgeNotAllowed, ModId, ModIndex, QueryType, RecommendedMod, SearchMod,
-        SearchResult, StoreBackendType,
+        Category, CurseforgeNotAllowed, LocalMod, ModId, ModIndex, QueryType, RecommendedMod,
+        SearchMod, SearchResult, StoreBackendType,
     },
 };
 
@@ -111,21 +111,22 @@ pub enum EditInstanceMessage {
 #[derive(Debug, Clone)]
 pub enum ManageModsMessage {
     Open,
+    IndexLoaded(Res<ModIndex>),
     ListScrolled(AbsoluteOffset),
     /// Simple, dumb selection
-    SelectEnsure(String, Option<ModId>),
+    SelectEnsure(Arc<str>, Option<ModId>, QueryType),
     /// More nuanced selection with ctrl/shift multi-select
-    SelectMod(String, Option<ModId>),
+    SelectMod(Arc<str>, Option<ModId>, QueryType),
 
     DeleteSelected,
-    DeleteOptiforge(String),
+    DeleteOptiforge(Arc<str>),
     DeleteFinished(Res<Vec<ModId>>),
-    LocalDeleteFinished(Res),
-    LocalIndexLoaded(HashSet<String>),
+
+    LocalFilesLoaded(HashSet<LocalMod>, QueryType),
 
     ToggleSelected,
-    ToggleFinished(Res),
     ToggleOne(ModId),
+    ToggleOneLocal(LocalMod),
 
     UpdateCheck,
     UpdateCheckResult(Res<Vec<(ModId, String)>>),
@@ -136,20 +137,22 @@ pub enum ManageModsMessage {
 
     /// Add a mod, preset or modpack to the current instance.
     /// The field represents whether to delete the file after importing it.
-    AddFile(bool),
+    AddFile(bool, QueryType),
+    AddFileSelected(bool, Vec<PathBuf>, QueryType),
     AddFileDone(Res<HashSet<CurseforgeNotAllowed>>),
 
     SelectAll,
     SetModal(Option<MenuEditModsModal>),
     RightClick(ModId),
     SetSearch(Option<String>),
+    SetContentFilter(Option<QueryType>),
 
-    ExportMenuOpen,
     CurseforgeManualToggleDelete(bool),
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum ExportModsMessage {
+pub enum ExportModsTextMessage {
+    Open,
     ExportAsPlainText,
     ExportAsMarkdown,
     CopyMarkdownToClipboard,
@@ -209,8 +212,8 @@ pub enum InstallOptifineMessage {
 #[derive(Debug, Clone)]
 pub enum EditPresetsMessage {
     Open,
-    ToggleCheckbox((String, ModId), bool),
-    ToggleCheckboxLocal(String, bool),
+    ToggleCheckbox(Arc<str>, ModId, bool),
+    ToggleCheckboxLocal(LocalMod, bool),
     ToggleIncludeConfig(bool),
     SelectAll,
     BuildYourOwn,
@@ -238,7 +241,6 @@ pub enum WindowMessage {
     // IsMaximized(bool),
 }
 
-#[allow(unused)]
 #[derive(Debug, Clone)]
 pub enum AccountMessage {
     Selected(String),
@@ -478,6 +480,7 @@ pub enum LaunchMessage {
 pub enum Message {
     Nothing,
     Error(String),
+    Done(Res),
     Multiple(Vec<Message>),
     ShowScreen(String),
 
@@ -499,7 +502,7 @@ pub enum Message {
     InstallOptifine(InstallOptifineMessage),
     InstallFabric(InstallFabricMessage),
     EditPresets(EditPresetsMessage),
-    ExportMods(ExportModsMessage),
+    ExportMods(ExportModsTextMessage),
     RecommendedMods(RecommendedModMessage),
     MainMenu(MainMenuMessage),
     Sidebar(SidebarMessage),
@@ -583,7 +586,7 @@ from_m!(InstallMods, InstallModsMessage);
 from_m!(InstallOptifine, InstallOptifineMessage);
 from_m!(InstallFabric, InstallFabricMessage);
 from_m!(EditPresets, EditPresetsMessage);
-from_m!(ExportMods, ExportModsMessage);
+from_m!(ExportMods, ExportModsTextMessage);
 from_m!(RecommendedMods, RecommendedModMessage);
 from_m!(Account, AccountMessage);
 from_m!(CreateInstance, CreateInstanceMessage);

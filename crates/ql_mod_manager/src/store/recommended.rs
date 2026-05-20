@@ -66,7 +66,7 @@ impl RecommendedMod {
         index: &ModIndex,
     ) -> Option<Self> {
         let mod_id = ModId::from_pair(self.id, self.backend);
-        if index.mods.contains_key(&mod_id) || index.mods.iter().any(|n| n.1.name == self.name) {
+        if index.mods.contains_key(&mod_id) || index.mods.iter().any(|n| &*n.1.name == self.name) {
             return None;
         }
 

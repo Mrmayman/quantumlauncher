@@ -1,7 +1,13 @@
-use std::{fmt::Display, time::Instant};
+use std::{
+    fmt::Display,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Instant,
+};
 
-use ql_core::Loader;
+use ql_core::{Instance, IntoIoError, IoError, Loader, json::VersionDetails};
 use serde::{Deserialize, Serialize};
+use tokio::fs;
 
 use crate::store::ModId;
 
@@ -28,16 +34,25 @@ impl StoreBackendType {
 
 #[derive(Hash, PartialEq, Eq, Clone)]
 pub enum SelectedMod {
-    Downloaded { name: String, id: ModId },
-    Local { file_name: String },
+    Downloaded { name: Arc<str>, id: ModId },
+    Local(LocalMod),
 }
 
 impl SelectedMod {
     #[must_use]
-    pub fn from_pair(name: String, id: Option<ModId>) -> Self {
+    pub fn new(name: Arc<str>, id: Option<ModId>, project_type: QueryType) -> Self {
         match id {
             Some(id) => Self::Downloaded { name, id },
-            None => Self::Local { file_name: name },
+            None => Self::Local(LocalMod(name, project_type)),
+        }
+    }
+
+    #[must_use]
+    pub fn local(&self) -> Option<&LocalMod> {
+        if let SelectedMod::Local(l) = self {
+            Some(l)
+        } else {
+            None
         }
     }
 }
@@ -45,20 +60,24 @@ impl SelectedMod {
 #[must_use]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct CurseforgeNotAllowed {
-    pub name: String,
+    pub name: Arc<str>,
     pub slug: String,
     pub filename: String,
-    pub project_type: String,
+    pub project_type: QueryType,
     pub file_id: usize,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default, Hash, PartialOrd, Ord,
+)]
 pub enum QueryType {
+    #[default]
     Mods,
-    ResourcePacks,
     Shaders,
     ModPacks,
     DataPacks,
+    #[serde(other)] // Something that isn't as strictly tracked as mods
+    ResourcePacks,
     // TODO:
     // Plugins,
 }
@@ -89,8 +108,16 @@ impl QueryType {
         Self::Shaders,
     ];
 
+    /// The query types that can be stored locally in the mod index.
+    pub const INDEX_SUPPORTED: &'static [Self] = &[
+        Self::Mods,
+        // Self::DataPacks,
+        Self::ResourcePacks,
+        Self::Shaders,
+    ];
+
     #[must_use]
-    pub fn to_modrinth_str(&self) -> &'static str {
+    pub const fn to_modrinth_str(self) -> &'static str {
         match self {
             QueryType::Mods => "mod",
             QueryType::ResourcePacks => "resourcepack",
@@ -113,7 +140,7 @@ impl QueryType {
     }
 
     #[must_use]
-    pub fn to_curseforge_str(&self) -> &'static str {
+    pub const fn to_curseforge_str(self) -> &'static str {
         match self {
             QueryType::Mods => "mc-mods",
             QueryType::ResourcePacks => "texture-packs",
@@ -132,6 +159,20 @@ impl QueryType {
             "modpacks" => Some(QueryType::ModPacks),
             "data-packs" => Some(QueryType::DataPacks),
             _ => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn is_toggleable(self) -> bool {
+        matches!(self, QueryType::Mods)
+    }
+
+    #[must_use]
+    pub const fn get_extensions(self) -> &'static [&'static str] {
+        match self {
+            QueryType::Mods => &["jar"],
+            QueryType::Shaders | QueryType::ResourcePacks | QueryType::DataPacks => &["zip"],
+            QueryType::ModPacks => &["zip", "mrpack", "qmp"],
         }
     }
 }
@@ -196,12 +237,12 @@ pub struct SearchResult {
 
 #[derive(Debug, Clone)]
 pub struct SearchMod {
-    pub title: String,
+    pub title: Arc<str>,
     pub description: String,
     pub downloads: usize,
     pub internal_name: String,
     pub project_type: String,
-    pub id: String,
+    pub id: Arc<str>,
     pub icon_url: Option<String>,
     pub backend: StoreBackendType,
 
@@ -248,3 +289,69 @@ impl Display for UrlKind {
         })
     }
 }
+
+pub struct DirStructure {
+    pub instance: Instance,
+    mods: PathBuf,
+    resource_packs: PathBuf,
+    shaders: PathBuf,
+    data_packs: PathBuf,
+    pub is_legacy: bool,
+}
+
+impl DirStructure {
+    pub async fn new(instance: Instance, version_json: &VersionDetails) -> Result<Self, IoError> {
+        let mc_dir = instance.get_dot_minecraft_path();
+
+        // this doesn't get loaded by default but there are datapack loader mods
+        // that are used my modpacks that want to include datapacks.
+        // for example https://modrinth.com/mod/dataloader
+        let data_packs = mc_dir.join("datapacks");
+        fs::create_dir_all(&data_packs).await.path(&data_packs)?;
+
+        let is_legacy = version_json.is_legacy_texturepacks();
+
+        let resource_packs = if is_legacy {
+            "texturepacks"
+        } else {
+            "resourcepacks"
+        };
+
+        let resource_packs = mc_dir.join(resource_packs);
+        fs::create_dir_all(&resource_packs)
+            .await
+            .path(&resource_packs)?;
+
+        let shaders = mc_dir.join("shaderpacks");
+        fs::create_dir_all(&shaders).await.path(&shaders)?;
+
+        let mods = mc_dir.join("mods");
+        fs::create_dir_all(&mods).await.path(&mods)?;
+
+        Ok(Self {
+            instance,
+            mods,
+            resource_packs,
+            shaders,
+            data_packs,
+            is_legacy,
+        })
+    }
+
+    #[must_use]
+    pub fn get(&self, query_type: QueryType) -> Option<&Path> {
+        Some(match query_type {
+            QueryType::DataPacks => &self.data_packs,
+            QueryType::ResourcePacks => &self.resource_packs,
+            QueryType::Mods => &self.mods,
+            QueryType::Shaders => &self.shaders,
+            // Note: A lot of code relies on the assumption
+            // that this returns None only for modpacks,
+            // so be careful
+            QueryType::ModPacks => return None,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, PartialOrd, Eq)]
+pub struct LocalMod(pub Arc<str>, pub QueryType);

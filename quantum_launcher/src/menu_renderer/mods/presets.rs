@@ -106,11 +106,11 @@ Modrinth/Curseforge modpack"
                 widget::checkbox(entry.name(), selected_mods.contains(&entry.clone().into()))
                     .on_toggle(move |t| match entry {
                         ModListEntry::Downloaded { id, config } => {
-                            EditPresetsMessage::ToggleCheckbox((config.name.clone(), id.clone()), t)
+                            EditPresetsMessage::ToggleCheckbox(config.name.clone(), id.clone(), t)
                                 .into()
                         }
-                        ModListEntry::Local { file_name } => {
-                            EditPresetsMessage::ToggleCheckboxLocal(file_name.clone(), t).into()
+                        ModListEntry::Local(l) => {
+                            EditPresetsMessage::ToggleCheckboxLocal(l.clone(), t).into()
                         }
                     })
                     .into()

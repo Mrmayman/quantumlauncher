@@ -7,7 +7,7 @@ use ql_core::{Instance, InstanceKind, LAUNCHER_VERSION_NAME};
 use crate::cli::EXPERIMENTAL_MMC_IMPORT;
 use crate::menu_renderer::onboarding::x86_warning;
 use crate::menu_renderer::{
-    CTXI_SIZE, Column, FONT_MONO, barthin, ctx_button, ctxbox, sidebar, tsubtitle, underline,
+    CTXI_SIZE, Column, FONT_MONO, barthin, ctx_button_icon, ctxbox, sidebar, tsubtitle, underline,
     view_info_message,
 };
 use crate::state::{
@@ -139,9 +139,9 @@ impl Launcher {
                     ctxbox(
                         column![
                             // Not ready for production yet
-                            // ctx_button(icons::file_zip_s(CTXI_SIZE), "Export Instance")
+                            // ctx_button_icon(icons::file_zip_s(CTXI_SIZE), "Export Instance")
                             //     .on_press(Message::ExportInstanceOpen),
-                            ctx_button(icons::file_gear_s(CTXI_SIZE), "Create Shortcut")
+                            ctx_button_icon(icons::file_gear_s(CTXI_SIZE), "Create Shortcut")
                                 .on_press(ShortcutMessage::Open.into()),
                         ]
                         .push_maybe(mmc_import.then_some(widget::horizontal_rule(1)))

@@ -1,4 +1,4 @@
-use std::{fmt::Display, num::ParseIntError};
+use std::{fmt::Display, num::ParseIntError, sync::Arc};
 
 use ql_core::{IoError, JsonError, RequestError, impl_3_errs_jri};
 use thiserror::Error;
@@ -19,7 +19,7 @@ pub enum ModError {
     Io(#[from] IoError),
 
     #[error("{MOD_ERR_PREFIX}no compatible version found for mod: {0}")]
-    NoCompatibleVersionFound(String),
+    NoCompatibleVersionFound(Arc<str>),
     #[error("{MOD_ERR_PREFIX}no valid files found for mod")]
     NoFilesFound,
     #[error(

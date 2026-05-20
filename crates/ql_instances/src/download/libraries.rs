@@ -5,12 +5,13 @@ use std::{
     sync::Mutex,
 };
 
+#[allow(clippy::wildcard_imports)] // items may vary based on platform
+use ql_core::constants::*;
+
 use cfg_if::cfg_if;
 use owo_colors::OwoColorize;
 use ql_core::{
-    DownloadProgress, IntoIoError, IoError,
-    constants::*,
-    do_jobs, err, file_utils, info,
+    DownloadProgress, IntoIoError, IoError, do_jobs, err, file_utils, info,
     json::{
         VersionDetails,
         version::{

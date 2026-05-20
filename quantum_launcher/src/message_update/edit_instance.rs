@@ -14,9 +14,9 @@ use crate::{
     config::sidebar::SidebarSelection,
     state::{
         ADD_JAR_NAME, AutoSaveKind, CustomJarState, EditInstanceMessage, EditInstanceRam,
-        EditInstanceRename, LaunchTab, Launcher, MainMenuMessage, MenuCreateInstance,
+        EditInstanceRename, FsWatcher, LaunchTab, Launcher, MainMenuMessage, MenuCreateInstance,
         MenuEditInstance, MenuLaunch, Message, NONE_JAR_NAME, OPEN_FOLDER_JAR_NAME, ProgressBar,
-        REMOVE_JAR_NAME, State, dir_watch, get_entries,
+        REMOVE_JAR_NAME, State, get_entries,
     },
 };
 
@@ -372,7 +372,7 @@ impl Launcher {
         if let Some(cx) = &mut self.custom_jar {
             cx.choices = choices;
         } else {
-            let watcher = match dir_watch(LAUNCHER_DIR.join("custom_jars")) {
+            let watcher = match FsWatcher::new(LAUNCHER_DIR.join("custom_jars")) {
                 Ok(n) => n,
                 Err(err) => {
                     err!("Couldn't load list of custom jars (2)! {err}");

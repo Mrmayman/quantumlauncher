@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use iced::{
     Alignment, Length,
     widget::{self, column, row},
@@ -94,8 +96,8 @@ impl MenuModsDownload {
                 (self.query_type == QueryType::Shaders
                     && self.config.mod_type != Loader::OptiFine
                     // Iris Shaders Mod
-                    && !self.mod_index.mods.contains_key(&ModId::Modrinth("YL57xq9U".to_owned())) // Modrinth ID
-                    && !self.mod_index.mods.contains_key(&ModId::Curseforge("455508".to_owned()))) // CurseForge ID
+                    && !self.mod_index.mods.contains_key(&ModId::Modrinth(Arc::from("YL57xq9U"))) // Modrinth ID
+                    && !self.mod_index.mods.contains_key(&ModId::Curseforge(Arc::from("455508")))) // CurseForge ID
                 .then_some(
                     column![
                         widget::text(
@@ -144,7 +146,7 @@ impl MenuModsDownload {
                                 ModOperation::Downloading => icons::download_s(SIZE),
                                 ModOperation::Deleting => icons::bin_s(SIZE),
                             },
-                            widget::text(title).size(SIZE)
+                            widget::text(&**title).size(SIZE)
                         ]
                         .spacing(4),
                     )
@@ -236,7 +238,7 @@ impl MenuModsDownload {
                 row![
                     images.view(hit.icon_url.as_deref(), Some(32.0), Some(32.0)),
                     column![
-                        widget::text(&hit.title)
+                        widget::text(&*hit.title)
                             .wrapping(widget::text::Wrapping::None)
                             .shaping(widget::text::Shaping::Advanced)
                             .height(19),

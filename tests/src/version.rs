@@ -30,9 +30,9 @@ pub const VERSIONS_LWJGL3: &[Version] = &[
     // after migration to Java 17, OpenGL 3.x, engine rewrites
     Version("1.18.2", &FORGE_QUILT),
     // has some weird bugs
-    Version("1.21.5", &[Loader::Forge, Loader::Quilt, Loader::Neoforge]),
+    Version("1.21.5", &[Loader::Forge, Loader::Quilt, Loader::NeoForge]),
     // last launchwrapper version
-    Version("1.21.10", &[Loader::Forge, Loader::Quilt, Loader::Neoforge]),
+    Version("1.21.10", &[Loader::Forge, Loader::Quilt, Loader::NeoForge]),
     // TODO: Wait for a version to come out after 1.21.11, then add it here
     // (BetterJSONs is, unfortunately, up-to-date so can't test without it)
 ];
