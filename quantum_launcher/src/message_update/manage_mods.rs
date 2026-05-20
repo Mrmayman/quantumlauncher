@@ -1,6 +1,5 @@
 use iced::{Task, widget};
 use iced::{futures::executor::block_on, keyboard::Modifiers};
-use ql_core::file_utils::exists;
 use ql_core::json::VersionDetails;
 use ql_core::{Instance, IntoIoError, IntoStringError, err, jarmod::JarMods};
 use ql_mod_manager::store::{DirStructure, LocalMod, ModId, QueryType, SelectedMod};
@@ -313,7 +312,9 @@ impl Launcher {
             ManageModsMessage::ToggleOne(id) => {
                 if let State::EditMods(menu) = &mut self.state {
                     if let Some(m) = menu.file_data.mod_index.mods.get_mut(&id) {
-                        m.enabled = !m.enabled;
+                        if m.project_type.is_toggleable() {
+                            m.enabled = !m.enabled;
+                        }
                     }
                 }
                 return Task::perform(
@@ -385,6 +386,9 @@ impl Launcher {
         // Show change in UI beforehand, don't want for disk sync
         for m in &ids_downloaded {
             if let Some(m) = menu.file_data.mod_index.mods.get_mut(m) {
+                if !m.project_type.is_toggleable() {
+                    continue;
+                }
                 m.enabled = !m.enabled;
             }
         }
@@ -787,10 +791,16 @@ impl Launcher {
 }
 
 async fn delete_file_wrapper(path: PathBuf) -> Result<(), String> {
-    if !exists(&path).await {
+    let Ok(f) = tokio::fs::metadata(&path).await else {
         return Ok(());
+    };
+    if f.is_dir() {
+        tokio::fs::remove_dir_all(&path).await
+    } else {
+        tokio::fs::remove_file(&path).await
     }
-    tokio::fs::remove_file(&path).await.path(path).strerr()
+    .path(path)
+    .strerr()
 }
 
 impl MenuEditMods {

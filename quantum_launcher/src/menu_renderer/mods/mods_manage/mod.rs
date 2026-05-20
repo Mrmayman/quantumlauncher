@@ -96,8 +96,14 @@ impl MenuEditMods {
             Some(MenuEditModsModal::RightClick(id, (x, y))) => offsetbox(
                 menu_main,
                 column![
-                    ctx_button_icon(icons::toggleon_s(CTXI_SIZE), "Toggle")
-                        .on_press(ManageModsMessage::ToggleSelected.into()),
+                    ctx_button_icon(icons::toggleon_s(CTXI_SIZE), "Toggle").on_press_maybe(
+                        self.file_data
+                            .mod_index
+                            .mods
+                            .get(id)
+                            .is_some_and(|n| n.project_type == QueryType::Mods)
+                            .then_some(ManageModsMessage::ToggleSelected.into())
+                    ),
                     ctx_button_icon(icons::bin_s(CTXI_SIZE), "Delete")
                         .on_press(ManageModsMessage::DeleteSelected.into()),
                     ctx_button_icon(icons::file_info_s(CTXI_SIZE), "Mod Details")

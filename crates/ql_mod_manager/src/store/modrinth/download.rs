@@ -309,6 +309,9 @@ impl ModDownloader {
         manually_installed: bool,
         project_type: QueryType,
     ) {
+        if project_type == QueryType::ModPacks {
+            return;
+        }
         let config = ModConfig {
             name: project_info.title.clone(),
             description: project_info.description.clone(),

@@ -67,7 +67,7 @@ impl MenuEditMods {
                 widget::text(label)
                     .font(FONT_MONO)
                     .shaping(widget::text::Shaping::Advanced)
-                    .style(mod_name_style(is_enabled))
+                    .style(mod_name_style(is_enabled, local.1))
                     .size(13)
             ]
             .push_maybe({
@@ -134,7 +134,7 @@ impl MenuEditMods {
                 widget::Space::with_width(1),
                 widget::text(&*config.name)
                     .shaping(widget::text::Shaping::Advanced)
-                    .style(mod_name_style(is_enabled))
+                    .style(mod_name_style(is_enabled, config.project_type))
                     .size(14)
                     .width(self.ui_state.width_name),
                 widget::text(&config.installed_version)
@@ -248,9 +248,13 @@ fn mod_toggler_or_indicator<'a>(
     .into()
 }
 
-fn mod_name_style(enabled: bool) -> impl Fn(&LauncherTheme) -> widget::text::Style {
+fn mod_name_style(
+    enabled: bool,
+    project_type: QueryType,
+) -> impl Fn(&LauncherTheme) -> widget::text::Style {
     move |t: &LauncherTheme| {
-        t.style_text(if enabled {
+        // Don't want any state bugs, do we?
+        t.style_text(if enabled || !project_type.is_toggleable() {
             Color::SecondLight
         } else {
             Color::Mid
