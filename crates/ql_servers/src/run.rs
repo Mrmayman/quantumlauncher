@@ -96,7 +96,7 @@ impl ServerLauncher {
     }
 
     fn is_neoforge(&self) -> bool {
-        self.config.mod_type == Loader::Neoforge
+        self.config.mod_type == Loader::NeoForge
     }
 
     fn is_classic_server(&self) -> bool {
@@ -136,7 +136,7 @@ impl ServerLauncher {
                     debug_assert!(false, "Optifine can't run on servers");
                     regular
                 }
-                Loader::Neoforge
+                Loader::NeoForge
                 | Loader::Vanilla
                 | Loader::Liteloader
                 | Loader::Modloader

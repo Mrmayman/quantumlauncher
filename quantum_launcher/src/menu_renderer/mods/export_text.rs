@@ -1,10 +1,10 @@
 use iced::{Length, widget};
-use ql_mod_manager::store::{ModId, SelectedMod};
+use ql_mod_manager::store::{LocalMod, ModId, QueryType, SelectedMod};
 
 use crate::{
     icons,
     menu_renderer::{Column, Element, back_button, tsubtitle, underline},
-    state::{ExportModsMessage, ManageModsMessage, MenuExportMods, Message},
+    state::{ExportModsTextMessage, ManageModsMessage, MenuExportModsText, Message},
     stylesheet::{
         color::Color,
         styles::{BORDER_RADIUS, LauncherTheme},
@@ -12,7 +12,7 @@ use crate::{
     },
 };
 
-impl MenuExportMods {
+impl MenuExportModsText {
     pub fn view(&'_ self) -> Element<'_> {
         if self.selected_mods.is_empty() {
             return self.get_top_section().padding(25).into();
@@ -58,13 +58,13 @@ impl MenuExportMods {
                 widget::row![
                     widget::button(widget::text("Copy").size(14))
                         .padding([8, 16])
-                        .on_press(ExportModsMessage::CopyPlainTextToClipboard.into()),
+                        .on_press(ExportModsTextMessage::CopyPlainTextToClipboard.into()),
                     widget::button(widget::text("Save").size(14))
                         .padding([8, 16])
                         .style(|theme: &LauncherTheme, status| {
                             theme.style_button(status, StyleButton::FlatDark)
                         })
-                        .on_press(ExportModsMessage::ExportAsPlainText.into()),
+                        .on_press(ExportModsTextMessage::ExportAsPlainText.into()),
                 ]
                 .spacing(12)
             ]
@@ -86,14 +86,14 @@ impl MenuExportMods {
                 widget::row![
                     widget::button(widget::text("Copy").size(14))
                         .padding([8, 16])
-                        .on_press(ExportModsMessage::CopyMarkdownToClipboard.into()),
+                        .on_press(ExportModsTextMessage::CopyMarkdownToClipboard.into()),
                     widget::button(widget::text("Save").size(14))
                         .padding([8, 16])
                         .style(|theme: &LauncherTheme, status| {
                             use crate::stylesheet::widgets::StyleButton;
                             theme.style_button(status, StyleButton::FlatDark)
                         })
-                        .on_press(ExportModsMessage::ExportAsMarkdown.into())
+                        .on_press(ExportModsTextMessage::ExportAsMarkdown.into())
                 ]
                 .spacing(12)
             ]
@@ -159,7 +159,7 @@ impl MenuExportMods {
                             widget::text("-")
                                 .size(13)
                                 .style(|theme: &LauncherTheme| theme.style_text(Color::Mid)),
-                            underline(widget::text(name).size(13), Color::Light),
+                            underline(widget::text(&**name).size(13), Color::Light),
                             widget::text("→").size(13).style(tsubtitle)
                         ]
                         .height(Length::Fill)
@@ -176,11 +176,15 @@ impl MenuExportMods {
 
                     preview_elements.push(link_element.into());
                 }
-                SelectedMod::Local { file_name } => {
+                SelectedMod::Local(LocalMod(file_name, project_type)) => {
+                    if *project_type != QueryType::Mods {
+                        continue;
+                    }
+
                     let display_name = file_name
                         .strip_suffix(".jar")
                         .or_else(|| file_name.strip_suffix(".zip"))
-                        .unwrap_or(file_name.as_str());
+                        .unwrap_or(file_name);
 
                     let text_element = widget::row![
                         widget::Space::with_width(5),

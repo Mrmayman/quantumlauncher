@@ -246,6 +246,8 @@ pub enum RequestError {
     ReqwestError(#[from] reqwest::Error),
     #[error("Download Error (invalid header value){NETWORK_ERROR_MSG}")]
     InvalidHeaderValue(#[from] InvalidHeaderValue),
+    #[error("{0}")]
+    Message(String),
 }
 
 impl RequestError {
@@ -259,6 +261,7 @@ impl RequestError {
             RequestError::InvalidHeaderValue(_) => {
                 "Download Error: invalid header value".to_owned()
             }
+            RequestError::Message(msg) => msg.clone(),
         }
     }
 }

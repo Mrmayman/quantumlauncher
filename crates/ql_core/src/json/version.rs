@@ -5,13 +5,20 @@ use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{Instance, IntoIoError, IntoJsonError, JsonFileError, OS_NAME, constants::*, err, pt};
+use crate::{Instance, IntoIoError, IntoJsonError, JsonFileError, OS_NAME, err, pt};
+
+#[allow(clippy::wildcard_imports)] // items may vary based on platform
+use crate::constants::*;
 
 pub const V_PRECLASSIC_LAST: &str = "2009-05-16T11:48:00+00:00";
 pub const V_OFFICIAL_FABRIC_SUPPORT: &str = "2018-10-24T10:52:16+00:00";
 pub const V_1_5_2: &str = "2013-04-25T15:45:00+00:00";
 pub const V_1_12_2: &str = "2017-09-18T08:39:46+00:00";
 pub const V_PAULSCODE_LAST: &str = "2019-03-14T14:26:23+00:00";
+/// Minecraft 13w23b release date (1.6.1 snapshot)
+///
+/// Last version with Texture Packs instead of Resource Packs
+pub const V_LAST_TEXTUREPACK: &str = "2013-06-08T00:32:01+00:00";
 
 #[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -158,6 +165,11 @@ impl VersionDetails {
     }
 
     #[must_use]
+    pub fn is_legacy_texturepacks(&self) -> bool {
+        self.is_before_or_eq(V_LAST_TEXTUREPACK)
+    }
+
+    #[must_use]
     pub fn is_before_or_eq(&self, release_time: &str) -> bool {
         match (
             DateTime::parse_from_rfc3339(&self.releaseTime),
@@ -204,6 +216,31 @@ impl VersionDetails {
     }
 }
 
+impl Default for VersionDetails {
+    // This is only placeholder to pass into stuff where it's not important.
+    // Do not use as actual information!
+    fn default() -> Self {
+        const TIME: &str = "2025-12-09T12:23:30+00:00";
+        Self {
+            assetIndex: AssetIndexInfo::default(),
+            assets: "29".to_owned(),
+            downloads: Downloads::default(),
+            id: "1.21.11".to_owned(),
+            javaVersion: None,
+            libraries: Vec::new(),
+            logging: None,
+            mainClass: "net.minecraft.client.main.Main".to_owned(),
+            minecraftArguments: None,
+            arguments: None,
+            minimumLauncherVersion: None,
+            releaseTime: TIME.to_owned(),
+            time: TIME.to_owned(),
+            r#type: "release".to_owned(),
+            q_patch_overrides: Vec::new(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[allow(non_snake_case)]
 pub struct VersionDetailsPatch {
@@ -228,7 +265,19 @@ pub struct AssetIndexInfo {
     pub url: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+impl Default for AssetIndexInfo {
+    fn default() -> Self {
+        Self {
+            id: "29".to_owned(),
+            sha1: String::new(),
+            size: 529_372,
+            totalSize: 440_970_807,
+            url: String::new(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Downloads {
     pub client: Download,
     // pub client_mappings: Option<Download>,
@@ -236,7 +285,7 @@ pub struct Downloads {
     // pub server_mappings: Option<Download>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Download {
     sha1: String,
     size: usize,

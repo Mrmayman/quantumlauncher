@@ -1,6 +1,8 @@
 use crate::auth::AccountData;
 use error::GameLaunchError;
-use ql_core::{GenericProgress, Instance, LaunchedProcess, REDACT_SENSITIVE_INFO, err, info};
+use ql_core::{
+    GenericProgress, Instance, LaunchedProcess, err, flags::redact_sensitive_info, info,
+};
 use std::sync::{Arc, mpsc::Sender};
 use tokio::sync::Mutex;
 
@@ -110,29 +112,29 @@ pub async fn launch(
 }
 
 fn print_censored_args(auth: Option<&AccountData>, game_arguments: &mut Vec<String>) {
-    let redact = *REDACT_SENSITIVE_INFO.lock().unwrap();
-    if redact {
-        censor(game_arguments, "--clientId", |args| {
-            censor(args, "--session", |args| {
-                censor(args, "--accessToken", |args| {
-                    censor(args, "--uuid", |args| {
-                        censor_string(
-                            args,
-                            &auth
-                                .as_ref()
-                                .and_then(|n| n.access_token.clone())
-                                .unwrap_or_default(),
-                            |args| {
-                                info!("Game args: {:?}\n", args);
-                            },
-                        );
-                    });
+    if !redact_sensitive_info() {
+        info!("Game args: {:?}\n", game_arguments);
+        return;
+    }
+
+    censor(game_arguments, "--clientId", |args| {
+        censor(args, "--session", |args| {
+            censor(args, "--accessToken", |args| {
+                censor(args, "--uuid", |args| {
+                    censor_string(
+                        args,
+                        &auth
+                            .as_ref()
+                            .and_then(|n| n.access_token.clone())
+                            .unwrap_or_default(),
+                        |args| {
+                            info!("Game args: {:?}\n", args);
+                        },
+                    );
                 });
             });
         });
-    } else {
-        info!("Game args: {:?}\n", game_arguments);
-    }
+    });
 }
 
 fn censor<F: FnOnce(&mut Vec<String>)>(vec: &mut Vec<String>, argument: &str, code: F) {

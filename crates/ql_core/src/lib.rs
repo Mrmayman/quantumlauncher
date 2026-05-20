@@ -75,11 +75,31 @@ pub static REGEX_SNAPSHOT: LazyLock<Regex> =
 
 pub const CLASSPATH_SEPARATOR: char = if cfg!(unix) { ':' } else { ';' };
 
-/// Redact sensitive info like username, UUID, session ID, etc.
-///
-/// Default: `true`. Use `--no-redact-info` in CLI to set `false`.
-pub static REDACT_SENSITIVE_INFO: LazyLock<std::sync::Mutex<bool>> =
-    LazyLock::new(|| std::sync::Mutex::new(true));
+pub mod flags {
+    use std::sync::OnceLock;
+
+    /// Redact sensitive info like username, UUID, session ID, etc.
+    ///
+    /// Default: `true`. Use `--no-redact-info` in CLI to set `false`.
+    pub fn redact_sensitive_info() -> bool {
+        REDACT_SENSITIVE_INFO.get().copied().unwrap_or(true)
+    }
+    pub fn redact_sensitive_info_set<F: FnOnce() -> bool>(f: F) -> bool {
+        *REDACT_SENSITIVE_INFO.get_or_init(f)
+    }
+    static REDACT_SENSITIVE_INFO: OnceLock<bool> = OnceLock::new();
+
+    /// Print verbose, less important messages to log.
+    ///
+    /// Default: `false`. Use `--verbose` in CLI to set `true`.
+    pub fn log_verbose() -> bool {
+        LOG_VERBOSE.get().copied().unwrap_or(false)
+    }
+    pub fn log_verbose_set<F: FnOnce() -> bool>(f: F) -> bool {
+        *LOG_VERBOSE.get_or_init(f)
+    }
+    static LOG_VERBOSE: OnceLock<bool> = OnceLock::new();
+}
 
 pub const WEBSITE: &str = "https://mrmayman.github.io/quantumlauncher";
 

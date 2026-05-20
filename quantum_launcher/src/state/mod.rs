@@ -75,8 +75,8 @@ pub struct Launcher {
 
     pub client_list: Option<Vec<String>>,
     pub server_list: Option<Vec<String>>,
-    pub client_watcher: Option<DirWatcher>,
-    pub server_watcher: Option<DirWatcher>,
+    pub client_watcher: Option<FsWatcher>,
+    pub server_watcher: Option<FsWatcher>,
 
     pub processes: HashMap<Instance, GameProcess>,
     pub logs: HashMap<Instance, InstanceLog>,
@@ -110,7 +110,7 @@ pub struct WindowState {
 
 pub struct CustomJarState {
     pub choices: Vec<String>,
-    pub watcher: DirWatcher,
+    pub watcher: FsWatcher,
 }
 
 impl CustomJarState {
@@ -121,15 +121,50 @@ impl CustomJarState {
     }
 }
 
-pub struct DirWatcher {
+pub struct FsWatcher {
     recv: Receiver<notify::Event>,
     _watcher: notify::RecommendedWatcher,
 }
 
-impl DirWatcher {
+impl FsWatcher {
+    pub fn new<P: AsRef<Path>>(path: P) -> notify::Result<FsWatcher> {
+        let (tx, recv) = mpsc::channel();
+
+        // `notify` runs callbacks in its own thread.
+        let mut watcher: notify::RecommendedWatcher = notify::recommended_watcher(move |res| {
+            if let Ok(event) = res {
+                _ = tx.send(event);
+            }
+        })?;
+        let path = path.as_ref();
+        watcher.watch(path, notify::RecursiveMode::NonRecursive)?;
+
+        Ok(FsWatcher {
+            recv,
+            _watcher: watcher,
+        })
+    }
+
     pub fn has_changed(&self) -> bool {
         let mut has_changed = false;
-        while let Ok(_event) = self.recv.try_recv() {
+        while let Ok(event) = self.recv.try_recv() {
+            if let notify::EventKind::Access(notify::event::AccessKind::Open(
+                notify::event::AccessMode::Any,
+            )) = event.kind
+            {
+                let a = &event.attrs;
+                if a.tracker().is_none()
+                    && a.flag().is_none()
+                    && a.info().is_none()
+                    && a.source().is_none()
+                {
+                    // Bogus spam event
+                    // TODO: Test on Windows and macOS
+                    // (tested on Linux)
+                    continue;
+                }
+            }
+
             has_changed = true;
         }
         has_changed
@@ -488,24 +523,6 @@ pub async fn load_custom_jars() -> Result<Vec<String>, IoError> {
     list.push(OPEN_FOLDER_JAR_NAME.to_owned());
 
     Ok(list)
-}
-
-pub fn dir_watch<P: AsRef<Path>>(path: P) -> notify::Result<DirWatcher> {
-    let (tx, recv) = mpsc::channel();
-
-    // `notify` runs callbacks in its own thread.
-    let mut watcher: notify::RecommendedWatcher = notify::recommended_watcher(move |res| {
-        if let Ok(event) = res {
-            _ = tx.send(event);
-        }
-    })?;
-    let path = path.as_ref();
-    watcher.watch(path, notify::RecursiveMode::NonRecursive)?;
-
-    Ok(DirWatcher {
-        recv,
-        _watcher: watcher,
-    })
 }
 
 fn migration(version: &str) -> Result<(), String> {

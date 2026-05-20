@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use ql_core::IntoJsonError;
 use serde::Deserialize;
@@ -91,8 +91,8 @@ pub struct Search {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Entry {
-    pub title: String,
-    pub project_id: String,
+    pub title: Arc<str>,
+    pub project_id: Arc<str>,
     pub icon_url: Option<String>,
     pub description: String,
     pub downloads: usize,

@@ -106,7 +106,7 @@ pub fn list_instances(
                         Loader::Fabric => writeln!(cmds_loader, "{}", m.bright_green()),
                         Loader::Quilt => writeln!(cmds_loader, "{}", m.bright_purple()),
                         Loader::Forge => writeln!(cmds_loader, "{}", m.bright_yellow()),
-                        Loader::Neoforge => writeln!(cmds_loader, "{}", m.yellow()),
+                        Loader::NeoForge => writeln!(cmds_loader, "{}", m.yellow()),
                         Loader::OptiFine => writeln!(cmds_loader, "{}", m.red().bold()),
                         Loader::Paper => writeln!(cmds_loader, "{}", m.blue()),
                         Loader::Liteloader => writeln!(cmds_loader, "{}", m.bright_blue()),

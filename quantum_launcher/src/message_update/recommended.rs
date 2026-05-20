@@ -95,7 +95,7 @@ impl Launcher {
 
     fn go_to_recommended_mods(&mut self) -> Task<Message> {
         let config = if let State::EditMods(menu) = &self.state {
-            menu.config.clone()
+            menu.file_data.config.clone()
         } else {
             match block_on(InstanceConfigJson::read(self.instance())) {
                 Ok(n) => n,

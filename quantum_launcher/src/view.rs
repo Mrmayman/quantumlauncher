@@ -162,7 +162,7 @@ impl Launcher {
             State::LoginMS(menu) => menu.view(),
             State::CurseforgeManualDownload(menu) => menu.view(),
             State::License(menu) => menu.view(),
-            State::ExportMods(menu) => menu.view(),
+            State::ExportModsText(menu) => menu.view(),
             State::InstallForge(menu) => menu.view(),
             #[cfg(feature = "auto_update")]
             State::UpdateFound(menu) => menu.view(),

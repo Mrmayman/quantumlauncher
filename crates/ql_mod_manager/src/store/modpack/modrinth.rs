@@ -61,7 +61,7 @@ pub async fn install(
         Loader::Forge => "forge",
         Loader::Fabric => "fabric-loader",
         Loader::Quilt => "quilt-loader",
-        Loader::Neoforge => "neoforge",
+        Loader::NeoForge => "neoforge",
         _ => {
             return Err(expect_got_modrinth(index, config));
         }

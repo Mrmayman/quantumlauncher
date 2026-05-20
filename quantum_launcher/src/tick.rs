@@ -1,21 +1,17 @@
-use std::{
-    cmp::Ordering,
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use iced::{Rectangle, Task, widget::text_editor};
 use ql_core::{
     Instance, IntoIoError, IntoJsonError, IntoStringError, JsonFileError, constants::OS_NAME,
     json::InstanceConfigJson,
 };
-use ql_mod_manager::store::{ModConfig, ModId, ModIndex};
+use ql_mod_manager::store::ModIndex;
 
 use crate::state::{
     AutoSaveKind, EditInstanceMessage, GameProcess, InstallModsMessage, InstanceLog, LaunchModal,
-    LaunchTab, Launcher, LogState, ManageJarModsMessage, MenuCreateInstance, MenuEditMods,
-    MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuLaunch, MenuLoginMS,
-    MenuModsDownload, MenuRecommendedMods, Message, ModListEntry, State,
+    LaunchTab, Launcher, LogState, ManageJarModsMessage, ManageModsMessage, MenuCreateInstance,
+    MenuEditMods, MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuLaunch,
+    MenuLoginMS, MenuModsDownload, MenuRecommendedMods, Message, State,
 };
 use crate::{config::SIDEBAR_WIDTH, state::InfoMessage};
 
@@ -78,9 +74,8 @@ impl Launcher {
                 self.autosave_launcher_config();
             }
             State::EditMods(menu) => {
-                let instance_selection = self.selected_instance.as_ref().unwrap();
-                let update_locally_installed_mods = menu.tick(instance_selection);
-                return update_locally_installed_mods;
+                let instance = self.selected_instance.as_ref().unwrap();
+                return menu.tick(instance);
             }
             State::InstallFabric(menu) => {
                 if let MenuInstallFabric::Loaded {
@@ -183,7 +178,7 @@ impl Launcher {
             | State::InstallPaper(_)
             | State::CreateShortcut(_)
             | State::ModDescription(_)
-            | State::ExportMods(_) => {}
+            | State::ExportModsText(_) => {}
         }
 
         Task::none()
@@ -359,68 +354,37 @@ impl MenuModsDownload {
     }
 }
 
-pub fn sort_dependencies(
-    downloaded_mods: &HashMap<ModId, ModConfig>,
-    locally_installed_mods: &HashSet<String>,
-) -> Vec<ModListEntry> {
-    let mut entries: Vec<ModListEntry> = downloaded_mods
-        .iter()
-        .map(|(id, c)| ModListEntry::Downloaded {
-            id: id.clone(),
-            config: Box::new(c.clone()),
-        })
-        .chain(locally_installed_mods.iter().map(|n| ModListEntry::Local {
-            file_name: n.clone(),
-        }))
-        .collect();
-    entries.sort_by(|val1, val2| match (val1, val2) {
-        (
-            ModListEntry::Downloaded { config, .. },
-            ModListEntry::Downloaded {
-                config: config2, ..
-            },
-        ) => match (config.manually_installed, config2.manually_installed) {
-            (true, true) | (false, false) => config.name.cmp(&config2.name),
-            (true, false) => Ordering::Less,
-            (false, true) => Ordering::Greater,
-        },
-        (ModListEntry::Downloaded { config, .. }, ModListEntry::Local { .. }) => {
-            if config.manually_installed {
-                Ordering::Less
-            } else {
-                Ordering::Greater
-            }
-        }
-        (ModListEntry::Local { .. }, ModListEntry::Downloaded { config, .. }) => {
-            if config.manually_installed {
-                Ordering::Greater
-            } else {
-                Ordering::Less
-            }
-        }
-        (
-            ModListEntry::Local { file_name },
-            ModListEntry::Local {
-                file_name: file_name2,
-            },
-        ) => file_name.cmp(file_name2),
-    });
-
-    entries
-}
-
 impl MenuEditMods {
-    fn tick(&mut self, instance_selection: &Instance) -> Task<Message> {
-        self.sorted_mods_list = sort_dependencies(&self.mods.mods, &self.locally_installed_mods);
+    fn tick(&mut self, instance: &Instance) -> Task<Message> {
+        self.sort_mods();
 
-        if let Some(progress) = &mut self.mod_update_progress {
+        if let Some(progress) = &mut self.updates.progress {
             progress.tick();
             if progress.progress.has_finished {
-                self.mod_update_progress = None;
+                self.updates.progress = None;
             }
         }
 
-        MenuEditMods::update_locally_installed_mods(&self.mods, instance_selection)
+        let t1 = if let Some(project_type) = self.file_data.content_watcher.tick() {
+            MenuEditMods::update_locally_installed_mods(
+                &self.file_data.mod_index,
+                instance,
+                project_type,
+            )
+        } else {
+            Task::none()
+        };
+
+        let t2 = if self.file_data.index_watcher.has_changed() {
+            let i = instance.clone();
+            Task::perform(async move { ModIndex::load(&i).await.strerr() }, |n| {
+                ManageModsMessage::IndexLoaded(n).into()
+            })
+        } else {
+            Task::none()
+        };
+
+        Task::batch([t1, t2])
     }
 }
 

@@ -63,6 +63,9 @@ impl DownloadRequest<'_> {
 
     pub async fn json<T: serde::de::DeserializeOwned>(&self) -> Result<T, JsonDownloadError> {
         let json_raw = self.string().await?;
+        if json_raw.is_empty() {
+            return Err(JsonDownloadError::EmptyResponse(self.url.to_owned()));
+        }
         Ok(serde_json::from_str(&json_raw).json(json_raw)?)
     }
 

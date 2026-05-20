@@ -1,6 +1,6 @@
 use iced::Task;
 use ql_core::{IntoIoError, IntoStringError};
-use ql_mod_manager::store::SelectedMod;
+use ql_mod_manager::store::{QueryType, SelectedMod};
 use std::collections::HashSet;
 
 use crate::state::{
@@ -23,7 +23,7 @@ impl Launcher {
     pub fn update_edit_presets(&mut self, message: EditPresetsMessage) -> Task<Message> {
         match message {
             EditPresetsMessage::Open => self.go_to_edit_presets_menu(),
-            EditPresetsMessage::ToggleCheckbox((name, id), enable) => {
+            EditPresetsMessage::ToggleCheckbox(name, id, enable) => {
                 iflet_manage_preset!(self, selected_mods, selected_state, {
                     if enable {
                         selected_mods.insert(SelectedMod::Downloaded { name, id });
@@ -33,12 +33,13 @@ impl Launcher {
                     *selected_state = SelectedState::Some;
                 });
             }
-            EditPresetsMessage::ToggleCheckboxLocal(file_name, enable) => {
+            EditPresetsMessage::ToggleCheckboxLocal(local, enable) => {
                 iflet_manage_preset!(self, selected_mods, selected_state, {
+                    let m = SelectedMod::Local(local);
                     if enable {
-                        selected_mods.insert(SelectedMod::Local { file_name });
+                        selected_mods.insert(m);
                     } else {
-                        selected_mods.remove(&SelectedMod::Local { file_name });
+                        selected_mods.remove(&m);
                     }
                     *selected_state = SelectedState::Some;
                 });
@@ -127,9 +128,14 @@ impl Launcher {
             return;
         };
 
-        let selected_mods = menu
-            .sorted_mods_list
-            .iter()
+        // I'm anyway overhauling this thing in another PR
+        let mods = || {
+            menu.sorted_mods_list
+                .iter()
+                .filter(|n| n.project_type() == QueryType::Mods)
+        };
+
+        let selected_mods = mods()
             .filter_map(|n| n.is_manually_installed().then_some(n.clone().into()))
             .collect::<HashSet<_>>();
 
@@ -139,7 +145,7 @@ impl Launcher {
             is_building: false,
             include_config: true,
             progress: None,
-            sorted_mods_list: menu.sorted_mods_list.clone(),
+            sorted_mods_list: mods().cloned().collect(),
             drag_and_drop_hovered: false,
         };
 

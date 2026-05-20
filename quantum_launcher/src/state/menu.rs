@@ -1,6 +1,7 @@
 use std::{
+    cmp::Ordering,
     collections::{HashMap, HashSet},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
     time::Instant,
 };
@@ -11,7 +12,7 @@ use crate::{
         sidebar::{FolderId, SDragLocation, SidebarSelection},
     },
     message_handler::get_locally_installed_mods,
-    state::NotesMessage,
+    state::{FsWatcher, NotesMessage},
 };
 use ezshortcut::Shortcut;
 use frostmark::MarkState;
@@ -23,12 +24,14 @@ use ql_core::{
     DownloadProgress, GenericProgress, Instance, InstanceKind, IntoStringError, ListEntry,
     OptifineUniqueVersion,
     file_utils::DirItem,
+    flags::log_verbose,
     jarmod::JarMods,
     json::{InstanceConfigJson, VersionDetails, instance_config::MainClassMode},
+    pt,
 };
 use ql_mod_manager::{
     loaders::paper::PaperVersion,
-    store::{Category, SearchMod},
+    store::{Category, LocalMod, SearchMod},
 };
 use ql_mod_manager::{
     loaders::{self, forge::ForgeInstallProgress, optifine::OptifineInstallProgress},
@@ -221,21 +224,29 @@ pub enum SelectedState {
 #[derive(Debug, Clone)]
 pub enum ModListEntry {
     Downloaded { id: ModId, config: Box<ModConfig> },
-    Local { file_name: String },
+    Local(LocalMod),
 }
 
 impl ModListEntry {
     pub fn is_manually_installed(&self) -> bool {
         match self {
-            ModListEntry::Local { .. } => true,
+            ModListEntry::Local(_) => true,
             ModListEntry::Downloaded { config, .. } => config.manually_installed,
         }
     }
 
     pub fn name(&self) -> &str {
         match self {
-            ModListEntry::Local { file_name } => file_name,
+            ModListEntry::Local(l) => &l.0,
             ModListEntry::Downloaded { config, .. } => &config.name,
+        }
+    }
+
+    /// Returns the project type ("mod", "resourcepack", "shader", "datapack")
+    pub fn project_type(&self) -> QueryType {
+        match self {
+            ModListEntry::Local(l) => l.1,
+            ModListEntry::Downloaded { config, .. } => config.project_type,
         }
     }
 }
@@ -243,9 +254,7 @@ impl ModListEntry {
 impl From<ModListEntry> for SelectedMod {
     fn from(value: ModListEntry) -> Self {
         match value {
-            ModListEntry::Local { file_name } => SelectedMod::Local {
-                file_name: file_name.clone(),
-            },
+            ModListEntry::Local(l) => SelectedMod::Local(l),
             ModListEntry::Downloaded { id, config } => SelectedMod::Downloaded {
                 name: config.name.clone(),
                 id: id.clone(),
@@ -261,42 +270,209 @@ impl PartialEq<ModListEntry> for SelectedMod {
                 SelectedMod::Downloaded { name, id },
                 ModListEntry::Downloaded { id: id2, config },
             ) => id == id2 && *name == config.name,
-            (SelectedMod::Local { file_name }, ModListEntry::Local { file_name: name2 }) => {
-                file_name == name2
-            }
+            (SelectedMod::Local(l1), ModListEntry::Local(l2)) => l1 == l2,
             _ => false,
         }
     }
 }
 
+impl From<LocalMod> for ModListEntry {
+    fn from(l: LocalMod) -> Self {
+        ModListEntry::Local(l)
+    }
+}
+
+impl From<&LocalMod> for ModListEntry {
+    fn from(l: &LocalMod) -> Self {
+        ModListEntry::Local(l.clone())
+    }
+}
+
 pub struct MenuEditMods {
-    pub mod_update_progress: Option<ProgressBar<GenericProgress>>,
-
-    pub config: InstanceConfigJson,
-    pub mods: ModIndex,
-    // TODO: Use this for dynamically adjusting installable loader buttons
-    pub version_json: Box<VersionDetails>,
-
-    pub locally_installed_mods: HashSet<String>,
+    pub locally_installed_mods: HashSet<LocalMod>,
     pub sorted_mods_list: Vec<ModListEntry>,
 
+    pub file_data: EditModsFileData,
+    pub updates: EditModsUpdates,
+    pub selection: EditModsSelection,
+    pub ui_state: EditModsUiState,
+
+    pub search: Option<String>,
+    pub content_filter: Option<QueryType>,
+}
+
+impl MenuEditMods {
+    pub fn toggle_local_mods_in_ui(&mut self, ids_local: &[LocalMod]) {
+        let remove_old = |n: &SelectedMod| {
+            if let SelectedMod::Local(l) = n {
+                !ids_local.contains(l)
+            } else {
+                true
+            }
+        };
+
+        let add_new = || {
+            ids_local
+                .iter()
+                .map(|n| LocalMod(Arc::from(ql_mod_manager::store::flip_filename(&n.0)), n.1))
+        };
+
+        self.selection.selected_mods.retain(remove_old);
+        self.selection
+            .selected_mods
+            .extend(add_new().map(SelectedMod::Local));
+        self.locally_installed_mods
+            .retain(|l| !ids_local.contains(l));
+        self.locally_installed_mods.extend(add_new());
+    }
+
+    pub fn sort_mods(&mut self) {
+        let downloaded_mods = &self.file_data.mod_index.mods;
+        let locally_installed_mods = &self.locally_installed_mods;
+
+        let mut entries: Vec<ModListEntry> = downloaded_mods
+            .iter()
+            .map(|(id, c)| ModListEntry::Downloaded {
+                id: id.clone(),
+                config: Box::new(c.clone()),
+            })
+            .chain(locally_installed_mods.iter().map(ModListEntry::from))
+            .collect();
+
+        entries.sort_by(|val1, val2| match (val1, val2) {
+            (ModListEntry::Downloaded { .. }, ModListEntry::Local(_)) => Ordering::Less,
+            (ModListEntry::Local(_), ModListEntry::Downloaded { .. }) => Ordering::Greater,
+
+            (
+                ModListEntry::Downloaded { config: c1, .. },
+                ModListEntry::Downloaded { config: c2, .. },
+            ) => match (c1.manually_installed, c2.manually_installed) {
+                (true, false) => Ordering::Less,
+                (false, true) => Ordering::Greater,
+                _ => match c1.project_type.cmp(&c2.project_type) {
+                    Ordering::Equal => c1.name.cmp(&c2.name),
+                    other => other,
+                },
+            },
+            (ModListEntry::Local(l1), ModListEntry::Local(l2)) => match l1.1.cmp(&l2.1) {
+                Ordering::Equal => l1.0.cmp(&l2.0),
+                other => other,
+            },
+        });
+
+        self.sorted_mods_list = entries;
+    }
+}
+
+pub struct EditModsUpdates {
+    pub progress: Option<ProgressBar<GenericProgress>>,
+    pub check_handle: Option<iced::task::Handle>,
+    pub available: Vec<(ModId, String, bool)>,
+}
+
+pub struct EditModsSelection {
     pub selected_mods: HashSet<SelectedMod>,
     pub shift_selected_mods: HashSet<SelectedMod>,
-    pub selected_state: SelectedState,
-
-    pub update_check_handle: Option<iced::task::Handle>,
-    pub available_updates: Vec<(ModId, String, bool)>,
-
-    pub info_message: Option<InfoMessage>,
-
-    pub list_scroll: AbsoluteOffset,
+    pub state: SelectedState,
     /// Index of the item selected before pressing shift
     pub list_shift_index: Option<usize>,
+}
+
+pub struct EditModsUiState {
+    pub info_message: Option<InfoMessage>,
+    pub list_scroll: AbsoluteOffset,
     pub drag_and_drop_hovered: bool,
     pub modal: Option<MenuEditModsModal>,
-    pub search: Option<String>,
-
     pub width_name: f32,
+}
+
+pub struct EditModsFileData {
+    pub config: InstanceConfigJson,
+    pub mod_index: ModIndex,
+    // TODO: Use this for dynamically adjusting installable loader buttons
+    pub details: Box<VersionDetails>,
+
+    pub content_watcher: ContentWatcher,
+    pub index_watcher: FsWatcher,
+}
+
+pub struct ContentWatcher {
+    pub mods: Option<FsWatcher>,
+    pub resource_packs: Option<FsWatcher>,
+    pub texture_packs: Option<FsWatcher>,
+    pub shaders: Option<FsWatcher>,
+    pub data_packs: Option<FsWatcher>,
+}
+
+impl ContentWatcher {
+    pub fn new(dotmc_dir: &Path) -> Self {
+        let watch = |dir| FsWatcher::new(dotmc_dir.join(dir)).ok();
+
+        Self {
+            mods: watch("mods"),
+            resource_packs: watch("resourcepacks"),
+            texture_packs: watch("texturepacks"),
+            shaders: watch("shaderpacks"),
+            data_packs: watch("datapacks"),
+        }
+    }
+
+    pub fn tick(&self) -> Option<QueryType> {
+        if let Some(w) = &self.mods {
+            if w.has_changed() {
+                if log_verbose() {
+                    pt!("Watch: dir changed (mods)");
+                }
+                return Some(QueryType::Mods);
+            }
+        }
+        if let Some(w) = &self.resource_packs {
+            if w.has_changed() {
+                if log_verbose() {
+                    pt!("Watch: dir changed (resourcepacks)");
+                }
+                return Some(QueryType::ResourcePacks);
+            }
+        }
+        if let Some(w) = &self.texture_packs {
+            if w.has_changed() {
+                if log_verbose() {
+                    pt!("Watch: dir changed (texturepacks)");
+                }
+                return Some(QueryType::ResourcePacks);
+            }
+        }
+        if let Some(w) = &self.shaders {
+            if w.has_changed() {
+                if log_verbose() {
+                    pt!("Watch: dir changed (shaderpacks)");
+                }
+                return Some(QueryType::Shaders);
+            }
+        }
+        if let Some(w) = &self.data_packs {
+            if w.has_changed() {
+                if log_verbose() {
+                    pt!("Watch: dir changed (datapacks)");
+                }
+                return Some(QueryType::DataPacks);
+            }
+        }
+
+        None
+    }
+
+    #[allow(unused)] // Just for type safety
+    pub fn get(&self, query_type: QueryType) -> Option<&FsWatcher> {
+        match query_type {
+            QueryType::Mods => &self.mods,
+            QueryType::Shaders => &self.shaders,
+            QueryType::ModPacks => return None,
+            QueryType::DataPacks => &self.data_packs,
+            QueryType::ResourcePacks => &self.resource_packs,
+        }
+        .as_ref()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -332,23 +508,33 @@ impl InfoMessage {
 pub enum MenuEditModsModal {
     Submenu,
     RightClick(ModId, (f32, f32)),
+    FolderMenu,
+    AddFile,
 }
 
 impl MenuEditMods {
     pub fn update_locally_installed_mods(
         idx: &ModIndex,
         selected_instance: &Instance,
+        project_type: QueryType,
     ) -> Task<Message> {
-        let mut blacklist = Vec::new();
+        let mut blacklist = HashSet::new();
         for mod_info in idx.mods.values() {
+            if mod_info.project_type != project_type {
+                continue;
+            }
             for file in &mod_info.files {
-                blacklist.push(file.filename.clone());
-                blacklist.push(format!("{}.disabled", file.filename));
+                blacklist.insert(file.filename.clone());
+                blacklist.insert(format!("{}.disabled", file.filename));
             }
         }
         Task::perform(
-            get_locally_installed_mods(selected_instance.get_dot_minecraft_path(), blacklist),
-            |n| ManageModsMessage::LocalIndexLoaded(n).into(),
+            get_locally_installed_mods(
+                selected_instance.get_dot_minecraft_path(),
+                blacklist,
+                project_type,
+            ),
+            move |n| ManageModsMessage::LocalFilesLoaded(n, project_type).into(),
         )
     }
 
@@ -357,8 +543,9 @@ impl MenuEditMods {
     /// - The filenames of local mods
     ///
     /// ...respectively, from the mods selected in the mod menu.
-    pub fn get_kinds_of_ids(&self) -> (Vec<ModId>, Vec<String>) {
+    pub fn get_kinds_of_ids(&self) -> (Vec<ModId>, Vec<LocalMod>) {
         let ids_downloaded = self
+            .selection
             .selected_mods
             .iter()
             .filter_map(|s_mod| {
@@ -370,24 +557,22 @@ impl MenuEditMods {
             })
             .collect();
 
-        let ids_local: Vec<String> = self
+        let ids_local = self
+            .selection
             .selected_mods
             .iter()
-            .filter_map(|s_mod| {
-                if let SelectedMod::Local { file_name } = s_mod {
-                    Some(file_name.clone())
-                } else {
-                    None
-                }
-            })
+            .filter_map(SelectedMod::local)
+            .filter(|n| n.1.is_toggleable())
+            .cloned()
             .collect();
+
         (ids_downloaded, ids_local)
     }
 
     pub fn update_selected_state(&mut self) {
-        self.selected_state = if self.selected_mods.is_empty() {
+        self.selection.state = if self.selection.selected_mods.is_empty() {
             SelectedState::None
-        } else if self.selected_mods.len() == self.sorted_mods_list.len() {
+        } else if self.selection.selected_mods.len() == self.sorted_mods_list.len() {
             SelectedState::All
         } else {
             SelectedState::Some
@@ -395,7 +580,7 @@ impl MenuEditMods {
     }
 
     pub fn is_selected(&self, clicked_id: &ModId) -> bool {
-        self.selected_mods.iter().any(|n| {
+        self.selection.selected_mods.iter().any(|n| {
             if let SelectedMod::Downloaded { id, .. } = n {
                 id == clicked_id
             } else {
@@ -405,7 +590,7 @@ impl MenuEditMods {
     }
 }
 
-pub struct MenuExportMods {
+pub struct MenuExportModsText {
     pub selected_mods: HashSet<SelectedMod>,
 }
 
@@ -480,7 +665,7 @@ pub struct MenuInstallForge {
     pub is_java_getting_installed: bool,
 }
 
-#[allow(unused)]
+#[cfg(feature = "auto_update")]
 pub struct MenuLauncherUpdate {
     pub url: String,
     pub progress: Option<ProgressBar<GenericProgress>>,
@@ -499,7 +684,7 @@ pub struct MenuModsDownload {
     pub categories: ModCategoryState,
 
     pub mod_descriptions: HashMap<ModId, String>,
-    pub mods_download_in_progress: HashMap<ModId, (String, ModOperation)>,
+    pub mods_download_in_progress: HashMap<ModId, (Arc<str>, ModOperation)>,
     pub opened_mod: Option<usize>,
     pub latest_load: Instant,
     pub scroll_offset: AbsoluteOffset,
@@ -717,7 +902,7 @@ pub enum State {
     UpdateFound(MenuLauncherUpdate),
 
     EditMods(MenuEditMods),
-    ExportMods(MenuExportMods),
+    ExportModsText(MenuExportModsText),
     EditJarMods(MenuEditJarMods),
     ImportModpack(ProgressBar<GenericProgress>),
     CurseforgeManualDownload(MenuCurseforgeManualDownload),

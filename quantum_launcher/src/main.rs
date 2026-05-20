@@ -156,7 +156,12 @@ impl Launcher {
             .map(|_| Message::CoreTick);
         let events = iced::event::listen_with(|a, b, _| Some(Message::CoreEvent(a, b)));
 
-        iced::Subscription::batch(vec![tick, events])
+        iced::Subscription::batch(vec![
+            tick,
+            events,
+            // Useful for performance profiling
+            // iced::window::frames().map(|_| Message::Nothing),
+        ])
     }
 
     fn theme(&self) -> stylesheet::styles::LauncherTheme {

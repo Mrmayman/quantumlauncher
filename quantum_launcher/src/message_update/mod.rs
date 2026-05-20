@@ -134,7 +134,7 @@ impl Launcher {
         match message {
             InstallOptifineMessage::ScreenOpen => {
                 let is_forge_installed = if let State::EditMods(menu) = &self.state {
-                    menu.config.mod_type == Loader::Forge
+                    menu.file_data.config.mod_type == Loader::Forge
                 } else {
                     false
                 };
@@ -419,7 +419,9 @@ impl Launcher {
             InstallPaperMessage::ScreenOpen => {
                 if let State::EditMods(menu) = &self.state {
                     let (task, handle) = Task::perform(
-                        loaders::paper::get_list_of_versions(menu.version_json.get_id().to_owned()),
+                        loaders::paper::get_list_of_versions(
+                            menu.file_data.details.get_id().to_owned(),
+                        ),
                         |n| Message::InstallPaper(InstallPaperMessage::VersionsLoaded(n.strerr())),
                     )
                     .abortable();

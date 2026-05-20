@@ -5,7 +5,7 @@ use std::{
 
 use clap::{Parser, Subcommand};
 use owo_colors::{OwoColorize, Style};
-use ql_core::{InstanceKind, LAUNCHER_VERSION_NAME, REDACT_SENSITIVE_INFO, WEBSITE, err};
+use ql_core::{InstanceKind, LAUNCHER_VERSION_NAME, WEBSITE, err, flags};
 
 use crate::{
     cli::helpers::render_row,
@@ -40,6 +40,9 @@ struct Cli {
     #[arg(help = "Operate on servers, not instances")]
     #[arg(hide = true)]
     server: bool,
+    #[arg(short, long)]
+    #[arg(help = "Log more information, useful for debugging")]
+    verbose: bool,
     #[arg(long)]
     dir: Option<PathBuf>,
 }
@@ -203,7 +206,9 @@ fn get_right_text() -> String {
 
 pub fn start_cli(is_dir_err: bool, launcher_dir: &mut Option<PathBuf>) {
     let cli = Cli::parse();
-    *REDACT_SENSITIVE_INFO.lock().unwrap() = !cli.no_redact_info;
+    flags::redact_sensitive_info_set(|| !cli.no_redact_info);
+    flags::log_verbose_set(|| cli.verbose);
+
     *EXPERIMENTAL_SERVERS.write().unwrap() = cli.enable_server_manager;
     *EXPERIMENTAL_MMC_IMPORT.write().unwrap() = cli.enable_mmc_import;
 

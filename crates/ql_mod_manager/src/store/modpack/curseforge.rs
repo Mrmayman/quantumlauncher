@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::mpsc::Sender,
+    sync::{Arc, mpsc::Sender},
 };
 
 use ql_core::{
@@ -78,7 +78,10 @@ impl PackFile {
             return Ok(());
         };
 
-        let path = dirs.get(query_type)?.join(&query.data.fileName);
+        let path = dirs
+            .get(query_type)
+            .ok_or(PackError::ModpackInModpack)?
+            .join(&query.data.fileName);
         if path.is_file() {
             let metadata = tokio::fs::metadata(&path).await.path(&path)?;
             let got_len = metadata.len();
@@ -89,7 +92,16 @@ impl PackFile {
         }
 
         download(&url).user_agent_ql().path(&path).await?;
-        add_to_index(index, self.projectID.to_string(), &mod_info, query, url).await;
+        add_to_index(
+            index,
+            Arc::from(self.projectID.to_string()),
+            &mod_info,
+            query,
+            url,
+            query_type,
+            dirs,
+        )
+        .await;
 
         send_progress(sender, i, len, &mod_info).await;
         Ok(())
@@ -106,7 +118,7 @@ impl PackFile {
             name: mod_info.name,
             slug: mod_info.slug,
             file_id: self.fileID,
-            project_type: query_type.to_curseforge_str().to_owned(),
+            project_type: query_type,
             filename: query.data.fileName,
         });
     }
@@ -114,10 +126,12 @@ impl PackFile {
 
 async fn add_to_index(
     index: &Mutex<ModIndex>,
-    project_id: String,
+    project_id: Arc<str>,
     mod_info: &curseforge::Mod,
     query: CurseforgeFileQuery,
     url: String,
+    project_type: QueryType,
+    dirs: &DirStructure,
 ) {
     let mut index = index.lock().await;
     let project_id = ModId::Curseforge(project_id);
@@ -148,6 +162,20 @@ async fn add_to_index(
                     .collect(),
                 dependencies: HashSet::new(),
                 dependents: HashSet::new(),
+                project_type,
+                project_type_extra: if let QueryType::ResourcePacks = project_type {
+                    Some(
+                        if dirs.is_legacy {
+                            "texturepacks"
+                        } else {
+                            "resourcepacks"
+                        }
+                        .to_owned(),
+                    )
+                } else {
+                    None
+                },
+                extra: HashMap::new(),
             },
         );
     }
@@ -200,7 +228,7 @@ pub async fn install(
         Loader::Forge => "forge",
         Loader::Fabric => "fabric",
         Loader::Quilt => "quilt",
-        Loader::Neoforge => "neoforge",
+        Loader::NeoForge => "neoforge",
         _ => {
             return Err(expect_got_curseforge(index, config));
         }
@@ -220,13 +248,13 @@ pub async fn install(
 
     let i = Mutex::new(0);
     let mod_index = Mutex::new(ModIndex::load(instance).await?);
-    let dirs = DirStructure::new(instance, json).await?;
+    let dirs = DirStructure::new(instance.clone(), json).await?;
 
     let cache: HashMap<i32, curseforge::Mod> = {
-        let project_ids: Vec<String> = index
+        let project_ids: Vec<Arc<str>> = index
             .files
             .iter()
-            .map(|n| n.projectID.to_string())
+            .map(|n| Arc::from(n.projectID.to_string()))
             .collect();
         CFSearchResult::get_from_ids(&project_ids)
             .await?
