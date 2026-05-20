@@ -241,7 +241,7 @@ impl Launcher {
                 Task::none()
             } else if extension == "qmp" {
                 self.load_qmp_from_path(path)
-            } else if extension == "mrpack" {
+            } else if extension == "zip" || extension == "mrpack" {
                 self.load_modpack_from_path(path.to_owned())
             } else {
                 Task::none()
