@@ -36,7 +36,8 @@ use ql_core::{
 
 use crate::{
     menu_renderer::FONT_DEFAULT,
-    state::{CustomJarState, State},
+    message_handler::account_load::load_all_accounts,
+    state::{AccountMessage, CustomJarState, State},
 };
 
 /// The CLI interface of the launcher.
@@ -95,7 +96,7 @@ impl Launcher {
         config: Result<LauncherConfig, JsonFileError>,
     ) -> (Self, Task<Message>) {
         #[cfg(feature = "auto_update")]
-        let check_for_updates_command = {
+        let check_for_updates_task = {
             let should_check = if let Ok(c) = &config {
                 c.should_update_check()
             } else {
@@ -117,13 +118,17 @@ impl Launcher {
             Launcher::load_new(is_new_user, config).unwrap_or_else(Launcher::with_error);
         // let mut launcher = Launcher::with_error("test");
 
-        let load_notes_command = if let (Some(instance), State::Launch(menu)) =
+        let load_notes_task = if let (Some(instance), State::Launch(menu)) =
             (launcher.selected_instance.clone(), &mut launcher.state)
         {
             menu.reload_notes(instance)
         } else {
             Task::none()
         };
+        let accounts_load_task = Task::perform(
+            load_all_accounts(launcher.config.accounts.clone().unwrap_or_default()),
+            |n| Message::Account(AccountMessage::Initialized(n)),
+        );
 
         let presence_task = if launcher.config.c_rpc_enabled() {
             launcher.start_discord_ipc_run()
@@ -134,10 +139,11 @@ impl Launcher {
         (
             launcher,
             Task::batch([
-                check_for_updates_command,
+                check_for_updates_task,
                 Task::perform(get_entries(InstanceKind::Client), Message::CoreListLoaded),
                 Task::perform(get_entries(InstanceKind::Server), Message::CoreListLoaded),
-                load_notes_command,
+                load_notes_task,
+                accounts_load_task,
                 presence_task,
                 Task::perform(ql_core::clean::dir("logs"), |n| {
                     Message::CoreCleanComplete(n.strerr())
@@ -279,10 +285,12 @@ fn load_icon() -> Option<iced::window::Icon> {
 }
 
 fn load_fonts() -> Vec<Cow<'static, [u8]>> {
+    const INTER: &[u8] = include_bytes!("../../assets/fonts/Inter/Inter-Regular.ttf");
+
+    // Safety: No-one's gonna access this right now
+    unsafe { sctk_adwaita::BUNDLED = INTER };
+
     vec![
-        include_bytes!("../../assets/fonts/Inter-Regular.ttf")
-            .as_slice()
-            .into(),
         include_bytes!("../../assets/fonts/JetBrainsMono-Regular.ttf")
             .as_slice()
             .into(),
@@ -290,6 +298,17 @@ fn load_fonts() -> Vec<Cow<'static, [u8]>> {
             .as_slice()
             .into(),
         include_bytes!("../../assets/fonts/icons.ttf")
+            .as_slice()
+            .into(),
+        // Inter
+        INTER.into(),
+        include_bytes!("../../assets/fonts/Inter/Inter-Bold.ttf")
+            .as_slice()
+            .into(),
+        include_bytes!("../../assets/fonts/Inter/Inter-Italic.ttf")
+            .as_slice()
+            .into(),
+        include_bytes!("../../assets/fonts/Inter/Inter-BoldItalic.ttf")
             .as_slice()
             .into(),
     ]

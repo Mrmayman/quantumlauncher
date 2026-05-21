@@ -17,7 +17,7 @@ use ql_core::{
     file_utils::{self, exists},
     read_log::LogLine,
 };
-use ql_instances::auth::{AccountData, AccountType, ms::CLIENT_ID};
+use ql_instances::auth::{AccountData, ms::CLIENT_ID};
 use tokio::process::ChildStdin;
 
 use crate::{
@@ -212,7 +212,7 @@ impl Launcher {
             State::ChangeLog
         };
 
-        let (accounts, accounts_dropdown, account_selected) = load_accounts(&mut config);
+        let (accounts, accounts_dropdown, account_selected) = init_accounts(&mut config);
 
         let persistent = config.c_persistent();
         let selected_instance = persistent
@@ -362,30 +362,11 @@ impl Launcher {
     }
 }
 
-fn load_accounts(
+fn init_accounts(
     config: &mut LauncherConfig,
 ) -> (HashMap<String, AccountData>, Vec<String>, String) {
-    let mut accounts = HashMap::new();
-
-    let mut accounts_dropdown = vec![OFFLINE_ACCOUNT_NAME.to_owned(), NEW_ACCOUNT_NAME.to_owned()];
-
-    let mut accounts_to_remove = Vec::new();
-
-    for (username, account) in config.accounts.iter_mut().flatten() {
-        load_account(
-            &mut accounts,
-            &mut accounts_dropdown,
-            &mut accounts_to_remove,
-            username,
-            account,
-        );
-    }
-
-    if let Some(accounts) = &mut config.accounts {
-        for rem in accounts_to_remove {
-            accounts.remove(&rem);
-        }
-    }
+    let accounts = HashMap::new();
+    let accounts_dropdown = vec![OFFLINE_ACCOUNT_NAME.to_owned(), NEW_ACCOUNT_NAME.to_owned()];
 
     let selected_account = config.account_selected.clone().unwrap_or(
         accounts_dropdown
@@ -394,57 +375,6 @@ fn load_accounts(
             .unwrap_or_else(|| OFFLINE_ACCOUNT_NAME.to_owned()),
     );
     (accounts, accounts_dropdown, selected_account)
-}
-
-fn load_account(
-    accounts: &mut HashMap<String, AccountData>,
-    accounts_dropdown: &mut Vec<String>,
-    accounts_to_remove: &mut Vec<String>,
-    username: &str,
-    account: &mut crate::config::ConfigAccount,
-) {
-    let account_type = if username.ends_with(" (elyby)") {
-        AccountType::ElyBy
-    } else if username.ends_with(" (littleskin)") {
-        AccountType::LittleSkin
-    } else {
-        account.account_type.unwrap_or_default()
-    };
-
-    let keyring_username = account.get_keyring_identifier(username);
-    let refresh_token =
-        ql_instances::auth::read_refresh_token(keyring_username, account_type).strerr();
-
-    let keyring_username = account.get_keyring_identifier(username);
-
-    match refresh_token {
-        Ok(refresh_token) => {
-            accounts_dropdown.insert(0, username.to_owned());
-            accounts.insert(
-                username.to_owned(),
-                AccountData {
-                    access_token: None,
-                    uuid: account.uuid.clone(),
-                    refresh_token,
-                    needs_refresh: true,
-                    account_type,
-
-                    username: keyring_username.to_owned(),
-                    nice_username: account
-                        .username_nice
-                        .clone()
-                        .unwrap_or_else(|| username.to_owned()),
-                },
-            );
-        }
-        Err(err) => {
-            err!(
-                "Could not load account: {err}\nUsername: {keyring_username}, Account Type: {}",
-                account_type.to_string()
-            );
-            accounts_to_remove.push(username.to_owned());
-        }
-    }
 }
 
 pub async fn get_entries(kind: InstanceKind) -> Res<(Vec<String>, InstanceKind)> {

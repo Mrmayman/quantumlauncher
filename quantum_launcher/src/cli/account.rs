@@ -37,8 +37,11 @@ pub async fn refresh_account(
         });
     }
 
-    let refresh_token =
-        auth::read_refresh_token(refresh_name, account.account_type.unwrap_or_default())?;
+    let refresh_token = auth::read_refresh_token(
+        refresh_name.to_owned(),
+        account.account_type.unwrap_or_default(),
+    )
+    .await?;
 
     // Hook: Account types
     let account = if let Some(account_type @ (AccountType::ElyBy | AccountType::LittleSkin)) =
@@ -46,7 +49,6 @@ pub async fn refresh_account(
     {
         auth::yggdrasil::login_refresh(refresh_name.to_owned(), refresh_token, account_type).await?
     } else {
-        let refresh_token = auth::read_refresh_token(username, AccountType::Microsoft)?;
         auth::ms::login_refresh(username.clone(), refresh_token, None).await?
     };
 

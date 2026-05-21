@@ -5,7 +5,7 @@ use crate::{
         discord_rpc::{PresenceStatusDisplayType, RpcText},
         sidebar::{FolderId, SDragLocation, SidebarSelection},
     },
-    message_handler::ForgeKind,
+    message_handler::{ForgeKind, account_load::AccountLoad},
     state::{InfoMessage, LaunchModal, MenuEditModsModal, SidebarScroll},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
@@ -243,6 +243,7 @@ pub enum WindowMessage {
 
 #[derive(Debug, Clone)]
 pub enum AccountMessage {
+    Initialized(AccountLoad),
     Selected(String),
     Response1 {
         r: Res<AuthCodeResponse>,
