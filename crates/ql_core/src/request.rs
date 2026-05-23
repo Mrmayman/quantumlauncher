@@ -44,7 +44,10 @@ impl DownloadRequest<'_> {
     }
 
     async fn send(&self) -> Result<reqwest::Response, RequestError> {
-        let mut get = CLIENT.get().unwrap().get(self.url);
+        let client = CLIENT.get_or_init(|| {
+            build_middleware(std::env::temp_dir().join("quantumlauncher-http-cache"), true)
+        });
+        let mut get = client.get(self.url);
 
         match self.user_agent {
             UserAgentKind::None => {}
