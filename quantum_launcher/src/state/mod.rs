@@ -450,9 +450,7 @@ fn load_account(
 }
 
 pub fn populate_middleware_clients(do_cache: bool) {
-    CLIENT
-        .set(build_middleware(LAUNCHER_CACHE_DIR.to_path_buf(), do_cache))
-        .unwrap();
+    CLIENT.get_or_init(|| build_middleware(LAUNCHER_CACHE_DIR.to_path_buf(), do_cache));
 
     pt!(
         no_log,

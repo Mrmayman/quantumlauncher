@@ -549,7 +549,7 @@ pub fn format_memory_bytes(bytes: u64) -> String {
     } else if bytes >= MB {
         format!("{:.2} MB", b / MB as f64)
     } else if bytes >= KB {
-        format!("{:.?} KB", b / KB as f64)
+        format!("{:.2} KB", b / KB as f64)
     } else {
         format!("{bytes} bytes")
     }

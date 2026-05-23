@@ -70,9 +70,9 @@ pub fn get_launcher_dir() -> Result<PathBuf, IoError> {
 /// This uses `dirs::cache_dir()` as the highest-priority choice:
 /// - `$XDG_CACHE_HOME/QuantumLauncher` or `$HOME/.cache/QuantumLauncher` on Linux
 /// - `$HOME/Library/Caches/QuantumLauncher` on macOS
-/// - `{FOLDERID_LocalAppData}\QuantumLauncher` on Winows
+/// - `{FOLDERID_LocalAppData}\QuantumLauncher` on Windows
 /// If unavailable, this resorts to:
-/// - `$LAUNCHER_DIR`
+/// - `$LAUNCHER_DIR/downloads/cache`
 ///
 /// # Errors
 /// - if data dir is not found

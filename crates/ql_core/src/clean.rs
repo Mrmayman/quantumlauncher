@@ -21,9 +21,7 @@ const SIZE_LIMIT_BYTES: u64 = 100 * 1024 * 1024; // 100 MB
 /// if it's larger than 100 MB.
 ///
 /// # Arguments
-/// - `dir_name`: Path relative to the root of the launcher dir.
-///   For example, to clean `QuantumLauncher/downloads/cache/`
-///   you pass in `downloads/cache`.
+/// - `dir`: An absolute path.
 ///
 /// # Errors
 /// If:
