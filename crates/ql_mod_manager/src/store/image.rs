@@ -72,7 +72,7 @@ fn resize_to_icon(bytes: &[u8]) -> Option<Vec<u8>> {
     }
 
     let resized = img.resize(ICON_SIZE, ICON_SIZE, FilterType::Triangle);
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(ICON_SIZE as usize * ICON_SIZE as usize * 4);
     resized
         .write_to(&mut Cursor::new(&mut buf), ImageFormat::Png)
         .ok()?;

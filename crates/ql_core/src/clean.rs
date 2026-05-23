@@ -103,6 +103,7 @@ pub async fn clear_cache_dir() -> Result<u64, IoError> {
     }
     let size = size_of_dir(&cache_dir).await?;
     fs::remove_dir_all(&cache_dir).await.path(&cache_dir)?;
+    fs::create_dir_all(&cache_dir).await.path(&cache_dir)?;
 
     Ok(size)
 }
