@@ -291,7 +291,6 @@ pub enum LauncherSettingsMessage {
     ClearJavaInstalls,
     ClearJavaInstallsConfirm,
     ClearDownloadCache,
-    ClearDownloadCacheConfirm,
 
     CleanAssets, // Non-destructive
     CleanAssetsFinished(Res<u64>),

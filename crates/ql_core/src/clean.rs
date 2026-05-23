@@ -1,4 +1,8 @@
-use std::{collections::HashSet, fs::Metadata, path::Path};
+use std::{
+    collections::HashSet,
+    fs::Metadata,
+    path::{Path, PathBuf},
+};
 
 use fs::DirEntry;
 use tokio::fs;
@@ -26,9 +30,8 @@ const SIZE_LIMIT_BYTES: u64 = 100 * 1024 * 1024; // 100 MB
 /// - Launcher dir couldn't be determined
 /// - `dir_name` is pointing at a file
 /// - User lacks permissions
-pub async fn dir(dir_name: &str) -> Result<(), IoError> {
-    let dir = LAUNCHER_DIR.join(dir_name);
-    if dir == LAUNCHER_DIR.to_path_buf() || dir_name.trim().is_empty() {
+pub async fn dir(dir: PathBuf) -> Result<(), IoError> {
+    if dir == LAUNCHER_DIR.to_path_buf() {
         return Ok(());
     }
     if !exists(&dir).await {

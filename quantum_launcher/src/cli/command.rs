@@ -1,7 +1,7 @@
 use owo_colors::{OwoColorize, Style};
 use ql_core::{
-    Instance, InstanceKind, IntoStringError, ListEntry, Loader, OptifineUniqueVersion, clean,
-    eeprintln, err, info,
+    Instance, InstanceKind, IntoStringError, LAUNCHER_DIR, ListEntry, Loader,
+    OptifineUniqueVersion, clean, eeprintln, err, info,
     json::{InstanceConfigJson, VersionDetails},
 };
 use ql_mod_manager::loaders::LoaderInstallResult;
@@ -45,6 +45,8 @@ pub fn list_available_versions(kind: InstanceKind) {
 }
 
 pub async fn clean_cache(kinds: Vec<CleanType>) -> Result<(), Box<dyn std::error::Error>> {
+    let logs_dir = LAUNCHER_DIR.join("logs");
+
     if kinds.is_empty() {
         match clean::assets_dir().await {
             Ok(bytes) if bytes == 0 => {} // Do nothing
@@ -52,7 +54,7 @@ pub async fn clean_cache(kinds: Vec<CleanType>) -> Result<(), Box<dyn std::error
             Err(err) => err!("While cleaning assets: {err}"),
         }
 
-        if let Err(err) = clean::dir("logs").await {
+        if let Err(err) = clean::dir(logs_dir).await {
             err!("While cleaning logs: {err}");
         }
 
@@ -64,7 +66,7 @@ pub async fn clean_cache(kinds: Vec<CleanType>) -> Result<(), Box<dyn std::error
                     let bytes = clean::assets_dir().await?;
                     info!("Cleaned {}", format_memory_bytes(bytes));
                 }
-                CleanType::Logs => clean::dir("logs").await?,
+                CleanType::Logs => clean::dir(logs_dir.clone()).await?,
                 CleanType::Downloads => clean::clear_cache_dir().await,
                 CleanType::Java => ql_instances::delete_java_installs().await,
             }

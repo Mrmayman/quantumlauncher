@@ -10,8 +10,7 @@ use crate::{
     DownloadFileError, IntoIoError, IntoJsonError, JsonDownloadError, RequestError, retry,
 };
 
-pub static DOWNLOAD_CLIENT: OnceLock<ClientWithMiddleware> = OnceLock::new();
-pub static ASSETS_DOWNLOAD_CLIENT: OnceLock<ClientWithMiddleware> = OnceLock::new();
+pub static CLIENT: OnceLock<ClientWithMiddleware> = OnceLock::new();
 
 pub fn build_middleware(path: PathBuf, cache: bool) -> ClientWithMiddleware {
     ClientBuilder::new(Client::new())
@@ -30,7 +29,6 @@ pub fn build_middleware(path: PathBuf, cache: bool) -> ClientWithMiddleware {
 #[must_use]
 pub struct DownloadRequest<'a> {
     url: &'a str,
-    is_asset: bool,
     user_agent: UserAgentKind,
 }
 
@@ -45,17 +43,8 @@ impl DownloadRequest<'_> {
         self
     }
 
-    pub fn asset(mut self) -> Self {
-        self.is_asset = true;
-        self
-    }
-
     async fn send(&self) -> Result<reqwest::Response, RequestError> {
-        let mut get = if self.is_asset {
-            ASSETS_DOWNLOAD_CLIENT.get().unwrap().get(self.url)
-        } else {
-            DOWNLOAD_CLIENT.get().unwrap().get(self.url)
-        };
+        let mut get = CLIENT.get().unwrap().get(self.url);
 
         match self.user_agent {
             UserAgentKind::None => {}
@@ -150,7 +139,6 @@ enum UserAgentKind {
 pub fn download(url: &str) -> DownloadRequest<'_> {
     DownloadRequest {
         url,
-        is_asset: false,
         user_agent: UserAgentKind::None,
     }
 }

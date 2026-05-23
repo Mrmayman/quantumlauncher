@@ -42,7 +42,7 @@ impl Launcher {
             LauncherSettingsMessage::ClearJavaInstalls => {
                 self.state = State::ConfirmAction {
                     msg1: "delete auto-installed Java files".to_owned(),
-                    msg2: "They will get reinstalled automatically as needed".to_owned(),
+                    msg2: "They will get reinstalled automatically as needed.\nNote: This does take a while to redownload.".to_owned(),
                     yes: LauncherSettingsMessage::ClearJavaInstallsConfirm.into(),
                     no: LauncherSettingsMessage::Open(LauncherSettingsTab::Launcher).into(),
                 };
@@ -67,15 +67,6 @@ impl Launcher {
                 Err(err) => self.set_error(err),
             },
             LauncherSettingsMessage::ClearDownloadCache => {
-                self.state = State::ConfirmAction {
-                    msg1: "delete cache for downloads".to_owned(),
-                    msg2: "Caches will be rebuilt once you start downloading content again"
-                        .to_owned(),
-                    yes: LauncherSettingsMessage::ClearDownloadCacheConfirm.into(),
-                    no: LauncherSettingsMessage::Open(LauncherSettingsTab::Launcher).into(),
-                }
-            }
-            LauncherSettingsMessage::ClearDownloadCacheConfirm => {
                 return Task::perform(ql_core::clean::clear_cache_dir(), |()| {
                     LauncherSettingsMessage::Open(LauncherSettingsTab::Launcher).into()
                 });

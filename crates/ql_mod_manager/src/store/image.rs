@@ -80,7 +80,7 @@ fn resize_to_icon(bytes: &[u8]) -> Option<Vec<u8>> {
 }
 
 async fn download_icon(url: &str) -> Result<Vec<u8>, RequestError> {
-    let download_with_agent = download(url).asset().bytes().await;
+    let download_with_agent = download(url).bytes().await;
     Ok(match download_with_agent {
         Ok(n) => n,
         Err(_) => {
@@ -90,7 +90,7 @@ async fn download_icon(url: &str) -> Result<Vec<u8>, RequestError> {
             // I understand people do this to protect
             // their servers but what this is doing is clearly
             // not malicious. We're just downloading some images :)
-            download(url).user_agent_spoof().asset().bytes().await?
+            download(url).user_agent_spoof().bytes().await?
         }
     })
 }

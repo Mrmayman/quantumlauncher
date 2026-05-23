@@ -17,7 +17,7 @@ use ql_core::{
     file_utils::{self, exists},
     pt,
     read_log::LogLine,
-    request::{ASSETS_DOWNLOAD_CLIENT, DOWNLOAD_CLIENT, build_middleware},
+    request::{CLIENT, build_middleware},
 };
 use ql_instances::auth::{AccountData, AccountType, ms::CLIENT_ID};
 use tokio::process::ChildStdin;
@@ -450,14 +450,8 @@ fn load_account(
 }
 
 pub fn populate_middleware_clients(do_cache: bool) {
-    DOWNLOAD_CLIENT
+    CLIENT
         .set(build_middleware(LAUNCHER_CACHE_DIR.to_path_buf(), do_cache))
-        .unwrap();
-    ASSETS_DOWNLOAD_CLIENT
-        .set(build_middleware(
-            LAUNCHER_DIR.join("downloads/cache"),
-            do_cache,
-        ))
         .unwrap();
 
     pt!(

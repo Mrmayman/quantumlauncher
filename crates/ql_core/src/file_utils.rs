@@ -68,21 +68,21 @@ pub fn get_launcher_dir() -> Result<PathBuf, IoError> {
 /// Returns the path to the cache directory for downloadables for QuantumLauncher.
 ///
 /// This uses `dirs::cache_dir()` as the highest-priority choice:
-/// - `$XDG_CACHE_HOME/QuantumLauncherCache` or `$HOME/.cache/QuantumLauncherCache` on Linux
-/// - `$HOME/Library/Caches/QuantumLauncherCache` on macOS
-/// - `{FOLDERID_LocalAppData}\QuantumLauncherCache` on Winows
+/// - `$XDG_CACHE_HOME/QuantumLauncher` or `$HOME/.cache/QuantumLauncher` on Linux
+/// - `$HOME/Library/Caches/QuantumLauncher` on macOS
+/// - `{FOLDERID_LocalAppData}\QuantumLauncher` on Winows
 /// If unavailable, this resorts to:
-/// - `$LAUNCHER_DIR/QuantumLauncherCache`
+/// - `$LAUNCHER_DIR`
 ///
 /// # Errors
 /// - if data dir is not found
 /// - if you're on an unsupported platform (other than Windows, Linux, macOS, Redox, any linux-like unix)
 /// - if the cache directory could not be created (permissions issue)
 pub fn get_launcher_cache_dir() -> Result<PathBuf, IoError> {
-    let launcher_directory = LAUNCHER_DIR.to_path_buf();
     let cache_dir = dirs::cache_dir()
-        .unwrap_or(launcher_directory)
-        .join("QuantumLauncherCache");
+        .map(|n| n.join("QuantumLauncher"))
+        .filter(|n| *n != *LAUNCHER_DIR) // Don't want to accidentally put cache in our root dir
+        .unwrap_or_else(|| LAUNCHER_DIR.join("downloads/cache"));
 
     std::fs::create_dir_all(&cache_dir).path(&cache_dir)?;
     Ok(cache_dir)

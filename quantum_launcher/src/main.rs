@@ -31,7 +31,8 @@ use owo_colors::OwoColorize;
 use state::{Launcher, Message, get_entries, populate_middleware_clients};
 
 use ql_core::{
-    InstanceKind, IntoStringError, JsonFileError, constants::OS_NAME, err, file_utils, info, pt,
+    InstanceKind, IntoStringError, JsonFileError, LAUNCHER_DIR, constants::OS_NAME, err,
+    file_utils, info, pt,
 };
 
 use crate::{
@@ -141,10 +142,7 @@ impl Launcher {
                 Task::perform(get_entries(InstanceKind::Server), Message::CoreListLoaded),
                 load_notes_command,
                 presence_task,
-                Task::perform(ql_core::clean::dir("logs"), |n| {
-                    Message::CoreCleanComplete(n.strerr())
-                }),
-                Task::perform(ql_core::clean::dir("downloads/cache"), |n| {
+                Task::perform(ql_core::clean::dir(LAUNCHER_DIR.join("logs")), |n| {
                     Message::CoreCleanComplete(n.strerr())
                 }),
                 CustomJarState::load(),

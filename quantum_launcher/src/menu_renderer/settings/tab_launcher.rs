@@ -71,7 +71,7 @@ fn opt_caching(config: &LauncherConfig) -> Column<'_> {
         .style(tsubtitle),
         widget::Space::with_height(5),
         widget::row![
-            button_with_icon(icons::bin_s(12), "Clear download cache", 12)
+            button_with_icon(icons::bin_s(12), "Clear Download Cache", 12)
                 .padding([5, 10])
                 .on_press(LauncherSettingsMessage::ClearDownloadCache.into()),
             widget::text(
