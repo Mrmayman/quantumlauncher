@@ -24,10 +24,10 @@ const SIZE_LIMIT_BYTES: u64 = 100 * 1024 * 1024; // 100 MB
 /// - `dir`: An absolute path.
 ///
 /// # Errors
-/// If:
-/// - Launcher dir couldn't be determined
-/// - `dir_name` is pointing at a file
-/// - User lacks permissions
+/// Returns an error if:
+/// - `dir` is invalid or cannot be created/accessed
+/// - `dir` points to a non-directory path
+/// - the user lacks permissions to create, scan, or delete entries in `dir`
 pub async fn dir(dir: PathBuf) -> Result<(), IoError> {
     if dir == LAUNCHER_DIR.to_path_buf() {
         return Ok(());
