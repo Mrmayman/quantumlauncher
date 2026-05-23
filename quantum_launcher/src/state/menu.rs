@@ -770,7 +770,14 @@ pub struct MenuLauncherSettings {
 
     pub temp_scale: f64,
     pub arg_split_by_space: bool,
-    pub cleaned_bytes: Option<String>,
+
+    pub outmsg: Option<String>,
+    pub outmsg_at: SettingsOutmsg,
+}
+
+pub enum SettingsOutmsg {
+    Assets,
+    Cache,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]

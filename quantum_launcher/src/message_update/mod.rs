@@ -272,7 +272,8 @@ impl Launcher {
             temp_scale: self.config.ui_scale.unwrap_or(1.0),
             selected_tab,
             arg_split_by_space: true,
-            cleaned_bytes: None,
+            outmsg: None,
+            outmsg_at: state::SettingsOutmsg::Assets,
         });
     }
 

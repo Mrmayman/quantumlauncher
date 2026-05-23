@@ -58,7 +58,7 @@ pub async fn clean_cache(kinds: Vec<CleanType>) -> Result<(), Box<dyn std::error
             err!("While cleaning logs: {err}");
         }
 
-        clean::clear_cache_dir().await;
+        clean::clear_cache_dir().await?;
     } else {
         for kind in kinds {
             match kind {
@@ -67,7 +67,9 @@ pub async fn clean_cache(kinds: Vec<CleanType>) -> Result<(), Box<dyn std::error
                     info!("Cleaned {}", format_memory_bytes(bytes));
                 }
                 CleanType::Logs => clean::dir(logs_dir.clone()).await?,
-                CleanType::Downloads => clean::clear_cache_dir().await,
+                CleanType::Downloads => {
+                    clean::clear_cache_dir().await?;
+                }
                 CleanType::Java => ql_instances::delete_java_installs().await,
             }
         }

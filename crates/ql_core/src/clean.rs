@@ -98,9 +98,44 @@ async fn delete_files(mut total_size: u64, files: &[(DirEntry, Metadata)]) -> Re
 /// Clears the cache directory.
 ///
 /// This will completely remove all cache since they are pretty much disposable.
-pub async fn clear_cache_dir() {
+pub async fn clear_cache_dir() -> Result<u64, IoError> {
     let cache_dir = LAUNCHER_CACHE_DIR.to_path_buf();
-    _ = fs::remove_dir_all(cache_dir).await;
+    if !exists(&cache_dir).await {
+        return Ok(0);
+    }
+    let size = size_of_dir(&cache_dir).await?;
+    fs::remove_dir_all(&cache_dir).await.path(&cache_dir)?;
+
+    Ok(size)
+}
+
+pub async fn size_of_path(p: &Path) -> Result<u64, IoError> {
+    let metadata = p.metadata().path(p)?;
+    if metadata.is_file() {
+        return Ok(metadata.len());
+    }
+    if metadata.is_symlink() {
+        return Ok(0);
+    }
+
+    size_of_dir(p).await
+}
+
+pub async fn size_of_dir(p: &Path) -> Result<u64, IoError> {
+    let mut size = 0;
+    let mut entries = fs::read_dir(p).await.path(p)?;
+
+    while let Some(entry) = entries.next_entry().await.path(p)? {
+        let p = entry.path();
+        let file_type = entry.file_type().await.path(&p)?;
+        if file_type.is_dir() {
+            size += Box::pin(size_of_dir(&p)).await?;
+        } else if file_type.is_file() {
+            size += entry.metadata().await.path(p)?.len();
+        }
+    }
+
+    Ok(size)
 }
 
 /// Cleans the assets directory by deleting unused files.

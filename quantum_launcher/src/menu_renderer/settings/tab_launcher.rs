@@ -7,8 +7,8 @@ use ql_core::LAUNCHER_DIR;
 use crate::{
     config::LauncherConfig,
     icons,
-    menu_renderer::{Column, button_with_icon, checkered_list, tsubtitle},
-    state::{LauncherSettingsMessage, MenuLauncherSettings, Message},
+    menu_renderer::{Column, button_with_icon, checkered_list, tooltip, tsubtitle},
+    state::{LauncherSettingsMessage, MenuLauncherSettings, Message, SettingsOutmsg},
 };
 
 impl MenuLauncherSettings {
@@ -23,7 +23,7 @@ impl MenuLauncherSettings {
                     .padding([5, 10])
                     .on_press_with(|| Message::CoreOpenPath(LAUNCHER_DIR.clone())),
             ]],
-            opt_caching(config),
+            self.opt_caching(config),
             column![
                 row![
                     button_with_icon(icons::bin_s(12), "Clean unused assets", 12)
@@ -31,13 +31,14 @@ impl MenuLauncherSettings {
                         .on_press(LauncherSettingsMessage::CleanAssets.into()),
                 ]
                 .push_maybe(
-                    self.cleaned_bytes
+                    self.outmsg
                         .as_ref()
+                        .filter(|_| matches!(self.outmsg_at, SettingsOutmsg::Assets))
                         .map(|size| widget::text!("Cleaned {size}!").size(14))
                 )
                 .align_y(Alignment::Center)
                 .spacing(10),
-                widget::row![
+                row![
                     button_with_icon(icons::bin_s(12), "Clear Java installs", 12)
                         .padding([5, 10])
                         .on_press(LauncherSettingsMessage::ClearJavaInstalls.into()),
@@ -53,35 +54,41 @@ impl MenuLauncherSettings {
             .spacing(16),
         ])
     }
-}
 
-fn opt_caching(config: &LauncherConfig) -> Column<'_> {
-    column![
-        "Caching:",
-        widget::Space::with_height(5),
-        widget::checkbox(
-            "Enable persistent, on-disk caching - Requires Restart",
-            config.do_cache.clone().unwrap_or(true),
-        )
-        .on_toggle(|n| LauncherSettingsMessage::ToggleCaching(n).into()),
-        widget::text(
-            "Enables a fast cache for downloading mods, resource packs, game jars and more."
-        )
-        .size(12)
-        .style(tsubtitle),
-        widget::Space::with_height(5),
-        widget::row![
-            button_with_icon(icons::bin_s(12), "Clear Download Cache", 12)
-                .padding([5, 10])
-                .on_press(LauncherSettingsMessage::ClearDownloadCache.into()),
-            widget::text(
-                "Erases the cache for downloaded content (instances, mods, resource packs etc.)."
+    fn opt_caching(&self, config: &LauncherConfig) -> Column<'_> {
+        column![
+            widget::checkbox(
+                "Cache downloaded files to disk",
+                config.do_cache.clone().unwrap_or(true),
             )
-            .style(tsubtitle)
-            .size(12),
+            .on_toggle(|n| LauncherSettingsMessage::ToggleCaching(n).into()),
+            widget::text("(Requires Restart)").size(12),
+            widget::text(
+                "- Speeds up downloads for mods, game files, etc.\n- Uses additional disk space"
+            )
+            .size(12)
+            .style(tsubtitle),
+            widget::Space::with_height(5),
+            tooltip(
+                row![
+                    button_with_icon(icons::bin_s(12), "Clear Download Cache", 12)
+                        .padding([5, 10])
+                        .on_press(LauncherSettingsMessage::ClearDownloadCache.into()),
+                    widget::text("(?)").size(12).style(tsubtitle),
+                ]
+                .push_maybe(
+                    self.outmsg
+                        .as_ref()
+                        .filter(|_| matches!(self.outmsg_at, SettingsOutmsg::Cache))
+                        .map(|size| widget::text!("Cleaned {size}!").size(14))
+                )
+                .align_y(Alignment::Center)
+                .spacing(10),
+                widget::text("Caches will be rebuilt once you\nstart downloading content again")
+                    .size(12),
+                widget::tooltip::Position::Right,
+            ),
         ]
-        .spacing(10)
-        .wrap()
-    ]
-    .spacing(5)
+        .spacing(5)
+    }
 }

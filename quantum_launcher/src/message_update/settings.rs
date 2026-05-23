@@ -61,16 +61,26 @@ impl Launcher {
             LauncherSettingsMessage::CleanAssetsFinished(r) => match r {
                 Ok(b) => {
                     if let State::LauncherSettings(menu) = &mut self.state {
-                        menu.cleaned_bytes = Some(super::format_memory_bytes(b));
+                        menu.outmsg = Some(super::format_memory_bytes(b));
+                        menu.outmsg_at = crate::state::SettingsOutmsg::Assets;
                     }
                 }
                 Err(err) => self.set_error(err),
             },
             LauncherSettingsMessage::ClearDownloadCache => {
-                return Task::perform(ql_core::clean::clear_cache_dir(), |()| {
-                    LauncherSettingsMessage::Open(LauncherSettingsTab::Launcher).into()
+                return Task::perform(ql_core::clean::clear_cache_dir(), |r| {
+                    LauncherSettingsMessage::ClearDownloadCacheDone(r.strerr()).into()
                 });
             }
+            LauncherSettingsMessage::ClearDownloadCacheDone(res) => match res {
+                Ok(b) => {
+                    if let State::LauncherSettings(menu) = &mut self.state {
+                        menu.outmsg = Some(super::format_memory_bytes(b));
+                        menu.outmsg_at = crate::state::SettingsOutmsg::Cache;
+                    }
+                }
+                Err(err) => self.set_error(err),
+            },
             LauncherSettingsMessage::ToggleAntialiasing(t) => {
                 self.config.ui_antialiasing = Some(t);
             }
