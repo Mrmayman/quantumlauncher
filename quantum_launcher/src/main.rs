@@ -132,6 +132,8 @@ impl Launcher {
             Task::none()
         };
 
+        populate_middleware_clients(launcher.config.do_cache.unwrap_or(true));
+
         (
             launcher,
             Task::batch([
@@ -188,11 +190,7 @@ fn main() {
     // let is_new_user = true; // Uncomment to test the intro screen.
 
     let (mut launcher_dir, is_dir_err) = load_launcher_dir();
-    let config = load_config(launcher_dir.is_some());
 
-    let c = config.as_ref().cloned().unwrap_or_default();
-
-    populate_middleware_clients(c.do_cache.unwrap_or(true));
     cli::start_cli(is_dir_err, &mut launcher_dir);
 
     info!(no_log, "Starting up the launcher... (OS: {OS_NAME})");
@@ -205,6 +203,9 @@ fn main() {
     }
 
     let icon = load_icon();
+    let config = load_config(launcher_dir.is_some());
+
+    let c = config.as_ref().cloned().unwrap_or_default();
     let decorations = c.uses_system_decorations();
     let (width, height) = c.c_window_size();
 
