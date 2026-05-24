@@ -106,7 +106,7 @@ impl Launcher {
                 {
                     menu.config.ram_in_mb = 2f32.powf(new_slider_value) as usize;
                     menu.state_ram.slider_value = new_slider_value;
-                    menu.state_ram.slider_text = format_memory(menu.config.ram_in_mb);
+                    menu.state_ram.slider_text = format_memory_mb(menu.config.ram_in_mb);
                     menu.state_ram.memory_input = menu.config.ram_in_mb.to_string();
                 }
             }
@@ -120,7 +120,7 @@ impl Launcher {
                         if mb > 0 {
                             menu.config.ram_in_mb = mb;
                             menu.state_ram.slider_value = f32::log2(mb as f32);
-                            menu.state_ram.slider_text = format_memory(mb);
+                            menu.state_ram.slider_text = format_memory_mb(mb);
                         }
                     }
                     menu.state_ram.memory_input = input;
@@ -293,7 +293,7 @@ impl Launcher {
                 config,
                 state_ram: EditInstanceRam {
                     slider_value,
-                    slider_text: format_memory(memory_mb),
+                    slider_text: format_memory_mb(memory_mb),
                     memory_input: memory_mb.to_string(),
                     system: sysinfo::System::new_with_specifics(
                         sysinfo::RefreshKind::nothing()
@@ -513,12 +513,12 @@ impl EditInstanceMessage {
     }
 }
 
-fn format_memory(memory_bytes: usize) -> String {
+fn format_memory_mb(mb_bytes: usize) -> String {
     const MB_TO_GB: usize = 1024;
 
-    if memory_bytes >= MB_TO_GB {
-        format!("{:.2} GB", memory_bytes as f64 / MB_TO_GB as f64)
+    if mb_bytes >= MB_TO_GB {
+        format!("{:.2} GB", mb_bytes as f64 / MB_TO_GB as f64)
     } else {
-        format!("{memory_bytes} MB")
+        format!("{mb_bytes} MB")
     }
 }

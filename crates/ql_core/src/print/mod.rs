@@ -8,7 +8,7 @@ use std::{
 use chrono::{Datelike, Timelike};
 use regex::Regex;
 
-use crate::{eeprintln, file_utils, flags::redact_sensitive_info};
+use crate::{LAUNCHER_DIR, eeprintln, flags::redact_sensitive_info};
 
 pub mod macros;
 
@@ -151,7 +151,7 @@ pub fn set_config(c: LogConfig) {
 }
 
 fn get_logs_file() -> Option<File> {
-    let logs_dir = file_utils::get_launcher_dir().ok()?.join("logs");
+    let logs_dir = LAUNCHER_DIR.join("logs");
     std::fs::create_dir_all(&logs_dir).ok()?;
     let now = chrono::Local::now();
     let log_file_name = format!(

@@ -46,7 +46,6 @@ mod progress;
 pub mod read_log;
 pub mod request;
 mod structs;
-pub mod urlcache;
 
 pub use crate::json::InstanceConfigJson;
 pub use constants::*;
@@ -54,7 +53,7 @@ pub use error::{
     DownloadFileError, IntoIoError, IntoJsonError, IntoStringError, IoError, JsonDownloadError,
     JsonError, JsonFileError,
 };
-pub use file_utils::{LAUNCHER_DIR, RequestError};
+pub use file_utils::{LAUNCHER_CACHE_DIR, LAUNCHER_DIR, RequestError};
 pub use print::{LOGGER, LogType, LoggingState, logger_finish};
 pub use progress::{DownloadProgress, GenericProgress, Progress};
 pub use request::download;

@@ -1,14 +1,15 @@
 use owo_colors::{OwoColorize, Style};
 use ql_core::{
-    Instance, InstanceKind, IntoStringError, ListEntry, Loader, OptifineUniqueVersion, eeprintln,
-    err, info,
+    Instance, InstanceKind, IntoStringError, LAUNCHER_DIR, ListEntry, Loader,
+    OptifineUniqueVersion, clean, eeprintln, err, info,
     json::{InstanceConfigJson, VersionDetails},
 };
 use ql_mod_manager::loaders::LoaderInstallResult;
 use std::{path::PathBuf, process::exit, sync::Arc};
 
 use crate::{
-    cli::{QLoader, account::refresh_account, helpers::render_row},
+    cli::{CleanType, QLoader, account::refresh_account, helpers::render_row},
+    message_update::format_memory_bytes,
     state::get_entries,
 };
 
@@ -41,6 +42,39 @@ pub fn list_available_versions(kind: InstanceKind) {
         }
         writeln!(stdout, "{version}").unwrap();
     }
+}
+
+pub async fn clean_cache(kinds: Vec<CleanType>) -> Result<(), Box<dyn std::error::Error>> {
+    let logs_dir = LAUNCHER_DIR.join("logs");
+
+    if kinds.is_empty() {
+        match clean::assets_dir().await {
+            Ok(bytes) if bytes == 0 => {} // Do nothing
+            Ok(bytes) => info!("Cleaned {}", format_memory_bytes(bytes)),
+            Err(err) => err!("While cleaning assets: {err}"),
+        }
+
+        if let Err(err) = clean::dir(logs_dir).await {
+            err!("While cleaning logs: {err}");
+        }
+
+        clean::clear_cache_dir().await?;
+    } else {
+        for kind in kinds {
+            match kind {
+                CleanType::Assets => {
+                    let bytes = clean::assets_dir().await?;
+                    info!("Cleaned {}", format_memory_bytes(bytes));
+                }
+                CleanType::Logs => clean::dir(logs_dir.clone()).await?,
+                CleanType::Downloads => {
+                    clean::clear_cache_dir().await?;
+                }
+                CleanType::Java => ql_instances::delete_java_installs().await,
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn list_instances(
@@ -76,7 +110,8 @@ pub fn list_instances(
         for cmd in &cmds {
             match cmd {
                 PrintCmd::Name => {
-                    _ = writeln!(cmds_name, "{}", instance.bold().underline());
+                    cmds_name.push_str(&instance);
+                    cmds_name.push('\n');
                 }
                 PrintCmd::Version => {
                     match runtime.block_on(VersionDetails::load_from_path(&instance_dir)) {
@@ -132,7 +167,7 @@ pub fn list_instances(
         })
         .collect();
 
-    println!("{}", render_row(width, &cmds, true).unwrap());
+    print!("{}", render_row(width, &cmds, true).unwrap());
 
     Ok(())
 }

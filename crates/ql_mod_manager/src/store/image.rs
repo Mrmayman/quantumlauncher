@@ -1,5 +1,5 @@
 use image::{ImageFormat, imageops::FilterType};
-use ql_core::{IntoStringError, urlcache};
+use ql_core::{IntoStringError, RequestError, download};
 use std::io::Cursor;
 
 #[derive(Clone)]
@@ -28,7 +28,7 @@ pub async fn get(url: String) -> Result<Output, String> {
         return Err("url is empty".to_owned());
     }
 
-    let image = urlcache::get(&url).await.strerr()?;
+    let image = download_icon(&url).await.strerr()?;
     let is_svg = image.starts_with(b"<svg") || url.to_lowercase().ends_with(".svg");
 
     Ok(Output { url, image, is_svg })
@@ -45,17 +45,17 @@ pub async fn get_icon(url: String) -> Result<Output, String> {
 
     let mut is_svg = url.to_lowercase().ends_with(".svg");
 
-    let image = urlcache::get_ext(&url, |bytes| {
+    let image = {
+        let bytes = download_icon(&url).await.strerr()?;
         is_svg |= bytes.starts_with(b"<svg");
         let is_gif = bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a");
 
         if is_svg || is_gif {
-            return bytes;
+            bytes
+        } else {
+            resize_to_icon(&bytes).unwrap_or(bytes)
         }
-        resize_to_icon(&bytes).unwrap_or(bytes)
-    })
-    .await
-    .strerr()?;
+    };
 
     Ok(Output { url, image, is_svg })
 }
@@ -72,9 +72,25 @@ fn resize_to_icon(bytes: &[u8]) -> Option<Vec<u8>> {
     }
 
     let resized = img.resize(ICON_SIZE, ICON_SIZE, FilterType::Triangle);
-    let mut buf = Vec::with_capacity(32 * 32 * 4 + 64);
+    let mut buf = Vec::with_capacity(ICON_SIZE as usize * ICON_SIZE as usize * 4);
     resized
         .write_to(&mut Cursor::new(&mut buf), ImageFormat::Png)
         .ok()?;
     Some(buf)
+}
+
+async fn download_icon(url: &str) -> Result<Vec<u8>, RequestError> {
+    let download_with_agent = download(url).bytes().await;
+    Ok(match download_with_agent {
+        Ok(n) => n,
+        Err(_) => {
+            // WTF: Some pesky cloud provider might be
+            // blocking the launcher because they think it's a bot.
+            //
+            // I understand people do this to protect
+            // their servers but what this is doing is clearly
+            // not malicious. We're just downloading some images :)
+            download(url).user_agent_spoof().bytes().await?
+        }
+    })
 }

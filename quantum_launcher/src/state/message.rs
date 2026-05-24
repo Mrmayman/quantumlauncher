@@ -287,8 +287,15 @@ pub enum LauncherSettingsMessage {
     UiScaleApply,
     UiOpacity(f32),
     UiIdleFps(f64),
+
     ClearJavaInstalls,
     ClearJavaInstallsConfirm,
+    ClearDownloadCache,
+    ClearDownloadCacheDone(Res<u64>),
+
+    CleanAssets, // Non-destructive
+    CleanAssetsFinished(Res<u64>),
+
     DefaultMinecraftWidthChanged(String),
     DefaultMinecraftHeightChanged(String),
     Rpc(RpcMessage),
@@ -296,6 +303,7 @@ pub enum LauncherSettingsMessage {
     ToggleAntialiasing(bool),
     ToggleWindowSize(bool),
     ToggleInstanceRemembering(bool),
+    ToggleCaching(bool),
     ToggleModUpdateChangelog(bool),
     AfterLaunchBehaviorChanged(crate::config::AfterLaunchBehavior),
     #[allow(unused)]

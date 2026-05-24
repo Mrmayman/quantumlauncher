@@ -13,9 +13,10 @@ use iced::Task;
 use notify::Watcher;
 use ql_core::{
     GenericProgress, Instance, InstanceKind, IntoIoError, IntoStringError, IoError, JsonFileError,
-    LAUNCHER_DIR, LAUNCHER_VERSION_NAME, LaunchedProcess, Progress, err,
+    LAUNCHER_CACHE_DIR, LAUNCHER_DIR, LAUNCHER_VERSION_NAME, LaunchedProcess, Progress, err,
     file_utils::{self, exists},
     read_log::LogLine,
+    request::{CLIENT, build_middleware},
 };
 use ql_instances::auth::{AccountData, AccountType, ms::CLIENT_ID};
 use tokio::process::ChildStdin;
@@ -445,6 +446,10 @@ fn load_account(
             accounts_to_remove.push(username.to_owned());
         }
     }
+}
+
+pub fn populate_middleware_clients(do_cache: bool) {
+    CLIENT.get_or_init(|| build_middleware(LAUNCHER_CACHE_DIR.to_path_buf(), do_cache));
 }
 
 pub async fn get_entries(kind: InstanceKind) -> Res<(Vec<String>, InstanceKind)> {
