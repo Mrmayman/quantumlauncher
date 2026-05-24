@@ -7,7 +7,8 @@ use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use tokio_util::io::StreamReader;
 
 use crate::{
-    DownloadFileError, IntoIoError, IntoJsonError, JsonDownloadError, RequestError, retry,
+    DownloadFileError, IntoIoError, IntoJsonError, JsonDownloadError, LAUNCHER_CACHE_DIR,
+    RequestError, retry,
 };
 
 pub static CLIENT: OnceLock<ClientWithMiddleware> = OnceLock::new();
@@ -44,9 +45,8 @@ impl DownloadRequest<'_> {
     }
 
     async fn send(&self) -> Result<reqwest::Response, RequestError> {
-        let client = CLIENT.get_or_init(|| {
-            build_middleware(std::env::temp_dir().join("quantumlauncher-http-cache"), true)
-        });
+        let client =
+            CLIENT.get_or_init(|| build_middleware(LAUNCHER_CACHE_DIR.to_path_buf(), true));
         let mut get = client.get(self.url);
 
         match self.user_agent {
