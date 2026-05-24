@@ -132,7 +132,7 @@ impl Launcher {
             Task::none()
         };
 
-        populate_middleware_clients(launcher.config.do_cache.unwrap_or(true));
+        populate_middleware_clients(launcher.config.do_cache);
 
         (
             launcher,

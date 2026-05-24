@@ -57,11 +57,8 @@ impl MenuLauncherSettings {
 
     fn opt_caching(&self, config: &LauncherConfig) -> Column<'_> {
         column![
-            widget::checkbox(
-                "Cache downloaded files to disk",
-                config.do_cache.clone().unwrap_or(true),
-            )
-            .on_toggle(|n| LauncherSettingsMessage::ToggleCaching(n).into()),
+            widget::checkbox("Cache downloaded files to disk", config.do_cache)
+                .on_toggle(|n| LauncherSettingsMessage::ToggleCaching(n).into()),
             widget::text("(Requires Restart)").size(12),
             widget::text(
                 "- Speeds up downloads for mods, game files, etc.\n- Uses additional disk space"

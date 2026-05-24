@@ -110,7 +110,8 @@ pub fn list_instances(
         for cmd in &cmds {
             match cmd {
                 PrintCmd::Name => {
-                    _ = writeln!(cmds_name, "{}", instance.bold().underline());
+                    cmds_name.push_str(&instance);
+                    cmds_name.push('\n');
                 }
                 PrintCmd::Version => {
                     match runtime.block_on(VersionDetails::load_from_path(&instance_dir)) {
@@ -166,7 +167,7 @@ pub fn list_instances(
         })
         .collect();
 
-    println!("{}", render_row(width, &cmds, true).unwrap());
+    print!("{}", render_row(width, &cmds, true).unwrap());
 
     Ok(())
 }

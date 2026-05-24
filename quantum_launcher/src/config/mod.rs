@@ -58,7 +58,8 @@ pub struct LauncherConfig {
 
     /// Whether to enable various different caches.
     /// Since: TBD
-    pub do_cache: Option<bool>,
+    #[serde(default = "btrue")]
+    pub do_cache: bool,
 
     /// A list of Minecraft accounts logged into the launcher.
     ///
@@ -120,6 +121,10 @@ pub struct LauncherConfig {
     _extra: HashMap<String, serde_json::Value>,
 }
 
+fn btrue() -> bool {
+    true
+}
+
 impl Default for LauncherConfig {
     fn default() -> Self {
         #[allow(deprecated)]
@@ -130,7 +135,7 @@ impl Default for LauncherConfig {
             version: Some(LAUNCHER_VERSION_NAME.to_owned()),
             accounts: None,
             ui_scale: None,
-            do_cache: Some(true),
+            do_cache: true,
             java_installs: Some(Vec::new()),
             ui_antialiasing: Some(true),
             account_selected: None,

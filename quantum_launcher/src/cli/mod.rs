@@ -9,7 +9,9 @@ use ql_core::{InstanceKind, LAUNCHER_VERSION_NAME, WEBSITE, err, flags};
 
 use crate::{
     cli::helpers::render_row,
+    config::LauncherConfig,
     menu_renderer::{DISCORD, GITHUB},
+    state::populate_middleware_clients,
 };
 
 mod account;
@@ -242,6 +244,9 @@ pub fn start_cli(is_dir_err: bool, launcher_dir: &mut Option<PathBuf>) {
             std::process::exit(1);
         }
         let runtime = tokio::runtime::Runtime::new().unwrap();
+
+        let config = LauncherConfig::load_s().unwrap_or_default();
+        populate_middleware_clients(config.do_cache);
 
         match subcommand {
             QSubCommand::Create {
