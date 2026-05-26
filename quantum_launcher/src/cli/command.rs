@@ -49,7 +49,7 @@ pub async fn clean_cache(kinds: Vec<CleanType>) -> Result<(), Box<dyn std::error
 
     if kinds.is_empty() {
         match clean::assets_dir().await {
-            Ok(bytes) if bytes == 0 => {} // Do nothing
+            Ok(0) => {} // Do nothing
             Ok(bytes) => info!("Cleaned {}", format_memory_bytes(bytes)),
             Err(err) => err!("While cleaning assets: {err}"),
         }

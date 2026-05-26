@@ -15,7 +15,7 @@ pub mod image;
 mod local_json;
 mod modpack;
 mod modrinth;
-mod recommended;
+pub mod recommended;
 mod toggle;
 mod types;
 mod update;

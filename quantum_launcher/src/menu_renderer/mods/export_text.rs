@@ -1,4 +1,7 @@
-use iced::{Length, widget};
+use iced::{
+    Length,
+    widget::{self, column, row},
+};
 use ql_mod_manager::store::{LocalMod, ModId, QueryType, SelectedMod};
 
 use crate::{
@@ -19,10 +22,10 @@ impl MenuExportModsText {
         }
 
         widget::scrollable(
-            widget::column![
+            column![
                 self.get_top_section(),
                 Self::get_controls(),
-                widget::column![
+                column![
                     widget::text("Preview:")
                         .size(18)
                         .style(|theme: &LauncherTheme| { theme.style_text(Color::Light) }),
@@ -43,11 +46,11 @@ impl MenuExportModsText {
     }
 
     fn get_controls<'a>() -> Column<'a> {
-        widget::column![
+        column![
             widget::text("Choose export format:").size(20),
-            widget::row![
+            row![
                 icons::file_info_s(28),
-                widget::column![
+                column![
                     widget::text("Export as Plain Text").size(17),
                     widget::text("Simple text file with mod names, one per line")
                         .size(13)
@@ -55,7 +58,7 @@ impl MenuExportModsText {
                 ]
                 .spacing(4),
                 widget::horizontal_space(),
-                widget::row![
+                row![
                     widget::button(widget::text("Copy").size(14))
                         .padding([8, 16])
                         .on_press(ExportModsTextMessage::CopyPlainTextToClipboard.into()),
@@ -71,9 +74,9 @@ impl MenuExportModsText {
             .spacing(20)
             .align_y(iced::Alignment::Center)
             .padding([10, 20]),
-            widget::row![
+            row![
                 icons::file_info_s(28),
-                widget::column![
+                column![
                     widget::text("Export as Markdown")
                         .size(17)
                         .style(|theme: &LauncherTheme| { theme.style_text(Color::Light) }),
@@ -83,7 +86,7 @@ impl MenuExportModsText {
                 ]
                 .spacing(4),
                 widget::horizontal_space(),
-                widget::row![
+                row![
                     widget::button(widget::text("Copy").size(14))
                         .padding([8, 16])
                         .on_press(ExportModsTextMessage::CopyMarkdownToClipboard.into()),
@@ -107,8 +110,8 @@ impl MenuExportModsText {
     fn get_top_section(&self) -> Column<'_> {
         let len = self.selected_mods.len();
 
-        widget::column![
-            widget::row![
+        column![
+            row![
                 back_button().on_press(ManageModsMessage::Open.into()),
                 widget::text("Export Mods List")
                     .size(24)
@@ -154,7 +157,7 @@ impl MenuExportModsText {
                     };
 
                     let link_element = widget::button(
-                        widget::row![
+                        row![
                             widget::Space::with_width(5),
                             widget::text("-")
                                 .size(13)
@@ -186,7 +189,7 @@ impl MenuExportModsText {
                         .or_else(|| file_name.strip_suffix(".zip"))
                         .unwrap_or(file_name);
 
-                    let text_element = widget::row![
+                    let text_element = row![
                         widget::Space::with_width(5),
                         widget::text("-")
                             .size(13)

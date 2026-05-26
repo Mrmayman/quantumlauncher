@@ -115,8 +115,8 @@ impl MenuCreateInstanceChoosing {
             });
 
         side_box(
-            widget::column![
-                widget::column![header].padding(10),
+            column![
+                column![header].padding(10),
                 widget::scrollable(widget::column(versions_iter.map(|n| {
                     let label = widget::text(&n.name).size(14).style(|t: &LauncherTheme| {
                         t.style_text(if n.kind == ListEntryKind::Snapshot {

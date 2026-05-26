@@ -445,8 +445,8 @@ impl Launcher {
             .into()
         };
 
-        widget::column![
-            widget::row![widget::text(" Accounts:").size(14), horizontal_space()].push_maybe(
+        column![
+            row![widget::text(" Accounts:").size(14), horizontal_space()].push_maybe(
                 (self.account_selected != OFFLINE_ACCOUNT_NAME).then_some(
                     widget::button(widget::text("Logout").size(11))
                         .padding(3)

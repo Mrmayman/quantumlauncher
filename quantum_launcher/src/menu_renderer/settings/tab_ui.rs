@@ -29,15 +29,15 @@ impl MenuLauncherSettings {
             column![widget::text("User Interface").size(20)],
 
             column![
-                widget::row!["Mode: ", get_mode_selector(config)]
+                row!["Mode: ", get_mode_selector(config)]
                     .spacing(5)
                     .align_y(Alignment::Center),
                 widget::Space::with_height(5),
-                widget::row!["Theme:", get_theme_selector().wrap()].spacing(5),
+                row!["Theme:", get_theme_selector().wrap()].spacing(5),
             ]
             .spacing(5),
             column![row![
-                widget::row![widget::text!("UI Scale ({:.2}x)  ", self.temp_scale).size(15)]
+                row![widget::text!("UI Scale ({:.2}x)  ", self.temp_scale).size(15)]
                     .push_maybe(
                         ((self.temp_scale - config.ui_scale.unwrap_or(1.0)).abs() > 0.01)
                             .then_some(ui_scale_apply)
@@ -98,8 +98,8 @@ fn get_ui_opacity(config: &LauncherConfig) -> widget::Column<'static, Message, L
     let ui_opacity = config.c_ui_opacity();
     let t = |t| widget::text(t).size(12).style(tsubtitle);
 
-    widget::column![
-        widget::row![
+    column![
+        row![
             widget::text!("Window Opacity ({ui_opacity:.2}x)")
                 .width(SETTING_WIDTH)
                 .size(15),

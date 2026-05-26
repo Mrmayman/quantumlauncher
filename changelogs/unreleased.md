@@ -17,9 +17,18 @@ TODO: Add screenshots
 
 # Mods
 
+Recommended Mods:
+- Improved menu design with two columns, filters and better density
+- Added more curated mods (thanks [@void90user](https://github.com/void90user/))
+
+Other:
+
 - Resource packs, shaders and datapacks can now be managed from the
   Mods screen, and are visible in the list
 - Added "Copy ID" context menu option in Mods list
+- Added a quick-uninstall button to Mod Store
+- Added a more visible toggler to mods list for enabling/disabling mods
+- Disabled mods now stay disabled when updating
 
 TODO: Add better datapack handling
 

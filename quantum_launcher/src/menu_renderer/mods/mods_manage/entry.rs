@@ -128,7 +128,7 @@ impl MenuEditMods {
         );
 
         let select = select_box(
-            widget::row![
+            row![
                 toggle,
                 image,
                 widget::Space::with_width(1),

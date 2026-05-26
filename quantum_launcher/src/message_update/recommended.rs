@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use iced::{Task, futures::executor::block_on};
 use ql_core::{Instance, IntoStringError, JsonFileError, json::InstanceConfigJson};
 use ql_mod_manager::store::{ModId, RECOMMENDED_MODS, RecommendedMod};
@@ -35,6 +37,11 @@ impl Launcher {
                                 .into_iter()
                                 .map(|n| (n.enabled_by_default, n))
                                 .collect(),
+                            filters: HashSet::from_iter(
+                                ql_mod_manager::store::recommended::Category::ALL
+                                    .iter()
+                                    .cloned(),
+                            ),
                             config,
                         }
                     });
@@ -50,9 +57,21 @@ impl Launcher {
                     }
                 }
             }
-            RecommendedModMessage::Download => {
-                if let State::RecommendedMods(MenuRecommendedMods::Loaded { mods, config }) =
+            RecommendedModMessage::ToggleFilter(category, t) => {
+                if let State::RecommendedMods(MenuRecommendedMods::Loaded { filters, .. }) =
                     &mut self.state
+                {
+                    if t {
+                        filters.insert(category);
+                    } else if filters.len() > 1 {
+                        filters.remove(&category);
+                    }
+                }
+            }
+            RecommendedModMessage::Download => {
+                if let State::RecommendedMods(MenuRecommendedMods::Loaded {
+                    mods, config, ..
+                }) = &mut self.state
                 {
                     let (sender, receiver) = std::sync::mpsc::channel();
 

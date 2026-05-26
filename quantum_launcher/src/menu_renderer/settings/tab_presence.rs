@@ -109,19 +109,19 @@ impl MenuLauncherSettings {
             ].spacing(5),
 
             if rpc_config.update_on_game_open {
-                widget::column![
+                column![
                     widget::text("Event Presences:"),
                     widget::text("NOTE: You can use substitutes like ${instance} and ${version} for instance and version names respectively.").size(12).style(tsubtitle),
                     widget::Space::with_height(6),
 
-                    widget::row![
+                    row![
                         rpc_config.on_gameopen.view("Game Launch", RpcMessage::GameOpen),
                         widget::Space::with_height(3),
                         rpc_config.on_gameexit.view("Game Exit", RpcMessage::GameExit),
                     ].spacing(10)
                 ].spacing(5)
             } else {
-                widget::column![]
+                column![]
             },
 
             column![

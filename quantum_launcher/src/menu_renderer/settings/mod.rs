@@ -1,6 +1,9 @@
 use std::sync::{LazyLock, Mutex};
 
-use iced::{Length, widget};
+use iced::{
+    Length,
+    widget::{self, column, row},
+};
 
 use super::{Element, back_button, back_to_launch_screen, sidebar, sidebar_button};
 use crate::{
@@ -33,11 +36,11 @@ impl MenuLauncherSettings {
         config: &'a LauncherConfig,
         discord_connection_state: &Mutex<PresenceConnectionState>,
     ) -> Element<'a> {
-        widget::row![
+        row![
             sidebar(
                 "MenuLauncherSettings:sidebar",
                 Some(
-                    widget::column![
+                    column![
                         back_button().on_press(back_to_launch_screen(None)),
                         Self::get_heading()
                     ]
@@ -72,7 +75,7 @@ impl MenuLauncherSettings {
     }
 
     fn get_heading() -> widget::Row<'static, Message, LauncherTheme> {
-        widget::row![icons::gear_s(20), widget::text("Settings").size(20)]
+        row![icons::gear_s(20), widget::text("Settings").size(20)]
             .padding(iced::Padding {
                 top: 5.0,
                 right: 0.0,

@@ -81,8 +81,7 @@ impl Launcher {
             indent_guide_lines(mode, is_selected),
         )
         .push_maybe(
-            show_drag_handle
-                .then(|| widget::row![widget::horizontal_space(), drag_handle(&selection)]),
+            show_drag_handle.then(|| row![widget::horizontal_space(), drag_handle(&selection)]),
         )
         .into()
     }
@@ -149,7 +148,7 @@ impl Launcher {
             .style(move |t: &LauncherTheme| t.style_text(Color::SecondLight));
 
         let view = widget::stack!(underline_maybe(
-            widget::row![text]
+            row![text]
                 .push_maybe(self.get_running_icon(&node.name, kind))
                 .padding([5, 14])
                 .width(Length::Fill)
@@ -299,7 +298,7 @@ impl Launcher {
 
         widget::stack!(
             underline(
-                widget::row![widget::Space::with_width(2), expand_sign, text]
+                row![widget::Space::with_width(2), expand_sign, text]
                     .width(Length::Fill)
                     .align_y(Alignment::Center)
                     .padding([5, 10]),
@@ -329,7 +328,7 @@ fn renaming_folder(
         .padding([4, 8])
         .on_press(SidebarMessage::FolderRenameConfirm.into());
 
-    row![text_input, done_button,]
+    row![text_input, done_button]
         .push_maybe((!is_creating).then(|| {
             widget::button(icons::close_s(12))
                 .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::RoundDark))
@@ -385,7 +384,7 @@ fn drag_tooltip<'a>(
 
 fn drag_handle(selection: &SidebarSelection) -> widget::MouseArea<'static, Message, LauncherTheme> {
     widget::mouse_area(
-        widget::row![
+        row![
             widget::text(":")
                 .size(16)
                 .style(|t: &LauncherTheme| widget::text::Style {

@@ -141,7 +141,7 @@ impl MenuModsDownload {
                 .map(|(title, operation)| {
                     const SIZE: u16 = 12;
                     widget::container(
-                        widget::row![
+                        row![
                             match operation {
                                 ModOperation::Downloading => icons::download_s(SIZE),
                                 ModOperation::Deleting => icons::bin_s(SIZE),

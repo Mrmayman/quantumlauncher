@@ -1,4 +1,7 @@
-use iced::{Alignment, Length, widget};
+use iced::{
+    Alignment, Length,
+    widget::{self, column, row},
+};
 use ql_core::InstanceKind;
 
 use crate::{
@@ -19,7 +22,7 @@ impl Launcher {
     pub fn view(&'_ self) -> Element<'_> {
         let round = !self.config.uses_system_decorations();
         let toggler = tooltip(
-            widget::button(widget::row![
+            widget::button(row![
                 widget::horizontal_space(),
                 widget::text(if self.is_log_open { "v" } else { "^" }).size(10),
                 widget::horizontal_space()
@@ -43,9 +46,9 @@ impl Launcher {
             widget::tooltip::Position::Top,
         );
 
-        let view = widget::column![
-            widget::column![self.view_menu()],
-            widget::row![toggler].push_maybe(self.is_log_open.then(|| {
+        let view = column![
+            column![self.view_menu()],
+            row![toggler].push_maybe(self.is_log_open.then(|| {
                 widget::button(widget::text("Copy Log").size(10))
                     .padding(0)
                     .height(DEBUG_LOG_BUTTON_HEIGHT)
@@ -65,7 +68,7 @@ impl Launcher {
                 Message::CoreLogScroll,
                 Message::CoreLogScrollAbsolute,
                 |(msg, kind)| {
-                    widget::row![
+                    row![
                         widget::rich_text![widget::span(kind.to_string()).color(match kind {
                             ql_core::LogType::Info => iced::Color::from_rgb8(0xf9, 0xe2, 0xaf),
                             ql_core::LogType::Error => iced::Color::from_rgb8(0xe3, 0x44, 0x59),
@@ -92,14 +95,14 @@ impl Launcher {
     fn view_menu(&'_ self) -> Element<'_> {
         let menu = match &self.state {
             State::Launch(menu) => self.view_main_menu(menu),
-            State::AccountLoginProgress(progress) => widget::column![
+            State::AccountLoginProgress(progress) => column![
                 widget::text("Logging into Microsoft account").size(20),
                 progress.view()
             ]
             .spacing(10)
             .padding(10)
             .into(),
-            State::GenericMessage(msg) => widget::column![widget::text(msg)].padding(10).into(),
+            State::GenericMessage(msg) => column![widget::text(msg)].padding(10).into(),
             State::AccountLogin => view_account_login(),
             State::EditMods(menu) => menu.view(
                 self.instance(),
@@ -134,7 +137,7 @@ impl Launcher {
             } => view_confirm(msg1, msg2, yes, no),
             State::Error { error } => view_error(error),
             State::InstallFabric(menu) => menu.view(self.instance(), self.tick_timer),
-            State::InstallJava => widget::column!(widget::text("Downloading Java").size(20))
+            State::InstallJava => column![widget::text("Downloading Java").size(20)]
                 .push_maybe(self.java_recv.as_ref().map(|n| n.view()))
                 .padding(10)
                 .spacing(10)
@@ -149,7 +152,7 @@ impl Launcher {
             State::Welcome(menu) => menu.view(&self.config),
             State::EditJarMods(menu) => menu.view(self.instance()),
             State::ImportModpack(progress) => {
-                widget::column![widget::text("Installing mods..."), progress.view()]
+                column![widget::text("Installing mods..."), progress.view()]
                     .padding(10)
                     .spacing(10)
                     .into()
@@ -209,9 +212,9 @@ impl Launcher {
 
         fn win_button(icon: widget::Text<'_, LauncherTheme>, m: Message) -> Element<'_> {
             widget::mouse_area(
-                widget::row![
+                row![
                     widget::button(
-                        widget::row![icon.style(|t: &LauncherTheme| t.style_text(Color::Mid))]
+                        row![icon.style(|t: &LauncherTheme| t.style_text(Color::Mid))]
                             .align_y(Alignment::Center)
                             .padding([4, 10]),
                     )
@@ -236,7 +239,7 @@ impl Launcher {
             UiWindowDecorations::Right
         );
 
-        let wcls_space = widget::mouse_area(widget::column![].height(Length::Fill).width(6.5))
+        let wcls_space = widget::mouse_area(column![].height(Length::Fill).width(6.5))
             .on_press(WindowMessage::ClickClose.into());
         let wcls = win_button(icons::close_s(ICON_SIZE), WindowMessage::ClickClose.into());
         let wmax = win_button(
@@ -271,14 +274,14 @@ impl Launcher {
         i: Interaction,
         d: Direction,
     ) -> widget::MouseArea<'static, Message, LauncherTheme> {
-        widget::mouse_area(widget::column![].width(w).height(h))
+        widget::mouse_area(column![].width(w).height(h))
             .interaction(i)
             .on_press(WindowMessage::Resized(d).into())
     }
 
     widget::stack!(
-        widget::column![widget::container(view).padding(1)].padding(2),
-        widget::row![
+        column![widget::container(view).padding(1)].padding(2),
+        row![
             // Left
             widget::Column::new()
                 .push(m(
@@ -296,7 +299,7 @@ impl Launcher {
                     Interaction::ResizingDiagonallyUp,
                     Direction::SouthWest
                 )),
-            widget::column![
+            column![
                 m(
                     (Length::Fill, 10),
                     Interaction::ResizingVertically,

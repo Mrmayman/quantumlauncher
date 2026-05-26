@@ -668,11 +668,11 @@ pub fn view_changelog(config: &LauncherConfig) -> Element<'static> {
         clear_selection: true,
     };
     widget::scrollable(
-        widget::column!(
+        column![
             button_with_icon(icons::back(), "Skip", 16).on_press(back_msg.clone()),
             changelog(config),
             button_with_icon(icons::back(), "Continue", 16).on_press(back_msg),
-        )
+        ]
         .padding(10)
         .spacing(10),
     )
