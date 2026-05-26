@@ -8,7 +8,7 @@ use crate::{
 
 pub fn changelog(config: &LauncherConfig) -> Element<'static> {
     column![
-        text("Welcome to QuantumLauncher TBD!").size(40),
+        text("Welcome to QuantumLauncher 0.5.2!").size(40),
 
         column![
             widget::toggler(config.c_rpc_enabled())

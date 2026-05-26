@@ -76,7 +76,18 @@
     </screenshots>
 
     <releases>
-        <release version="0.5.1" date="2025-12-30">
+        <release version="0.5.2" date="2025-06-01">
+            <description>
+                <ul>Added <b>Discord Rich Presence</b> (customizable)</ul>
+                <ul><b
+                    >Redesigned Mod Store</b> with better layout, filters, and improved descriptions</ul>
+                <ul><b>Recommended Mods</b>: expanded list, better UI</ul>
+                <ul>Resource packs and shaders now in Mods screen</ul>
+                <ul
+                >Many UX improvements, optimizations and bug fixes (for real!)</ul>
+            </description>
+        </release>
+        <release version="0.5.1" date="2025-03-07">
             <description>
                 <ul><b
                     >Instance folders</b>: Drag-and-drop, nesting, renaming, and more</ul>

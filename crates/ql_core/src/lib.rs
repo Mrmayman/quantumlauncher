@@ -59,12 +59,12 @@ pub use progress::{DownloadProgress, GenericProgress, Progress};
 pub use request::download;
 pub use structs::{JavaVersion, Loader};
 
-pub const LAUNCHER_VERSION_NAME: &str = "0.5.1";
+pub const LAUNCHER_VERSION_NAME: &str = "0.5.2";
 
 pub const LAUNCHER_VERSION: semver::Version = semver::Version {
     major: 0,
     minor: 5,
-    patch: 1,
+    patch: 2,
     pre: semver::Prerelease::EMPTY,
     build: semver::BuildMetadata::EMPTY,
 };

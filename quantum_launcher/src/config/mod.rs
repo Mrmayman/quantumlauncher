@@ -57,7 +57,7 @@ pub struct LauncherConfig {
     pub version: Option<String>,
 
     /// Whether to enable various different caches.
-    /// Since: TBD
+    /// Since: v0.5.2
     #[serde(default = "btrue")]
     pub do_cache: bool,
 
@@ -109,10 +109,10 @@ pub struct LauncherConfig {
     pub persistent: Option<PersistentSettings>,
     // Since: v0.5.1
     pub sidebar: Option<SidebarConfig>,
-    // Since: TBD
+    // Since: v0.5.2
     pub discord_rpc: Option<RpcConfig>,
     /// Time of last auto-update check result, in seconds since the Unix epoch.
-    // Since: TBD
+    // Since: v0.5.2
     #[cfg(feature = "auto_update")]
     last_update_check: Option<u64>,
 
@@ -468,7 +468,7 @@ pub struct UiSettings {
     pub idle_fps: Option<u64>,
     /// When the game is launched, the launcher can either
     /// minimize itself, close itself, or do nothing (default).
-    // Since: TBD
+    // Since: v0.5.2
     #[serde(default)]
     pub after_game_opens: AfterLaunchBehavior,
     #[serde(flatten)]
@@ -535,7 +535,7 @@ pub enum UiWindowDecorations {
 pub struct PersistentSettings {
     pub selected_instance: Option<Arc<str>>,
     pub selected_remembered: bool,
-    // Since: TBD
+    // Since: v0.5.2
     pub selected_instance_kind: Option<InstanceKind>,
 
     #[serde(default = "default_true")]

@@ -554,5 +554,11 @@ fn migration(version: &str) -> Result<(), String> {
                 .strerr()?;
         }
     }
+
+    if version <= ver(0, 5, 1) {
+        // Cache is now stored in new place
+        _ = std::fs::remove_dir_all(LAUNCHER_DIR.join("downloads/cache"));
+    }
+
     Ok(())
 }
