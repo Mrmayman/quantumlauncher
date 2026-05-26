@@ -11,6 +11,7 @@ mod discord_rpc;
 mod edit_instance;
 mod main_menu;
 mod manage_mods;
+mod package;
 mod mod_store;
 mod presets;
 mod recommended;

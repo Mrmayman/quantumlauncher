@@ -1,17 +1,17 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use iced::{
     Alignment, Length,
     widget::{self, column, row},
 };
-use ql_mod_manager::store::SelectedMod;
+use ql_mod_manager::store::{ModId, SearchMod, SelectedMod};
 
 use crate::{
     icons,
     menu_renderer::{Element, back_button, button_with_icon, tsubtitle},
     state::{
-        EditPresetsMessage, ManageModsMessage, MenuEditPresets, MenuRecommendedMods, Message,
-        ModListEntry, RecommendedModMessage, SelectedState,
+        EditPresetsMessage, ImageState, ManageModsMessage, MenuEditPresets, MenuRecommendedMods,
+        Message, ModListEntry, RecommendedModMessage, SelectedState,
     },
     stylesheet::{color::Color, styles::LauncherTheme},
 };
@@ -128,7 +128,7 @@ Modrinth/Curseforge modpack"
 }
 
 impl MenuRecommendedMods {
-    pub fn view(&'_ self) -> Element<'_> {
+    pub fn view<'a>(&'a self, images: &'a ImageState) -> Element<'a> {
         let back_button = back_button().on_press(ManageModsMessage::Open.into());
 
         match self {
@@ -146,7 +146,7 @@ impl MenuRecommendedMods {
                     "No recommended mods found :)"
                 ].padding(10).spacing(5).into()
             }
-            MenuRecommendedMods::Loaded { mods, filters, .. } => {
+            MenuRecommendedMods::Loaded { mods, filters, mod_info, .. } => {
                 let content = column![
                     row![
                         back_button,
@@ -161,8 +161,9 @@ impl MenuRecommendedMods {
                         }))
                         .align_y(Alignment::Center)
                         .spacing(5),
+                    widget::text("Note: Already-installed mods not shown").size(12).style(tsubtitle),
                     widget::horizontal_rule(1),
-                    mods_list(mods, filters),
+                    mods_list(mods, mod_info, filters, images),
                     widget::text("Credit to Void98 (https://github.com/void90user) for many of these :D").size(12).style(tsubtitle)
                 ].padding(10).spacing(10);
 
@@ -178,7 +179,9 @@ impl MenuRecommendedMods {
 
 fn mods_list(
     mods: &[(bool, ql_mod_manager::store::RecommendedMod)],
+    mod_info: &HashMap<ModId, SearchMod>,
     filters: &HashSet<ql_mod_manager::store::recommended::Category>,
+    images: &ImageState,
 ) -> widget::Column<'static, Message, LauncherTheme> {
     widget::column(mods.chunks(2).enumerate().map(|(i, chunks)| {
         widget::row(
@@ -193,6 +196,13 @@ fn mods_list(
                             widget::checkbox("", *enabled)
                                 .spacing(0)
                                 .on_toggle(move |t| RecommendedModMessage::Toggle(idx, t).into()),
+                            images.view(
+                                mod_info
+                                    .get(&ModId::from_pair(m.id, m.backend))
+                                    .and_then(|n| n.icon_url.as_deref()),
+                                Some(32.0),
+                                Some(32.0)
+                            ),
                             column![
                                 widget::text!("{} ({})", m.name, m.category).size(14),
                                 widget::text(m.description)
@@ -203,7 +213,7 @@ fn mods_list(
                             .spacing(2)
                         ]
                         .width(Length::FillPortion(1))
-                        .spacing(5),
+                        .spacing(7),
                     )
                     .on_press(RecommendedModMessage::Toggle(idx, !*enabled).into())
                     .into()

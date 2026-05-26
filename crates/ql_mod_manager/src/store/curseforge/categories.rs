@@ -33,6 +33,7 @@ pub async fn get_categories() -> Result<Categories, ModError> {
             return Ok(categories);
         }
     }
+
     let mc_id = get_mc_id().await?;
     let params = HashMap::from([("gameId", mc_id.to_string())]);
     let categories = send_request("categories", &params).await?;

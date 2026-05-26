@@ -12,7 +12,8 @@ use crate::menu_renderer::{
 };
 use crate::state::{
     GameLogMessage, InstanceNotes, LaunchMessage, LaunchModal, LauncherSettingsTab,
-    MainMenuMessage, NotesMessage, ShortcutMessage, SidebarMessage, SidebarScroll, WindowMessage,
+    MainMenuMessage, NotesMessage, PackageInstanceMessage, ShortcutMessage, SidebarMessage,
+    SidebarScroll, WindowMessage,
 };
 use crate::{
     icons,
@@ -138,9 +139,10 @@ impl Launcher {
                     vertical_space(),
                     ctxbox(
                         column![
-                            // Not ready for production yet
-                            // ctx_button_icon(icons::file_zip_s(CTXI_SIZE), "Export Instance")
-                            //     .on_press(Message::ExportInstanceOpen),
+                            ctx_button_icon(icons::file_zip_s(CTXI_SIZE), "Export Instance")
+                                .on_press(PackageInstanceMessage::ExportOpen.into()),
+                            ctx_button_icon(icons::file_zip_s(CTXI_SIZE), "Clone Instance")
+                                .on_press(PackageInstanceMessage::CloneOpen.into()),
                             ctx_button_icon(icons::file_gear_s(CTXI_SIZE), "Create Shortcut")
                                 .on_press(ShortcutMessage::Open.into()),
                         ]

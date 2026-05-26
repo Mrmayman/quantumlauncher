@@ -1,5 +1,9 @@
 # unreleased changelog
 
+# Instance Cloning
+
+You can now clone instances (TODO)
+
 # Mod Store
 
 - Redesigned, now with a new look and many features
@@ -10,18 +14,17 @@
 
 TODO: Add screenshots
 
+# Recommended Mods
+
+- Improved menu design with two columns, filters and better density
+- Added more curated mods (thanks [@void90user](https://github.com/void90user/))
+
 # Discord Rich Presence
 
 - Added support for displaying your status in Discord through Rich Presence
 - Customizable, can display any text or info (game version/instance name) of your choice
 
 # Mods
-
-Recommended Mods:
-- Improved menu design with two columns, filters and better density
-- Added more curated mods (thanks [@void90user](https://github.com/void90user/))
-
-Other:
 
 - Resource packs, shaders and datapacks can now be managed from the
   Mods screen, and are visible in the list

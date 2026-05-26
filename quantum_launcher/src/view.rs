@@ -171,7 +171,7 @@ impl Launcher {
             State::UpdateFound(menu) => menu.view(),
             State::InstallOptifine(menu) => menu.view(),
             State::ManagePresets(menu) => menu.view(),
-            State::RecommendedMods(menu) => menu.view(),
+            State::RecommendedMods(menu) => menu.view(&self.images),
         };
 
         widget::mouse_area(if let State::Launch(_) = &self.state {

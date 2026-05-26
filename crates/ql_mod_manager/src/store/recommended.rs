@@ -4,7 +4,9 @@ use futures::StreamExt;
 use owo_colors::colored::OwoColorize;
 use ql_core::{GenericProgress, Instance, Loader, err, info, json::VersionDetails, pt};
 
-use crate::store::{ModId, ModIndex, StoreBackendType, get_latest_version_date};
+use crate::store::{
+    ModId, ModIndex, SearchMod, StoreBackendType, get_info_bulk, get_latest_version_date,
+};
 
 use super::ModError;
 
@@ -24,12 +26,18 @@ impl RecommendedMod {
         instance: Instance,
         loader: Loader,
         sender: Sender<GenericProgress>,
-    ) -> Result<Vec<Self>, ModError> {
+    ) -> Result<(Vec<Self>, Vec<SearchMod>), ModError> {
         const LIMIT: usize = 128;
 
         let json = VersionDetails::load(&instance).await?;
         let index = ModIndex::load(&instance).await?;
         let version = json.get_id();
+
+        let bulk_ids = ids
+            .iter()
+            .map(|n| ModId::from_pair(n.id, n.backend))
+            .collect();
+        let bulk_task = tokio::spawn(get_info_bulk(bulk_ids));
 
         info!("Checking compatibility");
         let mut mods = Vec::new();
@@ -54,7 +62,8 @@ impl RecommendedMod {
             }
         }
 
-        Ok(mods)
+        let b = bulk_task.await?;
+        Ok((mods, b.unwrap_or_default()))
     }
 
     async fn check_compatibility(
@@ -203,7 +212,6 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         enabled_by_default: true,
         backend: StoreBackendType::Modrinth,
     },
-
     // Optional Extras
     RecommendedMod {
         id: "YL57xq9U",
@@ -469,7 +477,22 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         enabled_by_default: false,
         backend: StoreBackendType::Modrinth,
     },
-
+    RecommendedMod {
+        id: "cJlZ132G",
+        name: "Chat Plus",
+        description: "A mod that adds just about everything you can need to chat",
+        category: Category::Utility,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "DFqQfIBR",
+        name: "CraftPresence",
+        description: "Completely Customize the way others see you play in Discord! (Discord Rich presence)",
+        category: Category::Utility,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
 ];
 
 // Recommended Mod template
@@ -478,7 +501,7 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
        id: "",
        name: "",
        description: "",
-       category: "",
+       category: Category::,
        enabled_by_default: false,
        backend: StoreBackendType::Modrinth,
    },

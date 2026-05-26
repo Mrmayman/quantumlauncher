@@ -16,7 +16,7 @@ impl Launcher {
                 return self.go_to_recommended_mods();
             }
             RecommendedModMessage::ModCheckResult(res) => match res {
-                Ok(mods) => {
+                Ok((mods, mods_info)) => {
                     let instance = self.instance();
                     let config = match if let State::RecommendedMods(menu) = &self.state {
                         menu.get_config(instance)
@@ -42,6 +42,10 @@ impl Launcher {
                                     .iter()
                                     .cloned(),
                             ),
+                            mod_info: mods_info
+                                .into_iter()
+                                .map(|n| (ModId::from_pair(&n.id, n.backend), n))
+                                .collect(),
                             config,
                         }
                     });

@@ -49,6 +49,8 @@ pub enum ModError {
     Chrono(#[from] chrono::ParseError),
     #[error("{MOD_ERR_PREFIX}couldn't parse int (curseforge mod id):\n{0}")]
     ParseInt(#[from] ParseIntError),
+    #[error("{MOD_ERR_PREFIX}error joining async task:\n{0}")]
+    Join(#[from] tokio::task::JoinError),
 
     #[error("{MOD_ERR_PREFIX}{0}")]
     Pack(#[from] Box<PackError>),

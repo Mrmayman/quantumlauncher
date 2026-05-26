@@ -224,7 +224,7 @@ pub enum EditPresetsMessage {
 #[derive(Debug, Clone)]
 pub enum RecommendedModMessage {
     Open,
-    ModCheckResult(Res<Vec<RecommendedMod>>),
+    ModCheckResult(Res<(Vec<RecommendedMod>, Vec<SearchMod>)>),
     Toggle(usize, bool),
     ToggleFilter(ql_mod_manager::store::recommended::Category, bool),
     Download,
@@ -463,6 +463,18 @@ pub enum ShortcutMessage {
 }
 
 #[derive(Debug, Clone)]
+pub enum PackageInstanceMessage {
+    ToggleItem(usize, bool),
+    Start,
+    ListLoaded(Res<Vec<DirItem>>),
+
+    ExportOpen,
+    CloneOpen,
+    ExportFinished(Res<Vec<u8>>),
+    CloneFinished(Res<Instance>),
+}
+
+#[derive(Debug, Clone)]
 pub enum ModDescriptionMessage {
     Open(ModId),
     LoadedDetails(Res<SearchMod>),
@@ -507,6 +519,8 @@ pub enum Message {
     RecommendedMods(RecommendedModMessage),
     MainMenu(MainMenuMessage),
     Sidebar(SidebarMessage),
+    #[allow(unused)]
+    Package(PackageInstanceMessage),
     ModDescription(ModDescriptionMessage),
 
     MScreenOpen {
@@ -524,13 +538,6 @@ pub enum Message {
     UninstallLoaderConfirm(Box<Message>, Loader),
     UninstallLoaderStart,
     UninstallLoaderEnd(Res),
-
-    #[allow(unused)]
-    ExportInstanceOpen,
-    ExportInstanceToggleItem(usize, bool),
-    ExportInstanceStart,
-    ExportInstanceFinished(Res<Vec<u8>>),
-    ExportInstanceLoaded(Res<Vec<DirItem>>),
 
     CoreCopyError,
     CoreCopyLog,
@@ -597,6 +604,7 @@ from_m!(Notes, NotesMessage);
 from_m!(GameLog, GameLogMessage);
 from_m!(Window, WindowMessage);
 from_m!(Shortcut, ShortcutMessage);
+from_m!(Package, PackageInstanceMessage);
 from_m!(ModDescription, ModDescriptionMessage);
 
 impl From<RpcMessage> for LauncherSettingsMessage {

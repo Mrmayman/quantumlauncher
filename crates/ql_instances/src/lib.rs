@@ -56,6 +56,6 @@ mod instance;
 mod json_profiles;
 
 pub use download::{DownloadError, create_instance, repeat_stage};
-pub use instance::{launch::launch, list_versions::list_versions, notes};
+pub use instance::{cloning::clone_instance, launch::launch, list_versions::list_versions, notes};
 pub use ql_core::jarmod;
 pub use ql_java_handler::delete_java_installs;

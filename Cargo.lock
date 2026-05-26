@@ -4160,6 +4160,7 @@ version = "0.0.0"
 dependencies = [
  "cfg-if",
  "chrono",
+ "fs_extra",
  "indicatif",
  "keyring",
  "owo-colors",
@@ -4172,6 +4173,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "urlencoding",
+ "walkdir",
  "zip",
 ]
 
