@@ -1,16 +1,20 @@
-use std::{collections::HashSet, sync::mpsc::Sender, time::Instant};
+use std::{
+    collections::HashSet,
+    sync::{Arc, mpsc::Sender},
+    time::Instant,
+};
 
 use chrono::DateTime;
 use download::version_sort;
 use indexmap::IndexMap;
 use info::ProjectInfo;
-use ql_core::{GenericProgress, InstanceSelection, Loader, download, pt};
+use ql_core::{GenericProgress, Instance, Loader, download, pt};
 use serde::Deserialize;
 use versions::ModVersion;
 
 use crate::{
     rate_limiter::{RATE_LIMITER, lock},
-    store::{Category, ModId, SearchMod, StoreBackendType, types::GalleryItem},
+    store::{Category, ModId, QueryType, SearchMod, StoreBackendType, types::GalleryItem},
 };
 
 use super::{Backend, CurseforgeNotAllowed, ModError, Query, SearchResult};
@@ -109,13 +113,13 @@ impl Backend for ModrinthBackend {
 
     async fn download(
         id: &str,
-        instance: &InstanceSelection,
+        instance: &Instance,
         sender: Option<Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
         let _guard = lock().await;
 
         let mut downloader = download::ModDownloader::new(instance, sender).await?;
-        downloader.download(id, None, true).await?;
+        downloader.download(Arc::from(id), None, true).await?;
 
         downloader.index.save(instance).await?;
 
@@ -125,8 +129,8 @@ impl Backend for ModrinthBackend {
     }
 
     async fn download_bulk(
-        ids: &[String],
-        instance: &InstanceSelection,
+        ids: &[Arc<str>],
+        instance: &Instance,
         ignore_incompatible: bool,
         set_manually_installed: bool,
         sender: Option<&Sender<GenericProgress>>,
@@ -155,7 +159,7 @@ impl Backend for ModrinthBackend {
                 });
             }
 
-            let result = downloader.download(id, None, true).await;
+            let result = downloader.download(id.clone(), None, true).await;
             if let Err(ModError::NoCompatibleVersionFound(name)) = &result {
                 if ignore_incompatible {
                     pt!("No compatible version found for mod {name} ({id}), skipping...");
@@ -234,7 +238,7 @@ impl Backend for ModrinthBackend {
 
     async fn get_info(id: &str) -> Result<SearchMod, ModError> {
         let mut info = ProjectInfo::download(id).await?;
-        info.gallery.sort_by(|a, b| a.ordering.cmp(&b.ordering));
+        info.gallery.sort_by_key(|a| a.ordering);
 
         Ok(SearchMod {
             urls: info.build_urls(),
@@ -250,12 +254,12 @@ impl Backend for ModrinthBackend {
         })
     }
 
-    async fn get_info_bulk(ids: &[String]) -> Result<Vec<SearchMod>, ModError> {
+    async fn get_info_bulk(ids: &[Arc<str>]) -> Result<Vec<SearchMod>, ModError> {
         let infos = ProjectInfo::download_bulk(ids).await?;
         Ok(infos
             .into_iter()
             .map(|mut info| {
-                info.gallery.sort_by(|a, b| a.ordering.cmp(&b.ordering));
+                info.gallery.sort_by_key(|a| a.ordering);
                 SearchMod {
                     urls: info.build_urls(),
                     title: info.title,
@@ -270,6 +274,15 @@ impl Backend for ModrinthBackend {
                 }
             })
             .collect())
+    }
+
+    async fn get_download_link(
+        instance: &Instance,
+        id: &str,
+        query_type: QueryType,
+    ) -> Result<String, ModError> {
+        let downloader = download::ModDownloader::basic(instance).await?;
+        downloader.get_download_link(id, query_type).await
     }
 }
 

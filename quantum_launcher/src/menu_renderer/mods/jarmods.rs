@@ -1,5 +1,8 @@
-use iced::{Length, widget};
-use ql_core::InstanceSelection;
+use iced::{
+    Length,
+    widget::{self, column, row},
+};
+use ql_core::Instance;
 
 use crate::{
     icons,
@@ -9,30 +12,31 @@ use crate::{
 };
 
 impl MenuEditJarMods {
-    pub fn view(&'_ self, selected_instance: &InstanceSelection) -> Element<'_> {
-        let menu_main = widget::row!(
+    pub fn view<'a>(&'a self, selected_instance: &'a Instance) -> Element<'a> {
+        let menu_main = row![
             widget::container(
                 widget::scrollable(
-                    widget::column!(
+                    column![
                         back_button().on_press(ManageModsMessage::Open.into()),
-                        widget::column![
-                            {
-                                let path = selected_instance.get_instance_path().join("jarmods");
-
-                                button_with_icon(icons::folder_s(14), "Open Folder", 14)
-                                    .on_press(Message::CoreOpenPath(path))
-                            },
+                        column![
+                            button_with_icon(icons::folder_s(14), "Open Folder", 14).on_press_with(
+                                || {
+                                    let path =
+                                        selected_instance.get_instance_path().join("jarmods");
+                                    Message::CoreOpenPath(path)
+                                }
+                            ),
                             button_with_icon(icons::new_s(14), "Add file", 14)
                                 .on_press(ManageJarModsMessage::AddFile.into()),
                         ]
                         .spacing(5),
-                        widget::row![
+                        row![
                             "You can find some good jar mods at ",
                             link("McArchive", "https://mcarchive.net".to_owned()),
                         ]
                         .wrap(),
                         widget::horizontal_rule(1),
-                        widget::column![
+                        column![
                             "WARNING: JarMods are mainly for OLD Minecraft versions.",
                             widget::Space::with_height(5),
                             widget::text(
@@ -44,7 +48,7 @@ impl MenuEditJarMods {
                             )
                             .size(12),
                         ],
-                    )
+                    ]
                     .padding(10)
                     .spacing(10)
                 )
@@ -54,7 +58,7 @@ impl MenuEditJarMods {
             .width(250)
             .style(|n| n.style_container_sharp_box(0.0, Color::Dark)),
             self.get_mod_list()
-        );
+        ];
 
         if self.drag_and_drop_hovered {
             widget::stack!(
@@ -71,7 +75,7 @@ impl MenuEditJarMods {
 
     fn get_mod_list(&'_ self) -> Element<'_> {
         if self.jarmods.mods.is_empty() {
-            return widget::column!("Add some mods to get started")
+            return column!["Add some mods to get started"]
                 .spacing(10)
                 .padding(10)
                 .width(Length::Fill)
@@ -79,10 +83,10 @@ impl MenuEditJarMods {
         }
 
         widget::container(
-            widget::column!(
-                widget::column![
+            column![
+                column![
                     widget::text("Select some JarMods to perform actions on them").size(14),
-                    widget::row![
+                    row![
                         widget::button("Delete")
                             .on_press(ManageJarModsMessage::DeleteSelected.into()),
                         widget::button("Toggle")
@@ -104,7 +108,7 @@ impl MenuEditJarMods {
                 .padding(10)
                 .spacing(5),
                 self.get_mod_list_contents(),
-            )
+            ]
             .spacing(10),
         )
         .style(|n| n.style_container_sharp_box(0.0, Color::ExtraDark))

@@ -1,63 +1,90 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::mpsc::Sender,
+    sync::{Arc, mpsc::Sender},
 };
 
+use owo_colors::OwoColorize;
 use ql_core::{
-    GenericProgress, InstanceSelection, download, err, file_utils, info, json::VersionDetails, pt,
+    GenericProgress, Instance, InstanceConfigJson, download, err, file_utils, info,
+    json::VersionDetails, pt,
 };
 
-use crate::{
-    rate_limiter::lock,
-    store::{
-        CurseforgeNotAllowed, DirStructure, ModConfig, ModError, ModFile, ModId, ModIndex,
-        QueryType, StoreBackendType,
-        curseforge::{ModQuery, get_query_type},
-        install_modpack,
-    },
+use crate::store::{
+    CurseforgeNotAllowed, DirStructure, ModConfig, ModError, ModFile, ModId, ModIndex, QueryType,
+    StoreBackendType,
+    curseforge::{ModQuery, get_query_type},
+    install_modpack,
 };
 
 use super::Mod;
 
 pub struct ModDownloader<'a> {
     version: String,
-    instance: InstanceSelection,
-    pub loader: Option<&'static str>,
+    loader: Option<&'static str>,
     pub index: ModIndex,
 
     dirs: DirStructure,
 
     pub query_cache: HashMap<String, Mod>,
     pub not_allowed: HashSet<CurseforgeNotAllowed>,
-    pub already_installed: HashSet<String>,
+    already_installed: HashSet<String>,
     pub sender: Option<&'a Sender<GenericProgress>>,
-
-    _guard: tokio::sync::MutexGuard<'a, ()>,
 }
 
 impl<'a> ModDownloader<'a> {
     pub async fn new(
-        instance: InstanceSelection,
+        instance: Instance,
         sender: Option<&'a Sender<GenericProgress>>,
     ) -> Result<Self, ModError> {
         let version_json = VersionDetails::load(&instance).await?;
+        let config = InstanceConfigJson::read(&instance).await?;
 
         Ok(Self {
             version: version_json.get_id().to_owned(),
-            loader: instance
-                .get_loader()
-                .await?
-                .not_vanilla()
-                .map(|n| n.to_curseforge_num()),
-            _guard: lock().await, // Before ModIndex::load
+            loader: config.mod_type.not_vanilla().map(|n| n.to_curseforge_num()),
             index: ModIndex::load(&instance).await?,
-            dirs: DirStructure::new(&instance, &version_json).await?,
+            dirs: DirStructure::new(instance, &version_json).await?,
             already_installed: HashSet::new(),
             query_cache: HashMap::new(),
-            instance,
+            not_allowed: HashSet::new(),
             sender,
+        })
+    }
+
+    pub async fn basic(instance: Instance) -> Result<Self, ModError> {
+        let version_json = VersionDetails::load(&instance).await?;
+        let config = InstanceConfigJson::read(&instance).await?;
+
+        Ok(Self {
+            version: version_json.get_id().to_owned(),
+            loader: config.mod_type.not_vanilla().map(|n| n.to_curseforge_num()),
+            index: ModIndex::default(),
+            dirs: DirStructure::new(instance.clone(), &version_json).await?,
+            already_installed: HashSet::new(),
+            query_cache: HashMap::new(),
+            sender: None,
             not_allowed: HashSet::new(),
         })
+    }
+
+    pub async fn get_download_link(
+        &mut self,
+        id: &str,
+        query_type: QueryType,
+    ) -> Result<String, ModError> {
+        let response = self.get_query(id).await?;
+
+        let file_query = response
+            .get_file(
+                response.name.clone(),
+                id,
+                self.version.clone(),
+                self.loader,
+                query_type,
+            )
+            .await?;
+
+        file_query.0.data.downloadUrl.ok_or(ModError::NoFilesFound)
     }
 
     pub async fn download(&mut self, id: &str, dependent: Option<&str>) -> Result<(), ModError> {
@@ -110,44 +137,47 @@ impl<'a> ModDownloader<'a> {
                 query_type,
             )
             .await?;
+
+        let filename = file_query.data.fileName.clone();
+        pt!("File: {}", filename.bright_black());
+
         let Some(url) = file_query.data.downloadUrl.clone() else {
             self.not_allowed.insert(CurseforgeNotAllowed {
                 name: response.name.clone(),
                 slug: response.slug.clone(),
-                filename: file_query.data.fileName.clone(),
-                project_type: query_type.to_curseforge_str().to_owned(),
+                filename,
+                project_type: query_type,
                 file_id: file_id as usize,
             });
             return Ok(());
         };
 
-        let dir = match query_type {
-            QueryType::DataPacks => &self.dirs.data_packs,
-            QueryType::Mods => &self.dirs.mods,
-            QueryType::ResourcePacks => &self.dirs.resource_packs,
-            QueryType::Shaders => &self.dirs.shaders,
-            QueryType::ModPacks => {
-                let bytes = file_utils::download_file_to_bytes(&url, true).await?;
-                self.index.save(&self.instance).await?;
-                if let Some(not_allowed_new) =
-                    install_modpack(bytes, self.instance.clone(), self.sender)
-                        .await
-                        .map_err(Box::new)?
-                {
-                    self.not_allowed.extend(not_allowed_new);
-                } else {
-                    err!("Invalid modpack downloaded from curseforge! Corrupted?");
-                }
-                self.index = ModIndex::load(&self.instance).await?;
-                return Ok(());
+        let Some(dir) = self.dirs.get(query_type) else {
+            // It's a modpack
+            let bytes = file_utils::download_file_to_bytes(&url, true).await?;
+            self.index.save(&self.dirs.instance).await?;
+            if let Some(not_allowed_new) = install_modpack(
+                bytes,
+                Some(filename),
+                self.dirs.instance.clone(),
+                self.sender,
+            )
+            .await
+            .map_err(Box::new)?
+            {
+                self.not_allowed.extend(not_allowed_new);
+            } else {
+                err!("Invalid modpack downloaded from curseforge! Corrupted?");
             }
+            self.index = ModIndex::load(&self.dirs.instance).await?;
+            return Ok(());
         };
 
         let file_dir = dir.join(&file_query.data.fileName);
         download(&url).user_agent_ql().path(&file_dir).await?;
 
         let id_str = response.id.to_string();
-        let id_mod = ModId::Curseforge(id_str.clone());
+        let id_mod = ModId::Curseforge(Arc::from(id_str));
 
         for dependency in &file_query.data.dependencies {
             let dep_id = dependency.modId.to_string();
@@ -165,7 +195,11 @@ impl<'a> ModDownloader<'a> {
         const FABRIC: &str = "4";
 
         if self.loader == Some(FABRIC)
-            && !self.index.mods.values_mut().any(|n| n.name == "Fabric API")
+            && !self
+                .index
+                .mods
+                .values_mut()
+                .any(|n| &*n.name == "Fabric API")
         {
             self.download("306612", None).await?;
         }
@@ -176,15 +210,11 @@ impl<'a> ModDownloader<'a> {
         &mut self,
         dependent: Option<&str>,
         response: &Mod,
-        query_type: QueryType,
+        project_type: QueryType,
         file_query: super::CurseforgeFileQuery,
         url: String,
         id_mod: &ModId,
     ) {
-        let QueryType::Mods = query_type else {
-            return;
-        };
-
         self.index.mods.insert(
             id_mod.clone(),
             ModConfig {
@@ -213,7 +243,7 @@ impl<'a> ModDownloader<'a> {
                     .data
                     .dependencies
                     .into_iter()
-                    .map(|n| ModId::Curseforge(n.modId.to_string()))
+                    .map(|n| ModId::Curseforge(Arc::from(n.modId.to_string())))
                     .collect(),
                 dependents: if let Some(dependent) = dependent {
                     let mut set = HashSet::new();
@@ -222,6 +252,20 @@ impl<'a> ModDownloader<'a> {
                 } else {
                     HashSet::new()
                 },
+                project_type,
+                project_type_extra: if let QueryType::ResourcePacks = project_type {
+                    Some(
+                        if self.dirs.is_legacy {
+                            "texturepacks"
+                        } else {
+                            "resourcepacks"
+                        }
+                        .to_owned(),
+                    )
+                } else {
+                    None
+                },
+                extra: HashMap::new(),
             },
         );
     }
@@ -238,5 +282,5 @@ impl<'a> ModDownloader<'a> {
 }
 
 fn mid(id: &str) -> ModId {
-    ModId::Curseforge(id.to_owned())
+    ModId::Curseforge(Arc::from(id))
 }

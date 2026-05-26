@@ -42,7 +42,10 @@
 //!
 //! See [`Launcher::view_launcher_log`] for more info.
 
-use iced::{Length, widget};
+use iced::{
+    Length,
+    widget::{self, row},
+};
 
 use crate::{
     menu_renderer::Column,
@@ -97,7 +100,7 @@ impl Launcher {
             let text_len = text_len as f64;
 
             widget::mouse_area(
-                widget::container(widget::row![
+                widget::container(row![
                     column.height(Length::Fill),
                     widget::vertical_slider(0.0..=text_len, text_len - scroll as f64, move |val| {
                         msg_absolute(text_len as isize - val as isize)

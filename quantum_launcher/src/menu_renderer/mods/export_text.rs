@@ -1,10 +1,13 @@
-use iced::{Length, widget};
-use ql_mod_manager::store::{ModId, SelectedMod};
+use iced::{
+    Length,
+    widget::{self, column, row},
+};
+use ql_mod_manager::store::{LocalMod, ModId, QueryType, SelectedMod};
 
 use crate::{
     icons,
     menu_renderer::{Column, Element, back_button, tsubtitle, underline},
-    state::{ExportModsMessage, ManageModsMessage, MenuExportMods, Message},
+    state::{ExportModsTextMessage, ManageModsMessage, MenuExportModsText, Message},
     stylesheet::{
         color::Color,
         styles::{BORDER_RADIUS, LauncherTheme},
@@ -12,17 +15,17 @@ use crate::{
     },
 };
 
-impl MenuExportMods {
+impl MenuExportModsText {
     pub fn view(&'_ self) -> Element<'_> {
         if self.selected_mods.is_empty() {
             return self.get_top_section().padding(25).into();
         }
 
         widget::scrollable(
-            widget::column![
+            column![
                 self.get_top_section(),
                 Self::get_controls(),
-                widget::column![
+                column![
                     widget::text("Preview:")
                         .size(18)
                         .style(|theme: &LauncherTheme| { theme.style_text(Color::Light) }),
@@ -43,11 +46,11 @@ impl MenuExportMods {
     }
 
     fn get_controls<'a>() -> Column<'a> {
-        widget::column![
+        column![
             widget::text("Choose export format:").size(20),
-            widget::row![
+            row![
                 icons::file_info_s(28),
-                widget::column![
+                column![
                     widget::text("Export as Plain Text").size(17),
                     widget::text("Simple text file with mod names, one per line")
                         .size(13)
@@ -55,25 +58,25 @@ impl MenuExportMods {
                 ]
                 .spacing(4),
                 widget::horizontal_space(),
-                widget::row![
+                row![
                     widget::button(widget::text("Copy").size(14))
                         .padding([8, 16])
-                        .on_press(ExportModsMessage::CopyPlainTextToClipboard.into()),
+                        .on_press(ExportModsTextMessage::CopyPlainTextToClipboard.into()),
                     widget::button(widget::text("Save").size(14))
                         .padding([8, 16])
                         .style(|theme: &LauncherTheme, status| {
                             theme.style_button(status, StyleButton::FlatDark)
                         })
-                        .on_press(ExportModsMessage::ExportAsPlainText.into()),
+                        .on_press(ExportModsTextMessage::ExportAsPlainText.into()),
                 ]
                 .spacing(12)
             ]
             .spacing(20)
             .align_y(iced::Alignment::Center)
             .padding([10, 20]),
-            widget::row![
+            row![
                 icons::file_info_s(28),
-                widget::column![
+                column![
                     widget::text("Export as Markdown")
                         .size(17)
                         .style(|theme: &LauncherTheme| { theme.style_text(Color::Light) }),
@@ -83,17 +86,17 @@ impl MenuExportMods {
                 ]
                 .spacing(4),
                 widget::horizontal_space(),
-                widget::row![
+                row![
                     widget::button(widget::text("Copy").size(14))
                         .padding([8, 16])
-                        .on_press(ExportModsMessage::CopyMarkdownToClipboard.into()),
+                        .on_press(ExportModsTextMessage::CopyMarkdownToClipboard.into()),
                     widget::button(widget::text("Save").size(14))
                         .padding([8, 16])
                         .style(|theme: &LauncherTheme, status| {
                             use crate::stylesheet::widgets::StyleButton;
                             theme.style_button(status, StyleButton::FlatDark)
                         })
-                        .on_press(ExportModsMessage::ExportAsMarkdown.into())
+                        .on_press(ExportModsTextMessage::ExportAsMarkdown.into())
                 ]
                 .spacing(12)
             ]
@@ -107,8 +110,8 @@ impl MenuExportMods {
     fn get_top_section(&self) -> Column<'_> {
         let len = self.selected_mods.len();
 
-        widget::column![
-            widget::row![
+        column![
+            row![
                 back_button().on_press(ManageModsMessage::Open.into()),
                 widget::text("Export Mods List")
                     .size(24)
@@ -154,12 +157,12 @@ impl MenuExportMods {
                     };
 
                     let link_element = widget::button(
-                        widget::row![
+                        row![
                             widget::Space::with_width(5),
                             widget::text("-")
                                 .size(13)
                                 .style(|theme: &LauncherTheme| theme.style_text(Color::Mid)),
-                            underline(widget::text(name).size(13), Color::Light),
+                            underline(widget::text(&**name).size(13), Color::Light),
                             widget::text("→").size(13).style(tsubtitle)
                         ]
                         .height(Length::Fill)
@@ -176,13 +179,17 @@ impl MenuExportMods {
 
                     preview_elements.push(link_element.into());
                 }
-                SelectedMod::Local { file_name } => {
+                SelectedMod::Local(LocalMod(file_name, project_type)) => {
+                    if *project_type != QueryType::Mods {
+                        continue;
+                    }
+
                     let display_name = file_name
                         .strip_suffix(".jar")
                         .or_else(|| file_name.strip_suffix(".zip"))
-                        .unwrap_or(file_name.as_str());
+                        .unwrap_or(file_name);
 
-                    let text_element = widget::row![
+                    let text_element = row![
                         widget::Space::with_width(5),
                         widget::text("-")
                             .size(13)

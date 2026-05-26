@@ -16,7 +16,7 @@ use tokio::{
 };
 
 use crate::{
-    InstanceSelection, IoError, JsonError, JsonFileError, REDACT_SENSITIVE_INFO, err,
+    Instance, InstanceKind, IoError, JsonError, JsonFileError, err, flags::redact_sensitive_info,
     json::VersionDetails, print::REDACTION_USERNAME,
 };
 
@@ -31,9 +31,9 @@ use crate::{
 pub(crate) async fn read_logs(
     child: Arc<Mutex<Child>>,
     sender: Option<Sender<LogLine>>,
-    instance: InstanceSelection,
+    instance: Instance,
     censors: Vec<String>,
-) -> Result<(ExitStatus, InstanceSelection, Option<Diagnostic>), ReadError> {
+) -> Result<(ExitStatus, Instance, Option<Diagnostic>), ReadError> {
     let r = {
         let mut c = child.lock().await;
         (c.stdout.take(), c.stderr.take())
@@ -42,7 +42,7 @@ pub(crate) async fn read_logs(
         return Ok((ExitStatus::default(), instance, None));
     };
 
-    let uses_xml = !instance.is_server() && is_xml(instance.get_name()).await?;
+    let uses_xml = matches!(instance.kind, InstanceKind::Client) && is_xml(&instance).await?;
 
     let stdout = BufReader::new(stdout);
     let stderr = BufReader::new(stderr);
@@ -133,7 +133,7 @@ async fn read_log_from_stream<R: AsyncBufRead + Unpin>(
 }
 
 fn censor(input: &str, censors: &[String]) -> String {
-    if *REDACT_SENSITIVE_INFO.lock().unwrap() {
+    if redact_sensitive_info() {
         let mut out = censors.iter().fold(input.to_string(), |acc, censor| {
             acc.replace(censor, "[REDACTED]")
         });
@@ -214,8 +214,8 @@ fn xml_parse(
     }
 }
 
-async fn is_xml(instance_name: &str) -> Result<bool, ReadError> {
-    let json = VersionDetails::load(&InstanceSelection::Instance(instance_name.to_owned())).await?;
+async fn is_xml(instance: &Instance) -> Result<bool, ReadError> {
+    let json = VersionDetails::load(instance).await?;
 
     Ok(json.logging.is_some())
 }
@@ -237,7 +237,7 @@ pub enum LogLine {
 
 impl LogLine {
     #[must_use]
-    pub fn print_colored(&self) -> String {
+    fn print_colored(&self) -> String {
         match self {
             LogLine::Info(event) => event.print_color(),
             LogLine::Message(message) => message.clone(),
@@ -297,7 +297,7 @@ pub enum Diagnostic {
 
 impl Diagnostic {
     #[must_use]
-    pub fn generate_from_log(log: &[String]) -> Option<Diagnostic> {
+    fn generate_from_log(log: &[String]) -> Option<Diagnostic> {
         fn c(log: &[String], msg: &str) -> bool {
             log.iter().any(|n| n.contains(msg))
         }
@@ -362,7 +362,7 @@ pub struct LogEvent {
 impl LogEvent {
     /// Returns the time of the log event, formatted as `HH:MM:SS`.
     #[must_use]
-    pub fn get_time(&self) -> Option<String> {
+    fn get_time(&self) -> Option<String> {
         let time: i64 = self.timestamp.parse().ok()?;
         let seconds = time / 1000;
         let milliseconds = time % 1000;
@@ -373,7 +373,7 @@ impl LogEvent {
     }
 
     #[must_use]
-    pub fn print_color(&self) -> String {
+    fn print_color(&self) -> String {
         let date = self.get_time().unwrap_or_else(|| self.timestamp.clone());
 
         let bright_black = self.level.bright_black();
@@ -404,7 +404,7 @@ impl LogEvent {
         out
     }
 
-    pub fn fix_tabs(&mut self) {
+    fn fix_tabs(&mut self) {
         if let Some(message) = &mut self.message {
             *message = message.replace('\t', "\n\t");
         }

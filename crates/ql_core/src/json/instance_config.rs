@@ -1,12 +1,13 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    DEFAULT_RAM_MB_FOR_INSTANCE, InstanceSelection, IntoIoError, IntoJsonError, JsonFileError,
+    DEFAULT_RAM_MB_FOR_INSTANCE, Instance, InstanceKind, IntoIoError, IntoJsonError, JsonFileError,
     Loader,
 };
 
@@ -61,12 +62,12 @@ pub struct InstanceConfigJson {
     // Since: v0.3.1
     pub is_classic_server: Option<bool>,
     /// Whether this is a server, not a client
-    pub is_server: Option<bool>,
+    is_server: Option<bool>,
 
     /// Close launcher after client starts, **deprecated**
     // Since: v0.4
     #[deprecated(since = "0.5.2", note = "Use launcher-wide settings instead")]
-    pub close_on_start: Option<bool>,
+    close_on_start: Option<bool>,
     // Since: v0.4.2
     pub global_settings: Option<GlobalSettings>,
 
@@ -92,7 +93,7 @@ pub struct InstanceConfigJson {
     pub custom_jar: Option<CustomJarConfig>,
     /// Information related to the currently-installed
     /// version of the game
-    pub version_info: Option<VersionInfo>,
+    version_info: Option<VersionInfo>,
     /// An override for the main class when launching the game.
     /// Mainly only used for debugging purposes.
     pub main_class_override: Option<String>,
@@ -103,7 +104,7 @@ pub struct InstanceConfigJson {
 
 impl InstanceConfigJson {
     #[must_use]
-    pub fn new(is_server: bool, is_classic_server: bool, version_info: VersionInfo) -> Self {
+    pub fn new(kind: InstanceKind, is_classic_server: bool, version_info: VersionInfo) -> Self {
         #[allow(deprecated)]
         Self {
             mod_type: Loader::Vanilla,
@@ -114,7 +115,7 @@ impl InstanceConfigJson {
             java_args: None,
             game_args: None,
 
-            is_server: Some(is_server),
+            is_server: Some(kind.is_server()),
             is_classic_server: Some(is_classic_server),
 
             omniarchive: None,
@@ -159,7 +160,7 @@ impl InstanceConfigJson {
     /// # Errors
     /// - `config.json` file couldn't be loaded
     /// - `config.json` couldn't be parsed into valid JSON
-    pub async fn read(instance: &InstanceSelection) -> Result<Self, JsonFileError> {
+    pub async fn read(instance: &Instance) -> Result<Self, JsonFileError> {
         Self::read_from_dir(&instance.get_instance_path()).await
     }
 
@@ -183,7 +184,7 @@ impl InstanceConfigJson {
     /// # Errors
     /// - `config.json` file couldn't be written to
     /// - `self` couldn't be serialized into valid JSON
-    pub async fn save(&self, instance: &InstanceSelection) -> Result<(), JsonFileError> {
+    pub async fn save(&self, instance: &Instance) -> Result<(), JsonFileError> {
         self.save_to_dir(&instance.get_instance_path()).await
     }
 
@@ -252,8 +253,7 @@ impl InstanceConfigJson {
 
     #[must_use]
     pub fn c_global_settings(&mut self) -> &mut GlobalSettings {
-        self.global_settings
-            .get_or_insert_with(GlobalSettings::default)
+        self.global_settings.get_or_insert_default()
     }
 
     #[must_use]
@@ -307,7 +307,7 @@ pub struct ModTypeInfo {
     /// If an unofficial implementation of the loader
     /// was used, which one (eg: Legacy Fabric).
     pub backend_implementation: Option<String>,
-    pub optifine_jar: Option<String>,
+    pub optifine_jar: Option<Arc<str>>,
 
     #[serde(flatten)]
     _extra: HashMap<String, serde_json::Value>,
@@ -358,7 +358,7 @@ pub struct GlobalSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionInfo {
-    pub is_special_lwjgl3: bool,
+    is_special_lwjgl3: bool,
     #[serde(flatten)]
     _extra: HashMap<String, serde_json::Value>,
 }
@@ -390,12 +390,6 @@ pub enum PreLaunchPrefixMode {
 }
 
 impl PreLaunchPrefixMode {
-    pub const ALL: &'static [Self] = &[
-        Self::CombineGlobalLocal,
-        Self::CombineLocalGlobal,
-        Self::Disable,
-    ];
-
     #[must_use]
     pub const fn get_description(self) -> &'static str {
         match self {

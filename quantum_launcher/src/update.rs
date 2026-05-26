@@ -1,5 +1,5 @@
 use iced::{Task, futures::executor::block_on};
-use ql_core::{IntoStringError, err, info};
+use ql_core::{InstanceKind, IntoStringError, err, info};
 use std::fmt::Write;
 use tokio::io::AsyncWriteExt;
 
@@ -10,9 +10,9 @@ use owo_colors::OwoColorize;
 use crate::launcher_update::UpdateCheckInfo;
 use crate::{
     state::{
-        AutoSaveKind, CustomJarState, GameProcess, InfoMessage, LaunchTab, Launcher,
-        LauncherSettingsMessage, ManageModsMessage, MenuLaunch, MenuLicense, MenuWelcome, Message,
-        State,
+        AutoSaveKind, CustomJarState, FsWatcher, GameProcess, InfoMessage, Launcher,
+        LauncherSettingsMessage, ManageModsMessage, MenuLicense, MenuWelcome, Message, State,
+        get_entries,
     },
     stylesheet::styles::LauncherThemeLightness,
 };
@@ -20,8 +20,8 @@ use crate::{
 impl Launcher {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Nothing | Message::CoreCleanComplete(Ok(())) => {}
-            Message::Error(err) => self.set_error(err),
+            Message::Nothing | Message::CoreCleanComplete(Ok(())) | Message::Done(Ok(())) => {}
+            Message::Error(err) | Message::Done(Err(err)) => self.set_error(err),
             Message::Multiple(msgs) => {
                 let mut task = Task::none();
                 for msg in msgs {
@@ -36,7 +36,7 @@ impl Launcher {
 
                 if safe_to_exit {
                     info!(no_log, "CTRL-Q pressed, closing launcher...");
-                    std::process::exit(1);
+                    self.close_launcher();
                 }
             }
 
@@ -46,7 +46,6 @@ impl Launcher {
 
             Message::UninstallLoaderEnd(Err(err))
             | Message::InstallForgeEnd(Err(err))
-            | Message::LaunchGameExited(Err(err))
             | Message::CoreListLoaded(Err(err)) => self.set_error(err),
 
             Message::WelcomeContinueToTheme => {
@@ -56,10 +55,10 @@ impl Launcher {
                 self.state = State::Welcome(MenuWelcome::P3Auth);
             }
 
+            Message::Launch(msg) => return self.update_launch(msg),
             Message::MainMenu(msg) => return self.update_main_menu(msg),
             Message::Sidebar(msg) => return self.update_sidebar(msg),
             Message::Account(msg) => return self.update_account(msg),
-            Message::ManageMods(msg) => return self.update_manage_mods(msg),
             Message::ExportMods(msg) => return self.update_export_mods(msg),
             Message::ManageJarMods(msg) => return self.update_manage_jar_mods(msg),
             Message::RecommendedMods(msg) => return self.update_recommended_mods(msg),
@@ -67,37 +66,38 @@ impl Launcher {
             Message::Notes(msg) => return self.update_notes(msg),
             Message::GameLog(msg) => return self.update_game_log(msg),
             Message::Package(msg) => return self.update_package(msg),
+            Message::LauncherSettings(msg) => return self.update_launcher_settings(msg),
+            Message::InstallOptifine(msg) => return self.update_install_optifine(msg),
+            Message::InstallPaper(msg) => return self.update_install_paper(msg),
+            Message::ModDescription(msg) => return self.update_mod_description(msg),
+            Message::CreateInstance(msg) => return self.update_create_instance(msg),
             Message::Shortcut(msg) => match self.update_shortcut(msg) {
                 Ok(n) => return n,
                 Err(e) => self.set_error(e),
             },
 
-            Message::LauncherSettings(msg) => return self.update_launcher_settings(msg),
-            Message::InstallOptifine(msg) => return self.update_install_optifine(msg),
-            Message::InstallPaper(msg) => return self.update_install_paper(msg),
-            Message::ModDescription(msg) => return self.update_mod_description(msg),
+            Message::ManageMods(msg) => {
+                let sort = msg.edits_mod_list();
+                let t = self.update_manage_mods(msg);
+                if sort {
+                    if let State::EditMods(menu) = &mut self.state {
+                        menu.sort_mods();
+                    }
+                }
+                return t;
+            }
 
-            Message::LaunchStart => return self.launch_start(),
-            Message::LaunchEnd(result) => return self.finish_launching(result),
-            Message::CreateInstance(message) => return self.update_create_instance(message),
             Message::DeleteInstanceMenu => self.go_to_delete_instance_menu(),
             Message::DeleteInstance => return self.delete_instance_confirm(),
 
             Message::MScreenOpen {
                 message,
                 clear_selection,
-                is_server,
             } => {
-                let is_server = is_server.unwrap_or(self.server_selected());
                 if clear_selection {
                     self.unselect_instance();
                 }
-
-                return if is_server {
-                    self.go_to_server_manage_menu(message)
-                } else {
-                    self.go_to_launch_screen(message)
-                };
+                return self.go_to_main_menu(message);
             }
             Message::EditInstance(message) => {
                 if message.edits_config() {
@@ -154,11 +154,19 @@ impl Launcher {
                 let custom_jars_changed = self
                     .custom_jar
                     .as_ref()
-                    .and_then(|n| n.recv.try_recv().ok())
-                    .is_some();
+                    .is_some_and(|n| n.watcher.has_changed());
+
                 if custom_jars_changed {
                     tasks.push(CustomJarState::load());
                 }
+
+                let mut watch_reload = |watcher: Option<&FsWatcher>, kind| {
+                    if watcher.is_some_and(FsWatcher::has_changed) {
+                        tasks.push(Task::perform(get_entries(kind), Message::CoreListLoaded));
+                    }
+                };
+                watch_reload(self.client_watcher.as_ref(), InstanceKind::Client);
+                watch_reload(self.server_watcher.as_ref(), InstanceKind::Server);
 
                 return Task::batch(tasks);
             }
@@ -173,19 +181,18 @@ impl Launcher {
                 return self.install_forge(kind);
             }
             Message::InstallForgeEnd(Ok(())) => {
-                return self.go_to_edit_mods_menu(Some(InfoMessage::success("Installed Forge")));
+                return self
+                    .go_to_edit_mods_menu(Some(InfoMessage::success("Installed Forge/NeoForge")));
             }
             Message::UninstallLoaderEnd(Ok(())) => {
                 return self.go_to_edit_mods_menu(Some(InfoMessage::success("Uninstalled loader")));
             }
-            Message::LaunchGameExited(Ok((status, instance, diagnostic))) => {
-                self.set_game_exited(status, &instance, diagnostic);
-            }
-            Message::LaunchKill => return self.kill_selected_instance(),
 
             #[cfg(feature = "auto_update")]
             Message::UpdateCheckResult(res) => match res {
                 Ok(UpdateCheckInfo::UpToDate) => {
+                    self.config.update_set_now();
+                    self.autosave.remove(&AutoSaveKind::LauncherConfig);
                     ql_core::pt!(no_log, "{}", "Latest version".bright_black());
                 }
                 Ok(UpdateCheckInfo::NewVersion { url }) => {
@@ -204,6 +211,8 @@ impl Launcher {
             Message::UpdateDownloadEnd(result) => {
                 if let Err(err) = result {
                     self.set_error(format!("Update installation failed! Try going to the website at\nmrmayman.github.io/quantumlauncher\nAnd download from there\n\n{err}"));
+                } else {
+                    self.close_launcher();
                 }
             }
 
@@ -234,8 +243,8 @@ impl Launcher {
                     _ = block_on(future);
                 }
             }
-            Message::CoreListLoaded(Ok((list, is_server))) => {
-                self.core_list_loaded(list, is_server);
+            Message::CoreListLoaded(Ok((list, kind))) => {
+                self.core_list_loaded(list, kind);
             }
             Message::CoreCopyText(txt) => {
                 return iced::clipboard::write(txt);
@@ -303,30 +312,49 @@ impl Launcher {
             }
             Message::CoreHideModal => {
                 self.hide_submenu();
+                if let State::EditMods(menu) = &mut self.state {
+                    return menu.scroll_fix();
+                }
             }
         }
         Task::none()
     }
 
-    fn core_list_loaded(&mut self, list: Vec<String>, is_server: bool) {
-        self.config.update_sidebar(&list, is_server);
+    fn core_list_loaded(&mut self, list: Vec<String>, kind: InstanceKind) {
+        self.config.update_sidebar(&list, kind);
         self.autosave.remove(&AutoSaveKind::LauncherConfig);
 
         let persistent = self.config.c_persistent();
-        if is_server {
-            if let Some(n) = &persistent.selected_server {
-                if !list.contains(n) {
-                    self.unselect_instance();
+
+        let p_kind = persistent
+            .selected_instance_kind
+            .unwrap_or(InstanceKind::Client);
+        if p_kind == kind
+            && persistent
+                .selected_instance
+                .as_ref()
+                .is_some_and(|p| !list.iter().any(|n| n == &**p))
+        {
+            // The previously selected instance no longer exists
+            self.unselect_instance();
+        }
+
+        let (self_list, self_watcher) = match kind {
+            InstanceKind::Client => (&mut self.client_list, &mut self.client_watcher),
+            InstanceKind::Server => (&mut self.server_list, &mut self.server_watcher),
+        };
+        *self_list = Some(list);
+
+        if self_watcher.is_none() {
+            let dir = kind.get_root_directory();
+            let watcher = match FsWatcher::new(dir) {
+                Ok(n) => n,
+                Err(err) => {
+                    err!("Couldn't start dir watcher! {err}");
+                    return;
                 }
-            }
-            self.server_list = Some(list);
-        } else {
-            if let Some(n) = &persistent.selected_instance {
-                if !list.contains(n) {
-                    self.unselect_instance();
-                }
-            }
-            self.client_list = Some(list);
+            };
+            *self_watcher = Some(watcher);
         }
     }
 
@@ -337,7 +365,6 @@ impl Launcher {
             .config
             .ui_mode
             .is_none_or(|n| n == LauncherThemeLightness::Auto);
-        #[allow(clippy::manual_is_multiple_of)] // Maintain Rust MSRV
         let interval = self.tick_timer % INTERVAL == 0;
 
         if is_auto_theme && interval {
@@ -349,33 +376,6 @@ impl Launcher {
             })
         } else {
             Task::none()
-        }
-    }
-
-    pub fn load_edit_instance(&mut self, new_tab: Option<LaunchTab>) {
-        if let State::Launch(_) = &self.state {
-        } else {
-            _ = self.go_to_main_menu(None);
-        }
-
-        if let State::Launch(MenuLaunch {
-            tab, edit_instance, ..
-        }) = &mut self.state
-        {
-            if let (LaunchTab::Edit, Some(selected_instance)) =
-                (new_tab.unwrap_or(*tab), self.selected_instance.as_ref())
-            {
-                self.autosave.insert(AutoSaveKind::InstanceConfig); // prevent it from saving *right now*
-                if let Err(err) = Self::load_edit_instance_inner(edit_instance, selected_instance) {
-                    err!("Could not open edit instance menu: {err}");
-                    *edit_instance = None;
-                }
-            } else {
-                *edit_instance = None;
-            }
-            if let Some(new_tab) = new_tab {
-                *tab = new_tab;
-            }
         }
     }
 

@@ -1,11 +1,15 @@
-use std::{collections::HashSet, fs::Metadata, path::Path};
+use std::{
+    collections::HashSet,
+    fs::Metadata,
+    path::{Path, PathBuf},
+};
 
 use fs::DirEntry;
 use tokio::fs;
 
 use crate::{
-    IntoIoError, IntoJsonError, IoError, JsonFileError, LAUNCHER_DIR,
-    file_utils::{exists, get_launcher_dir},
+    IntoIoError, IntoJsonError, IoError, JsonFileError, LAUNCHER_CACHE_DIR, LAUNCHER_DIR,
+    file_utils::exists,
     info,
     json::{AssetIndex, VersionDetails},
     pt,
@@ -17,19 +21,15 @@ const SIZE_LIMIT_BYTES: u64 = 100 * 1024 * 1024; // 100 MB
 /// if it's larger than 100 MB.
 ///
 /// # Arguments
-/// - `dir_name`: Path relative to the root of the launcher dir.
-///   For example, to clean `QuantumLauncher/downloads/cache/`
-///   you pass in `downloads/cache`.
+/// - `dir`: An absolute path.
 ///
 /// # Errors
-/// If:
-/// - Launcher dir couldn't be determined
-/// - `dir_name` is pointing at a file
-/// - User lacks permissions
-pub async fn dir(dir_name: &str) -> Result<(), IoError> {
-    let launcher_dir = get_launcher_dir()?;
-    let dir = launcher_dir.join(dir_name);
-    if dir == launcher_dir || dir_name.trim().is_empty() {
+/// Returns an error if:
+/// - `dir` is invalid or cannot be created/accessed
+/// - `dir` points to a non-directory path
+/// - the user lacks permissions to create, scan, or delete entries in `dir`
+pub async fn dir(dir: PathBuf) -> Result<(), IoError> {
+    if dir == LAUNCHER_DIR.to_path_buf() {
         return Ok(());
     }
     if !exists(&dir).await {
@@ -91,6 +91,50 @@ async fn delete_files(mut total_size: u64, files: &[(DirEntry, Metadata)]) -> Re
         }
     }
     Ok(cleaned_amount)
+}
+
+/// Clears the cache directory.
+///
+/// This will completely remove all cache since they are pretty much disposable.
+pub async fn clear_cache_dir() -> Result<u64, IoError> {
+    let cache_dir = LAUNCHER_CACHE_DIR.to_path_buf();
+    if !exists(&cache_dir).await {
+        return Ok(0);
+    }
+    let size = size_of_dir(&cache_dir).await?;
+    fs::remove_dir_all(&cache_dir).await.path(&cache_dir)?;
+    fs::create_dir_all(&cache_dir).await.path(&cache_dir)?;
+
+    Ok(size)
+}
+
+pub async fn size_of_path(p: &Path) -> Result<u64, IoError> {
+    let metadata = p.metadata().path(p)?;
+    if metadata.is_file() {
+        return Ok(metadata.len());
+    }
+    if metadata.is_symlink() {
+        return Ok(0);
+    }
+
+    size_of_dir(p).await
+}
+
+pub async fn size_of_dir(p: &Path) -> Result<u64, IoError> {
+    let mut size = 0;
+    let mut entries = fs::read_dir(p).await.path(p)?;
+
+    while let Some(entry) = entries.next_entry().await.path(p)? {
+        let p = entry.path();
+        let file_type = entry.file_type().await.path(&p)?;
+        if file_type.is_dir() {
+            size += Box::pin(size_of_dir(&p)).await?;
+        } else if file_type.is_file() {
+            size += entry.metadata().await.path(p)?.len();
+        }
+    }
+
+    Ok(size)
 }
 
 /// Cleans the assets directory by deleting unused files.

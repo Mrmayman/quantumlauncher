@@ -1,9 +1,10 @@
-use std::{collections::HashSet, path::PathBuf, sync::mpsc::Sender};
+use std::{
+    collections::HashSet,
+    sync::{Arc, mpsc::Sender},
+};
 
 use chrono::DateTime;
-use ql_core::{
-    GenericProgress, InstanceSelection, IntoIoError, Loader, do_jobs, json::VersionDetails, pt,
-};
+use ql_core::{GenericProgress, Instance, Loader, do_jobs, pt};
 
 mod add_file;
 mod curseforge;
@@ -30,8 +31,8 @@ pub use modrinth::ModrinthBackend;
 pub use recommended::{RECOMMENDED_MODS, RecommendedMod};
 pub use toggle::{flip_filename, toggle_mods, toggle_mods_local};
 pub use types::{
-    Category, CurseforgeNotAllowed, Query, QueryType, SearchMod, SearchResult, SelectedMod,
-    StoreBackendType,
+    Category, CurseforgeNotAllowed, DirStructure, LocalMod, Query, QueryType, SearchMod,
+    SearchResult, SelectedMod, StoreBackendType,
 };
 pub use update::{ChangelogFile, apply_updates, check_for_updates};
 
@@ -72,7 +73,7 @@ pub trait Backend {
     /// Optionally takes in a `sender` to use if it's a modpack.
     async fn download(
         id: &str,
-        instance: &InstanceSelection,
+        instance: &Instance,
         sender: Option<Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError>;
     /// Downloads multiple mods to the `instance`.
@@ -80,8 +81,8 @@ pub trait Backend {
     /// Uses efficient batched APIs and concurrent downloading when possible,
     /// so more efficient than [`Backend::download`] in a loop.
     async fn download_bulk(
-        ids: &[String],
-        instance: &InstanceSelection,
+        ids: &[Arc<str>],
+        instance: &Instance,
         ignore_incompatible: bool,
         _set_manually_installed: bool,
         sender: Option<&Sender<GenericProgress>>,
@@ -124,10 +125,21 @@ pub trait Backend {
     ///
     /// Uses efficient batched APIs and concurrent fetching when possible,
     /// so more efficient than [`Backend::get_info`] in a loop.
-    async fn get_info_bulk(ids: &[String]) -> Result<Vec<SearchMod>, ModError> {
+    async fn get_info_bulk(ids: &[Arc<str>]) -> Result<Vec<SearchMod>, ModError> {
         // Fallback implementation (concurrent)
         do_jobs(ids.iter().map(|n| Self::get_info(n))).await
     }
+
+    /// Gets the direct download link for a mod file, based on its id.
+    ///
+    /// Useful for exporting to certain modpack formats (like modrinth).
+    ///
+    /// May return [`ModError::NoFilesFound`] if a Curseforge mod doesn't allow direct downloading.
+    async fn get_download_link(
+        instance: &Instance,
+        id: &str,
+        query_type: QueryType,
+    ) -> Result<String, ModError>;
 }
 
 /// Gets the description of a mod based on its id.
@@ -157,7 +169,7 @@ pub async fn search(
 /// Optionally takes in a `sender` to use if it's a modpack.
 pub async fn download_mod(
     id: &ModId,
-    instance: &InstanceSelection,
+    instance: &Instance,
     sender: Option<Sender<GenericProgress>>,
 ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
     match id {
@@ -172,7 +184,7 @@ pub async fn download_mod(
 /// so more efficient than [`download_mod`] in a loop.
 pub async fn download_mods_bulk(
     ids: Vec<ModId>,
-    instance: InstanceSelection,
+    instance: Instance,
     sender: Option<Sender<GenericProgress>>,
 ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
     let (modrinth, other): (Vec<ModId>, Vec<ModId>) = ids.into_iter().partition(|n| match n {
@@ -180,15 +192,8 @@ pub async fn download_mods_bulk(
         ModId::Curseforge(_) => false,
     });
 
-    let modrinth: Vec<String> = modrinth
-        .into_iter()
-        .map(|n| n.get_internal_id().to_owned())
-        .collect();
-
-    let curseforge: Vec<String> = other
-        .into_iter()
-        .map(|n| n.get_internal_id().to_owned())
-        .collect();
+    let modrinth: Vec<Arc<str>> = modrinth.into_iter().map(|n| n.get_internal_id()).collect();
+    let curseforge: Vec<Arc<str>> = other.into_iter().map(|n| n.get_internal_id()).collect();
 
     // if !other.is_empty() {
     //     err!("Unimplemented downloading for mods: {other:#?}");
@@ -258,15 +263,8 @@ pub async fn get_info_bulk(ids: Vec<ModId>) -> Result<Vec<SearchMod>, ModError> 
         ModId::Curseforge(_) => false,
     });
 
-    let modrinth: Vec<String> = modrinth
-        .into_iter()
-        .map(|n| n.get_internal_id().to_owned())
-        .collect();
-
-    let curseforge: Vec<String> = other
-        .into_iter()
-        .map(|n| n.get_internal_id().to_owned())
-        .collect();
+    let modrinth: Vec<Arc<str>> = modrinth.into_iter().map(|n| n.get_internal_id()).collect();
+    let curseforge: Vec<Arc<str>> = other.into_iter().map(|n| n.get_internal_id()).collect();
 
     let mut results = Vec::new();
 
@@ -276,64 +274,13 @@ pub async fn get_info_bulk(ids: Vec<ModId>) -> Result<Vec<SearchMod>, ModError> 
     Ok(results)
 }
 
-struct DirStructure {
-    mods: PathBuf,
-    resource_packs: PathBuf,
-    shaders: PathBuf,
-    data_packs: PathBuf,
-}
-
-impl DirStructure {
-    pub async fn new(
-        instance_name: &InstanceSelection,
-        version_json: &VersionDetails,
-    ) -> Result<Self, ModError> {
-        // Minecraft 13w23b release date (1.6.1 snapshot)
-        // Last version with Texture Packs instead of Resource Packs
-        const V1_6_1: &str = "2013-06-08T00:32:01+00:00";
-
-        let dot_minecraft_dir = instance_name.get_dot_minecraft_path();
-
-        // this doesn't get loaded by default but there are datapack loader mods
-        // that are used my modpacks that want to include datapacks.
-        // for example https://modrinth.com/mod/dataloader
-        let data_packs = dot_minecraft_dir.join("datapacks");
-        tokio::fs::create_dir_all(&data_packs)
-            .await
-            .path(&data_packs)?;
-
-        let resource_packs = if version_json.is_before_or_eq(V1_6_1) {
-            "texturepacks"
-        } else {
-            "resourcepacks"
-        };
-
-        let resource_packs = dot_minecraft_dir.join(resource_packs);
-        tokio::fs::create_dir_all(&resource_packs)
-            .await
-            .path(&resource_packs)?;
-
-        let shaders = dot_minecraft_dir.join("shaderpacks");
-        tokio::fs::create_dir_all(&shaders).await.path(&shaders)?;
-
-        let mods = dot_minecraft_dir.join("mods");
-        tokio::fs::create_dir_all(&mods).await.path(&mods)?;
-
-        Ok(Self {
-            mods,
-            resource_packs,
-            shaders,
-            data_packs,
-        })
-    }
-
-    pub fn get(&self, query_type: QueryType) -> Result<PathBuf, PackError> {
-        Ok(match query_type {
-            QueryType::DataPacks => self.data_packs.clone(),
-            QueryType::ResourcePacks => self.resource_packs.clone(),
-            QueryType::Mods => self.mods.clone(),
-            QueryType::Shaders => self.shaders.clone(),
-            QueryType::ModPacks => return Err(PackError::ModpackInModpack),
-        })
+pub async fn get_download_link(
+    instance: &Instance,
+    id: &ModId,
+    query_type: QueryType,
+) -> Result<String, ModError> {
+    match id {
+        ModId::Modrinth(n) => ModrinthBackend::get_download_link(instance, n, query_type).await,
+        ModId::Curseforge(n) => CurseforgeBackend::get_download_link(instance, n, query_type).await,
     }
 }

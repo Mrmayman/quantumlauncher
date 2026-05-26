@@ -1,8 +1,17 @@
-use std::{collections::HashSet, ffi::OsStr, path::PathBuf, sync::mpsc::Sender};
+use std::{
+    collections::HashSet,
+    ffi::OsStr,
+    path::{Path, PathBuf},
+    sync::mpsc::Sender,
+};
 
-use ql_core::{GenericProgress, InstanceSelection, IntoIoError, err, pt};
+use owo_colors::OwoColorize;
+use ql_core::{GenericProgress, Instance, IntoIoError, err, json::VersionDetails, pt};
 
-use crate::{presets, store::download_mods_bulk};
+use crate::{
+    presets,
+    store::{DirStructure, QueryType, download_mods_bulk},
+};
 
 use super::{
     CurseforgeNotAllowed,
@@ -10,11 +19,14 @@ use super::{
 };
 
 pub async fn add_files(
-    instance: InstanceSelection,
+    instance: Instance,
     paths: Vec<PathBuf>,
     progress: Option<Sender<GenericProgress>>,
+    project_type: QueryType,
 ) -> Result<HashSet<CurseforgeNotAllowed>, PackError> {
+    let version_json = VersionDetails::load(&instance).await?;
     let mods_dir = instance.get_dot_minecraft_path().join("mods");
+    let dirs = DirStructure::new(instance.clone(), &version_json).await?;
 
     let mut not_allowed = HashSet::new();
 
@@ -22,7 +34,7 @@ pub async fn add_files(
 
     let len = paths.len();
     for (i, path) in paths.into_iter().enumerate() {
-        pt!("Adding file: {path:?}");
+        pt!("Adding file: {}", path.to_string_lossy().bright_black());
         let (Some(extension), Some(filename)) =
             (path.extension().and_then(OsStr::to_str), path.file_name())
         else {
@@ -30,19 +42,12 @@ pub async fn add_files(
         };
 
         let extension = extension.to_lowercase();
-
-        let file_type = match extension.as_str() {
-            "jar" => "mod",
-            "zip" | "mrpack" => "modpack",
-            "qmp" => "QuantumLauncher mod preset",
-            _ => "Unknown file (ERROR)",
-        };
         send_progress(
             progress.as_ref(),
             &GenericProgress {
                 done: i,
                 total: len,
-                message: Some(format!("Installing {file_type}: ({}/{len})", i + 1)),
+                message: Some(format!("Installing {project_type}: ({}/{len})", i + 1)),
                 has_finished: false,
             },
         );
@@ -53,13 +58,18 @@ pub async fn add_files(
                     .await
                     .path(&path)?;
             }
-            "zip" | "mrpack" => {
-                let file = tokio::fs::read(&path).await.path(&path)?;
-                if let Some(not_allowed_new) =
-                    modpack::install_modpack(file, instance.clone(), progress.as_ref()).await?
-                {
-                    not_allowed.extend(not_allowed_new);
-                }
+
+            "zip" => {
+                let Some(dir) = dirs.get(project_type) else {
+                    modpack(&instance, progress.as_ref(), &mut not_allowed, &path).await?;
+                    continue;
+                };
+                tokio::fs::copy(&path, dir.join(filename))
+                    .await
+                    .path(&path)?;
+            }
+            "mrpack" => {
+                modpack(&instance, progress.as_ref(), &mut not_allowed, &path).await?;
             }
             "qmp" => {
                 let file = tokio::fs::read(&path).await.path(&path)?;
@@ -68,6 +78,7 @@ pub async fn add_files(
                     download_mods_bulk(out.to_install, instance.clone(), progress.clone()).await?;
                 }
             }
+
             extension => {
                 err!("While adding mod files: Unrecognized extension: .{extension}");
             }
@@ -77,6 +88,24 @@ pub async fn add_files(
     send_progress(progress.as_ref(), &GenericProgress::finished());
 
     Ok(not_allowed)
+}
+
+async fn modpack(
+    instance: &Instance,
+    progress: Option<&Sender<GenericProgress>>,
+    not_allowed: &mut HashSet<CurseforgeNotAllowed>,
+    path: &Path,
+) -> Result<(), PackError> {
+    let file = tokio::fs::read(path).await.path(path)?;
+    let filename = path.file_name().and_then(|n| n.to_str()).map(str::to_owned);
+
+    if let Some(not_allowed_new) =
+        modpack::install_modpack(file, filename, instance.clone(), progress).await?
+    {
+        not_allowed.extend(not_allowed_new);
+    }
+
+    Ok(())
 }
 
 fn send_progress(sender: Option<&Sender<GenericProgress>>, progress: &GenericProgress) {

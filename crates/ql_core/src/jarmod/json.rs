@@ -1,4 +1,4 @@
-use crate::{InstanceSelection, IntoIoError, JsonFileError};
+use crate::{Instance, IntoIoError, JsonFileError};
 use crate::{IntoJsonError, IoError, err, file_utils};
 use serde::{Deserialize, Serialize};
 
@@ -8,7 +8,7 @@ pub struct JarMods {
 }
 
 impl JarMods {
-    pub async fn read(instance: &InstanceSelection) -> Result<Self, JsonFileError> {
+    pub async fn read(instance: &Instance) -> Result<Self, JsonFileError> {
         let path = instance.get_instance_path().join("jarmods.json");
 
         if path.is_file() {
@@ -23,7 +23,7 @@ impl JarMods {
         }
     }
 
-    pub async fn save(&mut self, instance: &InstanceSelection) -> Result<(), JsonFileError> {
+    pub async fn save(&mut self, instance: &Instance) -> Result<(), JsonFileError> {
         self.trim(instance);
         if let Err(err) = self.expand(instance).await {
             err!("While expanding jarmods.json with new entries: {err}");
@@ -35,12 +35,12 @@ impl JarMods {
         Ok(())
     }
 
-    fn trim(&mut self, instance: &InstanceSelection) {
+    fn trim(&mut self, instance: &Instance) {
         let path = instance.get_instance_path().join("jarmods");
         self.mods.retain(|n| path.join(&n.filename).is_file());
     }
 
-    pub async fn expand(&mut self, instance: &InstanceSelection) -> Result<(), IoError> {
+    pub async fn expand(&mut self, instance: &Instance) -> Result<(), IoError> {
         let path = instance.get_instance_path().join("jarmods");
         if !path.is_dir() {
             tokio::fs::create_dir_all(&path).await.path(path)?;

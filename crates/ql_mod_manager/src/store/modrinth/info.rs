@@ -1,6 +1,6 @@
 use ql_core::{err, file_utils};
 use serde::Deserialize;
-use std::fmt::Write;
+use std::{fmt::Write, sync::Arc};
 
 use crate::{rate_limiter::RATE_LIMITER, store::types::UrlKind};
 
@@ -8,11 +8,11 @@ use super::ModError;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct ProjectInfo {
-    pub title: String,
+    pub title: Arc<str>,
     pub description: String,
     pub icon_url: Option<String>,
     pub loaders: Vec<String>,
-    pub id: String,
+    pub id: Arc<str>,
     pub body: String,
     pub project_type: String,
     pub slug: String,
@@ -22,11 +22,11 @@ pub struct ProjectInfo {
     // pub status: String,
     // pub requested_status: Option<String>,
     // pub additional_categories: Vec<String>,
-    pub issues_url: Option<String>,
-    pub source_url: Option<String>,
-    pub wiki_url: Option<String>,
-    pub discord_url: Option<String>,
-    pub donation_urls: Vec<DonationLink>,
+    issues_url: Option<String>,
+    source_url: Option<String>,
+    wiki_url: Option<String>,
+    discord_url: Option<String>,
+    donation_urls: Vec<DonationLink>,
     pub downloads: usize,
     // pub color: Option<usize>,
     // pub thread_id: Option<String>,
@@ -44,10 +44,10 @@ pub struct ProjectInfo {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct MGallery {
-    pub url: String,
+    url: String,
     // pub featured: bool,
-    pub title: Option<String>,
-    pub description: Option<String>,
+    title: Option<String>,
+    description: Option<String>,
     // pub created: String,
     pub ordering: i64,
 }
@@ -76,7 +76,7 @@ impl ProjectInfo {
         Ok(file)
     }
 
-    pub async fn download_bulk(ids: &[String]) -> Result<Vec<Self>, ModError> {
+    pub async fn download_bulk(ids: &[Arc<str>]) -> Result<Vec<Self>, ModError> {
         RATE_LIMITER.lock().await;
         let mut url = "https://api.modrinth.com/v2/projects?ids=[".to_owned();
         let len = ids.len();
@@ -118,13 +118,13 @@ impl ProjectInfo {
 #[derive(Deserialize, Debug, Clone)]
 pub struct DonationLink {
     // pub id: String,
-    pub platform: String,
-    pub url: String,
+    platform: String,
+    url: String,
 }
 
 /*#[derive(Deserialize, Debug, Clone)]
 pub struct License {
-    pub id: String,
-    pub name: String,
-    pub url: Option<String>,
+    id: String,
+    name: String,
+    url: Option<String>,
 }*/

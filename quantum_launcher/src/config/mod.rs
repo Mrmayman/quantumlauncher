@@ -1,16 +1,20 @@
-use crate::config::sidebar::{InstanceKind, SidebarConfig, SidebarNode, SidebarNodeKind};
+use crate::config::discord_rpc::RpcConfig;
+use crate::config::sidebar::{SidebarConfig, SidebarNode, SidebarNodeKind};
 use crate::stylesheet::styles::{LauncherTheme, LauncherThemeColor, LauncherThemeLightness};
 use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
-use ql_core::ListEntryKind;
-use ql_core::json::GlobalSettings;
 use ql_core::{
-    IntoIoError, IntoJsonError, JsonFileError, LAUNCHER_DIR, LAUNCHER_VERSION_NAME, err,
+    InstanceKind, IntoIoError, IntoJsonError, JsonFileError, LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
+    ListEntryKind, err, json::GlobalSettings,
 };
 use ql_instances::auth::{AccountData, AccountType};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
-use std::{collections::HashMap, path::Path};
+use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 
+pub mod discord_rpc;
 pub mod sidebar;
 
 pub const SIDEBAR_WIDTH: f32 = 0.33;
@@ -37,7 +41,7 @@ pub struct LauncherConfig {
         since = "0.2.0",
         note = "removed feature, field left here for backwards compatibility"
     )]
-    pub java_installs: Option<Vec<String>>,
+    java_installs: Option<Vec<String>>,
 
     /// UI mode (Light/Dark/Auto) set by the user.
     // Since: v0.3
@@ -51,6 +55,11 @@ pub struct LauncherConfig {
     /// The launcher version when you last opened it
     // Since: v0.3
     pub version: Option<String>,
+
+    /// Whether to enable various different caches.
+    /// Since: TBD
+    #[serde(default = "btrue")]
+    pub do_cache: bool,
 
     /// A list of Minecraft accounts logged into the launcher.
     ///
@@ -100,10 +109,20 @@ pub struct LauncherConfig {
     pub persistent: Option<PersistentSettings>,
     // Since: v0.5.1
     pub sidebar: Option<SidebarConfig>,
+    // Since: TBD
+    pub discord_rpc: Option<RpcConfig>,
+    /// Time of last auto-update check result, in seconds since the Unix epoch.
+    // Since: TBD
+    #[cfg(feature = "auto_update")]
+    last_update_check: Option<u64>,
 
     /// Preserve fields when downgrading
     #[serde(flatten)]
     _extra: HashMap<String, serde_json::Value>,
+}
+
+fn btrue() -> bool {
+    true
 }
 
 impl Default for LauncherConfig {
@@ -116,6 +135,7 @@ impl Default for LauncherConfig {
             version: Some(LAUNCHER_VERSION_NAME.to_owned()),
             accounts: None,
             ui_scale: None,
+            do_cache: true,
             java_installs: Some(Vec::new()),
             ui_antialiasing: Some(true),
             account_selected: None,
@@ -125,7 +145,10 @@ impl Default for LauncherConfig {
             ui: None,
             persistent: None,
             sidebar: None,
+            discord_rpc: None,
             _extra: HashMap::new(),
+            #[cfg(feature = "auto_update")]
+            last_update_check: None,
         }
     }
 }
@@ -180,27 +203,29 @@ impl LauncherConfig {
         Ok(())
     }
 
-    pub fn update_sidebar(&mut self, instances: &[String], is_server: bool) {
+    /// Resets the Discord Rich Presence configuration to default.
+    pub fn reset_presence(&mut self) {
+        self.discord_rpc = Some(RpcConfig::default());
+    }
+
+    pub fn update_sidebar(&mut self, instances: &[String], kind: InstanceKind) {
         let sidebar = self.sidebar.get_or_insert_with(SidebarConfig::default);
-        let kind = if is_server {
-            InstanceKind::Server
-        } else {
-            InstanceKind::Client
-        };
 
         // Remove nonexistent instances
         sidebar.retain_instances(|node| match &node.kind {
             SidebarNodeKind::Instance(instance_kind) => {
-                *instance_kind == kind && instances.contains(&node.name)
+                (*instance_kind == kind && instances.iter().any(|n| n == &*node.name))
+                    || (*instance_kind != kind)
             }
             SidebarNodeKind::Folder { .. } => true,
         });
         // Add new instances
         for instance in instances {
             if !sidebar.contains_instance(instance, kind) {
-                sidebar
-                    .list
-                    .push(SidebarNode::new_instance(instance.clone(), kind));
+                sidebar.list.push(SidebarNode::new_instance(
+                    Arc::from(instance.as_str()),
+                    kind,
+                ));
             }
         }
     }
@@ -213,9 +238,6 @@ impl LauncherConfig {
     }
 
     fn fix(&mut self) {
-        if self.ui_antialiasing.is_none() {
-            self.ui_antialiasing = Some(true);
-        }
         if let (Some(accounts), Some(selected)) = (&self.accounts, &self.account_selected) {
             if !accounts.contains_key(selected) {
                 self.account_selected = None;
@@ -227,6 +249,10 @@ impl LauncherConfig {
             if self.java_installs.is_none() {
                 self.java_installs = Some(Vec::new());
             }
+        }
+
+        if let Some(rpc) = &mut self.discord_rpc {
+            rpc.fix();
         }
     }
 
@@ -276,21 +302,19 @@ impl LauncherConfig {
     }
 
     pub fn c_window(&mut self) -> &mut WindowProperties {
-        self.window.get_or_insert_with(WindowProperties::default)
+        self.window.get_or_insert_default()
     }
 
     pub fn c_global(&mut self) -> &mut GlobalSettings {
-        self.global_settings
-            .get_or_insert_with(GlobalSettings::default)
+        self.global_settings.get_or_insert_default()
     }
 
     pub fn c_persistent(&mut self) -> &mut PersistentSettings {
-        self.persistent
-            .get_or_insert_with(PersistentSettings::default)
+        self.persistent.get_or_insert_default()
     }
 
     pub fn c_sidebar(&mut self) -> &mut SidebarConfig {
-        self.sidebar.get_or_insert_with(SidebarConfig::default)
+        self.sidebar.get_or_insert_default()
     }
 
     pub fn c_idle_fps(&self) -> u64 {
@@ -309,6 +333,33 @@ impl LauncherConfig {
             IDLE_FPS
         }
     }
+
+    pub fn c_rpc_enabled(&self) -> bool {
+        self.discord_rpc.as_ref().is_some_and(|n| n.enable)
+    }
+
+    #[cfg(feature = "auto_update")]
+    pub fn should_update_check(&self) -> bool {
+        const INTERVAL_SECS: u64 = 60 * 60;
+
+        if let Some(last) = self.last_update_check {
+            if let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+                let elapsed = now.as_secs().saturating_sub(last);
+                return elapsed >= INTERVAL_SECS;
+            }
+        }
+        true
+    }
+
+    #[cfg(feature = "auto_update")]
+    pub fn update_set_now(&mut self) {
+        self.last_update_check = Some(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        );
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -326,7 +377,7 @@ pub struct ConfigAccount {
     pub uuid: String,
 
     /// Currently unimplemented, does nothing.
-    pub skin: Option<String>, // TODO: Add skin visualization?
+    skin: Option<String>, // TODO: Add skin visualization?
 
     /// Type of account (default: `Microsoft`)
     pub account_type: Option<AccountType>,
@@ -417,7 +468,7 @@ pub struct UiSettings {
     pub idle_fps: Option<u64>,
     /// When the game is launched, the launcher can either
     /// minimize itself, close itself, or do nothing (default).
-    // Since: v0.5.2
+    // Since: TBD
     #[serde(default)]
     pub after_game_opens: AfterLaunchBehavior,
     #[serde(flatten)]
@@ -461,13 +512,14 @@ impl AfterLaunchBehavior {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
 pub enum UiWindowDecorations {
-    #[serde(rename = "system")]
-    #[default]
-    System,
     #[serde(rename = "left")]
     Left,
     #[serde(rename = "right")]
     Right,
+    #[serde(rename = "system")]
+    #[default]
+    #[serde(other)]
+    System,
 }
 
 /*impl Default for UiWindowDecorations {
@@ -481,9 +533,10 @@ pub enum UiWindowDecorations {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PersistentSettings {
-    pub selected_instance: Option<String>,
-    pub selected_server: Option<String>,
+    pub selected_instance: Option<Arc<str>>,
     pub selected_remembered: bool,
+    // Since: TBD
+    pub selected_instance_kind: Option<InstanceKind>,
 
     #[serde(default = "default_true")]
     pub write_mod_update_changelog: bool,
@@ -499,7 +552,7 @@ impl Default for PersistentSettings {
     fn default() -> Self {
         Self {
             selected_instance: None,
-            selected_server: None,
+            selected_instance_kind: None,
             selected_remembered: true,
             write_mod_update_changelog: true,
             create_instance_filters: None,

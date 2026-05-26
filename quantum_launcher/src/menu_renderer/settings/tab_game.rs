@@ -41,20 +41,6 @@ impl MenuLauncherSettings {
                 args_split_by_space(self.arg_split_by_space),
             ]
             .spacing(10),
-            column![
-                widget::row![
-                    button_with_icon(icons::bin_s(12), "Clear Java installs", 12)
-                        .padding([5, 10])
-                        .on_press(LauncherSettingsMessage::ClearJavaInstalls.into()),
-                    widget::text(
-                        "Might fix some Java problems.\nPerfectly safe, will be redownloaded."
-                    )
-                    .style(tsubtitle)
-                    .size(12),
-                ]
-                .spacing(10)
-                .wrap()
-            ],
         ])
     }
 }
@@ -72,8 +58,8 @@ fn opt_java_args(config: &LauncherConfig) -> Column<'_> {
 fn opt_resolution(config: &LauncherConfig) -> Column<'_> {
     resolution_dialog(
         config.global_settings.as_ref(),
-        |n| Message::LauncherSettings(LauncherSettingsMessage::DefaultMinecraftWidthChanged(n)),
-        |n| Message::LauncherSettings(LauncherSettingsMessage::DefaultMinecraftHeightChanged(n)),
+        |n| LauncherSettingsMessage::DefaultMinecraftWidthChanged(n).into(),
+        |n| LauncherSettingsMessage::DefaultMinecraftHeightChanged(n).into(),
     )
 }
 

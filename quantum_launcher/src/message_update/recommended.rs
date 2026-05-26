@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use iced::{Task, futures::executor::block_on};
-use ql_core::{InstanceSelection, IntoStringError, JsonFileError, json::InstanceConfigJson};
+use ql_core::{Instance, IntoStringError, JsonFileError, json::InstanceConfigJson};
 use ql_mod_manager::store::{ModId, RECOMMENDED_MODS, RecommendedMod};
 
 use crate::state::{
@@ -118,7 +118,7 @@ impl Launcher {
 
     fn go_to_recommended_mods(&mut self) -> Task<Message> {
         let config = if let State::EditMods(menu) = &self.state {
-            menu.config.clone()
+            menu.file_data.config.clone()
         } else {
             match block_on(InstanceConfigJson::read(self.instance())) {
                 Ok(n) => n,
@@ -153,10 +153,7 @@ impl Launcher {
 }
 
 impl MenuRecommendedMods {
-    pub fn get_config(
-        &self,
-        instance: &InstanceSelection,
-    ) -> Result<InstanceConfigJson, JsonFileError> {
+    fn get_config(&self, instance: &Instance) -> Result<InstanceConfigJson, JsonFileError> {
         if let MenuRecommendedMods::Loaded { config, .. }
         | MenuRecommendedMods::Loading { config, .. } = self
         {

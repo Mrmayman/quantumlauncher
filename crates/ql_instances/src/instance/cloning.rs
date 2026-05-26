@@ -1,4 +1,4 @@
-use ql_core::{file_utils, InstanceSelection, IoError};
+use ql_core::{Instance, IoError, file_utils};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -19,11 +19,11 @@ impl From<IoError> for InstanceCloneError {
 }
 
 pub async fn clone_instance(
-    instance: InstanceSelection,
+    instance: Instance,
     exceptions: HashSet<String>,
-) -> Result<InstanceSelection, InstanceCloneError> {
+) -> Result<Instance, InstanceCloneError> {
     let current_instance_name = instance.get_name();
-    let current_instance_type = instance.is_server();
+    let current_instance_type = instance.kind;
     let new_instance_name = format!("{current_instance_name} (copy)");
 
     let current_instance = instance.get_instance_path();
@@ -40,8 +40,5 @@ pub async fn clone_instance(
 
     file_utils::copy_dir_recursive_ext(&current_instance, &new_instance, &exceptions).await?;
 
-    Ok(InstanceSelection::new(
-        &new_instance_name,
-        current_instance_type,
-    ))
+    Ok(Instance::new(&new_instance_name, current_instance_type))
 }

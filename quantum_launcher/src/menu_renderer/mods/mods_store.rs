@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use iced::{
     Alignment, Length,
     widget::{self, column, row},
@@ -94,8 +96,8 @@ impl MenuModsDownload {
                 (self.query_type == QueryType::Shaders
                     && self.config.mod_type != Loader::OptiFine
                     // Iris Shaders Mod
-                    && !self.mod_index.mods.contains_key(&ModId::Modrinth("YL57xq9U".to_owned())) // Modrinth ID
-                    && !self.mod_index.mods.contains_key(&ModId::Curseforge("455508".to_owned()))) // CurseForge ID
+                    && !self.mod_index.mods.contains_key(&ModId::Modrinth(Arc::from("YL57xq9U"))) // Modrinth ID
+                    && !self.mod_index.mods.contains_key(&ModId::Curseforge(Arc::from("455508")))) // CurseForge ID
                 .then_some(
                     column![
                         widget::text(
@@ -139,12 +141,12 @@ impl MenuModsDownload {
                 .map(|(title, operation)| {
                     const SIZE: u16 = 12;
                     widget::container(
-                        widget::row![
+                        row![
                             match operation {
                                 ModOperation::Downloading => icons::download_s(SIZE),
                                 ModOperation::Deleting => icons::bin_s(SIZE),
                             },
-                            widget::text(title).size(SIZE)
+                            widget::text(&**title).size(SIZE)
                         ]
                         .spacing(4),
                     )
@@ -168,7 +170,7 @@ impl MenuModsDownload {
                 row![icons::download_s(14), widget::text("Type:").size(18)]
                     .align_y(Alignment::Center)
                     .spacing(5),
-                widget::column(QueryType::STORE_QUERIES.iter().map(|n| {
+                widget::column(QueryType::ALL.iter().map(|n| {
                     widget::radio(n.to_string(), *n, Some(self.query_type), |v| {
                         InstallModsMessage::ChangeQueryType(v).into()
                     })
@@ -236,7 +238,7 @@ impl MenuModsDownload {
                 row![
                     images.view(hit.icon_url.as_deref(), Some(32.0), Some(32.0)),
                     column![
-                        widget::text(&hit.title)
+                        widget::text(&*hit.title)
                             .wrapping(widget::text::Wrapping::None)
                             .shaping(widget::text::Shaping::Advanced)
                             .height(19),

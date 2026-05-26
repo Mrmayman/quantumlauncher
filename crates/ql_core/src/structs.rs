@@ -6,17 +6,13 @@ use crate::{err, json::version::JavaVersionJson};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Loader {
-    #[serde(rename = "Vanilla")]
-    #[default]
-    Vanilla,
     #[serde(rename = "Fabric")]
     Fabric,
     #[serde(rename = "Quilt")]
     Quilt,
     #[serde(rename = "Forge")]
     Forge,
-    #[serde(rename = "NeoForge")]
-    Neoforge,
+    NeoForge,
 
     // The launcher supports these, but modrinth doesn't
     // (so no Mod Store):
@@ -32,6 +28,11 @@ pub enum Loader {
     Modloader,
     #[serde(rename = "Rift")]
     Rift,
+
+    #[serde(rename = "Vanilla")]
+    #[default]
+    #[serde(other)]
+    Vanilla,
 }
 
 impl Display for Loader {
@@ -54,7 +55,7 @@ impl Loader {
         Self::Fabric,
         Self::Quilt,
         Self::Forge,
-        Self::Neoforge,
+        Self::NeoForge,
         Self::OptiFine,
         Self::Paper,
         Self::Liteloader,
@@ -81,7 +82,7 @@ impl Loader {
             Loader::Liteloader => "liteloader",
             Loader::Modloader => "modloader",
             Loader::Rift => "rift",
-            Loader::Neoforge => "neoforge",
+            Loader::NeoForge => "neoforge",
             Loader::OptiFine => "optifine",
             Loader::Paper => "paper",
             Loader::Vanilla => " ",
@@ -94,7 +95,7 @@ impl Loader {
             Loader::Forge => "1",
             Loader::Fabric => "4",
             Loader::Quilt => "5",
-            Loader::Neoforge => "6",
+            Loader::NeoForge => "6",
             Loader::Liteloader => "3",
             Loader::Rift
             | Loader::Paper

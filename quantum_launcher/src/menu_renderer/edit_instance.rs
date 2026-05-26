@@ -13,7 +13,7 @@ use iced::{
     Alignment, Length,
     widget::{self, column, horizontal_space, row},
 };
-use ql_core::InstanceSelection;
+use ql_core::{Instance, InstanceKind};
 use ql_core::{
     JavaVersion,
     json::{
@@ -27,7 +27,7 @@ use super::Element;
 impl MenuEditInstance {
     pub fn view<'a>(
         &'a self,
-        selected_instance: &InstanceSelection,
+        selected_instance: &Instance,
         jar_choices: Option<&'a CustomJarState>,
     ) -> Element<'a> {
         widget::scrollable(
@@ -35,38 +35,36 @@ impl MenuEditInstance {
                 self.item_rename(selected_instance),
                 self.item_mem_alloc(),
 
-                if selected_instance.is_server() {
-                    column![widget::button("Edit server.properties")]
-                } else {
-                    resolution_dialog(
+                // Instance type specific settings
+                match selected_instance.kind {
+                    InstanceKind::Client => column![
+                        resolution_dialog(
                             self.config.global_settings.as_ref(),
                             |n| EditInstanceMessage::WindowWidthChanged(n).into(),
                             |n| EditInstanceMessage::WindowHeightChanged(n).into(),
-                    )
+                        ),
+                        column![
+                            widget::Space::with_height(5),
+                            widget::checkbox("DEBUG: Enable log system (recommended)", self.config.enable_logger.unwrap_or(true))
+                                .on_toggle(|t| EditInstanceMessage::LoggingToggle(t).into()),
+                            widget::text("Once disabled, logs will be printed in launcher STDOUT.\nRun the launcher executable from the terminal/command prompt to see it").size(12).style(tsubtitle),
+                            horizontal_space(),
+                        ].spacing(5),
+                    ].spacing(20),
+                    // TODO: Add option to edit server.properties in user-friendly way
+                    InstanceKind::Server => column![widget::button("Edit server.properties")],
                 },
-
-                widget::Column::new()
-                .push(
-                    column![
-                        widget::Space::with_height(5),
-                        widget::checkbox("DEBUG: Enable log system (recommended)", self.config.enable_logger.unwrap_or(true))
-                            .on_toggle(|t| EditInstanceMessage::LoggingToggle(t).into()),
-                        widget::text("Once disabled, logs will be printed in launcher STDOUT.\nRun the launcher executable from the terminal/command prompt to see it").size(12).style(tsubtitle),
-                        horizontal_space(),
-                    ].spacing(5)
-                )
-                .spacing(10),
 
                 self.item_args(),
                 self.item_java_override(),
                 self.item_custom_jar(jar_choices),
 
-                item_footer(selected_instance)
+                item_footer(selected_instance.kind)
             ]),
         ).style(LauncherTheme::style_scrollable_flat_extra_dark).spacing(1).into()
     }
 
-    fn item_rename(&self, selected_instance: &InstanceSelection) -> Column<'_> {
+    fn item_rename(&self, selected_instance: &Instance) -> Column<'_> {
         column![
             row![
                 widget::text(selected_instance.get_name().to_owned())
@@ -74,7 +72,7 @@ impl MenuEditInstance {
                     .font(FONT_MONO)
             ]
             .push_maybe(
-                (!self.is_editing_name).then_some(
+                (!self.state_rename.is_editing).then_some(
                     widget::button(
                         icons::edit_s(12).style(|t: &LauncherTheme| t.style_text(Color::Mid))
                     )
@@ -98,10 +96,10 @@ impl MenuEditInstance {
         .width(Length::Fill)
         .spacing(5)
         .push_maybe(
-            self.is_editing_name.then_some(
+            self.state_rename.is_editing.then_some(
                 column![
                     widget::Space::with_height(1),
-                    widget::text_input("Rename Instance", &self.instance_name)
+                    widget::text_input("Rename Instance", &self.state_rename.name)
                         .on_input(|n| EditInstanceMessage::RenameEdit(n).into()),
                     row![
                         widget::button(widget::text("Rename").size(12))
@@ -204,12 +202,11 @@ impl MenuEditInstance {
     }
 
     fn item_mem_alloc(&self) -> Column<'_> {
-        // 2 ^ 8 = 256 MB
-        const MEM_256_MB_IN_TWOS_EXPONENT: f32 = 8.0;
-        // 2 ^ 15 = 32768 MB (32 GB)
-        const MEM_32768_MB_IN_TWOS_EXPONENT: f32 = 15.0;
-
-        const RAM_16_GB_TO_MB: usize = 16384;
+        // total RAM of system
+        let total_mem = self.state_ram.system.total_memory() as f32 / 1024_f32.powf(2.0);
+        const MEM_256_MB_IN_TWOS_EXPONENT: f32 = 8_f32;
+        let mem_max_in_twos_exponent: f32 = total_mem.ln().max(256_f32.ln()) / 2_f32.ln();
+        let mem_warning_threshold = ((total_mem) * 0.7) as usize; // 70%
 
         column![
             "Allocated memory",
@@ -222,10 +219,10 @@ Heavy modpacks / High settings: 4-8 GB+"
             .style(tsubtitle),
             widget::Space::with_height(5),
             row![
-                widget::text(&self.slider_text),
+                widget::text(&self.state_ram.slider_text),
                 widget::slider(
-                    MEM_256_MB_IN_TWOS_EXPONENT..=MEM_32768_MB_IN_TWOS_EXPONENT,
-                    self.slider_value,
+                    MEM_256_MB_IN_TWOS_EXPONENT..=mem_max_in_twos_exponent,
+                    self.state_ram.slider_value,
                     |n| EditInstanceMessage::MemoryChanged(n).into()
                 )
                 .step(0.1),
@@ -234,7 +231,7 @@ Heavy modpacks / High settings: 4-8 GB+"
             .spacing(10),
             row![
                 widget::text("Or enter directly:").size(12).style(tsubtitle),
-                widget::text_input("2048", &self.memory_input)
+                widget::text_input("2048", &self.state_ram.memory_input)
                     .on_input(|n| EditInstanceMessage::MemoryInputChanged(n).into())
                     .width(64)
                     .size(12),
@@ -244,9 +241,9 @@ Heavy modpacks / High settings: 4-8 GB+"
             .spacing(5)
         ]
         .push_maybe(
-            (self.config.ram_in_mb > RAM_16_GB_TO_MB).then_some(
+            (self.config.ram_in_mb > mem_warning_threshold).then_some(
                 widget::text(
-                    "Warning: Very high RAM allocated! (16+ GB)\nYour system may struggle",
+                    "Warning: Very high RAM allocated! (More than 70% of total)\nYour system may struggle.",
                 )
                 .size(14),
             ),
@@ -402,11 +399,9 @@ Heavy modpacks / High settings: 4-8 GB+"
     }
 }
 
-fn item_footer(
-    selected_instance: &InstanceSelection,
-) -> widget::Column<'static, Message, LauncherTheme> {
-    match selected_instance {
-        InstanceSelection::Instance(_) => column![
+fn item_footer(kind: InstanceKind) -> widget::Column<'static, Message, LauncherTheme> {
+    match kind {
+        InstanceKind::Client => column![
             row![
                 button_with_icon(icons::version_download_s(14), "Reinstall Libraries", 13)
                     .padding([4, 8])
@@ -424,7 +419,7 @@ fn item_footer(
                 .on_press(Message::DeleteInstanceMenu)
         ]
         .spacing(10),
-        InstanceSelection::Server(_) => {
+        InstanceKind::Server => {
             column![
                 button_with_icon(icons::bin(), "Delete Server", 16)
                     .on_press(Message::DeleteInstanceMenu)

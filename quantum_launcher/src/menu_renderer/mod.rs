@@ -9,8 +9,9 @@ use crate::{
     config::LauncherConfig,
     icons,
     state::{
-        AccountMessage, InfoMessageKind, InstallModsMessage, LauncherSettingsMessage, LicenseTab,
-        ManageModsMessage, MenuCurseforgeManualDownload, MenuLicense, Message, ProgressBar,
+        AccountMessage, InfoMessageKind, InstallModsMessage, LauncherSettingsMessage,
+        LauncherSettingsTab, LicenseTab, ManageModsMessage, MenuCurseforgeManualDownload,
+        MenuLicense, Message, ProgressBar,
     },
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
@@ -51,7 +52,7 @@ const PADDING_NOT_BOTTOM: iced::Padding = iced::Padding {
 
 const CTXI_SIZE: u16 = 10;
 
-fn ctx_button<'a>(
+fn ctx_button_icon<'a>(
     icon: widget::Text<'a, LauncherTheme>,
     e: &'a str,
 ) -> widget::Button<'a, Message, LauncherTheme> {
@@ -63,6 +64,28 @@ fn ctx_button<'a>(
     .width(Length::Fill)
     .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::FlatDark))
     .padding(2)
+}
+
+fn ctx_button_empty(e: &str) -> widget::Button<'_, Message, LauncherTheme> {
+    let icon = icons::cross_s(CTXI_SIZE).style(|_| widget::text::Style {
+        color: Some(iced::Color::TRANSPARENT),
+    });
+
+    widget::button(
+        row![icon, widget::text(e).size(13)]
+            .align_y(Alignment::Center)
+            .spacing(10),
+    )
+    .width(Length::Fill)
+    .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::FlatDark))
+    .padding(2)
+}
+
+fn ctx_button(e: &str) -> widget::Button<'_, Message, LauncherTheme> {
+    widget::button(widget::text(e).size(13))
+        .width(Length::Fill)
+        .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::FlatDark))
+        .padding(2)
 }
 
 fn view_info_message(
@@ -200,7 +223,7 @@ pub fn tooltip<'a>(
 }
 
 pub fn back_button<'a>() -> widget::Button<'a, Message, LauncherTheme> {
-    button_with_icon(icons::back_s(14), "Back", 14)
+    button_with_icon(icons::back_s(13), "Back", 14)
 }
 
 pub fn ctxbox<'a>(inner: impl Into<Element<'a>>) -> widget::Container<'a, Message, LauncherTheme> {
@@ -209,6 +232,16 @@ pub fn ctxbox<'a>(inner: impl Into<Element<'a>>) -> widget::Container<'a, Messag
         .style(|t: &LauncherTheme| {
             t.style_container_round_box(BORDER_WIDTH, Color::Dark, BORDER_RADIUS)
         })
+}
+
+pub fn offsetbox<'a>(
+    base: impl Into<Element<'a>>,
+    inner: impl Into<Element<'a>>,
+    x: impl Into<Length>,
+    y: impl Into<Length>,
+    width: u16,
+) -> widget::Stack<'a, Message, LauncherTheme> {
+    widget::stack!(base.into(), offset(ctxbox(inner).width(width), x, y))
 }
 
 pub fn subbutton_with_icon<'a>(
@@ -236,7 +269,7 @@ pub fn button_with_icon<'a>(
             .align_y(Alignment::Center)
             .spacing(f32::from(size) / 1.6),
     )
-    .padding([7, 13])
+    .padding([6, 12])
 }
 
 #[allow(unreachable_code)]
@@ -295,12 +328,11 @@ fn offset<'a>(
     e: impl Into<Element<'a>>,
     x: impl Into<Length>,
     y: impl Into<Length>,
-) -> Element<'a> {
+) -> widget::Row<'a, Message, LauncherTheme> {
     row![
         widget::Space::with_width(x),
         column![widget::Space::with_height(y), e.into()]
     ]
-    .into()
 }
 
 fn dots(tick_timer: usize) -> String {
@@ -322,7 +354,7 @@ impl crate::state::MenuLauncherUpdate {
                 button_with_icon(icons::download(), "Download", 16)
                     .on_press(Message::UpdateDownloadStart))
             )
-            .push(back_button().on_press(back_to_launch_screen(None, None)))
+            .push(back_button().on_press(back_to_launch_screen(None)))
             .push(button_with_icon(icons::globe(), "Open Website", 16)
                 .on_press(Message::CoreOpenLink(ql_core::WEBSITE.to_owned())))
             .spacing(5).wrap(),
@@ -365,9 +397,7 @@ pub fn get_mode_selector(config: &LauncherConfig) -> Element<'static> {
                 .into()
         } else {
             widget::button(row![icon, name].spacing(5))
-                .on_press(Message::LauncherSettings(
-                    LauncherSettingsMessage::ThemePicked(*n),
-                ))
+                .on_press(LauncherSettingsMessage::ThemePicked(*n).into())
                 .into()
         }
     }))
@@ -376,11 +406,10 @@ pub fn get_mode_selector(config: &LauncherConfig) -> Element<'static> {
     .into()
 }
 
-pub fn back_to_launch_screen(message: Option<InfoMessage>, is_server: Option<bool>) -> Message {
+pub fn back_to_launch_screen(message: Option<InfoMessage>) -> Message {
     Message::MScreenOpen {
         message,
         clear_selection: false,
-        is_server,
     }
 }
 
@@ -400,16 +429,14 @@ impl MenuCurseforgeManualDownload {
 
             widget::scrollable(
                 widget::column(self.not_allowed.iter().map(|entry| {
-                    let url = format!(
-                        "https://www.curseforge.com/minecraft/{}/{}/download/{}",
-                        entry.project_type,
-                        entry.slug,
-                        entry.file_id
-                    );
-
                     row![
-                        widget::button(widget::text("Open link").size(14)).on_press(Message::CoreOpenLink(url)),
-                        widget::text(&entry.name)
+                        widget::button(widget::text("Open link").size(14)).on_press_with(|| Message::CoreOpenLink(format!(
+                            "https://www.curseforge.com/minecraft/{}/{}/download/{}",
+                            entry.project_type.to_curseforge_str(),
+                            entry.slug,
+                            entry.file_id
+                        ))),
+                        widget::text(&*entry.name)
                             .shaping(widget::text::Shaping::Advanced)
                     ]
                     .align_y(Alignment::Center)
@@ -423,16 +450,16 @@ impl MenuCurseforgeManualDownload {
 
             "Warning: Ignoring this may lead to crashes!",
             row![
-                widget::button(widget::text("+ Select above downloaded files").size(14)).on_press(ManageModsMessage::AddFile(self.delete_mods).into()),
+                widget::button(widget::text("+ Select above downloaded files").size(14)).on_press(ManageModsMessage::AddFile(self.delete_mods, ql_mod_manager::store::QueryType::ModPacks).into()),
                 widget::button(widget::text("Continue").size(14)).on_press(InstallModsMessage::Open.into()),
                 widget::checkbox("Delete files when done", self.delete_mods)
                     .text_size(14)
                     .on_toggle(|t| ManageModsMessage::CurseforgeManualToggleDelete(t).into())
             ].spacing(5).align_y(Alignment::Center).wrap()
         ]
-            .padding(10)
-            .spacing(10)
-            .into()
+        .padding(10)
+        .spacing(10)
+        .into()
     }
 }
 
@@ -443,11 +470,7 @@ impl MenuLicense {
                 "MenuLicense:sidebar",
                 Some(
                     back_button()
-                        .on_press(Message::LauncherSettings(
-                            LauncherSettingsMessage::ChangeTab(
-                                crate::state::LauncherSettingsTab::About
-                            ),
-                        ))
+                        .on_press(LauncherSettingsMessage::Open(LauncherSettingsTab::About).into())
                         .into()
                 ),
                 LicenseTab::ALL.iter().map(|tab| {
@@ -473,7 +496,7 @@ impl MenuLicense {
 
 pub fn view_account_login<'a>() -> Element<'a> {
     column![
-        back_button().on_press(back_to_launch_screen(None, None)),
+        back_button().on_press(back_to_launch_screen(None)),
         widget::vertical_space(),
         row![
             widget::horizontal_space(),
@@ -514,7 +537,7 @@ pub fn view_error(error: &'_ str) -> Element<'_> {
         column![
             widget::text!("Error: {error}"),
             row![
-                widget::button("Back").on_press(back_to_launch_screen(None, None)),
+                widget::button("Back").on_press(back_to_launch_screen(None)),
                 widget::button("Copy Error").on_press(Message::CoreCopyError),
                 widget::button("Copy Error + Log").on_press(Message::CoreCopyLog),
                 widget::button("Join Discord for help")
@@ -532,16 +555,12 @@ pub fn view_error(error: &'_ str) -> Element<'_> {
     .into()
 }
 
-pub fn view_log_upload_result(url: &'_ str, is_server: bool) -> Element<'_> {
+pub fn view_log_upload_result(url: &'_ str) -> Element<'_> {
     column![
-        back_button().on_press(back_to_launch_screen(None, Some(is_server))),
+        back_button().on_press(back_to_launch_screen(None)),
         column![
             widget::vertical_space(),
-            widget::text(format!(
-                "{} log uploaded successfully!",
-                if is_server { "Server" } else { "Game" }
-            ))
-            .size(20),
+            widget::text("Log uploaded successfully!").size(20),
             widget::text("Your log has been uploaded to mclo.gs. You can share the link below:")
                 .size(14),
             widget::container(
@@ -643,18 +662,17 @@ fn style_button_color(
     }
 }
 
-pub fn view_changelog() -> Element<'static> {
+pub fn view_changelog(config: &LauncherConfig) -> Element<'static> {
     let back_msg = Message::MScreenOpen {
         message: None,
         clear_selection: true,
-        is_server: None,
     };
     widget::scrollable(
-        widget::column!(
+        column![
             button_with_icon(icons::back(), "Skip", 16).on_press(back_msg.clone()),
-            changelog(),
+            changelog(config),
             button_with_icon(icons::back(), "Continue", 16).on_press(back_msg),
-        )
+        ]
         .padding(10)
         .spacing(10),
     )

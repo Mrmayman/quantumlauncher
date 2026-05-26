@@ -1,21 +1,17 @@
-use std::{
-    cmp::Ordering,
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use iced::{Rectangle, Task, widget::text_editor};
 use ql_core::{
-    InstanceSelection, IntoIoError, IntoJsonError, IntoStringError, JsonFileError,
-    constants::OS_NAME, json::InstanceConfigJson,
+    Instance, IntoIoError, IntoJsonError, IntoStringError, JsonFileError, constants::OS_NAME,
+    json::InstanceConfigJson,
 };
-use ql_mod_manager::store::{ModConfig, ModId, ModIndex};
+use ql_mod_manager::store::ModIndex;
 
 use crate::state::{
     AutoSaveKind, EditInstanceMessage, GameProcess, InstallModsMessage, InstanceLog, LaunchModal,
-    LaunchTab, Launcher, LogState, ManageJarModsMessage, MenuCreateInstance, MenuEditMods,
-    MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuLaunch, MenuLoginMS,
-    MenuModsDownload, MenuRecommendedMods, Message, ModListEntry, State,
+    LaunchTab, Launcher, LogState, ManageJarModsMessage, ManageModsMessage, MenuCreateInstance,
+    MenuEditMods, MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuLaunch,
+    MenuLoginMS, MenuModsDownload, MenuRecommendedMods, Message, State,
 };
 use crate::{config::SIDEBAR_WIDTH, state::InfoMessage};
 
@@ -51,13 +47,19 @@ impl Launcher {
                     }
                 }
 
-                for (name, process) in &mut self.processes {
+                for (instance, process) in &mut self.processes {
                     let log_state = if let State::Launch(menu) = &mut self.state {
                         &mut menu.log_state
                     } else {
                         &mut None
                     };
-                    Self::read_game_logs(process, name, &mut self.logs, log_state);
+                    Self::read_game_logs(
+                        process,
+                        instance,
+                        &mut self.logs,
+                        log_state,
+                        self.selected_instance.as_ref(),
+                    );
                 }
 
                 if let State::Launch(menu) = &self.state {
@@ -72,9 +74,8 @@ impl Launcher {
                 self.autosave_launcher_config();
             }
             State::EditMods(menu) => {
-                let instance_selection = self.selected_instance.as_ref().unwrap();
-                let update_locally_installed_mods = menu.tick(instance_selection);
-                return update_locally_installed_mods;
+                let instance = self.selected_instance.as_ref().unwrap();
+                return menu.tick(instance);
             }
             State::InstallFabric(menu) => {
                 if let MenuInstallFabric::Loaded {
@@ -177,7 +178,7 @@ impl Launcher {
             | State::InstallPaper(_)
             | State::CreateShortcut(_)
             | State::ModDescription(_)
-            | State::ExportMods(_) => {}
+            | State::ExportModsText(_) => {}
         }
 
         Task::none()
@@ -207,11 +208,12 @@ impl Launcher {
             return;
         };
 
-        if menu.sidebar_scroll_total <= 0.0 {
+        let scroll = menu.sidebar_scroll;
+        if scroll.remaining <= 0.0 {
             return;
         }
 
-        let bounds = menu.sidebar_scroll_bounds.unwrap_or_else(|| {
+        let bounds = scroll.bounds.unwrap_or_else(|| {
             let (width, height) = self.window_state.size;
             let sidebar_width = width * SIDEBAR_WIDTH;
             let usable_height = (height - FALLBACK_TOP - FALLBACK_BOTTOM).max(0.0);
@@ -246,9 +248,9 @@ impl Launcher {
             return;
         }
 
-        let new_offset = (menu.sidebar_scroll_offset + delta).clamp(0.0, menu.sidebar_scroll_total);
+        let new_offset = (scroll.offset + delta).clamp(0.0, scroll.remaining);
 
-        if (new_offset - menu.sidebar_scroll_offset).abs() < 0.25 {
+        if (new_offset - scroll.offset).abs() < 0.25 {
             return;
         }
 
@@ -261,7 +263,7 @@ impl Launcher {
         ));
     }
 
-    pub fn autosave_launcher_config(&mut self) {
+    fn autosave_launcher_config(&mut self) {
         if self.autosave.insert(AutoSaveKind::LauncherConfig) {
             let launcher_config = self.config.clone();
             tokio::spawn(async move { launcher_config.save().await });
@@ -284,10 +286,13 @@ impl Launcher {
 
     pub fn read_game_logs(
         process: &GameProcess,
-        instance: &InstanceSelection,
-        logs: &mut HashMap<InstanceSelection, InstanceLog>,
+        instance: &Instance,
+        logs: &mut HashMap<Instance, InstanceLog>,
         log_state: &mut Option<LogState>,
+        selected_instance: Option<&Instance>,
     ) {
+        let update_ui = selected_instance.is_some_and(|n| n == instance);
+
         while let Some(message) = process.receiver.as_ref().and_then(|n| n.try_recv().ok()) {
             let message = message.to_string();
 
@@ -302,9 +307,11 @@ impl Launcher {
                         },
                     );
 
-                    *log_state = Some(LogState {
-                        content: text_editor::Content::with_text(&log_start),
-                    });
+                    if update_ui {
+                        *log_state = Some(LogState {
+                            content: text_editor::Content::with_text(&log_start),
+                        });
+                    }
                     InstanceLog {
                         log: vec![log_start],
                         has_crashed: false,
@@ -314,12 +321,14 @@ impl Launcher {
                 .log
                 .push(message.clone());
 
-            update_log_render_state(log_state.as_mut(), message);
+            if update_ui {
+                update_log_render_state(log_state.as_mut(), message);
+            }
         }
     }
 
     async fn save_config(
-        instance: InstanceSelection,
+        instance: Instance,
         config: InstanceConfigJson,
     ) -> Result<(), JsonFileError> {
         let mut config = config.clone();
@@ -337,7 +346,7 @@ impl Launcher {
 }
 
 impl MenuModsDownload {
-    pub fn tick(selected_instance: InstanceSelection) -> Task<Message> {
+    fn tick(selected_instance: Instance) -> Task<Message> {
         Task::perform(
             async move { ModIndex::load(&selected_instance).await },
             |n| InstallModsMessage::IndexUpdated(n.strerr()).into(),
@@ -345,73 +354,42 @@ impl MenuModsDownload {
     }
 }
 
-pub fn sort_dependencies(
-    downloaded_mods: &HashMap<ModId, ModConfig>,
-    locally_installed_mods: &HashSet<String>,
-) -> Vec<ModListEntry> {
-    let mut entries: Vec<ModListEntry> = downloaded_mods
-        .iter()
-        .map(|(id, c)| ModListEntry::Downloaded {
-            id: id.clone(),
-            config: Box::new(c.clone()),
-        })
-        .chain(locally_installed_mods.iter().map(|n| ModListEntry::Local {
-            file_name: n.clone(),
-        }))
-        .collect();
-    entries.sort_by(|val1, val2| match (val1, val2) {
-        (
-            ModListEntry::Downloaded { config, .. },
-            ModListEntry::Downloaded {
-                config: config2, ..
-            },
-        ) => match (config.manually_installed, config2.manually_installed) {
-            (true, true) | (false, false) => config.name.cmp(&config2.name),
-            (true, false) => Ordering::Less,
-            (false, true) => Ordering::Greater,
-        },
-        (ModListEntry::Downloaded { config, .. }, ModListEntry::Local { .. }) => {
-            if config.manually_installed {
-                Ordering::Less
-            } else {
-                Ordering::Greater
-            }
-        }
-        (ModListEntry::Local { .. }, ModListEntry::Downloaded { config, .. }) => {
-            if config.manually_installed {
-                Ordering::Greater
-            } else {
-                Ordering::Less
-            }
-        }
-        (
-            ModListEntry::Local { file_name },
-            ModListEntry::Local {
-                file_name: file_name2,
-            },
-        ) => file_name.cmp(file_name2),
-    });
-
-    entries
-}
-
 impl MenuEditMods {
-    fn tick(&mut self, instance_selection: &InstanceSelection) -> Task<Message> {
-        self.sorted_mods_list = sort_dependencies(&self.mods.mods, &self.locally_installed_mods);
+    fn tick(&mut self, instance: &Instance) -> Task<Message> {
+        self.sort_mods();
 
-        if let Some(progress) = &mut self.mod_update_progress {
+        if let Some(progress) = &mut self.updates.progress {
             progress.tick();
             if progress.progress.has_finished {
-                self.mod_update_progress = None;
+                self.updates.progress = None;
             }
         }
 
-        MenuEditMods::update_locally_installed_mods(&self.mods, instance_selection)
+        let t1 = if let Some(project_type) = self.file_data.content_watcher.tick() {
+            MenuEditMods::update_locally_installed_mods(
+                &self.file_data.mod_index,
+                instance,
+                project_type,
+            )
+        } else {
+            Task::none()
+        };
+
+        let t2 = if self.file_data.index_watcher.has_changed() {
+            let i = instance.clone();
+            Task::perform(async move { ModIndex::load(&i).await.strerr() }, |n| {
+                ManageModsMessage::IndexLoaded(n).into()
+            })
+        } else {
+            Task::none()
+        };
+
+        Task::batch([t1, t2])
     }
 }
 
 impl MenuCreateInstance {
-    pub fn tick(&mut self) {
+    fn tick(&mut self) {
         match self {
             MenuCreateInstance::Choosing { .. } => {}
             MenuCreateInstance::DownloadingInstance(progress) => {

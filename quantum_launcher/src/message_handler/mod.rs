@@ -1,187 +1,79 @@
-use crate::config::AfterLaunchBehavior;
-use crate::config::SIDEBAR_WIDTH;
-use crate::menu_renderer::back_to_launch_screen;
-use crate::state::{
-    AutoSaveKind, GameProcess, InfoMessage, LaunchTab, LogState, MenuCreateInstance,
-    MenuCreateInstanceChoosing, MenuInstallOptifine,
-};
-use crate::tick::sort_dependencies;
 use crate::{
-    Launcher, Message, get_entries,
+    Launcher, Message,
+    menu_renderer::back_to_launch_screen,
     state::{
-        EditPresetsMessage, ManageModsMessage, MenuEditInstance, MenuEditMods, MenuInstallForge,
-        MenuLaunch, OFFLINE_ACCOUNT_NAME, ProgressBar, SelectedState, State,
+        AutoSaveKind, ContentWatcher, EditModsFileData, EditModsSelection, EditModsUiState,
+        EditModsUpdates, EditPresetsMessage, FsWatcher, InfoMessage, LaunchTab, LogState,
+        ManageModsMessage, MenuEditMods, MenuInstallForge, MenuInstallOptifine, ProgressBar,
+        SelectedState, State,
     },
 };
-use iced::Task;
-use iced::futures::executor::block_on;
-use iced::widget::scrollable::AbsoluteOffset;
-use ql_core::file_utils::exists;
-use ql_core::json::VersionDetails;
-use ql_core::json::instance_config::ModTypeInfo;
-use ql_core::read_log::{Diagnostic, ReadError};
+use iced::{Task, futures::executor::block_on, widget::scrollable::AbsoluteOffset};
 use ql_core::{
-    GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IntoStringError, JsonFileError,
-    err, json::instance_config::InstanceConfigJson,
+    GenericProgress, Instance, IntoIoError, IntoStringError, err,
+    file_utils::exists,
+    json::{VersionDetails, instance_config::InstanceConfigJson},
 };
-use ql_core::{LaunchedProcess, info, pt};
-use ql_instances::auth::AccountData;
-use ql_mod_manager::{loaders, store::ModIndex};
+use ql_mod_manager::{
+    loaders,
+    store::{LocalMod, ModIndex, QueryType},
+};
 use std::{
     collections::HashSet,
     ffi::OsStr,
     path::{Path, PathBuf},
-    process::ExitStatus,
-    sync::mpsc::{Receiver, Sender},
+    sync::{
+        Arc,
+        mpsc::{Receiver, Sender},
+    },
 };
-use tokio::io::AsyncWriteExt;
 
 pub const SIDEBAR_LIMIT_RIGHT: f32 = 140.0;
 pub const SIDEBAR_LIMIT_LEFT: f32 = 135.0;
 
+mod arrow_keys;
 mod iced_event;
 
 impl Launcher {
-    pub fn on_instance_selected(&mut self) -> Task<Message> {
-        let instance = self.instance().clone();
-
+    pub fn on_selecting_instance(&mut self) -> Task<Message> {
         self.load_edit_instance(None);
+        let Some(instance) = self.selected_instance.clone() else {
+            return Task::none();
+        };
 
-        {
-            let persistent = self.config.c_persistent();
-            if persistent.selected_remembered {
-                match instance.clone() {
-                    InstanceSelection::Instance(n) => persistent.selected_instance = Some(n),
-                    InstanceSelection::Server(n) => persistent.selected_server = Some(n),
-                }
-                self.autosave.remove(&AutoSaveKind::LauncherConfig);
-            }
-        }
-        self.load_logs(instance.clone());
+        let persistent = self.config.c_persistent();
+        persistent.selected_instance = Some(instance.name.clone());
+        self.autosave.remove(&AutoSaveKind::LauncherConfig);
+
+        self.load_logs();
         if let State::Launch(menu) = &mut self.state {
             menu.modal = None;
-            menu.reload_notes(instance)
+            menu.reload_notes(instance.clone())
         } else {
             Task::none()
         }
     }
 
-    pub fn load_logs(&mut self, instance: InstanceSelection) {
+    pub fn close_launcher(&mut self) -> ! {
+        self.uninitialize_presence();
+        std::process::exit(0);
+    }
+
+    pub fn load_logs(&mut self) {
         let State::Launch(menu) = &mut self.state else {
             return;
         };
-        if let (Some(logs), LaunchTab::Log) = (self.logs.get(&instance), menu.tab) {
-            if menu.log_state.is_some() && Some(instance) == self.selected_instance {
-                return;
-            }
+        let Some(instance) = self.selected_instance.as_ref() else {
+            menu.log_state = None;
+            return;
+        };
+        if let (Some(logs), LaunchTab::Log) = (self.logs.get(instance), menu.tab) {
             menu.log_state = Some(LogState {
                 content: iced::widget::text_editor::Content::with_text(&logs.log.join("\n")),
             });
         } else {
             menu.log_state = None;
         }
-    }
-
-    pub fn launch_game(&mut self, account_data: Option<AccountData>) -> Task<Message> {
-        let username = if let Some(account_data) = &account_data {
-            // Logged in account
-            account_data.nice_username.clone()
-        } else {
-            // Offline username
-            self.config.username.clone()
-        };
-
-        let (sender, receiver) = std::sync::mpsc::channel();
-        self.java_recv = Some(ProgressBar::with_recv(receiver));
-
-        let global_settings = self.config.global_settings.clone();
-        let extra_java_args = self.config.extra_java_args.clone().unwrap_or_default();
-
-        let instance_name = self.instance().get_name().to_owned();
-        Task::perform(
-            async move {
-                ql_instances::launch(
-                    instance_name,
-                    username,
-                    Some(sender),
-                    account_data,
-                    global_settings,
-                    extra_java_args,
-                )
-                .await
-                .strerr()
-            },
-            Message::LaunchEnd,
-        )
-    }
-
-    pub fn finish_launching(&mut self, result: Result<LaunchedProcess, String>) -> Task<Message> {
-        self.java_recv = None;
-        self.is_launching_game = false;
-        match result {
-            Ok(child) => {
-                let selected_instance = child.instance.clone();
-
-                let server_input = block_on(child.child.lock())
-                    .stdin
-                    .take()
-                    .map(|n| (n, false));
-
-                let (sender, receiver) = std::sync::mpsc::channel();
-                self.processes.insert(
-                    selected_instance.clone(),
-                    GameProcess {
-                        child: child.clone(),
-                        receiver: Some(receiver),
-                        server_input,
-                    },
-                );
-
-                let mut censors = Vec::new();
-                for account in self.accounts.values() {
-                    if let Some(token) = &account.access_token {
-                        censors.push(token.clone());
-                    }
-                }
-
-                let log_task = Task::perform(
-                    async move {
-                        let result = child.read_logs(censors, Some(sender)).await;
-                        let default_output = Ok((ExitStatus::default(), selected_instance, None));
-
-                        match result {
-                            Some(Err(ReadError::Io(io)))
-                                if io.kind() == std::io::ErrorKind::InvalidData =>
-                            {
-                                err!("Minecraft log contains invalid unicode! Stopping logs");
-                                pt!("The game will continue to run");
-                                default_output
-                            }
-                            Some(result) => result.strerr(),
-                            None => default_output,
-                        }
-                    },
-                    Message::LaunchGameExited,
-                );
-
-                match self.config.c_after_launch_behavior() {
-                    AfterLaunchBehavior::DoNothing => {}
-                    AfterLaunchBehavior::CloseLauncher => {
-                        ql_core::logger_finish();
-                        std::process::exit(0);
-                    }
-                    AfterLaunchBehavior::MinimizeLauncher => {
-                        let minimize_task = iced::window::get_latest()
-                            .and_then(|id| iced::window::minimize(id, true));
-                        return Task::batch([log_task, minimize_task]);
-                    }
-                }
-
-                return log_task;
-            }
-            Err(err) => self.set_error(err),
-        }
-        Task::none()
     }
 
     pub fn delete_instance_confirm(&mut self) -> Task<Message> {
@@ -192,103 +84,86 @@ impl Launcher {
         let selected_instance = self.instance();
         let is_server = selected_instance.is_server();
         let deleted_instance_dir = selected_instance.get_instance_path();
+
         if let Err(err) = std::fs::remove_dir_all(&deleted_instance_dir) {
             self.set_error(err);
             return Task::none();
         }
 
         self.unselect_instance();
-        if is_server {
-            self.go_to_server_manage_menu(Some(InfoMessage::success("Deleted Server")))
-        } else {
-            self.go_to_launch_screen(Some(InfoMessage::success("Deleted Instance")))
-        }
+        self.go_to_main_menu(Some(InfoMessage::success(format!(
+            "Deleted {}",
+            if is_server { "Server" } else { "Instance" }
+        ))))
     }
 
     pub fn unselect_instance(&mut self) {
         self.selected_instance = None;
-        self.config.c_persistent().selected_instance = None;
-        self.config.c_persistent().selected_server = None;
+        let p = self.config.c_persistent();
+        p.selected_instance = None;
+        p.selected_instance_kind = None;
         self.autosave.remove(&AutoSaveKind::LauncherConfig);
-    }
-
-    pub fn load_edit_instance_inner(
-        edit_instance: &mut Option<MenuEditInstance>,
-        selected_instance: &InstanceSelection,
-    ) -> Result<(), JsonFileError> {
-        let config_path = selected_instance.get_instance_path().join("config.json");
-
-        let config_json = std::fs::read_to_string(&config_path).path(config_path)?;
-        let config_json: InstanceConfigJson =
-            serde_json::from_str(&config_json).json(config_json)?;
-
-        let slider_value = f32::log2(config_json.ram_in_mb as f32);
-        let memory_mb = config_json.ram_in_mb;
-
-        // Use this to check for performance impact
-        // std::thread::sleep(std::time::Duration::from_millis(500));
-
-        let instance_name = selected_instance.get_name();
-
-        *edit_instance = Some(MenuEditInstance {
-            main_class_mode: config_json.get_main_class_mode(),
-            config: config_json,
-            slider_value,
-            instance_name: instance_name.to_owned(),
-            old_instance_name: instance_name.to_owned(),
-            slider_text: format_memory(memory_mb),
-            memory_input: memory_mb.to_string(),
-            is_editing_name: false,
-            arg_split_by_space: true,
-        });
-        Ok(())
     }
 
     pub fn go_to_edit_mods_menu(&mut self, msg: Option<InfoMessage>) -> Task<Message> {
         async fn inner(
             this: &mut Launcher,
             info_message: Option<InfoMessage>,
-        ) -> Result<Task<Message>, JsonFileError> {
+        ) -> Result<Task<Message>, String> {
             let instance = this.selected_instance.as_ref().unwrap();
 
-            let config_json = InstanceConfigJson::read(instance).await?;
-            let version_json = Box::new(VersionDetails::load(instance).await?);
+            let config = InstanceConfigJson::read(instance).await.strerr()?;
+            let details = Box::new(VersionDetails::load(instance).await.strerr()?);
+            let mod_index = ModIndex::load(instance).await.strerr()?;
 
-            let mods = ModIndex::load(instance).await?;
+            let dotmc_dir = instance.get_dot_minecraft_path();
+
             let update_local_mods_task =
-                MenuEditMods::update_locally_installed_mods(&mods, instance);
+                Task::batch(QueryType::INDEX_SUPPORTED.iter().map(|n| {
+                    MenuEditMods::update_locally_installed_mods(&mod_index, instance, *n)
+                }));
 
             let locally_installed_mods = HashSet::new();
-            let sorted_mods_list = sort_dependencies(&mods.mods, &locally_installed_mods);
 
             this.state = State::EditMods(MenuEditMods {
-                config: config_json,
-                mods,
-                selected_mods: HashSet::new(),
-                shift_selected_mods: HashSet::new(),
-                sorted_mods_list,
-                selected_state: SelectedState::None,
-                available_updates: Vec::new(),
-                mod_update_progress: None,
+                sorted_mods_list: Vec::new(),
+                selection: EditModsSelection {
+                    selected_mods: HashSet::new(),
+                    shift_selected_mods: HashSet::new(),
+                    state: SelectedState::None,
+                    list_shift_index: None,
+                },
+                updates: EditModsUpdates {
+                    available: Vec::new(),
+                    progress: None,
+                    check_handle: None,
+                },
+                ui_state: EditModsUiState {
+                    // If you wanna test stuff out...
+                    // info_message: Some(crate::state::ModInfoMessage {
+                    //     text: "Hello, World!".to_owned(),
+                    //     kind: crate::state::InfoMessageKind::AtPath(PathBuf::from("/home/mrmayman")),
+                    // }),
+                    // info_message: Some(crate::state::ModInfoMessage {
+                    //     text: "Hello, World!".to_owned(),
+                    //     kind: crate::state::InfoMessageKind::Success,
+                    // }),
+                    info_message,
+                    list_scroll: AbsoluteOffset::default(),
+                    drag_and_drop_hovered: false,
+                    modal: None,
+                    width_name: 220.0,
+                },
+                file_data: EditModsFileData {
+                    config,
+                    mod_index,
+                    details,
+                    content_watcher: ContentWatcher::new(&dotmc_dir),
+                    index_watcher: FsWatcher::new(ModIndex::get_path(instance)).strerr()?,
+                },
                 locally_installed_mods,
-                drag_and_drop_hovered: false,
-                update_check_handle: None,
-                version_json,
-                modal: None,
                 search: None,
-                // If you wanna test stuff out...
-                // info_message: Some(crate::state::ModInfoMessage {
-                //     text: "Hello, World!".to_owned(),
-                //     kind: crate::state::InfoMessageKind::AtPath(PathBuf::from("/home/mrmayman")),
-                // }),
-                // info_message: Some(crate::state::ModInfoMessage {
-                //     text: "Hello, World!".to_owned(),
-                //     kind: crate::state::InfoMessageKind::Success,
-                // }),
-                info_message,
-                width_name: 220.0,
-                list_shift_index: None,
-                list_scroll: AbsoluteOffset::default(),
+                content_filter: None,
             });
 
             Ok(Task::batch([update_local_mods_task]))
@@ -302,137 +177,29 @@ impl Launcher {
         }
     }
 
-    pub fn set_game_exited(
-        &mut self,
-        status: ExitStatus,
-        instance: &InstanceSelection,
-        diagnostic: Option<Diagnostic>,
-    ) {
-        let kind = if instance.is_server() {
-            "Server"
-        } else {
-            "Game"
-        };
-        info!("Game exited ({status})");
-
-        let log_state = if let State::Launch(MenuLaunch {
-            message, log_state, ..
-        }) = &mut self.state
-        {
-            let has_crashed = !status.success();
-            if has_crashed {
-                let mut msg = format!("{kind} crashed! ({status})\nCheck \"Logs\" for more info");
-                if let Some(diag) = diagnostic {
-                    msg.push_str("\n\n");
-                    msg.push_str(&diag.to_string());
-                }
-                *message = Some(InfoMessage::error(msg));
-            }
-            if let Some(log) = self.logs.get_mut(instance) {
-                log.has_crashed = has_crashed;
-            }
-            log_state
-        } else {
-            &mut None
-        };
-
-        if let Some(process) = self.processes.remove(instance) {
-            Self::read_game_logs(&process, instance, &mut self.logs, log_state);
-        }
-    }
-
-    pub fn update_mods(&mut self) -> Task<Message> {
-        if let State::EditMods(menu) = &mut self.state {
-            let updates = menu
-                .available_updates
-                .clone()
-                .into_iter()
-                .map(|(id, version, _)| (id, version))
-                .collect();
-            let write_changelog = self.config.c_persistent().write_mod_update_changelog;
-            let (sender, receiver) = std::sync::mpsc::channel();
-            menu.mod_update_progress = Some(ProgressBar::with_recv_and_msg(
-                receiver,
-                "Deleting Mods".to_owned(),
-            ));
-            let selected_instance = self.selected_instance.clone().unwrap();
-            Task::perform(
-                ql_mod_manager::store::apply_updates(
-                    selected_instance,
-                    updates,
-                    Some(sender),
-                    write_changelog,
-                ),
-                move |n| {
-                    ManageModsMessage::UpdatePerformDone(
-                        n.strerr().map(|res| (res, write_changelog)),
-                    )
-                    .into()
-                },
-            )
-        } else {
-            Task::none()
-        }
-    }
-
-    pub fn go_to_server_manage_menu(&mut self, message: Option<InfoMessage>) -> Task<Message> {
-        if let State::Launch(menu) = &mut self.state {
-            menu.is_viewing_server = true;
-            menu.message = message;
-        } else {
-            let mut menu_launch = MenuLaunch::new(message);
-            menu_launch.is_viewing_server = true;
-            menu_launch.resize_sidebar(SIDEBAR_WIDTH);
-            self.state = State::Launch(menu_launch);
-        }
-
-        let get_entries = Task::perform(get_entries(true), Message::CoreListLoaded);
-        match &self.selected_instance {
-            Some(InstanceSelection::Instance(_)) => self.selected_instance = None,
-            Some(i @ InstanceSelection::Server(_)) => {
-                if let State::Launch(menu) = &mut self.state {
-                    return Task::batch([get_entries, menu.reload_notes(i.clone())]);
-                }
-            }
-            None => {}
-        }
-        get_entries
-    }
-
     pub fn install_forge(&mut self, kind: ForgeKind) -> Task<Message> {
         let (f_sender, f_receiver) = std::sync::mpsc::channel();
         let (j_sender, j_receiver): (Sender<GenericProgress>, Receiver<GenericProgress>) =
             std::sync::mpsc::channel();
 
-        let instance_selection = self.selected_instance.clone().unwrap();
-        let instance_selection2 = instance_selection.clone();
+        let instance = self.selected_instance.clone().unwrap();
+        let instance2 = instance.clone();
 
         let command = Task::perform(
             async move {
                 if matches!(kind, ForgeKind::NeoForge) {
                     // TODO: Add UI to specify NeoForge version
-                    loaders::neoforge::install(
-                        None,
-                        instance_selection2,
-                        Some(f_sender),
-                        Some(j_sender),
-                    )
-                    .await
+                    loaders::neoforge::install(None, instance2, Some(f_sender), Some(j_sender))
+                        .await
                 } else {
-                    loaders::forge::install(
-                        None,
-                        instance_selection2,
-                        Some(f_sender),
-                        Some(j_sender),
-                    )
-                    .await
+                    loaders::forge::install(None, instance2, Some(f_sender), Some(j_sender)).await
                 }
                 .strerr()?;
                 if matches!(kind, ForgeKind::OptiFine) {
-                    copy_optifine_over(&instance_selection)
+                    copy_optifine_over(&instance)
                         .await
                         .map_err(|n| format!("Couldn't install OptiFine with Forge:\n{n}"))?;
-                    loaders::optifine::uninstall(instance_selection.get_name().to_owned(), false)
+                    loaders::optifine::uninstall(instance.get_name().to_owned(), false)
                         .await
                         .strerr()?;
                 }
@@ -449,34 +216,6 @@ impl Launcher {
         command
     }
 
-    pub fn go_to_main_menu(&mut self, message: Option<InfoMessage>) -> Task<Message> {
-        if self.server_selected() {
-            self.go_to_server_manage_menu(message)
-        } else {
-            self.go_to_launch_screen(message)
-        }
-    }
-
-    pub fn server_selected(&self) -> bool {
-        self.selected_instance
-            .as_ref()
-            .is_some_and(InstanceSelection::is_server)
-            || if let State::Launch(menu) = &self.state {
-                menu.is_viewing_server
-            } else if let State::Create(MenuCreateInstance::Choosing(
-                MenuCreateInstanceChoosing { is_server, .. },
-            )) = &self.state
-            {
-                *is_server
-            } else {
-                false
-            }
-    }
-
-    pub fn get_selected_dot_minecraft_dir(&self) -> Option<PathBuf> {
-        Some(self.selected_instance.as_ref()?.get_dot_minecraft_path())
-    }
-
     fn load_modpack_from_path(&mut self, path: PathBuf) -> Task<Message> {
         let (sender, receiver) = std::sync::mpsc::channel();
 
@@ -487,6 +226,7 @@ impl Launcher {
                 self.selected_instance.clone().unwrap(),
                 vec![path],
                 Some(sender),
+                QueryType::ModPacks,
             ),
             |n| ManageModsMessage::AddFileDone(n.strerr()).into(),
         )
@@ -505,7 +245,7 @@ impl Launcher {
         }
     }
 
-    pub fn load_qmp_from_path(&mut self, path: &Path) -> Task<Message> {
+    fn load_qmp_from_path(&mut self, path: &Path) -> Task<Message> {
         let file = match std::fs::read(path) {
             Ok(n) => n,
             Err(err) => {
@@ -545,7 +285,7 @@ impl Launcher {
 
     fn set_drag_and_drop_hover(&mut self, is_hovered: bool) {
         if let State::EditMods(menu) = &mut self.state {
-            menu.drag_and_drop_hovered = is_hovered;
+            menu.ui_state.drag_and_drop_hovered = is_hovered;
         } else if let State::ManagePresets(menu) = &mut self.state {
             menu.drag_and_drop_hovered = is_hovered;
         } else if let State::EditJarMods(menu) = &mut self.state {
@@ -580,37 +320,6 @@ impl Launcher {
         }
     }
 
-    pub fn kill_selected_instance(&mut self) -> Task<Message> {
-        let Some(instance) = &self.selected_instance else {
-            return Task::none();
-        };
-        match instance {
-            InstanceSelection::Instance(_) => {
-                if let Some(process) = self.processes.remove(instance) {
-                    let mut child = block_on(process.child.child.lock());
-                    _ = child.start_kill();
-                }
-            }
-            InstanceSelection::Server(_) => {
-                if let Some(GameProcess {
-                    server_input: Some((stdin, has_issued_stop_command)),
-                    child,
-                    ..
-                }) = self.processes.get_mut(instance)
-                {
-                    *has_issued_stop_command = true;
-                    if child.is_classic_server {
-                        _ = block_on(child.child.lock()).start_kill();
-                    } else {
-                        let future = stdin.write_all("stop\n".as_bytes());
-                        _ = block_on(future);
-                    }
-                }
-            }
-        }
-        Task::none()
-    }
-
     pub fn go_to_delete_instance_menu(&mut self) {
         let instance = self.instance();
         self.state = State::ConfirmAction {
@@ -625,91 +334,68 @@ impl Launcher {
             ),
             msg2: "All your data, including worlds, will be lost".to_owned(),
             yes: Message::DeleteInstance,
-            no: back_to_launch_screen(None, None),
+            no: back_to_launch_screen(None),
         };
-    }
-
-    pub fn launch_start(&mut self) -> Task<Message> {
-        let Some(selected_instance) = &self.selected_instance else {
-            return Task::none();
-        };
-        if self.processes.contains_key(selected_instance) {
-            return Task::none();
-        }
-        self.logs.remove(selected_instance);
-
-        match selected_instance {
-            InstanceSelection::Instance(_) => {
-                if self.account_selected == OFFLINE_ACCOUNT_NAME
-                    && (self.config.username.is_empty() || self.config.username.contains(' '))
-                {
-                    return Task::none();
-                }
-
-                self.is_launching_game = true;
-                let account_data = self.get_selected_account_data();
-                // If the user is loading an existing login from disk
-                // then first refresh the tokens
-                if let Some(account) = &account_data {
-                    if account.access_token.is_none() || account.needs_refresh {
-                        return self.account_refresh(account);
-                    }
-                }
-                // Or, if the account is already refreshed/freshly added,
-                // directly launch the game
-                self.launch_game(account_data)
-            }
-            InstanceSelection::Server(server) => {
-                let (sender, receiver) = std::sync::mpsc::channel();
-                self.java_recv = Some(ProgressBar::with_recv(receiver));
-
-                let server = server.clone();
-                Task::perform(
-                    async move { ql_servers::run(server, Some(sender)).await.strerr() },
-                    Message::LaunchEnd,
-                )
-            }
-        }
     }
 }
 
 pub async fn get_locally_installed_mods(
-    selected_instance: PathBuf,
-    blacklist: Vec<String>,
-) -> HashSet<String> {
-    let mods_dir_path = selected_instance.join("mods");
-
-    let Ok(mut dir) = tokio::fs::read_dir(&mods_dir_path).await else {
-        err!("Error reading mods directory");
-        return HashSet::new();
+    dot_mc: PathBuf,
+    blacklist: HashSet<String>,
+    project_type: QueryType,
+) -> HashSet<LocalMod> {
+    let dirs: &[&str] = match project_type {
+        QueryType::Mods => &["mods"],
+        QueryType::ResourcePacks => &["resourcepacks", "texturepacks"],
+        QueryType::Shaders => &["shaderpacks"],
+        QueryType::DataPacks => &["datapacks"],
+        QueryType::ModPacks => return HashSet::new(),
     };
     let mut set = HashSet::new();
-    while let Ok(Some(entry)) = dir.next_entry().await {
-        let path = entry.path();
-        let Some(file_name) = path.file_name().and_then(OsStr::to_str) else {
-            continue;
+
+    for dir in dirs {
+        let mods_dir_path = dot_mc.join(dir);
+
+        let mut dir = match tokio::fs::read_dir(&mods_dir_path).await {
+            Ok(dir) => dir,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                continue;
+            }
+            Err(err) => {
+                err!("While reading {dir} directory: {err}");
+                continue;
+            }
         };
-        if blacklist.contains(&file_name.to_owned()) {
-            continue;
-        }
-        let Some(extension) = path.extension() else {
-            continue;
-        };
-        if extension == "jar" || extension == "disabled" {
-            set.insert(file_name.to_owned());
+
+        while let Ok(Some(entry)) = dir.next_entry().await {
+            let path = entry.path();
+            let Some(file_name) = path.file_name().and_then(OsStr::to_str) else {
+                continue;
+            };
+            if blacklist.contains(file_name) {
+                continue;
+            }
+            if let Ok(f) = entry.file_type().await {
+                if f.is_dir() {
+                    if project_type == QueryType::Mods {
+                        continue;
+                    }
+                } else {
+                    let Some(extension) = path.extension() else {
+                        continue;
+                    };
+                    if !(extension.eq_ignore_ascii_case("jar")
+                        || extension.eq_ignore_ascii_case("zip")
+                        || extension.eq_ignore_ascii_case("disabled"))
+                    {
+                        continue;
+                    }
+                }
+            }
+            set.insert(LocalMod(Arc::from(file_name), project_type));
         }
     }
     set
-}
-
-pub fn format_memory(memory_bytes: usize) -> String {
-    const MB_TO_GB: usize = 1024;
-
-    if memory_bytes >= MB_TO_GB {
-        format!("{:.2} GB", memory_bytes as f64 / MB_TO_GB as f64)
-    } else {
-        format!("{memory_bytes} MB")
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -719,7 +405,7 @@ pub enum ForgeKind {
     OptiFine,
 }
 
-async fn copy_optifine_over(instance: &InstanceSelection) -> Result<(), String> {
+async fn copy_optifine_over(instance: &Instance) -> Result<(), String> {
     let instance_dir = instance.get_instance_path();
     let installer_path = instance_dir.join("optifine/OptiFine.jar");
     let mods_dir = instance_dir.join(".minecraft/mods");
@@ -737,10 +423,7 @@ async fn copy_optifine_over(instance: &InstanceSelection) -> Result<(), String> 
     tokio::fs::copy(&installer_path, &new_path).await.strerr()?;
 
     let mut config = InstanceConfigJson::read(instance).await.strerr()?;
-    config
-        .mod_type_info
-        .get_or_insert_with(ModTypeInfo::default)
-        .optifine_jar = Some("optifine.jar".to_owned());
+    config.mod_type_info.get_or_insert_default().optifine_jar = Some(Arc::from("optifine.jar"));
     config.save(instance).await.strerr()?;
 
     Ok(())

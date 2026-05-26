@@ -11,7 +11,7 @@ use crate::{
         DISCORD, Element, button_with_icon, center_x, get_mode_selector, onboarding::x86_warning,
         settings::get_theme_selector, tsubtitle,
     },
-    state::{AccountMessage, MainMenuMessage, MenuWelcome, Message},
+    state::{AccountMessage, MainMenuMessage, MenuWelcome, Message, RpcMessage},
 };
 
 use super::IMG_LOGO;
@@ -49,19 +49,29 @@ impl MenuWelcome {
             .align_x(Alignment::Center)
             .spacing(10)
             .into(),
-            MenuWelcome::P2Theme => widget::column![
+            MenuWelcome::P2Theme => column![
                 widget::vertical_space(),
                 center_x(widget::text("Customize your launcher!").size(24)),
-                widget::row!["Mode:", get_mode_selector(config)]
+                row!["Mode:", get_mode_selector(config)]
                     .align_y(Alignment::Center)
                     .spacing(10),
-                widget::row![
+                row![
                     widget::Space::with_width(20),
                     "Theme:",
                     get_theme_selector().wrap()
                 ]
                 .width(350)
                 .spacing(10),
+                widget::Space::with_height(5),
+                column![
+                    widget::toggler(config.c_rpc_enabled())
+                        .label("Enable Discord Rich Presence")
+                        .on_toggle(|t| RpcMessage::Toggle(t).into()),
+                    widget::text("Allow others to see your gameplay activity on Discord")
+                        .size(12)
+                        .style(tsubtitle),
+                ]
+                .spacing(5),
                 widget::Space::with_height(5),
                 button_with_icon(icons::discord(), "Join our Discord", 14)
                     .padding([4, 8])
@@ -78,9 +88,8 @@ impl MenuWelcome {
                 let next = Message::MScreenOpen {
                     message: None,
                     clear_selection: true,
-                    is_server: Some(false),
                 };
-                widget::column![
+                column![
                     widget::vertical_space(),
                     center_x(
                         widget::button("Login to Microsoft").on_press(Message::Account(

@@ -16,11 +16,12 @@ default-members = ["quantum_launcher"]
 resolver = "2"
 
 [workspace.dependencies]
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 semver = "1"
 dirs = "6"
 
+sysinfo = "0.36.*"
 reqwest = { version = "0.13.*", features = ["json", "stream", "query", "form"] }
 
 tokio = { version = "1", features = ["fs", "macros", "process", "rt", "rt-multi-thread"] }

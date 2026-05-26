@@ -43,7 +43,7 @@ impl MenuExportInstance {
         };
 
         column![
-            back_button().on_press(back_to_launch_screen(None, None)),
+            back_button().on_press(back_to_launch_screen(None)),
             top,
             widget::scrollable(if let Some(entries) = &self.entries {
                 widget::column(entries.iter().enumerate().map(|(i, (entry, enabled))| {

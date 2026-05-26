@@ -19,7 +19,7 @@
 use std::path::{Path, PathBuf, StripPrefixError};
 
 use crate::{
-    InstanceSelection, IntoIoError, IoError, JsonError, JsonFileError,
+    Instance, IntoIoError, IoError, JsonError, JsonFileError,
     file_utils::{extract_zip_archive, zip_directory_to_bytes},
     get_jar_path,
     json::{InstanceConfigJson, JsonOptifine, VersionDetails},
@@ -31,7 +31,7 @@ mod json;
 
 pub use json::{JarMod, JarMods};
 
-pub async fn remove(instance: &InstanceSelection, filename: &str) -> Result<(), JsonFileError> {
+pub async fn remove(instance: &Instance, filename: &str) -> Result<(), JsonFileError> {
     let mut jarmods = JarMods::read(instance).await?;
 
     if let Some(idx) = jarmods
@@ -52,11 +52,7 @@ pub async fn remove(instance: &InstanceSelection, filename: &str) -> Result<(), 
     Ok(())
 }
 
-pub async fn insert(
-    instance: InstanceSelection,
-    bytes: Vec<u8>,
-    name: &str,
-) -> Result<(), JsonFileError> {
+pub async fn insert(instance: Instance, bytes: Vec<u8>, name: &str) -> Result<(), JsonFileError> {
     let filename = format!("{name}.zip");
     let mut jarmods = JarMods::read(&instance).await?;
     if let Some(entry) = jarmods.mods.iter_mut().find(|n| n.filename == filename) {
@@ -85,7 +81,7 @@ pub async fn insert(
     Ok(())
 }
 
-pub async fn build(instance: &InstanceSelection) -> Result<PathBuf, JarModError> {
+pub async fn build(instance: &Instance) -> Result<PathBuf, JarModError> {
     let instance_dir = instance.get_instance_path();
     let jarmods_dir = instance_dir.join("jarmods");
 
@@ -135,7 +131,7 @@ pub async fn build(instance: &InstanceSelection) -> Result<PathBuf, JarModError>
 }
 
 async fn get_original_jar(
-    instance: &InstanceSelection,
+    instance: &Instance,
     instance_dir: &Path,
 ) -> Result<PathBuf, JarModError> {
     let json = VersionDetails::load(instance).await?;

@@ -1,6 +1,6 @@
 use iced::{
     Length,
-    widget::{self, column},
+    widget::{self, column, row},
 };
 
 use crate::{
@@ -69,10 +69,9 @@ fn drop_box<'a>(
     let elem = show.then_some(bar(4));
     widget::mouse_area(match offset {
         SDragTo::Before => widget::Column::new().push_maybe(elem).push(empty()),
-        SDragTo::After => widget::column![empty()].push_maybe(elem),
-        SDragTo::Inside => widget::column![empty()].push_maybe(
-            show.then(|| widget::row![widget::Space::new(LEVEL_WIDTH, Length::Fill), bar(12)]),
-        ),
+        SDragTo::After => column![empty()].push_maybe(elem),
+        SDragTo::Inside => column![empty()]
+            .push_maybe(show.then(|| row![widget::Space::new(LEVEL_WIDTH, Length::Fill), bar(12)])),
     })
     .on_press(
         SidebarMessage::DragDrop(Some(SDragLocation {

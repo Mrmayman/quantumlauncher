@@ -61,7 +61,7 @@ impl_3_errs_jri!(InstancePackageError, Json, Request, Io);
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct InstanceInfo {
-    pub instance_name: String,
-    pub exceptions: HashSet<String>,
-    pub is_server: bool,
+    instance_name: String,
+    exceptions: HashSet<String>,
+    is_server: bool,
 }

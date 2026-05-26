@@ -1,35 +1,31 @@
 use crate::{
     rate_limiter::lock,
-    store::{ModError, ModId, ModIndex},
+    store::{DirStructure, ModError, ModId, ModIndex},
 };
-use ql_core::{InstanceSelection, IoError, err, info, pt};
+use ql_core::{Instance, IoError, err, info, json::VersionDetails, pt};
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
 };
 
-pub async fn delete_mods(
-    ids: Vec<ModId>,
-    instance: InstanceSelection,
-) -> Result<Vec<ModId>, ModError> {
+pub async fn delete_mods(ids: Vec<ModId>, instance: Instance) -> Result<Vec<ModId>, ModError> {
     let _guard = lock().await;
 
     if ids.is_empty() {
         return Ok(ids);
     }
 
-    info!("Deleting mods:");
+    info!("Deleting content:");
+    let version_json = VersionDetails::load(&instance).await?;
     let mut index = ModIndex::load(&instance).await?;
-
-    let mods_dir = instance.get_dot_minecraft_path().join("mods");
-
-    // let mut downloaded_mods = HashSet::new();
+    let dirs = DirStructure::new(instance.clone(), &version_json).await?;
 
     for id in &ids {
-        pt!("Deleting mod: {id:?}");
-        delete_mod(&mut index, id, &mods_dir).await?;
-        // delete_item(id, None, &mut index, &mods_dir, &mut downloaded_mods)?;
+        pt!("Deleting: {id:?}");
+        delete_mod(&mut index, id, &dirs).await?;
     }
+
+    // Remove all orphaned mods (dependencies)
 
     let mut has_been_removed;
     // let mut iteration = 0;
@@ -74,7 +70,7 @@ pub async fn delete_mods(
 
         for orphan in orphaned_mods {
             has_been_removed = true;
-            delete_mod(&mut index, &orphan, &mods_dir).await?;
+            delete_mod(&mut index, &orphan, &dirs).await?;
         }
 
         if !has_been_removed {
@@ -83,21 +79,25 @@ pub async fn delete_mods(
     }
 
     index.save(&instance).await?;
-    info!("Finished deleting mods");
+    info!("Finished deleting content");
     Ok(ids)
 }
 
-async fn delete_mod(index: &mut ModIndex, id: &ModId, mods_dir: &Path) -> Result<(), ModError> {
+async fn delete_mod(index: &mut ModIndex, id: &ModId, dirs: &DirStructure) -> Result<(), ModError> {
     if let Some(mod_info) = index.mods.remove(id) {
+        let Some(content_dir) = dirs.get(mod_info.project_type) else {
+            debug_assert!(false, "modpack ended up in mod index");
+            return Ok(());
+        };
         for file in &mod_info.files {
             if mod_info.enabled {
-                delete_file(mods_dir, &file.filename).await?;
+                delete_file(content_dir, &file.filename).await?;
             } else {
-                delete_file(mods_dir, &format!("{}.disabled", file.filename)).await?;
+                delete_file(content_dir, &format!("{}.disabled", file.filename)).await?;
             }
         }
     } else {
-        err!("Deleted mod does not exist");
+        err!("Deleted content does not exist");
     }
     Ok(())
 }

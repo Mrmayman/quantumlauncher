@@ -4,7 +4,7 @@ use crate::{
     jarmod,
 };
 use ql_core::{
-    CLASSPATH_SEPARATOR, GenericProgress, InstanceSelection, IntoIoError, IntoJsonError, IoError,
+    CLASSPATH_SEPARATOR, GenericProgress, Instance, IntoIoError, IntoJsonError, IoError,
     JsonFileError, LAUNCHER_DIR, Loader, err,
     file_utils::{self, exists},
     info,
@@ -20,7 +20,7 @@ use std::{
     io::ErrorKind,
     path::{Path, PathBuf},
     process::Stdio,
-    sync::mpsc::Sender,
+    sync::{Arc, mpsc::Sender},
 };
 use tokio::process::Command;
 
@@ -28,7 +28,7 @@ use super::{error::GameLaunchError, replace_var};
 
 pub struct GameLauncher {
     username: String,
-    instance_name: String,
+    instance_name: Arc<str>,
 
     /// If Java isn't installed, it will be auto-installed by the launcher.
     /// This field allows you to send progress updates
@@ -40,9 +40,9 @@ pub struct GameLauncher {
     pub instance_dir: PathBuf,
     /// Client: `QuantumLauncher/instances/NAME/.minecraft/`
     /// Server: `QuantumLauncher/servers/NAME/`
-    pub minecraft_dir: PathBuf,
+    minecraft_dir: PathBuf,
 
-    pub config: InstanceConfigJson,
+    config: InstanceConfigJson,
     pub version_json: VersionDetails,
     /// Launcher-wide instance settings. These
     /// can be overridden by `config_json.global_settings`.
@@ -52,7 +52,7 @@ pub struct GameLauncher {
 
 impl GameLauncher {
     pub async fn new(
-        instance_name: String,
+        instance_name: Arc<str>,
         username: String,
         java_install_progress_sender: Option<Sender<GenericProgress>>,
         global_settings: Option<GlobalSettings>,
@@ -74,7 +74,7 @@ impl GameLauncher {
             c => c?,
         };
 
-        let instance = InstanceSelection::Instance(instance_name.clone());
+        let instance = Instance::client(&instance_name);
         let mut version_json = VersionDetails::load(&instance).await?;
         version_json.apply_tweaks(&instance).await?;
 
@@ -345,7 +345,7 @@ impl GameLauncher {
         java_arguments: &mut Vec<String>,
         game_arguments: &mut Vec<String>,
     ) -> Result<Option<forge::JsonDetails>, GameLaunchError> {
-        if !matches!(self.config.mod_type, Loader::Forge | Loader::Neoforge) {
+        if !matches!(self.config.mod_type, Loader::Forge | Loader::NeoForge) {
             return Ok(None);
         }
         if self.version_json.is_legacy_version() && self.version_json.get_id() != "1.5.2" {
@@ -501,7 +501,7 @@ impl GameLauncher {
         // classpath_entries is a HashSet that determines if an overridden
         // version of a library has already been loaded.
 
-        let instance = InstanceSelection::Instance(self.instance_name.clone());
+        let instance = Instance::client(&self.instance_name);
         let jar_path = jarmod::build(&instance).await?;
         debug_assert!(
             jar_path.is_file(),
@@ -753,7 +753,7 @@ impl GameLauncher {
         Ok(())
     }
 
-    pub async fn get_java_command(&mut self) -> Result<(Command, PathBuf), GameLaunchError> {
+    async fn get_java_command(&mut self) -> Result<(Command, PathBuf), GameLaunchError> {
         let which_java = if cfg!(target_os = "windows") && self.config.enable_logger.unwrap_or(true)
         {
             "javaw"

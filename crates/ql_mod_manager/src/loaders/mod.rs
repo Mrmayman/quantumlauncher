@@ -9,7 +9,7 @@ use std::{
 use crate::loaders::paper::PaperVer;
 use forge::ForgeInstallProgress;
 use ql_core::{
-    GenericProgress, InstanceSelection, IntoStringError, JsonFileError, Loader, Progress,
+    GenericProgress, Instance, IntoStringError, JsonFileError, Loader, Progress,
     json::{InstanceConfigJson, instance_config::ModTypeInfo},
 };
 
@@ -44,7 +44,7 @@ pub enum LoaderInstallResult {
 }
 
 pub async fn install_specified_loader(
-    instance: InstanceSelection,
+    instance: Instance,
     loader: Loader,
     progress: Option<Arc<Sender<GenericProgress>>>,
     specified_version: Option<String>,
@@ -86,7 +86,7 @@ pub async fn install_specified_loader(
                 .await
                 .strerr()?;
         }
-        Loader::Neoforge => {
+        Loader::NeoForge => {
             let (send, recv) = std::sync::mpsc::channel();
             if let Some(progress) = progress {
                 std::thread::spawn(move || {
@@ -136,12 +136,12 @@ fn pipe_progress(rec: Receiver<ForgeInstallProgress>, snd: &Sender<GenericProgre
     }
 }
 
-pub async fn uninstall_loader(instance: InstanceSelection) -> Result<(), String> {
+pub async fn uninstall_loader(instance: Instance) -> Result<(), String> {
     let loader = InstanceConfigJson::read(&instance).await.strerr()?.mod_type;
 
     match loader {
         Loader::Fabric | Loader::Quilt => fabric::uninstall(instance).await.strerr(),
-        Loader::Forge | Loader::Neoforge => forge::uninstall(instance).await.strerr(),
+        Loader::Forge | Loader::NeoForge => forge::uninstall(instance).await.strerr(),
         Loader::OptiFine => optifine::uninstall(instance.get_name().to_owned(), true)
             .await
             .strerr(),

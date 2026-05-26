@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::{atomic::AtomicI32, mpsc::Sender},
+    sync::{Arc, atomic::AtomicI32, mpsc::Sender},
     time::Instant,
 };
 
@@ -13,7 +13,7 @@ use reqwest::header::HeaderValue;
 use serde::Deserialize;
 
 use crate::{
-    rate_limiter::RATE_LIMITER,
+    rate_limiter::{RATE_LIMITER, lock},
     store::{
         Category, ModId, SearchMod, StoreBackendType,
         curseforge::categories::CfCategory,
@@ -46,26 +46,26 @@ impl ModQuery {
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct Mod {
-    pub name: String,
+    pub name: Arc<str>,
     pub slug: String,
     pub summary: String,
     #[serde(rename = "downloadCount")]
-    pub download_count: usize,
+    download_count: usize,
     pub logo: Option<Logo>,
     pub id: i32,
     #[serde(rename = "latestFilesIndexes")]
-    pub latest_files_indexes: Vec<CurseforgeFileIdx>,
+    latest_files_indexes: Vec<CurseforgeFileIdx>,
     #[serde(rename = "classId")]
     pub class_id: i32,
-    pub screenshots: Vec<CfScreenshot>,
-    pub links: CfLinks,
+    screenshots: Vec<CfScreenshot>,
+    links: CfLinks,
     // latestFiles: Vec<CurseforgeFile>,
 }
 
 impl Mod {
     async fn get_file<T: std::fmt::Display>(
         &self,
-        title: String,
+        title: Arc<str>,
         id: T,
         version: String,
         loader: Option<&str>,
@@ -136,31 +136,31 @@ impl From<CfScreenshot> for GalleryItem {
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct CfLinks {
-    website_url: Option<String>,
-    wiki_url: Option<String>,
-    issues_url: Option<String>,
-    source_url: Option<String>,
+    website: Option<String>,
+    wiki: Option<String>,
+    issues: Option<String>,
+    source: Option<String>,
 }
 
 impl CfLinks {
-    pub fn build_urls(&self) -> Vec<(UrlKind, String)> {
+    fn build_urls(&self) -> Vec<(UrlKind, String)> {
         let mut urls = Vec::new();
-        if let Some(website_url) = &self.website_url {
+        if let Some(website_url) = &self.website {
             if !website_url.is_empty() {
                 urls.push((UrlKind::Website, website_url.clone()));
             }
         }
-        if let Some(wiki_url) = &self.wiki_url {
+        if let Some(wiki_url) = &self.wiki {
             if !wiki_url.is_empty() {
                 urls.push((UrlKind::Wiki, wiki_url.clone()));
             }
         }
-        if let Some(issues_url) = &self.issues_url {
+        if let Some(issues_url) = &self.issues {
             if !issues_url.is_empty() {
                 urls.push((UrlKind::Issues, issues_url.clone()));
             }
         }
-        if let Some(source_url) = &self.source_url {
+        if let Some(source_url) = &self.source {
             if !source_url.is_empty() {
                 urls.push((UrlKind::Source, source_url.clone()));
             }
@@ -201,7 +201,7 @@ pub struct CurseforgeFile {
     pub fileName: String,
     pub downloadUrl: Option<String>,
     pub gameVersions: Vec<String>,
-    pub dependencies: Vec<Dependency>,
+    dependencies: Vec<Dependency>,
     pub fileDate: String,
     pub displayName: String,
     pub fileLength: u64,
@@ -210,7 +210,7 @@ pub struct CurseforgeFile {
 #[derive(Deserialize, Clone, Debug)]
 #[allow(non_snake_case)]
 pub struct Dependency {
-    pub modId: usize,
+    modId: usize,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -224,7 +224,7 @@ pub struct CFSearchResult {
 }
 
 impl CFSearchResult {
-    pub async fn get_from_ids(ids: &[String]) -> Result<Self, ModError> {
+    pub async fn get_from_ids(ids: &[Arc<str>]) -> Result<Self, ModError> {
         if ids.is_empty() {
             return Ok(Self { data: Vec::new() });
         }
@@ -316,7 +316,7 @@ impl Backend for CurseforgeBackend {
                     description: n.summary,
                     downloads: n.download_count,
                     internal_name: n.slug,
-                    id: n.id.to_string(),
+                    id: Arc::from(n.id.to_string()),
                     project_type: query_type_str.to_owned(),
                     icon_url: n.logo.map(|n| n.url),
                     backend: StoreBackendType::Curseforge,
@@ -342,7 +342,10 @@ impl Backend for CurseforgeBackend {
         let description = send_request(&format!("mods/{id}/description"), &map).await?;
         let description: Resp2 = serde_json::from_str(&description).json(description)?;
 
-        Ok((ModId::Curseforge(id.to_string()), description.data))
+        Ok((
+            ModId::Curseforge(Arc::from(id.to_string())),
+            description.data,
+        ))
     }
 
     async fn get_latest_version_date(
@@ -372,9 +375,10 @@ impl Backend for CurseforgeBackend {
 
     async fn download(
         id: &str,
-        instance: &ql_core::InstanceSelection,
+        instance: &ql_core::Instance,
         sender: Option<Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
+        let _guard = lock().await;
         let mut downloader = ModDownloader::new(instance.clone(), sender.as_ref()).await?;
 
         downloader.ensure_essential_mods().await?;
@@ -386,12 +390,13 @@ impl Backend for CurseforgeBackend {
     }
 
     async fn download_bulk(
-        ids: &[String],
-        instance: &ql_core::InstanceSelection,
+        ids: &[Arc<str>],
+        instance: &ql_core::Instance,
         ignore_incompatible: bool,
         set_manually_installed: bool,
         sender: Option<&Sender<GenericProgress>>,
     ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
+        let _guard = lock().await;
         let mut downloader = ModDownloader::new(instance.clone(), sender).await?;
         downloader.ensure_essential_mods().await?;
         downloader.query_cache.extend(
@@ -484,7 +489,7 @@ impl Backend for CurseforgeBackend {
             description: query.data.summary,
             downloads: query.data.download_count,
             internal_name: query.data.slug,
-            id: query.data.id.to_string(),
+            id: Arc::from(query.data.id.to_string()),
             project_type: get_query_type(query.data.class_id)
                 .await
                 .unwrap_or(QueryType::Mods)
@@ -502,7 +507,7 @@ impl Backend for CurseforgeBackend {
         })
     }
 
-    async fn get_info_bulk(ids: &[String]) -> Result<Vec<SearchMod>, ModError> {
+    async fn get_info_bulk(ids: &[Arc<str>]) -> Result<Vec<SearchMod>, ModError> {
         let queries = CFSearchResult::get_from_ids(ids).await?;
         let mut out = Vec::with_capacity(queries.data.len());
         for query in queries.data {
@@ -511,7 +516,7 @@ impl Backend for CurseforgeBackend {
                 description: query.summary,
                 downloads: query.download_count,
                 internal_name: query.slug,
-                id: query.id.to_string(),
+                id: Arc::from(query.id.to_string()),
                 project_type: get_query_type(query.class_id)
                     .await
                     .unwrap_or(QueryType::Mods)
@@ -529,6 +534,16 @@ impl Backend for CurseforgeBackend {
         }
 
         Ok(out)
+    }
+
+    async fn get_download_link(
+        instance: &ql_core::Instance,
+        id: &str,
+        query_type: QueryType,
+    ) -> Result<String, ModError> {
+        let mut downloader = ModDownloader::basic(instance.clone()).await?;
+        let url = downloader.get_download_link(id, query_type).await?;
+        Ok(url)
     }
 }
 
