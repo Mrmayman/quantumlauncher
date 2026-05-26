@@ -1,5 +1,6 @@
 use iced::{Task, futures::executor::block_on};
 use ql_core::{InstanceKind, IntoIoError, IntoStringError, err, file_utils::DirItem, info};
+use ql_packager::SOFT_EXCEPTIONS;
 use std::fmt::Write;
 use tokio::io::AsyncWriteExt;
 
@@ -304,17 +305,7 @@ impl Launcher {
                     Ok(n) => n
                         .into_iter()
                         .map(|n| {
-                            let enabled = !(n.name == ".fabric"
-                                || n.name == "logs"
-                                || n.name == "command_history.txt"
-                                || n.name == "realms_persistence.json"
-                                || n.name == "debug"
-                                || n.name == ".cache"
-                                // Common mods...
-                                || n.name == "authlib-injector.log"
-                                || n.name == "easy_npc"
-                                || n.name == "CustomSkinLoader"
-                                || n.name == ".bobby");
+                            let enabled = !SOFT_EXCEPTIONS.contains(&n.name.as_str());
                             (n, enabled)
                         })
                         .filter(|(n, _)| {
