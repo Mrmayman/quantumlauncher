@@ -29,18 +29,18 @@ pub(crate) use downloader::GameDownloader;
 /// Anything and everything in [`DownloadError`].
 /// Too vast to pin down.
 pub async fn create_instance(
-    instance_name: String,
+    name: String,
     version: ListEntry,
     progress_sender: Option<Sender<DownloadProgress>>,
     download_assets: bool,
 ) -> Result<String, DownloadError> {
-    let instance_name = sanitize_instance_name(instance_name);
-    if instance_name.is_empty() {
+    let name = sanitize_instance_name(name);
+    if name.is_empty() {
         return Err(DownloadError::InvalidName);
     }
 
     info!(
-        "Started creating instance: {instance_name} (version: {}, kind: {})",
+        "Started creating instance: {name} (version: {}, kind: {})",
         version.name, version.kind
     );
 
@@ -52,8 +52,7 @@ pub async fn create_instance(
             .path(assets_dir)?;
     }
 
-    let mut game_downloader =
-        GameDownloader::new(&instance_name, &version, progress_sender).await?;
+    let mut game_downloader = GameDownloader::new(&name, &version, progress_sender).await?;
 
     tokio::try_join!(
         game_downloader.download_logging_config(),
@@ -75,7 +74,7 @@ pub async fn create_instance(
 
     let version_file_path = LAUNCHER_DIR
         .join("instances")
-        .join(&instance_name)
+        .join(&name)
         .join("launcher_version.txt");
     tokio::fs::write(&version_file_path, LAUNCHER_VERSION_NAME)
         .await
@@ -83,13 +82,13 @@ pub async fn create_instance(
 
     let mods_dir = LAUNCHER_DIR
         .join("instances")
-        .join(&instance_name)
+        .join(&name)
         .join(".minecraft/mods");
     tokio::fs::create_dir_all(&mods_dir).await.path(mods_dir)?;
 
-    info!("Finished creating instance: {instance_name}");
+    info!("Finished creating instance: {name}");
 
-    Ok(instance_name)
+    Ok(name)
 }
 
 pub async fn repeat_stage(

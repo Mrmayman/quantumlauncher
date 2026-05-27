@@ -11,7 +11,6 @@ use crate::{
         SIDEBAR_WIDTH,
         sidebar::{FolderId, SDragLocation, SidebarSelection},
     },
-    message_handler::get_locally_installed_mods,
     state::{FsWatcher, NotesMessage},
 };
 use ezshortcut::Shortcut;
@@ -30,14 +29,12 @@ use ql_core::{
     pt,
 };
 use ql_mod_manager::{
-    loaders::paper::PaperVersion,
-    store::{Category, LocalMod, SearchMod},
-};
-use ql_mod_manager::{
-    loaders::{self, forge::ForgeInstallProgress, optifine::OptifineInstallProgress},
+    loaders::{
+        self, forge::ForgeInstallProgress, optifine::OptifineInstallProgress, paper::PaperVersion,
+    },
     store::{
-        CurseforgeNotAllowed, ModConfig, ModId, ModIndex, QueryType, RecommendedMod, SearchResult,
-        SelectedMod, StoreBackendType,
+        self, Category, CurseforgeNotAllowed, LocalMod, ModConfig, ModId, ModIndex, QueryType,
+        RecommendedMod, SearchMod, SearchResult, SelectedMod, StoreBackendType,
     },
 };
 
@@ -518,18 +515,9 @@ impl MenuEditMods {
         selected_instance: &Instance,
         project_type: QueryType,
     ) -> Task<Message> {
-        let mut blacklist = HashSet::new();
-        for mod_info in idx.mods.values() {
-            if mod_info.project_type != project_type {
-                continue;
-            }
-            for file in &mod_info.files {
-                blacklist.insert(file.filename.clone());
-                blacklist.insert(format!("{}.disabled", file.filename));
-            }
-        }
+        let blacklist = idx.get_downloaded_files(project_type);
         Task::perform(
-            get_locally_installed_mods(
+            store::get_locally_installed_mods(
                 selected_instance.get_dot_minecraft_path(),
                 blacklist,
                 project_type,

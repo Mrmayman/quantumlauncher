@@ -52,9 +52,9 @@ pub struct ModIndex {
 }
 
 impl ModIndex {
-    pub async fn load(selected_instance: &Instance) -> Result<Self, JsonFileError> {
-        let mut index = load_inner(selected_instance).await?;
-        index.fix(selected_instance.clone()).await?;
+    pub async fn load(instance: &Instance) -> Result<Self, JsonFileError> {
+        let mut index = load_inner(instance).await?;
+        index.fix(instance.clone()).await?;
         Ok(index)
     }
 
@@ -181,10 +181,24 @@ impl ModIndex {
             self.mods.remove(&id);
         }
     }
+
+    pub fn get_downloaded_files(&self, project_type: QueryType) -> HashSet<String> {
+        let mut l = HashSet::new();
+        for mod_info in self.mods.values() {
+            if mod_info.project_type != project_type {
+                continue;
+            }
+            for file in &mod_info.files {
+                l.insert(file.filename.clone());
+                l.insert(format!("{}.disabled", file.filename));
+            }
+        }
+        l
+    }
 }
 
-async fn load_inner(selected_instance: &Instance) -> Result<ModIndex, JsonFileError> {
-    let dot_mc_dir = selected_instance.get_dot_minecraft_path();
+async fn load_inner(instance: &Instance) -> Result<ModIndex, JsonFileError> {
+    let dot_mc_dir = instance.get_dot_minecraft_path();
 
     let mods_dir = dot_mc_dir.join("mods");
     if !exists(&mods_dir).await {
@@ -229,7 +243,7 @@ async fn load_inner(selected_instance: &Instance) -> Result<ModIndex, JsonFileEr
         _ => {}
     }
 
-    let index = ModIndex::new(selected_instance);
+    let index = ModIndex::new(instance);
     let index_str = serde_json::to_string(&index).json_to()?;
 
     let tmp = index_path.with_extension("json.tmp");

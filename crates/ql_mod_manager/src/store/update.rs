@@ -17,12 +17,12 @@ pub struct ChangelogFile {
 }
 
 pub async fn apply_updates(
-    selected_instance: Instance,
+    instance: Instance,
     updates: Vec<(ModId, String)>,
     progress: Option<Sender<GenericProgress>>,
     make_changelog: bool,
 ) -> Result<Option<ChangelogFile>, ModError> {
-    let mod_index = ModIndex::load(&selected_instance).await?;
+    let mod_index = ModIndex::load(&instance).await?;
 
     let update_ids: Vec<ModId> = updates.iter().map(|(id, _)| id.clone()).collect();
 
@@ -40,28 +40,25 @@ pub async fn apply_updates(
     };
 
     // It's as simple as that!
-    delete_mods(update_ids.clone(), selected_instance.clone()).await?;
-    download_mods_bulk(update_ids, selected_instance.clone(), progress).await?;
+    delete_mods(update_ids.clone(), instance.clone()).await?;
+    download_mods_bulk(update_ids, instance.clone(), progress).await?;
 
     let mut changelog_file = None;
     if make_changelog && !changelog_entries.is_empty() {
-        changelog_file = write_changelog(changelog_entries, selected_instance.clone()).await;
+        changelog_file = write_changelog(changelog_entries, instance.clone()).await;
     }
 
     // Ensure disabled mods stay disabled
-    toggle_mods(disabled_mods, selected_instance).await?;
+    toggle_mods(disabled_mods, instance).await?;
 
     Ok(changelog_file)
 }
 
-async fn write_changelog(
-    entries: Vec<String>,
-    selected_instance: Instance,
-) -> Option<ChangelogFile> {
+async fn write_changelog(entries: Vec<String>, instance: Instance) -> Option<ChangelogFile> {
     let titles = entries.join("\n");
     let now = Local::now();
     let filename = format!("changelog-{}.txt", now.format("%Y-%m-%d-%H-%M"));
-    let path = selected_instance
+    let path = instance
         .get_instance_path()
         .join("changelogs")
         .join(&filename);
