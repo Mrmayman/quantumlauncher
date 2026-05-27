@@ -41,20 +41,6 @@ impl MenuLauncherSettings {
                 args_split_by_space(self.arg_split_by_space),
             ]
             .spacing(10),
-            column![
-                widget::row![
-                    button_with_icon(icons::bin_s(12), "Clear Java installs", 12)
-                        .padding([5, 10])
-                        .on_press(LauncherSettingsMessage::ClearJavaInstalls.into()),
-                    widget::text(
-                        "Might fix some Java problems.\nPerfectly safe, will be redownloaded."
-                    )
-                    .style(tsubtitle)
-                    .size(12),
-                ]
-                .spacing(10)
-                .wrap()
-            ],
         ])
     }
 }

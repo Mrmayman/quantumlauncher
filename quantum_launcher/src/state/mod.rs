@@ -13,9 +13,10 @@ use iced::Task;
 use notify::Watcher;
 use ql_core::{
     GenericProgress, Instance, InstanceKind, IntoIoError, IntoStringError, IoError, JsonFileError,
-    LAUNCHER_DIR, LAUNCHER_VERSION_NAME, LaunchedProcess, Progress, err,
+    LAUNCHER_CACHE_DIR, LAUNCHER_DIR, LAUNCHER_VERSION_NAME, LaunchedProcess, Progress, err,
     file_utils::{self, exists},
     read_log::LogLine,
+    request::{CLIENT, build_middleware},
 };
 use ql_instances::auth::{AccountData, AccountType, ms::CLIENT_ID};
 use tokio::process::ChildStdin;
@@ -136,8 +137,8 @@ pub struct Launcher {
 
     pub client_list: Option<Vec<String>>,
     pub server_list: Option<Vec<String>>,
-    pub client_watcher: Option<DirWatcher>,
-    pub server_watcher: Option<DirWatcher>,
+    pub client_watcher: Option<FsWatcher>,
+    pub server_watcher: Option<FsWatcher>,
 
     pub processes: HashMap<Instance, GameProcess>,
     pub logs: HashMap<Instance, InstanceLog>,
@@ -173,7 +174,7 @@ pub struct WindowState {
 
 pub struct CustomJarState {
     pub choices: Vec<String>,
-    pub watcher: DirWatcher,
+    pub watcher: FsWatcher,
 }
 
 impl CustomJarState {
@@ -184,15 +185,50 @@ impl CustomJarState {
     }
 }
 
-pub struct DirWatcher {
+pub struct FsWatcher {
     recv: Receiver<notify::Event>,
     _watcher: notify::RecommendedWatcher,
 }
 
-impl DirWatcher {
+impl FsWatcher {
+    pub fn new<P: AsRef<Path>>(path: P) -> notify::Result<FsWatcher> {
+        let (tx, recv) = mpsc::channel();
+
+        // `notify` runs callbacks in its own thread.
+        let mut watcher: notify::RecommendedWatcher = notify::recommended_watcher(move |res| {
+            if let Ok(event) = res {
+                _ = tx.send(event);
+            }
+        })?;
+        let path = path.as_ref();
+        watcher.watch(path, notify::RecursiveMode::NonRecursive)?;
+
+        Ok(FsWatcher {
+            recv,
+            _watcher: watcher,
+        })
+    }
+
     pub fn has_changed(&self) -> bool {
         let mut has_changed = false;
-        while let Ok(_event) = self.recv.try_recv() {
+        while let Ok(event) = self.recv.try_recv() {
+            if let notify::EventKind::Access(notify::event::AccessKind::Open(
+                notify::event::AccessMode::Any,
+            )) = event.kind
+            {
+                let a = &event.attrs;
+                if a.tracker().is_none()
+                    && a.flag().is_none()
+                    && a.info().is_none()
+                    && a.source().is_none()
+                {
+                    // Bogus spam event
+                    // TODO: Test on Windows and macOS
+                    // (tested on Linux)
+                    continue;
+                }
+            }
+
             has_changed = true;
         }
         has_changed
@@ -478,6 +514,10 @@ fn load_account(
     }
 }
 
+pub fn populate_middleware_clients(do_cache: bool) {
+    CLIENT.get_or_init(|| build_middleware(LAUNCHER_CACHE_DIR.to_path_buf(), do_cache));
+}
+
 pub async fn get_entries(kind: InstanceKind) -> Res<(Vec<String>, InstanceKind)> {
     let dir_path = kind.get_root_directory();
     if !exists(&dir_path).await {
@@ -556,24 +596,6 @@ pub async fn load_custom_jars() -> Result<Vec<String>, IoError> {
     Ok(list)
 }
 
-pub fn dir_watch<P: AsRef<Path>>(path: P) -> notify::Result<DirWatcher> {
-    let (tx, recv) = mpsc::channel();
-
-    // `notify` runs callbacks in its own thread.
-    let mut watcher: notify::RecommendedWatcher = notify::recommended_watcher(move |res| {
-        if let Ok(event) = res {
-            _ = tx.send(event);
-        }
-    })?;
-    let path = path.as_ref();
-    watcher.watch(path, notify::RecursiveMode::NonRecursive)?;
-
-    Ok(DirWatcher {
-        recv,
-        _watcher: watcher,
-    })
-}
-
 fn migration(version: &str) -> Result<(), String> {
     fn ver(major: u64, minor: u64, patch: u64) -> semver::Version {
         semver::Version {
@@ -598,5 +620,11 @@ fn migration(version: &str) -> Result<(), String> {
                 .strerr()?;
         }
     }
+
+    if version <= ver(0, 5, 1) {
+        // Cache is now stored in new place
+        _ = std::fs::remove_dir_all(LAUNCHER_DIR.join("downloads/cache"));
+    }
+
     Ok(())
 }

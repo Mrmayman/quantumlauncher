@@ -1,8 +1,8 @@
 use crate::message_handler::arrow_keys::InstSelectOperation;
 use crate::message_update::MSG_RESIZE;
 use crate::state::{
-    AutoSaveKind, CreateInstanceMessage, InfoMessage, LaunchMessage, LaunchTab, Launcher,
-    LauncherSettingsMessage, LauncherSettingsTab, MainMenuMessage, ManageModsMessage,
+    AutoSaveKind, CreateInstanceMessage, EditModsUpdates, InfoMessage, LaunchMessage, LaunchTab,
+    Launcher, LauncherSettingsMessage, LauncherSettingsTab, MainMenuMessage, ManageModsMessage,
     MenuCreateInstance, MenuCreateInstanceChoosing, MenuEditMods, MenuEditPresets,
     MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper,
     MenuLoginAlternate, MenuLoginMS, MenuRecommendedMods, MenuWelcome, Message, State,
@@ -309,7 +309,7 @@ impl Launcher {
         match &self.state {
             State::ChangeLog
             | State::EditMods(MenuEditMods {
-                mod_update_progress: None,
+                updates: EditModsUpdates { progress: None, .. },
                 ..
             })
             | State::Create(MenuCreateInstance::Choosing { .. })
@@ -349,7 +349,7 @@ impl Launcher {
                 | MenuInstallFabric::Loaded { progress: None, .. },
             )
             | State::EditJarMods(_)
-            | State::ExportMods(_)
+            | State::ExportModsText(_)
             | State::ManagePresets(MenuEditPresets {
                 is_building: false,
                 progress: None,
@@ -424,8 +424,8 @@ impl Launcher {
 
     pub fn hide_submenu(&mut self) -> bool {
         if let State::EditMods(menu) = &mut self.state {
-            if menu.modal.is_some() {
-                menu.modal = None;
+            if menu.ui_state.modal.is_some() {
+                menu.ui_state.modal = None;
                 return true;
             }
             if menu.search.is_some() {

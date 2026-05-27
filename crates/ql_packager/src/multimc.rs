@@ -236,7 +236,7 @@ async fn get_instance_recipe(mmc_pack: &MmcPack) -> Result<InstanceRecipe, Insta
                 recipe.loader_version = Some(version);
             }
             "NeoForge" => {
-                recipe.loader = Some(Loader::Neoforge);
+                recipe.loader = Some(Loader::NeoForge);
                 recipe.loader_version = Some(version);
             }
             "Fabric Loader" => {
@@ -280,12 +280,12 @@ async fn install_loader(
                 )
                 .await?;
             }
-            n @ (Loader::Forge | Loader::Neoforge) => {
+            n @ (Loader::Forge | Loader::NeoForge) => {
                 mmc_forge(
                     sender,
                     instance,
                     instance_recipe.loader_version.clone(),
-                    matches!(n, Loader::Neoforge),
+                    matches!(n, Loader::NeoForge),
                 )
                 .await?;
             }

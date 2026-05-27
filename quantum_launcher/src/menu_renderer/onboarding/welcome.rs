@@ -49,13 +49,13 @@ impl MenuWelcome {
             .align_x(Alignment::Center)
             .spacing(10)
             .into(),
-            MenuWelcome::P2Theme => widget::column![
+            MenuWelcome::P2Theme => column![
                 widget::vertical_space(),
                 center_x(widget::text("Customize your launcher!").size(24)),
-                widget::row!["Mode:", get_mode_selector(config)]
+                row!["Mode:", get_mode_selector(config)]
                     .align_y(Alignment::Center)
                     .spacing(10),
-                widget::row![
+                row![
                     widget::Space::with_width(20),
                     "Theme:",
                     get_theme_selector().wrap()
@@ -89,7 +89,7 @@ impl MenuWelcome {
                     message: None,
                     clear_selection: true,
                 };
-                widget::column![
+                column![
                     widget::vertical_space(),
                     center_x(
                         widget::button("Login to Microsoft").on_press(Message::Account(

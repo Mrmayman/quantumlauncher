@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::path::Path;
 
 use frostmark::MarkState;
@@ -15,14 +14,14 @@ mod manage_mods;
 mod mod_store;
 mod presets;
 mod recommended;
+mod settings;
 mod shortcuts;
 
-use crate::config::UiWindowDecorations;
 use crate::state::{
-    self, AutoSaveKind, GameLogMessage, InfoMessage, InstallFabricMessage, InstallOptifineMessage,
+    self, GameLogMessage, InfoMessage, InstallFabricMessage, InstallOptifineMessage,
     InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsMessage, LauncherSettingsTab,
     MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLaunch, MenuModDescription,
-    Message, ModDescriptionMessage, NotesMessage, PathKind, ProgressBar, State, WindowMessage,
+    Message, ModDescriptionMessage, NotesMessage, ProgressBar, State, WindowMessage,
 };
 
 pub use discord_rpc::PresenceConnectionState;
@@ -135,7 +134,7 @@ impl Launcher {
         match message {
             InstallOptifineMessage::ScreenOpen => {
                 let is_forge_installed = if let State::EditMods(menu) = &self.state {
-                    menu.config.mod_type == Loader::Forge
+                    menu.file_data.config.mod_type == Loader::Forge
                 } else {
                     false
                 };
@@ -254,400 +253,6 @@ impl Launcher {
         ))
     }
 
-    pub fn update_launcher_settings(&mut self, msg: LauncherSettingsMessage) -> Task<Message> {
-        match msg {
-            LauncherSettingsMessage::ThemePicked(theme) => {
-                self.config.ui_mode = Some(theme);
-                self.theme.lightness = theme;
-            }
-            LauncherSettingsMessage::Open(tab) => {
-                return self.go_to_launcher_settings(tab);
-            }
-            LauncherSettingsMessage::ColorSchemePicked(color) => {
-                self.config.ui_theme = Some(color);
-                self.theme.color = color;
-            }
-            LauncherSettingsMessage::UiScale(scale) => {
-                if let State::LauncherSettings(menu) = &mut self.state {
-                    menu.temp_scale = scale;
-                }
-            }
-            LauncherSettingsMessage::UiOpacity(opacity) => {
-                self.config.ui.get_or_insert_default().window_opacity = opacity;
-                self.theme.alpha = opacity;
-            }
-            LauncherSettingsMessage::UiScaleApply => {
-                if let State::LauncherSettings(menu) = &self.state {
-                    self.config.ui_scale = Some(menu.temp_scale);
-                    self.state = State::GenericMessage(MSG_RESIZE.to_owned());
-                }
-            }
-            LauncherSettingsMessage::UiIdleFps(fps) => {
-                debug_assert!(fps > 0.0);
-                self.config.ui.get_or_insert_default().idle_fps = Some(fps as u64);
-            }
-            LauncherSettingsMessage::ClearJavaInstalls => {
-                self.confirm_clear_java_installs();
-            }
-            LauncherSettingsMessage::ApplyRestart => {
-                if let Ok(runtime) = tokio::runtime::Runtime::new() {
-                    _ = runtime.block_on(self.config.save());
-                }
-                if let Ok(exe) = std::env::current_exe() {
-                    let _ = std::process::Command::new(exe).spawn();
-                }
-                self.close_launcher();
-            }
-            LauncherSettingsMessage::ToggleSafeMode(t) => {
-                if t {
-                    self.config.enable_safe_mode = Some(true);
-                    self.autosave.remove(&state::AutoSaveKind::LauncherConfig);
-                } else {
-                    self.state = state::State::ConfirmAction {
-                        msg1: "disable automatic Safe Mode".to_owned(),
-                        msg2: "Disabling Safe Mode might cause the launcher to CRASH ON STARTUP. This is highly discouraged.\n\nAre you sure you know what you are doing?".to_owned(),
-                        yes: LauncherSettingsMessage::ToggleSafeModeConfirm(false).into(),
-                        no: LauncherSettingsMessage::ToggleSafeModeConfirm(true).into(),
-                    };
-                }
-            }
-            LauncherSettingsMessage::ToggleSafeModeConfirm(t) => {
-                self.config.enable_safe_mode = Some(t);
-                self.autosave.remove(&state::AutoSaveKind::LauncherConfig);
-                // The toggle is in UI tab
-                return self.go_to_launcher_settings(LauncherSettingsTab::UserInterface);
-            }
-            LauncherSettingsMessage::ClearJavaInstallsConfirm => {
-                return Task::perform(ql_instances::delete_java_installs(), |()| {
-                    LauncherSettingsMessage::Open(LauncherSettingsTab::Game).into()
-                });
-            }
-            LauncherSettingsMessage::ToggleAntialiasing(t) => {
-                self.config.ui_antialiasing = Some(t);
-            }
-            LauncherSettingsMessage::ToggleWindowSize(t) => {
-                self.config.c_window().save_window_size = t;
-            }
-            LauncherSettingsMessage::ToggleInstanceRemembering(t) => {
-                let persistent = self.config.c_persistent();
-                persistent.selected_remembered = t;
-                if !t {
-                    persistent.selected_instance = None;
-                    persistent.selected_instance_kind = None;
-                }
-            }
-            LauncherSettingsMessage::ToggleModUpdateChangelog(t) => {
-                self.config.c_persistent().write_mod_update_changelog = t;
-            }
-            LauncherSettingsMessage::AfterLaunchBehaviorChanged(behavior) => {
-                self.config.ui.get_or_insert_default().after_game_opens = behavior;
-                self.autosave.remove(&AutoSaveKind::LauncherConfig);
-            }
-            LauncherSettingsMessage::DefaultMinecraftWidthChanged(input) => {
-                self.config.c_global().window_width = input.trim().parse::<u32>().ok();
-            }
-            LauncherSettingsMessage::DefaultMinecraftHeightChanged(input) => {
-                self.config.c_global().window_height = input.trim().parse::<u32>().ok();
-            }
-            LauncherSettingsMessage::GlobalJavaArgs(msg) => {
-                let split = self.should_split_args();
-                msg.apply(self.config.extra_java_args.get_or_insert_default(), split);
-            }
-            LauncherSettingsMessage::GlobalPreLaunchPrefix(msg) => {
-                let split = self.should_split_args();
-                msg.apply(
-                    self.config
-                        .c_global()
-                        .pre_launch_prefix
-                        .get_or_insert_default(),
-                    split,
-                );
-            }
-            LauncherSettingsMessage::ToggleWindowDecorations(b) => {
-                let decor = if b {
-                    UiWindowDecorations::default()
-                } else {
-                    UiWindowDecorations::System
-                };
-                self.config.ui.get_or_insert_default().window_decorations = decor;
-            }
-            LauncherSettingsMessage::LoadedSystemTheme(res) => match res {
-                Ok(mode) => {
-                    self.theme.system_dark_mode = mode == dark_light::Mode::Dark;
-                }
-                Err(err) if err.contains("Timeout reached") => {
-                    // The system is just lagging, nothing we can do
-                }
-                Err(err) if err.contains("org.freedesktop.portal.Error.NotFound") => {
-                    // User is on barebones desktop environment
-                    // that doesn't support light/dark mode.
-                    // eg: Raspberry Pi OS, LXDE, Openbox, etc
-                }
-                Err(err) => {
-                    err!(no_log, "while loading system theme: {err}");
-                }
-            },
-            LauncherSettingsMessage::EnablePortableMode => {
-                let (path, flags, current_status) =
-                    if let State::LauncherSettings(menu) = &self.state {
-                        (
-                            menu.temp_paths.portable.clone(),
-                            menu.temp_paths.portable_flags.clone(),
-                            menu.portable_mode_status.portable.clone(),
-                        )
-                    } else {
-                        (String::new(), HashSet::new(), None)
-                    };
-
-                let (msg1, msg2) = if let Some(current) = current_status {
-                    let current_path = current
-                        .path
-                        .as_ref()
-                        .map(|p| p.to_string_lossy().into_owned())
-                        .unwrap_or_default();
-                    if path != current_path {
-                        (
-                            "change portable storage path".to_owned(),
-                            "The launcher will change its portable storage directory.\nYour existing data will NOT be moved automatically.\n\nThe launcher will automatically restart.".to_owned(),
-                        )
-                    } else {
-                        (
-                            "change graphics backend".to_owned(),
-                            "The launcher will restart to apply the new rendering backend."
-                                .to_owned(),
-                        )
-                    }
-                } else {
-                    (
-                        "enable portable mode".to_owned(),
-                        "The launcher will store data next to the executable instead.\nYour existing data will NOT be moved automatically.\n\nThe launcher will automatically restart.".to_owned(),
-                    )
-                };
-
-                self.state = State::ConfirmAction {
-                    msg1,
-                    msg2,
-                    yes: LauncherSettingsMessage::EnablePortableModeConfirm(path, flags).into(),
-                    no: LauncherSettingsMessage::Open(state::LauncherSettingsTab::Location).into(),
-                };
-            }
-            LauncherSettingsMessage::EnablePortableModeConfirm(path, flags) => {
-                if let Err(err) = ql_core::create_portable_file(path, flags) {
-                    self.set_error(err.to_string());
-                    return Task::none();
-                }
-
-                if let Ok(exe) = std::env::current_exe() {
-                    let _ = std::process::Command::new(exe).spawn();
-                }
-                self.close_launcher();
-            }
-            LauncherSettingsMessage::DisablePortableMode => {
-                self.state = State::ConfirmAction {
-                    msg1: "disable portable mode".to_owned(),
-                    msg2: "The launcher will store data in the system data directory instead.\nYour existing data will NOT be moved automatically.\n\nThe launcher will automatically restart."
-                        .to_owned(),
-                    yes: LauncherSettingsMessage::DisablePortableModeConfirm.into(),
-                    no: LauncherSettingsMessage::Open(state::LauncherSettingsTab::Location)
-                        .into(),
-                };
-            }
-            LauncherSettingsMessage::DisablePortableModeConfirm => {
-                if let Err(err) = ql_core::delete_portable_file() {
-                    self.set_error(err.to_string());
-                    return Task::none();
-                }
-
-                if let Ok(exe) = std::env::current_exe() {
-                    let _ = std::process::Command::new(exe).spawn();
-                }
-                self.close_launcher();
-            }
-            LauncherSettingsMessage::PickPortablePath => {
-                if let Some(path) = rfd::FileDialog::new()
-                    .set_title("Select Portable Data Folder")
-                    .pick_folder()
-                {
-                    return self.update(Message::LauncherSettings(
-                        LauncherSettingsMessage::SetTempPath(
-                            PathKind::Portable,
-                            path.to_string_lossy().into_owned(),
-                        ),
-                    ));
-                }
-            }
-            LauncherSettingsMessage::PortableModeStatusLoaded(status) => {
-                if let State::LauncherSettings(menu) = &mut self.state {
-                    menu.portable_mode_status = status.clone();
-
-                    if let Some(portable) = &status.portable {
-                        menu.temp_paths.portable = portable
-                            .path
-                            .as_ref()
-                            .map(|p| p.to_string_lossy().into_owned())
-                            .unwrap_or_default();
-                        menu.temp_paths.portable_flags = portable.flags.clone();
-                    } else {
-                        menu.temp_paths.portable = String::new();
-                        menu.temp_paths.portable_flags = HashSet::new();
-                    }
-
-                    if let Some(system_redirect) = &status.system_redirect {
-                        menu.temp_paths.system_redirect = system_redirect
-                            .path
-                            .as_ref()
-                            .map(|p| p.to_string_lossy().into_owned())
-                            .unwrap_or_default();
-                        menu.temp_paths.system_redirect_flags = system_redirect.flags.clone();
-                    } else {
-                        menu.temp_paths.system_redirect = String::new();
-                        menu.temp_paths.system_redirect_flags = HashSet::new();
-                    }
-                }
-            }
-            LauncherSettingsMessage::AppearanceGraphicsBackend(backend) => {
-                self.config.launcher_render = Some(backend);
-                self.autosave.remove(&state::AutoSaveKind::LauncherConfig);
-
-                self.state = State::ConfirmAction {
-                    msg1: "restart to apply rendering backend".to_owned(),
-                    msg2: "The launcher will restart to apply the new rendering backend."
-                        .to_owned(),
-                    yes: LauncherSettingsMessage::ApplyRestart.into(),
-                    no: LauncherSettingsMessage::Open(state::LauncherSettingsTab::UserInterface)
-                        .into(),
-                };
-            }
-            LauncherSettingsMessage::EnableSystemRedirect => {
-                let (mut path, flags, current_status) =
-                    if let State::LauncherSettings(menu) = &self.state {
-                        (
-                            menu.temp_paths.system_redirect.clone(),
-                            menu.temp_paths.system_redirect_flags.clone(),
-                            menu.portable_mode_status.system_redirect.clone(),
-                        )
-                    } else {
-                        (String::new(), HashSet::new(), None)
-                    };
-
-                // Case: user didn't specify a path, but enabled it.
-                // We default to "." which means "store precisely in the system data directory"
-                // rather than nesting it further inside "QuantumLauncher/QuantumLauncher"
-                if path.is_empty() {
-                    path = ".".to_owned();
-                }
-
-                let (msg1, msg2) = if let Some(current) = current_status {
-                    let current_path = current
-                        .path
-                        .as_ref()
-                        .map(|p| p.to_string_lossy().into_owned())
-                        .unwrap_or_default();
-                    let current_path = if current_path.is_empty() {
-                        ".".to_owned()
-                    } else {
-                        current_path
-                    };
-
-                    if path != current_path {
-                        (
-                            "change system-wide redirection path".to_owned(),
-                            format!(
-                                "The launcher will change its global redirection directory to: {}\nYour existing data will NOT be moved automatically.\n\nThe launcher will automatically restart.",
-                                if path == "." {
-                                    "system data directory"
-                                } else {
-                                    &path
-                                }
-                            ),
-                        )
-                    } else {
-                        (
-                            "change graphics backend".to_owned(),
-                            "The launcher will restart to apply the new rendering backend."
-                                .to_owned(),
-                        )
-                    }
-                } else {
-                    (
-                        "enable system-wide redirection".to_owned(),
-                        format!(
-                            "The launcher will store data globally in: {}\nYour existing data will NOT be moved automatically.\n\nThe launcher will automatically restart.",
-                            if path == "." {
-                                "system data directory"
-                            } else {
-                                &path
-                            }
-                        ),
-                    )
-                };
-
-                self.state = State::ConfirmAction {
-                    msg1,
-                    msg2,
-                    yes: LauncherSettingsMessage::EnableSystemRedirectConfirm(path, flags).into(),
-                    no: LauncherSettingsMessage::Open(state::LauncherSettingsTab::Location).into(),
-                };
-            }
-            LauncherSettingsMessage::EnableSystemRedirectConfirm(path, flags) => {
-                if let Err(err) = ql_core::create_system_redirect_file(path, flags) {
-                    self.set_error(err.to_string());
-                    return Task::none();
-                }
-
-                if let Ok(exe) = std::env::current_exe() {
-                    let _ = std::process::Command::new(exe).spawn();
-                }
-                self.close_launcher();
-            }
-            LauncherSettingsMessage::DisableSystemRedirect => {
-                self.state = State::ConfirmAction {
-                    msg1: "disable system-wide redirection".to_owned(),
-                    msg2: "The launcher will stop reading data globally from the system data directory.\nYour existing data will NOT be moved automatically.\n\nThe launcher will automatically restart.".to_owned(),
-                    yes: LauncherSettingsMessage::DisableSystemRedirectConfirm.into(),
-                    no: LauncherSettingsMessage::Open(state::LauncherSettingsTab::Location)
-                        .into(),
-                };
-            }
-            LauncherSettingsMessage::DisableSystemRedirectConfirm => {
-                if let Err(err) = ql_core::delete_system_redirect_file() {
-                    self.set_error(err.to_string());
-                    return Task::none();
-                }
-
-                if let Ok(exe) = std::env::current_exe() {
-                    let _ = std::process::Command::new(exe).spawn();
-                }
-                self.close_launcher();
-            }
-            LauncherSettingsMessage::PickSystemRedirectPath => {
-                if let Some(path) = rfd::FileDialog::new()
-                    .set_title("Select System Redirect Folder")
-                    .pick_folder()
-                {
-                    return self.update(Message::LauncherSettings(
-                        LauncherSettingsMessage::SetTempPath(
-                            PathKind::SystemRedirect,
-                            path.to_string_lossy().into_owned(),
-                        ),
-                    ));
-                }
-            }
-            LauncherSettingsMessage::SetTempPath(kind, path) => {
-                if let State::LauncherSettings(menu) = &mut self.state {
-                    match kind {
-                        crate::state::PathKind::Portable => menu.temp_paths.portable = path,
-                        crate::state::PathKind::SystemRedirect => {
-                            menu.temp_paths.system_redirect = path
-                        }
-                    }
-                }
-            }
-            LauncherSettingsMessage::Rpc(msg) => return self.update_rpc(msg),
-        }
-        Task::none()
-    }
-
     fn should_split_args(&self) -> bool {
         if let State::Launch(MenuLaunch {
             edit_instance: Some(menu),
@@ -659,15 +264,6 @@ impl Launcher {
             menu.arg_split_by_space
         } else {
             true
-        }
-    }
-
-    fn confirm_clear_java_installs(&mut self) {
-        self.state = State::ConfirmAction {
-            msg1: "delete auto-installed Java files".to_owned(),
-            msg2: "They will get reinstalled automatically as needed".to_owned(),
-            yes: LauncherSettingsMessage::ClearJavaInstallsConfirm.into(),
-            no: LauncherSettingsMessage::Open(LauncherSettingsTab::Game).into(),
         }
     }
 
@@ -686,6 +282,8 @@ impl Launcher {
                 system_redirect: None,
             },
             temp_paths: crate::state::TempPaths::default(),
+            outmsg: None,
+            outmsg_at: state::SettingsOutmsg::Assets,
         });
         // Load portable mode status asynchronously
         Task::perform(async { ql_core::portable_mode_status() }, |status| {
@@ -718,7 +316,9 @@ impl Launcher {
             InstallPaperMessage::ScreenOpen => {
                 if let State::EditMods(menu) = &self.state {
                     let (task, handle) = Task::perform(
-                        loaders::paper::get_list_of_versions(menu.version_json.get_id().to_owned()),
+                        loaders::paper::get_list_of_versions(
+                            menu.file_data.details.get_id().to_owned(),
+                        ),
                         |n| Message::InstallPaper(InstallPaperMessage::VersionsLoaded(n.strerr())),
                     )
                     .abortable();
@@ -948,5 +548,23 @@ impl Launcher {
             }
         }
         Task::none()
+    }
+}
+
+pub fn format_memory_bytes(bytes: u64) -> String {
+    const GB: u64 = 1024 * MB;
+    const MB: u64 = 1024 * KB;
+    const KB: u64 = 1024;
+
+    let b = bytes as f64;
+
+    if bytes >= GB {
+        format!("{:.2} GB", b / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.2} MB", b / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.2} KB", b / KB as f64)
+    } else {
+        format!("{bytes} bytes")
     }
 }

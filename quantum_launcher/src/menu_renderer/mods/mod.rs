@@ -1,5 +1,5 @@
 mod description;
-mod export_mods;
+mod export_text;
 mod install_loader;
 mod instance_package;
 mod jarmods;

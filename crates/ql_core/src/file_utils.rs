@@ -52,6 +52,11 @@ pub fn take_portable_warning() -> Option<String> {
         .and_then(|mut warning| warning.take())
 }
 
+/// The path to the QuantumLauncher cache folder.
+#[allow(clippy::doc_markdown)]
+pub static LAUNCHER_CACHE_DIR: LazyLock<PathBuf> =
+    LazyLock::new(|| get_launcher_cache_dir().unwrap());
+
 /// Returns the path to the QuantumLauncher root folder.
 ///
 /// This uses the current dir or executable location (portable mode)
@@ -106,6 +111,30 @@ pub fn get_launcher_dir() -> Result<PathBuf, IoError> {
     }
 
     Ok(launcher_directory)
+}
+
+/// Returns the path to the cache directory for downloadables for QuantumLauncher.
+///
+/// This uses `dirs::cache_dir()` as the highest-priority choice:
+/// - `$XDG_CACHE_HOME/QuantumLauncher` or `$HOME/.cache/QuantumLauncher` on Linux
+/// - `$HOME/Library/Caches/QuantumLauncher` on macOS
+/// - `{FOLDERID_LocalAppData}\QuantumLauncher` on Windows
+///
+/// If unavailable, this resorts to:
+/// - `$LAUNCHER_DIR/downloads/cache`
+///
+/// # Errors
+/// - if data dir is not found
+/// - if you're on an unsupported platform (other than Windows, Linux, macOS, Redox, any linux-like unix)
+/// - if the cache directory could not be created (permissions issue)
+pub fn get_launcher_cache_dir() -> Result<PathBuf, IoError> {
+    let cache_dir = dirs::cache_dir()
+        .map(|n| n.join("QuantumLauncher"))
+        .filter(|n| *n != *LAUNCHER_DIR) // Don't want to accidentally put cache in our root dir
+        .unwrap_or_else(|| LAUNCHER_DIR.join("downloads/cache"));
+
+    std::fs::create_dir_all(&cache_dir).path(&cache_dir)?;
+    Ok(cache_dir)
 }
 
 #[cfg(unix)]
@@ -351,7 +380,7 @@ pub fn delete_system_redirect_file() -> Result<(), IoError> {
         ),
         path: PathBuf::from("qldir.txt"),
     })
-}
+    }
 
 fn line_and_body(input: &str) -> (String, String) {
     let mut lines = input.trim().lines();
@@ -519,6 +548,8 @@ const NETWORK_ERROR_MSG: &str = r"
 
 #[derive(Debug, Error)]
 pub enum RequestError {
+    #[error("Download Error (middleware): {0}")]
+    MiddlewareError(#[from] reqwest_middleware::Error),
     #[error("Download Error (code {code}){NETWORK_ERROR_MSG}Url: {url}")]
     DownloadError {
         code: reqwest::StatusCode,
@@ -528,6 +559,8 @@ pub enum RequestError {
     ReqwestError(#[from] reqwest::Error),
     #[error("Download Error (invalid header value){NETWORK_ERROR_MSG}")]
     InvalidHeaderValue(#[from] InvalidHeaderValue),
+    #[error("{0}")]
+    Message(String),
 }
 
 impl RequestError {
@@ -541,6 +574,8 @@ impl RequestError {
             RequestError::InvalidHeaderValue(_) => {
                 "Download Error: invalid header value".to_owned()
             }
+            RequestError::MiddlewareError(error) => format!("Download error (middleware): {error}"),
+            RequestError::Message(msg) => msg.clone(),
         }
     }
 }

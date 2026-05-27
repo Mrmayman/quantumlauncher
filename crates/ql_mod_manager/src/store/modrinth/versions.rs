@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use ql_core::file_utils;
 use serde::Deserialize;
 
@@ -13,7 +15,7 @@ pub struct ModVersion {
     // pub project_id: String,
     // pub author_id: String,
     // pub featured: bool,
-    pub name: String,
+    pub name: Arc<str>,
     pub version_number: String,
     // pub changelog: Option<String>,
     // pub changelog_url: Option<String>,
@@ -53,7 +55,7 @@ impl ModVersion {
 #[allow(clippy::struct_field_names)]
 pub struct Dependency {
     // pub version_id: Option<serde_json::Value>,
-    pub project_id: Option<String>,
+    pub project_id: Option<Arc<str>>,
     // pub file_name: Option<serde_json::Value>,
     pub dependency_type: String,
 }

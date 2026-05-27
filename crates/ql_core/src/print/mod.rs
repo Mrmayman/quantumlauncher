@@ -8,7 +8,7 @@ use std::{
 use chrono::{Datelike, Timelike};
 use regex::Regex;
 
-use crate::{REDACT_SENSITIVE_INFO, eeprintln, file_utils};
+use crate::{LAUNCHER_DIR, eeprintln, flags::redact_sensitive_info};
 
 pub mod macros;
 
@@ -34,14 +34,13 @@ pub static REDACTION_USERNAME: LazyLock<(Vec<String>, String)> = LazyLock::new(|
 
 /// Automatically redact sensitive information from log messages.
 /// This is called by all logging macros to ensure no username/path exposure.
+#[must_use]
 pub fn auto_redact(message: &str) -> String {
     let mut redacted = message.to_string();
 
-    // If redacting turned off, just continue
-    if let Ok(should_redact) = REDACT_SENSITIVE_INFO.lock() {
-        if !*should_redact {
-            return redacted;
-        }
+    if !redact_sensitive_info() {
+        // If redacting turned off, just continue
+        return redacted;
     }
 
     let (home_dir, username) = &*REDACTION_USERNAME;
@@ -93,8 +92,8 @@ pub struct LoggingState {
 
 impl LoggingState {
     #[must_use]
-    fn create() -> Option<RwLock<LoggingState>> {
-        Some(RwLock::new(Self::default()))
+    fn create() -> RwLock<LoggingState> {
+        RwLock::new(Self::default())
     }
 
     fn write_to_memory(&mut self, s: &str, t: LogType) {
@@ -152,7 +151,7 @@ pub fn set_config(c: LogConfig) {
 }
 
 fn get_logs_file() -> Option<File> {
-    let logs_dir = file_utils::get_launcher_dir().ok()?.join("logs");
+    let logs_dir = LAUNCHER_DIR.join("logs");
     std::fs::create_dir_all(&logs_dir).ok()?;
     let now = chrono::Local::now();
     let log_file_name = format!(
@@ -173,7 +172,8 @@ fn get_logs_file() -> Option<File> {
     Some(file)
 }
 
-pub static LOGGER: LazyLock<Option<RwLock<LoggingState>>> = LazyLock::new(LoggingState::create);
+pub static LOGGER: LazyLock<Option<RwLock<LoggingState>>> =
+    LazyLock::new(|| Some(LoggingState::create()));
 
 pub fn get() -> Vec<(String, LogType)> {
     LOGGER

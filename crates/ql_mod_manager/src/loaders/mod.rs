@@ -86,7 +86,7 @@ pub async fn install_specified_loader(
                 .await
                 .strerr()?;
         }
-        Loader::Neoforge => {
+        Loader::NeoForge => {
             let (send, recv) = std::sync::mpsc::channel();
             if let Some(progress) = progress {
                 std::thread::spawn(move || {
@@ -141,7 +141,7 @@ pub async fn uninstall_loader(instance: Instance) -> Result<(), String> {
 
     match loader {
         Loader::Fabric | Loader::Quilt => fabric::uninstall(instance).await.strerr(),
-        Loader::Forge | Loader::Neoforge => forge::uninstall(instance).await.strerr(),
+        Loader::Forge | Loader::NeoForge => forge::uninstall(instance).await.strerr(),
         Loader::OptiFine => optifine::uninstall(instance.get_name().to_owned(), true)
             .await
             .strerr(),

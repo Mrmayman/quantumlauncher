@@ -14,6 +14,7 @@ pub struct RecommendedMod {
     pub name: &'static str,
     pub backend: StoreBackendType,
     pub description: &'static str,
+    pub category: Category,
     pub enabled_by_default: bool,
 }
 
@@ -66,7 +67,7 @@ impl RecommendedMod {
         index: &ModIndex,
     ) -> Option<Self> {
         let mod_id = ModId::from_pair(self.id, self.backend);
-        if index.mods.contains_key(&mod_id) || index.mods.iter().any(|n| n.1.name == self.name) {
+        if index.mods.contains_key(&mod_id) || index.mods.iter().any(|n| &*n.1.name == self.name) {
             return None;
         }
 
@@ -111,11 +112,38 @@ impl RecommendedMod {
     }
 }
 
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum Category {
+    Optimization,
+    Utility,
+    Visual,
+}
+
+impl Category {
+    pub const ALL: &'static [Self] = &[Self::Optimization, Self::Utility, Self::Visual];
+}
+
+impl std::fmt::Display for Category {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Category::Optimization => "Optimization",
+                Category::Utility => "Utility",
+                Category::Visual => "Visual",
+            }
+        )
+    }
+}
+
+// Credit to Void98 (https://github.com/void90user) for many of these
 pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
     RecommendedMod {
         id: "AANobbMI",
         name: "Sodium",
         description: "Optimizes the rendering engine",
+        category: Category::Optimization,
         enabled_by_default: true,
         backend: StoreBackendType::Modrinth,
     },
@@ -123,6 +151,7 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         id: "gvQqBUqZ",
         name: "Lithium",
         description: "Optimizes the integrated server",
+        category: Category::Optimization,
         enabled_by_default: true,
         backend: StoreBackendType::Modrinth,
     },
@@ -130,6 +159,7 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         id: "mOgUt4GM",
         name: "Mod Menu",
         description: "A mod menu for managing mods",
+        category: Category::Utility,
         enabled_by_default: true,
         backend: StoreBackendType::Modrinth,
     },
@@ -137,6 +167,7 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         id: "NNAgCjsB",
         name: "Entity Culling",
         description: "Optimizes entity rendering",
+        category: Category::Optimization,
         enabled_by_default: true,
         backend: StoreBackendType::Modrinth,
     },
@@ -144,6 +175,7 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         id: "5ZwdcRci",
         name: "ImmediatelyFast",
         description: "Optimizes immediate mode rendering",
+        category: Category::Optimization,
         enabled_by_default: true,
         backend: StoreBackendType::Modrinth,
     },
@@ -151,13 +183,7 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         id: "qQyHxfxd",
         name: "No Chat Reports",
         description: "Disables chat reporting",
-        enabled_by_default: true,
-        backend: StoreBackendType::Modrinth,
-    },
-    RecommendedMod {
-        id: "kzwxhsjp",
-        name: "Accurate Block Placement Reborn",
-        description: "Makes placing blocks more accurate",
+        category: Category::Utility,
         enabled_by_default: true,
         backend: StoreBackendType::Modrinth,
     },
@@ -165,6 +191,7 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         id: "aC3cM3Vq",
         name: "Mouse Tweaks",
         description: "Improves inventory controls",
+        category: Category::Utility,
         enabled_by_default: true,
         backend: StoreBackendType::Modrinth,
     },
@@ -172,13 +199,17 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         id: "hvFnDODi",
         name: "LazyDFU",
         description: "Speeds up Minecraft start time",
+        category: Category::Optimization,
         enabled_by_default: true,
         backend: StoreBackendType::Modrinth,
     },
+
+    // Optional Extras
     RecommendedMod {
         id: "YL57xq9U",
         name: "Iris Shaders",
         description: "Adds Shaders to Minecraft",
+        category: Category::Visual,
         enabled_by_default: false,
         backend: StoreBackendType::Modrinth,
     },
@@ -186,6 +217,15 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         id: "1IjD5062",
         name: "Continuity",
         description: "Adds connected textures",
+        category: Category::Visual,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "kzwxhsjp",
+        name: "Accurate Block Placement Reborn",
+        description: "Makes placing blocks more accurate (note: some servers don't allow this)",
+        category: Category::Utility,
         enabled_by_default: false,
         backend: StoreBackendType::Modrinth,
     },
@@ -193,6 +233,7 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         id: "yBW8D80W",
         name: "LambDynamicLights",
         description: "Adds dynamic lights",
+        category: Category::Visual,
         enabled_by_default: false,
         backend: StoreBackendType::Modrinth,
     },
@@ -200,6 +241,7 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         id: "bXX9h73M",
         name: "MidnightControls",
         description: "Adds controller (and touch) support",
+        category: Category::Utility,
         enabled_by_default: false,
         backend: StoreBackendType::Modrinth,
     },
@@ -207,6 +249,7 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         id: "8shC1gFX",
         name: "BetterF3",
         description: "Cleans up the debug (F3) screen",
+        category: Category::Utility,
         enabled_by_default: false,
         backend: StoreBackendType::Modrinth,
     },
@@ -214,6 +257,7 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         id: "EsAfCjCV",
         name: "AppleSkin",
         description: "Shows hunger and saturation values",
+        category: Category::Utility,
         enabled_by_default: false,
         backend: StoreBackendType::Modrinth,
     },
@@ -221,6 +265,7 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         id: "1bokaNcj",
         name: "Xaero's Minimap",
         description: "Adds a minimap to the game",
+        category: Category::Utility,
         enabled_by_default: false,
         backend: StoreBackendType::Modrinth,
     },
@@ -228,7 +273,213 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         id: "NcUtCpym",
         name: "Xaero's World Map",
         description: "Adds a world map to the game",
+        category: Category::Utility,
         enabled_by_default: false,
         backend: StoreBackendType::Modrinth,
     },
+    RecommendedMod {
+        id: "p8RJPJIC",
+        name: "Ixeris",
+        description: "Reduce frame drops when turning camera",
+        category: Category::Optimization,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "ONZm0H7Y",
+        name: "Better Block Entities",
+        description: "Drastically improves block entity rendering",
+        category: Category::Optimization,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "pSISfJ4O",
+        name: "quick pack",
+        description: "Improve datapack/resourcepack loading times",
+        category: Category::Optimization,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "zNuzb72d",
+        name: "Substrate",
+        description: "Optimization of the bottom and/or top layer(s) of the world",
+        category: Category::Optimization,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "Ps1zyz6x",
+        name: "ScalableLux",
+        description: "Improves the performance of light updates",
+        category: Category::Optimization,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "RSeLon5O",
+        name: "Particle Core",
+        description: "Optimizes particles and their rendering",
+        category: Category::Optimization,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "OmQzuQFa",
+        name: "LazyDFU Reloaded",
+        description: "Speeds up Minecraft start time (for new versions of the game)",
+        category: Category::Optimization,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "VSNURh3q",
+        name: "Concurrent Chunk Management Engine (C2ME)",
+        description: "Improves the chunk performance (EXPERIMENTAL)",
+        category: Category::Optimization,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "blWBX5n1",
+        name: "kennytvs-epic-force-close-loading-screen-mod-for-fabric",
+        description: "Instantly closes the loading terrain screen, reduces the resource pack loading screen time",
+        category: Category::Utility,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "TjSm1wrD",
+        name: "ModernFix-mVUS",
+        description: "Various optimizations for the game",
+        category: Category::Optimization,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "g96Z4WVZ",
+        name: "BadOptimizations",
+        description: "Optimization mod that focuses on things other than rendering",
+        category: Category::Optimization,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "uXXizFIs",
+        name: "FerriteCore",
+        description: "Memory usage optimizations",
+        category: Category::Optimization,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "vSEH1ERy",
+        name: "ThreadTweak",
+        description: "Improve and tweak Minecraft thread scheduling",
+        category: Category::Optimization,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "uLbm7CG6",
+        name: "Language Reload",
+        description: "Reduces load times and adds fallbacks for languages",
+        category: Category::Optimization,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "9mtu0sUO",
+        name: "Fast IP Ping",
+        description: "Faster server pinging times",
+        category: Category::Optimization,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "4WWQxlQP",
+        name: "ServerCore",
+        description: "A mod that aims to optimize the minecraft server (singleplayer too)",
+        category: Category::Optimization,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "hasdd01q",
+        name: "NoisiumForked",
+        description: "Optimises worldgen performance",
+        category: Category::Optimization,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "cJlZ132G",
+        name: "Chat Plus",
+        description: "Adds EXTENSIVE amount of very useful features to the chat",
+        category: Category::Utility,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "PtjYWJkn",
+        name: "Sodium Extra",
+        description: "Adds some extra settings and utilities to Sodium",
+        category: Category::Utility,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "Bh37bMuy",
+        name: "Reese's Sodium Options",
+        description: "Better options menu for sodium",
+        category: Category::Utility,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "LQ3K71Q1",
+        name: "Dynamic FPS",
+        description: "Reduce resource usage while Minecraft is in the background, idle, or on battery",
+        category: Category::Utility,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "w7ThoJFB",
+        name: "Zoomify",
+        description: "A zoom mod with infinite customizability",
+        category: Category::Utility,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "fuuu3xnx",
+        name: "Searchables",
+        description: "Adds a search bar to many elements of the game like keybinds menu",
+        category: Category::Utility,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+    RecommendedMod {
+        id: "2M01OLQq",
+        name: "Shulker Box Tooltip",
+        description: "View the contents of shulker boxes from your inventory",
+        category: Category::Utility,
+        enabled_by_default: false,
+        backend: StoreBackendType::Modrinth,
+    },
+
 ];
+
+// Recommended Mod template
+/*
+   RecommendedMod {
+       id: "",
+       name: "",
+       description: "",
+       category: "",
+       enabled_by_default: false,
+       backend: StoreBackendType::Modrinth,
+   },
+*/

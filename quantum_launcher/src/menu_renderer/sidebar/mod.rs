@@ -12,7 +12,7 @@ use crate::{
     },
     icons,
     menu_renderer::{
-        CTXI_SIZE, Element, FONT_MONO, ctx_button, ctxbox, offset,
+        CTXI_SIZE, Element, FONT_MONO, ctx_button_icon, ctxbox, offset,
         sidebar::drop_recv::drag_drop_receiver, underline, underline_maybe,
     },
     state::{
@@ -83,8 +83,7 @@ impl Launcher {
             indent_guide_lines(mode, is_selected),
         )
         .push_maybe(
-            show_drag_handle
-                .then(|| widget::row![widget::horizontal_space(), drag_handle(&selection)]),
+            show_drag_handle.then(|| row![widget::horizontal_space(), drag_handle(&selection)]),
         )
         .into()
     }
@@ -100,7 +99,7 @@ impl Launcher {
             return widget::Column::new().into();
         };
 
-        let view = self.create_folder_view(node, folder);
+        let view = Self::create_folder_view(node, folder);
 
         match mode {
             NodeMode::InTree(nesting) => {
@@ -151,7 +150,7 @@ impl Launcher {
             .style(move |t: &LauncherTheme| t.style_text(Color::SecondLight));
 
         let view = widget::stack!(underline_maybe(
-            widget::row![text]
+            row![text]
                 .push_maybe(self.get_running_icon(&node.name, kind))
                 .padding([5, 14])
                 .width(Length::Fill)
@@ -192,7 +191,10 @@ impl Launcher {
         )
     }
 
-    pub(super) fn sidebar_drag_tooltip<'a>(&'a self, menu: &'a MenuLaunch) -> Option<Element<'a>> {
+    pub(super) fn sidebar_drag_tooltip<'a>(
+        &'a self,
+        menu: &'a MenuLaunch,
+    ) -> Option<widget::Row<'a, Message, LauncherTheme>> {
         if let Some(LaunchModal::SDragging { being_dragged, .. }) = &menu.modal {
             if let Some(node) = self
                 .config
@@ -216,14 +218,16 @@ impl Launcher {
         }
     }
 
-    pub(super) fn sidebar_context_menu(menu: &MenuLaunch) -> Option<Element<'_>> {
+    pub(super) fn sidebar_context_menu(
+        menu: &MenuLaunch,
+    ) -> Option<widget::Row<'_, Message, LauncherTheme>> {
         let Some(LaunchModal::SCtxMenu(instance, (x, y))) = &menu.modal else {
             return None;
         };
 
         let instance = instance.as_ref();
 
-        let new_folder_b = ctx_button(icons::new_s(CTXI_SIZE), "New Folder")
+        let new_folder_b = ctx_button_icon(icons::new_s(CTXI_SIZE), "New Folder")
             .on_press_with(move || SidebarMessage::NewFolder(instance.map(|n| n.0.clone())).into());
 
         let Some((inst, name)) = instance else {
@@ -238,31 +242,25 @@ impl Launcher {
                     widget::Space::with_height(5),
                     widget::horizontal_rule(2),
                     widget::Space::with_height(5),
-                    // ctx_button(icons::file_s(CTXI_SIZE), "Change Icon"),
-                    ctx_button(icons::edit_s(CTXI_SIZE), "Rename").on_press_with(
-                        move || match inst {
-                            SidebarSelection::Instance(name, kind) => {
-                                Message::Multiple(vec![
-                                    MainMenuMessage::InstanceSelected(Instance::new(name, *kind))
-                                        .into(),
-                                    MainMenuMessage::ChangeTab(LaunchTab::Edit).into(),
-                                    EditInstanceMessage::RenameToggle.into(),
-                                ])
-                            }
-                            SidebarSelection::Folder(folder_id) => {
-                                MainMenuMessage::Modal(Some(LaunchModal::SRenamingFolder(
-                                    *folder_id,
-                                    name.to_string(),
-                                    false,
-                                )))
-                                .into()
-                            }
+                    // ctx_button_icon(icons::file_s(CTXI_SIZE), "Change Icon"),
+                    ctx_button_icon(icons::edit_s(CTXI_SIZE), "Rename").on_press_with(move || {
+                        match inst {
+                            SidebarSelection::Instance(name, kind) => Message::Multiple(vec![
+                                MainMenuMessage::InstanceSelected(Instance::new(name, *kind))
+                                    .into(),
+                                MainMenuMessage::ChangeTab(LaunchTab::Edit).into(),
+                                EditInstanceMessage::RenameToggle.into(),
+                            ]),
+                            SidebarSelection::Folder(folder_id) => MainMenuMessage::Modal(Some(
+                                LaunchModal::SRenamingFolder(*folder_id, name.to_string(), false),
+                            ))
+                            .into(),
                         }
-                    ),
+                    }),
                 ]
                 .push_maybe(if let SidebarSelection::Folder(id) = inst {
                     Some(
-                        ctx_button(icons::bin_s(CTXI_SIZE), "Delete Folder")
+                        ctx_button_icon(icons::bin_s(CTXI_SIZE), "Delete Folder")
                             .on_press_with(|| SidebarMessage::DeleteFolder(*id).into()),
                     )
                 } else {
@@ -276,7 +274,6 @@ impl Launcher {
     }
 
     fn create_folder_view<'a>(
-        &self,
         node: &'a SidebarNode,
         folder: &SidebarFolder,
     ) -> widget::Stack<'a, Message, LauncherTheme> {
@@ -303,7 +300,7 @@ impl Launcher {
 
         widget::stack!(
             underline(
-                widget::row![widget::Space::with_width(2), expand_sign, text]
+                row![widget::Space::with_width(2), expand_sign, text]
                     .width(Length::Fill)
                     .align_y(Alignment::Center)
                     .padding([5, 10]),
@@ -333,7 +330,7 @@ fn renaming_folder(
         .padding([4, 8])
         .on_press(SidebarMessage::FolderRenameConfirm.into());
 
-    row![text_input, done_button,]
+    row![text_input, done_button]
         .push_maybe((!is_creating).then(|| {
             widget::button(icons::close_s(12))
                 .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::RoundDark))
@@ -389,7 +386,7 @@ fn drag_tooltip<'a>(
 
 fn drag_handle(selection: &SidebarSelection) -> widget::MouseArea<'static, Message, LauncherTheme> {
     widget::mouse_area(
-        widget::row![
+        row![
             widget::text(":")
                 .size(16)
                 .style(|t: &LauncherTheme| widget::text::Style {

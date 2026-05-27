@@ -1,6 +1,6 @@
 /*
 QuantumLauncher
-Copyright (C) 2024  Mrmayman & Contributors
+Copyright (C) 2026 Mrmayman & Contributors
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -28,10 +28,11 @@ use std::{borrow::Cow, time::Duration};
 use config::LauncherConfig;
 use iced::{Settings, Task};
 use owo_colors::OwoColorize;
-use state::{InfoMessage, Launcher, Message, get_entries};
+use state::{InfoMessage, Launcher, Message, get_entries, populate_middleware_clients};
 
 use ql_core::{
-    InstanceKind, IntoStringError, JsonFileError, constants::OS_NAME, err, file_utils, info, pt,
+    InstanceKind, IntoStringError, JsonFileError, LAUNCHER_DIR, constants::OS_NAME, err,
+    file_utils, info, pt,
 };
 
 use crate::{
@@ -138,6 +139,8 @@ impl Launcher {
             Task::none()
         };
 
+        populate_middleware_clients(launcher.config.do_cache);
+
         (
             launcher,
             Task::batch([
@@ -146,10 +149,7 @@ impl Launcher {
                 Task::perform(get_entries(InstanceKind::Server), Message::CoreListLoaded),
                 load_notes_command,
                 presence_task,
-                Task::perform(ql_core::clean::dir("logs"), |n| {
-                    Message::CoreCleanComplete(n.strerr())
-                }),
-                Task::perform(ql_core::clean::dir("downloads/cache"), |n| {
+                Task::perform(ql_core::clean::dir(LAUNCHER_DIR.join("logs")), |n| {
                     Message::CoreCleanComplete(n.strerr())
                 }),
                 CustomJarState::load(),
@@ -163,7 +163,12 @@ impl Launcher {
             .map(|_| Message::CoreTick);
         let events = iced::event::listen_with(|a, b, _| Some(Message::CoreEvent(a, b)));
 
-        iced::Subscription::batch(vec![tick, events])
+        iced::Subscription::batch(vec![
+            tick,
+            events,
+            // Useful for performance profiling
+            // iced::window::frames().map(|_| Message::Nothing),
+        ])
     }
 
     fn theme(&self) -> stylesheet::styles::LauncherTheme {
@@ -249,6 +254,7 @@ fn main() {
         .scale_factor(Launcher::scale_factor)
         .theme(Launcher::theme)
         .settings(Settings {
+            id: Some("io.github.Mrmayman.QuantumLauncher".to_owned()),
             fonts: load_fonts(),
             default_font: FONT_DEFAULT,
             antialiasing: c.ui_antialiasing.unwrap_or(true),
@@ -264,6 +270,11 @@ fn main() {
             }),
             decorations,
             transparent: true,
+            platform_specific: iced::window::settings::PlatformSpecific {
+                #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+                application_id: "io.github.Mrmayman.QuantumLauncher".to_owned(),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .run_with(move || Launcher::new(is_new_user, config, is_safe_mode))

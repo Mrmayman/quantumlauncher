@@ -21,6 +21,7 @@ serde_json = "1"
 semver = "1"
 dirs = "6"
 
+sysinfo = "0.36.*"
 reqwest = { version = "0.13.*", features = ["json", "stream", "query", "form"] }
 
 tokio = { version = "1", features = ["fs", "macros", "process", "rt", "rt-multi-thread"] }

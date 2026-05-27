@@ -1,4 +1,8 @@
-use std::{collections::HashSet, sync::mpsc::Sender, time::Instant};
+use std::{
+    collections::HashSet,
+    sync::{Arc, mpsc::Sender},
+    time::Instant,
+};
 
 use chrono::DateTime;
 use download::version_sort;
@@ -115,7 +119,7 @@ impl Backend for ModrinthBackend {
         let _guard = lock().await;
 
         let mut downloader = download::ModDownloader::new(instance, sender).await?;
-        downloader.download(id, None, true).await?;
+        downloader.download(Arc::from(id), None, true).await?;
 
         downloader.index.save(instance).await?;
 
@@ -125,7 +129,7 @@ impl Backend for ModrinthBackend {
     }
 
     async fn download_bulk(
-        ids: &[String],
+        ids: &[Arc<str>],
         instance: &Instance,
         ignore_incompatible: bool,
         set_manually_installed: bool,
@@ -155,7 +159,7 @@ impl Backend for ModrinthBackend {
                 });
             }
 
-            let result = downloader.download(id, None, true).await;
+            let result = downloader.download(id.clone(), None, true).await;
             if let Err(ModError::NoCompatibleVersionFound(name)) = &result {
                 if ignore_incompatible {
                     pt!("No compatible version found for mod {name} ({id}), skipping...");
@@ -250,7 +254,7 @@ impl Backend for ModrinthBackend {
         })
     }
 
-    async fn get_info_bulk(ids: &[String]) -> Result<Vec<SearchMod>, ModError> {
+    async fn get_info_bulk(ids: &[Arc<str>]) -> Result<Vec<SearchMod>, ModError> {
         let infos = ProjectInfo::download_bulk(ids).await?;
         Ok(infos
             .into_iter()
