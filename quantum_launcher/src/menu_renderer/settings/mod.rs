@@ -19,8 +19,8 @@ use crate::{
 
 mod tab_about;
 mod tab_game;
-mod tab_location;
 mod tab_launcher;
+mod tab_location;
 mod tab_presence;
 mod tab_ui;
 

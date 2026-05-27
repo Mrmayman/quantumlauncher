@@ -380,7 +380,7 @@ pub fn delete_system_redirect_file() -> Result<(), IoError> {
         ),
         path: PathBuf::from("qldir.txt"),
     })
-    }
+}
 
 fn line_and_body(input: &str) -> (String, String) {
     let mut lines = input.trim().lines();

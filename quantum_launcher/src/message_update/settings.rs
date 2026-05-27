@@ -291,8 +291,7 @@ impl Launcher {
                     msg2: "The launcher will restart to apply the new rendering backend."
                         .to_owned(),
                     yes: LauncherSettingsMessage::ApplyRestart.into(),
-                    no: LauncherSettingsMessage::Open(LauncherSettingsTab::UserInterface)
-                        .into(),
+                    no: LauncherSettingsMessage::Open(LauncherSettingsTab::UserInterface).into(),
                 };
             }
             LauncherSettingsMessage::EnableSystemRedirect => {

@@ -49,7 +49,10 @@ mod structs;
 
 pub use crate::json::InstanceConfigJson;
 pub use constants::*;
-pub use error::{DownloadFileError, IntoIoError, IntoJsonError, IntoStringError, IoError, JsonDownloadError, JsonError, JsonFileError};
+pub use error::{
+    DownloadFileError, IntoIoError, IntoJsonError, IntoStringError, IoError, JsonDownloadError,
+    JsonError, JsonFileError,
+};
 pub use file_utils::{
     FullPortableStatus, LAUNCHER_CACHE_DIR, LAUNCHER_DIR, RequestError, create_portable_file,
     create_system_redirect_file, delete_portable_file, delete_system_redirect_file,
