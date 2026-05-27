@@ -20,6 +20,7 @@ use crate::{
 mod tab_about;
 mod tab_game;
 mod tab_launcher;
+mod tab_location;
 mod tab_presence;
 mod tab_ui;
 
@@ -118,6 +119,7 @@ impl LauncherSettingsTab {
             }
             LauncherSettingsTab::Launcher => menu.view_launcher_tab(config),
             LauncherSettingsTab::Game => menu.view_game_tab(config),
+            LauncherSettingsTab::Location => tab_location::view(menu),
             LauncherSettingsTab::About => tab_about::view(),
         }
         .into()

@@ -1,5 +1,6 @@
 use crate::config::discord_rpc::RpcConfig;
 use crate::config::sidebar::{SidebarConfig, SidebarNode, SidebarNodeKind};
+use crate::state::GraphicsBackend;
 use crate::stylesheet::styles::{LauncherTheme, LauncherThemeColor, LauncherThemeLightness};
 use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use ql_core::{
@@ -109,7 +110,14 @@ pub struct LauncherConfig {
     pub persistent: Option<PersistentSettings>,
     // Since: v0.5.1
     pub sidebar: Option<SidebarConfig>,
-    // Since: v0.5.2
+    // Since: TBD
+    pub launcher_render: Option<GraphicsBackend>,
+    // Since: TBD
+    pub ignore_backend_qldir: Option<bool>,
+    /// Whether to enable automatic Safe Mode on crash.
+    // Since: TBD
+    pub enable_safe_mode: Option<bool>,
+    // Since: TBD
     pub discord_rpc: Option<RpcConfig>,
     /// Time of last auto-update check result, in seconds since the Unix epoch.
     // Since: v0.5.2
@@ -145,6 +153,9 @@ impl Default for LauncherConfig {
             ui: None,
             persistent: None,
             sidebar: None,
+            launcher_render: None,
+            ignore_backend_qldir: None,
+            enable_safe_mode: Some(true),
             discord_rpc: None,
             _extra: HashMap::new(),
             #[cfg(feature = "auto_update")]
@@ -238,6 +249,12 @@ impl LauncherConfig {
     }
 
     fn fix(&mut self) {
+        if self.ui_antialiasing.is_none() {
+            self.ui_antialiasing = Some(true);
+        }
+        if self.enable_safe_mode.is_none() {
+            self.enable_safe_mode = Some(true);
+        }
         if let (Some(accounts), Some(selected)) = (&self.accounts, &self.account_selected) {
             if !accounts.contains_key(selected) {
                 self.account_selected = None;
@@ -332,6 +349,58 @@ impl LauncherConfig {
             debug_assert!(false, "idle FPS shouldn't be zero");
             IDLE_FPS
         }
+    }
+
+    pub fn set_backend_env_vars(&self, safe_mode: bool, override_backend: Option<GraphicsBackend>) {
+        let backend = if let Some(b) = override_backend {
+            b
+        } else if safe_mode {
+            GraphicsBackend::TinySkia
+        } else {
+            self.launcher_render.unwrap_or(GraphicsBackend::Default)
+        };
+
+        match backend {
+            GraphicsBackend::Default => {
+                // Do nothing, let WGPU/Iced decide
+            }
+            GraphicsBackend::Vulkan => unsafe {
+                std::env::set_var("WGPU_BACKEND", "vulkan");
+            },
+            GraphicsBackend::OpenGL => unsafe {
+                std::env::set_var("WGPU_BACKEND", "opengl");
+            },
+            GraphicsBackend::DirectX => unsafe {
+                std::env::set_var("WGPU_BACKEND", "dx12");
+            },
+            GraphicsBackend::Metal => unsafe {
+                std::env::set_var("WGPU_BACKEND", "metal");
+            },
+            GraphicsBackend::TinySkia => unsafe {
+                std::env::set_var("ICED_BACKEND", "tiny-skia");
+            },
+        }
+    }
+
+    pub fn migrate_from_qldir(&mut self, status: &ql_core::file_utils::FullPortableStatus) -> bool {
+        if self.ignore_backend_qldir.unwrap_or(false) {
+            return false;
+        }
+
+        let mut flags = HashSet::new();
+        if let Some(p) = &status.portable {
+            flags.extend(p.flags.clone());
+        }
+        if let Some(s) = &status.system_redirect {
+            flags.extend(s.flags.clone());
+        }
+
+        let backend = GraphicsBackend::from_flags(&flags);
+        if backend != GraphicsBackend::Default {
+            self.launcher_render = Some(backend);
+        }
+        self.ignore_backend_qldir = Some(true);
+        true
     }
 
     pub fn c_rpc_enabled(&self) -> bool {

@@ -6,7 +6,7 @@ use crate::{
         sidebar::{FolderId, SDragLocation, SidebarSelection},
     },
     message_handler::ForgeKind,
-    state::{InfoMessage, LaunchModal, MenuEditModsModal, SidebarScroll},
+    state::{GraphicsBackend, InfoMessage, LaunchModal, MenuEditModsModal, SidebarScroll},
     stylesheet::styles::{LauncherThemeColor, LauncherThemeLightness},
 };
 use filthy_rich::PresenceClient;
@@ -291,12 +291,12 @@ pub enum LauncherSettingsMessage {
 
     ClearJavaInstalls,
     ClearJavaInstallsConfirm,
+    ApplyRestart,
     ClearDownloadCache,
     ClearDownloadCacheDone(Res<u64>),
 
     CleanAssets, // Non-destructive
     CleanAssetsFinished(Res<u64>),
-
     DefaultMinecraftWidthChanged(String),
     DefaultMinecraftHeightChanged(String),
     Rpc(RpcMessage),
@@ -312,6 +312,28 @@ pub enum LauncherSettingsMessage {
 
     GlobalJavaArgs(ListMessage),
     GlobalPreLaunchPrefix(ListMessage),
+
+    EnablePortableMode,
+    EnablePortableModeConfirm(String, HashSet<String>),
+    DisablePortableMode,
+    DisablePortableModeConfirm,
+    PickPortablePath,
+    PortableModeStatusLoaded(ql_core::FullPortableStatus),
+    EnableSystemRedirect,
+    EnableSystemRedirectConfirm(String, HashSet<String>),
+    DisableSystemRedirect,
+    DisableSystemRedirectConfirm,
+    PickSystemRedirectPath,
+    SetTempPath(PathKind, String),
+    AppearanceGraphicsBackend(GraphicsBackend),
+    ToggleSafeMode(bool),
+    ToggleSafeModeConfirm(bool),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PathKind {
+    Portable,
+    SystemRedirect,
 }
 
 #[derive(Debug, Clone)]

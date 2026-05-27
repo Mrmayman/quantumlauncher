@@ -107,7 +107,7 @@ pub struct LauncherTheme {
 }
 
 impl LauncherTheme {
-    fn is_light(&self) -> bool {
+    pub fn is_light(&self) -> bool {
         match self.lightness {
             LauncherThemeLightness::Light => true,
             LauncherThemeLightness::Dark => false,
