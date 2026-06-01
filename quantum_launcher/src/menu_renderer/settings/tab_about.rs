@@ -1,4 +1,4 @@
-use iced::widget;
+use iced::widget::{self, column, row};
 use ql_core::WEBSITE;
 
 use crate::{
@@ -19,7 +19,7 @@ pub(super) fn view() -> Column<'static> {
     .style(|n: &LauncherTheme, status| n.style_button(status, StyleButton::FlatDark))
     .on_press(Message::LicenseChangeTab(crate::state::LicenseTab::Gpl3));
 
-    let links = widget::row![
+    let links = row![
         button_with_icon(icons::globe_s(12), "Website", 12)
             .padding([5, 10])
             .on_press(Message::CoreOpenLink(WEBSITE.to_owned())),
@@ -36,7 +36,7 @@ pub(super) fn view() -> Column<'static> {
     .spacing(5)
     .wrap();
 
-    let menus = widget::row![
+    let menus = row![
         widget::button(widget::text("Changelog").size(14)).on_press(Message::CoreOpenChangeLog),
         widget::button(widget::text("Welcome Screen").size(14)).on_press(Message::CoreOpenIntro),
         widget::button(widget::text("Licenses").size(14)).on_press(Message::LicenseOpen),
@@ -44,8 +44,8 @@ pub(super) fn view() -> Column<'static> {
     .spacing(5)
     .wrap();
 
-    widget::column![
-        widget::column![
+    column![
+        column![
             widget::text("About QuantumLauncher").size(20),
             "Copyright 2025 Mrmayman & Contributors"
         ]
@@ -57,8 +57,8 @@ pub(super) fn view() -> Column<'static> {
             .padding(5)
             .style(|n: &LauncherTheme, status| n.style_button(status, StyleButton::Flat)),
         widget::horizontal_rule(1),
-        widget::column![
-            widget::row![
+        column![
+            row![
                 widget::text("QuantumLauncher is free and open source software under the ")
                     .size(12),
                 gpl3_button,

@@ -1,6 +1,6 @@
 use ql_core::{err, file_utils};
 use serde::Deserialize;
-use std::fmt::Write;
+use std::{fmt::Write, sync::Arc};
 
 use crate::{rate_limiter::RATE_LIMITER, store::types::UrlKind};
 
@@ -8,11 +8,11 @@ use super::ModError;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct ProjectInfo {
-    pub title: String,
+    pub title: Arc<str>,
     pub description: String,
     pub icon_url: Option<String>,
     pub loaders: Vec<String>,
-    pub id: String,
+    pub id: Arc<str>,
     pub body: String,
     pub project_type: String,
     pub slug: String,
@@ -76,7 +76,7 @@ impl ProjectInfo {
         Ok(file)
     }
 
-    pub async fn download_bulk(ids: &[String]) -> Result<Vec<Self>, ModError> {
+    pub async fn download_bulk(ids: &[Arc<str>]) -> Result<Vec<Self>, ModError> {
         RATE_LIMITER.lock().await;
         let mut url = "https://api.modrinth.com/v2/projects?ids=[".to_owned();
         let len = ids.len();

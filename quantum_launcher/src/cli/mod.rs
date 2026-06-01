@@ -3,13 +3,15 @@ use std::{
     sync::{Arc, LazyLock, RwLock},
 };
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use owo_colors::{OwoColorize, Style};
-use ql_core::{InstanceKind, LAUNCHER_VERSION_NAME, REDACT_SENSITIVE_INFO, WEBSITE, err};
+use ql_core::{InstanceKind, LAUNCHER_VERSION_NAME, WEBSITE, err, flags};
 
 use crate::{
     cli::helpers::render_row,
+    config::LauncherConfig,
     menu_renderer::{DISCORD, GITHUB},
+    state::populate_middleware_clients,
 };
 
 mod account;
@@ -40,6 +42,9 @@ struct Cli {
     #[arg(help = "Operate on servers, not instances")]
     #[arg(hide = true)]
     server: bool,
+    #[arg(short, long)]
+    #[arg(help = "Log more information, useful for debugging")]
+    verbose: bool,
     #[arg(long)]
     dir: Option<PathBuf>,
 }
@@ -73,6 +78,11 @@ enum QSubCommand {
         #[arg(help = "microsoft/elyby/littleskin")]
         account_type: Option<String>,
     },
+    #[command(about = "Cleans temporary files (see `clean --help`)")]
+    Clean {
+        #[arg(value_enum, value_delimiter = ',')]
+        kinds: Vec<CleanType>,
+    },
     #[command(aliases = ["list", "list-instances"], short_flag = 'l')]
     #[command(about = "Lists installed instances")]
     ListInstalled { properties: Option<Vec<String>> },
@@ -88,6 +98,14 @@ enum QSubCommand {
     Loader(QLoader),
     #[command(about = "Lists downloadable versions", short_flag = 'a')]
     ListAvailableVersions,
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+enum CleanType {
+    Assets,
+    Logs,
+    Downloads,
+    Java,
 }
 
 #[derive(Subcommand)]
@@ -203,7 +221,9 @@ fn get_right_text() -> String {
 
 pub fn start_cli(is_dir_err: bool, launcher_dir: &mut Option<PathBuf>) {
     let cli = Cli::parse();
-    *REDACT_SENSITIVE_INFO.lock().unwrap() = !cli.no_redact_info;
+    flags::redact_sensitive_info_set(|| !cli.no_redact_info);
+    flags::log_verbose_set(|| cli.verbose);
+
     *EXPERIMENTAL_SERVERS.write().unwrap() = cli.enable_server_manager;
     *EXPERIMENTAL_MMC_IMPORT.write().unwrap() = cli.enable_mmc_import;
 
@@ -224,6 +244,9 @@ pub fn start_cli(is_dir_err: bool, launcher_dir: &mut Option<PathBuf>) {
             std::process::exit(1);
         }
         let runtime = tokio::runtime::Runtime::new().unwrap();
+
+        let config = LauncherConfig::load_s().unwrap_or_default();
+        populate_middleware_clients(config.do_cache);
 
         match subcommand {
             QSubCommand::Create {
@@ -276,6 +299,7 @@ pub fn start_cli(is_dir_err: bool, launcher_dir: &mut Option<PathBuf>) {
                 instance_name,
                 force,
             } => quit(command::delete_instance(&instance_name, force, kind)),
+            QSubCommand::Clean { kinds } => quit(runtime.block_on(command::clean_cache(kinds))),
             QSubCommand::ListInstalled { properties } => {
                 quit(command::list_instances(properties.as_deref(), kind));
             }

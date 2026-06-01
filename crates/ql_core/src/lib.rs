@@ -46,7 +46,6 @@ mod progress;
 pub mod read_log;
 pub mod request;
 mod structs;
-pub mod urlcache;
 
 pub use crate::json::InstanceConfigJson;
 pub use constants::*;
@@ -54,18 +53,18 @@ pub use error::{
     DownloadFileError, IntoIoError, IntoJsonError, IntoStringError, IoError, JsonDownloadError,
     JsonError, JsonFileError,
 };
-pub use file_utils::{LAUNCHER_DIR, RequestError};
+pub use file_utils::{LAUNCHER_CACHE_DIR, LAUNCHER_DIR, RequestError};
 pub use print::{LOGGER, LogType, LoggingState, logger_finish};
 pub use progress::{DownloadProgress, GenericProgress, Progress};
 pub use request::download;
 pub use structs::{JavaVersion, Loader};
 
-pub const LAUNCHER_VERSION_NAME: &str = "0.5.1";
+pub const LAUNCHER_VERSION_NAME: &str = "0.5.2";
 
 pub const LAUNCHER_VERSION: semver::Version = semver::Version {
     major: 0,
     minor: 5,
-    patch: 1,
+    patch: 2,
     pre: semver::Prerelease::EMPTY,
     build: semver::BuildMetadata::EMPTY,
 };
@@ -75,11 +74,31 @@ pub static REGEX_SNAPSHOT: LazyLock<Regex> =
 
 pub const CLASSPATH_SEPARATOR: char = if cfg!(unix) { ':' } else { ';' };
 
-/// Redact sensitive info like username, UUID, session ID, etc.
-///
-/// Default: `true`. Use `--no-redact-info` in CLI to set `false`.
-pub static REDACT_SENSITIVE_INFO: LazyLock<std::sync::Mutex<bool>> =
-    LazyLock::new(|| std::sync::Mutex::new(true));
+pub mod flags {
+    use std::sync::OnceLock;
+
+    /// Redact sensitive info like username, UUID, session ID, etc.
+    ///
+    /// Default: `true`. Use `--no-redact-info` in CLI to set `false`.
+    pub fn redact_sensitive_info() -> bool {
+        REDACT_SENSITIVE_INFO.get().copied().unwrap_or(true)
+    }
+    pub fn redact_sensitive_info_set<F: FnOnce() -> bool>(f: F) -> bool {
+        *REDACT_SENSITIVE_INFO.get_or_init(f)
+    }
+    static REDACT_SENSITIVE_INFO: OnceLock<bool> = OnceLock::new();
+
+    /// Print verbose, less important messages to log.
+    ///
+    /// Default: `false`. Use `--verbose` in CLI to set `true`.
+    pub fn log_verbose() -> bool {
+        LOG_VERBOSE.get().copied().unwrap_or(false)
+    }
+    pub fn log_verbose_set<F: FnOnce() -> bool>(f: F) -> bool {
+        *LOG_VERBOSE.get_or_init(f)
+    }
+    static LOG_VERBOSE: OnceLock<bool> = OnceLock::new();
+}
 
 pub const WEBSITE: &str = "https://mrmayman.github.io/quantumlauncher";
 

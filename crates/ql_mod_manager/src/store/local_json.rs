@@ -1,22 +1,24 @@
 use std::{
     collections::{HashMap, HashSet},
     io::ErrorKind,
-    path::Path,
+    path::PathBuf,
+    sync::Arc,
 };
 
 use ql_core::{
-    Instance, IntoIoError, IntoJsonError, IoError, JsonFileError, file_utils::exists, info,
+    Instance, IntoIoError, IntoJsonError, JsonFileError, file_utils::exists, info,
+    json::VersionDetails,
 };
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 
-use crate::store::ModId;
+use crate::store::{DirStructure, ModId, QueryType};
 
 use super::StoreBackendType;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ModConfig {
-    pub name: String,
+    pub name: Arc<str>,
     pub manually_installed: bool,
     pub installed_version: String,
     pub version_release_time: String,
@@ -30,47 +32,61 @@ pub struct ModConfig {
     pub supported_versions: Vec<String>,
     pub dependencies: HashSet<ModId>,
     pub dependents: HashSet<ModId>,
+    #[serde(default = "QueryType::default")]
+    pub project_type: QueryType,
+    /// If resource pack:
+    /// - Whether in `resourcepacks` directory or `texturepacks` directory.
+    ///
+    /// More info may come for other project types in the future.
+    pub project_type_extra: Option<String>,
+    #[serde(flatten)] // Retain future fields for forward-compatibility
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ModIndex {
     pub mods: HashMap<ModId, ModConfig>,
     is_server: Option<bool>,
+    #[serde(flatten)]
+    _extra: HashMap<String, serde_json::Value>,
 }
 
 impl ModIndex {
     pub async fn load(selected_instance: &Instance) -> Result<Self, JsonFileError> {
         let mut index = load_inner(selected_instance).await?;
-        index.fix(selected_instance).await?;
+        index.fix(selected_instance.clone()).await?;
         Ok(index)
     }
 
-    pub async fn save(&mut self, selected_instance: &Instance) -> Result<(), JsonFileError> {
-        let index_dir = selected_instance
-            .get_dot_minecraft_path()
-            .join("mod_index.json");
+    pub async fn save(&mut self, instance: &Instance) -> Result<(), JsonFileError> {
+        let path = Self::get_path(instance);
 
         let index_str = serde_json::to_string(&self).json_to()?;
-        fs::write(&index_dir, &index_str).await.path(index_dir)?;
+        fs::write(&path, &index_str).await.path(path)?;
         Ok(())
     }
 
-    fn new(instance_name: &Instance) -> Self {
+    #[must_use]
+    pub fn get_path(instance: &Instance) -> PathBuf {
+        instance.get_dot_minecraft_path().join("mod_index.json")
+    }
+
+    fn new(instance: &Instance) -> Self {
         Self {
             mods: HashMap::new(),
-            is_server: Some(instance_name.is_server()),
+            is_server: Some(instance.is_server()),
+            _extra: HashMap::new(),
         }
     }
 
-    async fn fix(&mut self, selected_instance: &Instance) -> Result<(), IoError> {
-        let mods_dir = selected_instance.get_dot_minecraft_path().join("mods");
-        if !exists(&mods_dir).await {
-            fs::create_dir(&mods_dir).await.path(&mods_dir)?;
-            self.mods.clear();
-            return Ok(());
-        }
+    async fn fix(&mut self, instance: Instance) -> Result<(), JsonFileError> {
+        // I know this is inefficient, but modern OSes have automatic file caching
+        // that basically guarantees this is fast.
+        let details = VersionDetails::load(&instance).await?;
 
-        self.fix_nonexistent_mods(&mods_dir);
+        let dirs = DirStructure::new(instance, &details).await?;
+
+        self.fix_nonexistent_mods(&dirs).await;
         self.fix_cf_modpack_id_bug();
 
         Ok(())
@@ -87,29 +103,71 @@ impl ModIndex {
         let mut drained_mods = Vec::new();
         for id in drained_ids {
             if let Some(mod_cfg) = self.mods.remove(&id) {
-                drained_mods.push((ModId::Curseforge(id.get_internal_id().to_owned()), mod_cfg));
+                drained_mods.push((ModId::Curseforge(id.get_internal_id()), mod_cfg));
             }
         }
         self.mods.extend(drained_mods);
     }
 
-    fn fix_nonexistent_mods(&mut self, mods_dir: &Path) {
+    async fn fix_nonexistent_mods(&mut self, dirs: &DirStructure) {
         let mut removed_ids = Vec::new();
         let mut remove_dependents = Vec::new();
 
         for (id, mod_cfg) in &mut self.mods {
-            mod_cfg.files.retain(|file| {
-                mods_dir.join(&file.filename).is_file()
-                    || mods_dir
-                        .join(format!("{}.disabled", file.filename))
-                        .is_file()
-            });
-            if mod_cfg.files.is_empty() {
-                info!("Cleaning deleted mod: {}", mod_cfg.name);
-                removed_ids.push(id.clone());
+            let Some(content_dir) = dirs.get(mod_cfg.project_type) else {
+                continue; // A modpack somehow ended up here, ignore to be safe
+            };
+
+            let mut removed = Vec::new();
+            for (i, file) in mod_cfg.files.iter().enumerate() {
+                let file_exists = if let QueryType::ResourcePacks = mod_cfg.project_type {
+                    // I know this sucks but whatever
+                    let p =
+                        |base, name| dirs.instance.get_dot_minecraft_path().join(base).join(name);
+
+                    let disabled_name = format!("{}.disabled", file.filename);
+
+                    let enabled1_path = p("resourcepacks", &file.filename);
+                    let disabled1_path = p("resourcepacks", &disabled_name);
+                    let enabled2_path = p("texturepacks", &file.filename);
+                    let disabled2_path = p("texturepacks", &disabled_name);
+
+                    let (enabled1, disabled1, enabled2, disabled2) = tokio::join!(
+                        exists(&enabled1_path),
+                        exists(&disabled1_path),
+                        exists(&enabled2_path),
+                        exists(&disabled2_path)
+                    );
+
+                    enabled1 || disabled1 || enabled2 || disabled2
+                } else {
+                    let enabled_path = content_dir.join(&file.filename);
+                    let disabled_path = content_dir.join(format!("{}.disabled", file.filename));
+                    let (enabled, disabled) =
+                        tokio::join!(exists(&enabled_path), exists(&disabled_path));
+
+                    enabled || disabled
+                };
+
+                if !file_exists {
+                    removed.push(i);
+                }
             }
-            for dependent in &mod_cfg.dependents {
-                remove_dependents.push((dependent.clone(), id.clone()));
+            for i in removed.into_iter().rev() {
+                // Can't do Vec::retain because async
+                mod_cfg.files.remove(i);
+            }
+
+            if mod_cfg.files.is_empty() {
+                info!(
+                    "Cleaning deleted {}: {}",
+                    mod_cfg.project_type, mod_cfg.name
+                );
+                removed_ids.push(id.clone());
+
+                for dependent in &mod_cfg.dependents {
+                    remove_dependents.push((dependent.clone(), id.clone()));
+                }
             }
         }
 
@@ -138,7 +196,7 @@ async fn load_inner(selected_instance: &Instance) -> Result<ModIndex, JsonFileEr
 
     // 1) Try migrating old index
     match fs::read_to_string(&old_index_path).await {
-        Ok(index) => {
+        Ok(index) if !index.trim().is_empty() => {
             let mod_index = serde_json::from_str(&index).json(index.clone())?;
 
             fs::write(&index_path, &index).await.path(index_path)?;
@@ -148,6 +206,9 @@ async fn load_inner(selected_instance: &Instance) -> Result<ModIndex, JsonFileEr
 
             return Ok(mod_index);
         }
+        Ok(_) => {
+            let _ = fs::remove_file(&old_index_path).await; // empty
+        }
         Err(e) if e.kind() != ErrorKind::NotFound => {
             return Err(e.path(index_path).into());
         }
@@ -156,7 +217,12 @@ async fn load_inner(selected_instance: &Instance) -> Result<ModIndex, JsonFileEr
 
     // 2. Try current index
     match fs::read_to_string(&index_path).await {
-        Ok(index) => return Ok(serde_json::from_str::<ModIndex>(&index).json(index)?),
+        Ok(index) if !index.trim().is_empty() => {
+            return Ok(serde_json::from_str::<ModIndex>(&index).json(index)?);
+        }
+        Ok(_) => {
+            let _ = fs::remove_file(&index_path).await; // empty
+        }
         Err(e) if e.kind() != ErrorKind::NotFound => {
             return Err(e.path(index_path).into());
         }

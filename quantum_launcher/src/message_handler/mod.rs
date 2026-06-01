@@ -2,23 +2,30 @@ use crate::{
     Launcher, Message,
     menu_renderer::back_to_launch_screen,
     state::{
-        AutoSaveKind, EditPresetsMessage, InfoMessage, LaunchTab, LogState, ManageModsMessage,
-        MenuEditMods, MenuInstallForge, MenuInstallOptifine, ProgressBar, SelectedState, State,
+        AutoSaveKind, ContentWatcher, EditModsFileData, EditModsSelection, EditModsUiState,
+        EditModsUpdates, EditPresetsMessage, FsWatcher, InfoMessage, LaunchTab, LogState,
+        ManageModsMessage, MenuEditMods, MenuInstallForge, MenuInstallOptifine, ProgressBar,
+        SelectedState, State,
     },
-    tick::sort_dependencies,
 };
 use iced::{Task, futures::executor::block_on, widget::scrollable::AbsoluteOffset};
 use ql_core::{
-    GenericProgress, Instance, IntoIoError, IntoStringError, JsonFileError, err,
+    GenericProgress, Instance, IntoIoError, IntoStringError, err,
     file_utils::exists,
     json::{VersionDetails, instance_config::InstanceConfigJson},
 };
-use ql_mod_manager::{loaders, store::ModIndex};
+use ql_mod_manager::{
+    loaders,
+    store::{LocalMod, ModIndex, QueryType},
+};
 use std::{
     collections::HashSet,
     ffi::OsStr,
     path::{Path, PathBuf},
-    sync::mpsc::{Receiver, Sender},
+    sync::{
+        Arc,
+        mpsc::{Receiver, Sender},
+    },
 };
 
 pub const SIDEBAR_LIMIT_RIGHT: f32 = 140.0;
@@ -102,47 +109,61 @@ impl Launcher {
         async fn inner(
             this: &mut Launcher,
             info_message: Option<InfoMessage>,
-        ) -> Result<Task<Message>, JsonFileError> {
+        ) -> Result<Task<Message>, String> {
             let instance = this.selected_instance.as_ref().unwrap();
 
-            let config_json = InstanceConfigJson::read(instance).await?;
-            let version_json = Box::new(VersionDetails::load(instance).await?);
+            let config = InstanceConfigJson::read(instance).await.strerr()?;
+            let details = Box::new(VersionDetails::load(instance).await.strerr()?);
+            let mod_index = ModIndex::load(instance).await.strerr()?;
 
-            let mods = ModIndex::load(instance).await?;
+            let dotmc_dir = instance.get_dot_minecraft_path();
+
             let update_local_mods_task =
-                MenuEditMods::update_locally_installed_mods(&mods, instance);
+                Task::batch(QueryType::INDEX_SUPPORTED.iter().map(|n| {
+                    MenuEditMods::update_locally_installed_mods(&mod_index, instance, *n)
+                }));
 
             let locally_installed_mods = HashSet::new();
-            let sorted_mods_list = sort_dependencies(&mods.mods, &locally_installed_mods);
 
             this.state = State::EditMods(MenuEditMods {
-                config: config_json,
-                mods,
-                selected_mods: HashSet::new(),
-                shift_selected_mods: HashSet::new(),
-                sorted_mods_list,
-                selected_state: SelectedState::None,
-                available_updates: Vec::new(),
-                mod_update_progress: None,
+                sorted_mods_list: Vec::new(),
+                selection: EditModsSelection {
+                    selected_mods: HashSet::new(),
+                    shift_selected_mods: HashSet::new(),
+                    state: SelectedState::None,
+                    list_shift_index: None,
+                },
+                updates: EditModsUpdates {
+                    available: Vec::new(),
+                    progress: None,
+                    check_handle: None,
+                },
+                ui_state: EditModsUiState {
+                    // If you wanna test stuff out...
+                    // info_message: Some(crate::state::ModInfoMessage {
+                    //     text: "Hello, World!".to_owned(),
+                    //     kind: crate::state::InfoMessageKind::AtPath(PathBuf::from("/home/mrmayman")),
+                    // }),
+                    // info_message: Some(crate::state::ModInfoMessage {
+                    //     text: "Hello, World!".to_owned(),
+                    //     kind: crate::state::InfoMessageKind::Success,
+                    // }),
+                    info_message,
+                    list_scroll: AbsoluteOffset::default(),
+                    drag_and_drop_hovered: false,
+                    modal: None,
+                    width_name: 220.0,
+                },
+                file_data: EditModsFileData {
+                    config,
+                    mod_index,
+                    details,
+                    content_watcher: ContentWatcher::new(&dotmc_dir),
+                    index_watcher: FsWatcher::new(ModIndex::get_path(instance)).strerr()?,
+                },
                 locally_installed_mods,
-                drag_and_drop_hovered: false,
-                update_check_handle: None,
-                version_json,
-                modal: None,
                 search: None,
-                // If you wanna test stuff out...
-                // info_message: Some(crate::state::ModInfoMessage {
-                //     text: "Hello, World!".to_owned(),
-                //     kind: crate::state::InfoMessageKind::AtPath(PathBuf::from("/home/mrmayman")),
-                // }),
-                // info_message: Some(crate::state::ModInfoMessage {
-                //     text: "Hello, World!".to_owned(),
-                //     kind: crate::state::InfoMessageKind::Success,
-                // }),
-                info_message,
-                width_name: 220.0,
-                list_shift_index: None,
-                list_scroll: AbsoluteOffset::default(),
+                content_filter: None,
             });
 
             Ok(Task::batch([update_local_mods_task]))
@@ -161,35 +182,24 @@ impl Launcher {
         let (j_sender, j_receiver): (Sender<GenericProgress>, Receiver<GenericProgress>) =
             std::sync::mpsc::channel();
 
-        let instance_selection = self.selected_instance.clone().unwrap();
-        let instance_selection2 = instance_selection.clone();
+        let instance = self.selected_instance.clone().unwrap();
+        let instance2 = instance.clone();
 
         let command = Task::perform(
             async move {
                 if matches!(kind, ForgeKind::NeoForge) {
                     // TODO: Add UI to specify NeoForge version
-                    loaders::neoforge::install(
-                        None,
-                        instance_selection2,
-                        Some(f_sender),
-                        Some(j_sender),
-                    )
-                    .await
+                    loaders::neoforge::install(None, instance2, Some(f_sender), Some(j_sender))
+                        .await
                 } else {
-                    loaders::forge::install(
-                        None,
-                        instance_selection2,
-                        Some(f_sender),
-                        Some(j_sender),
-                    )
-                    .await
+                    loaders::forge::install(None, instance2, Some(f_sender), Some(j_sender)).await
                 }
                 .strerr()?;
                 if matches!(kind, ForgeKind::OptiFine) {
-                    copy_optifine_over(&instance_selection)
+                    copy_optifine_over(&instance)
                         .await
                         .map_err(|n| format!("Couldn't install OptiFine with Forge:\n{n}"))?;
-                    loaders::optifine::uninstall(instance_selection.get_name().to_owned(), false)
+                    loaders::optifine::uninstall(instance.get_name().to_owned(), false)
                         .await
                         .strerr()?;
                 }
@@ -216,6 +226,7 @@ impl Launcher {
                 self.selected_instance.clone().unwrap(),
                 vec![path],
                 Some(sender),
+                QueryType::ModPacks,
             ),
             |n| ManageModsMessage::AddFileDone(n.strerr()).into(),
         )
@@ -274,7 +285,7 @@ impl Launcher {
 
     fn set_drag_and_drop_hover(&mut self, is_hovered: bool) {
         if let State::EditMods(menu) = &mut self.state {
-            menu.drag_and_drop_hovered = is_hovered;
+            menu.ui_state.drag_and_drop_hovered = is_hovered;
         } else if let State::ManagePresets(menu) = &mut self.state {
             menu.drag_and_drop_hovered = is_hovered;
         } else if let State::EditJarMods(menu) = &mut self.state {
@@ -329,29 +340,59 @@ impl Launcher {
 }
 
 pub async fn get_locally_installed_mods(
-    selected_instance: PathBuf,
-    blacklist: Vec<String>,
-) -> HashSet<String> {
-    let mods_dir_path = selected_instance.join("mods");
-
-    let Ok(mut dir) = tokio::fs::read_dir(&mods_dir_path).await else {
-        err!("Error reading mods directory");
-        return HashSet::new();
+    dot_mc: PathBuf,
+    blacklist: HashSet<String>,
+    project_type: QueryType,
+) -> HashSet<LocalMod> {
+    let dirs: &[&str] = match project_type {
+        QueryType::Mods => &["mods"],
+        QueryType::ResourcePacks => &["resourcepacks", "texturepacks"],
+        QueryType::Shaders => &["shaderpacks"],
+        QueryType::DataPacks => &["datapacks"],
+        QueryType::ModPacks => return HashSet::new(),
     };
     let mut set = HashSet::new();
-    while let Ok(Some(entry)) = dir.next_entry().await {
-        let path = entry.path();
-        let Some(file_name) = path.file_name().and_then(OsStr::to_str) else {
-            continue;
+
+    for dir in dirs {
+        let mods_dir_path = dot_mc.join(dir);
+
+        let mut dir = match tokio::fs::read_dir(&mods_dir_path).await {
+            Ok(dir) => dir,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                continue;
+            }
+            Err(err) => {
+                err!("While reading {dir} directory: {err}");
+                continue;
+            }
         };
-        if blacklist.contains(&file_name.to_owned()) {
-            continue;
-        }
-        let Some(extension) = path.extension() else {
-            continue;
-        };
-        if extension == "jar" || extension == "disabled" {
-            set.insert(file_name.to_owned());
+
+        while let Ok(Some(entry)) = dir.next_entry().await {
+            let path = entry.path();
+            let Some(file_name) = path.file_name().and_then(OsStr::to_str) else {
+                continue;
+            };
+            if blacklist.contains(file_name) {
+                continue;
+            }
+            if let Ok(f) = entry.file_type().await {
+                if f.is_dir() {
+                    if project_type == QueryType::Mods {
+                        continue;
+                    }
+                } else {
+                    let Some(extension) = path.extension() else {
+                        continue;
+                    };
+                    if !(extension.eq_ignore_ascii_case("jar")
+                        || extension.eq_ignore_ascii_case("zip")
+                        || extension.eq_ignore_ascii_case("disabled"))
+                    {
+                        continue;
+                    }
+                }
+            }
+            set.insert(LocalMod(Arc::from(file_name), project_type));
         }
     }
     set
@@ -382,7 +423,7 @@ async fn copy_optifine_over(instance: &Instance) -> Result<(), String> {
     tokio::fs::copy(&installer_path, &new_path).await.strerr()?;
 
     let mut config = InstanceConfigJson::read(instance).await.strerr()?;
-    config.mod_type_info.get_or_insert_default().optifine_jar = Some("optifine.jar".to_owned());
+    config.mod_type_info.get_or_insert_default().optifine_jar = Some(Arc::from("optifine.jar"));
     config.save(instance).await.strerr()?;
 
     Ok(())

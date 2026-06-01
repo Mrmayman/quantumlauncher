@@ -292,7 +292,7 @@ impl Launcher {
 
         let config = InstanceConfigJson::read(instance).await?;
         let version_json = if let State::EditMods(menu) = &self.state {
-            menu.version_json.clone()
+            menu.file_data.details.clone()
         } else {
             Box::new(VersionDetails::load(instance).await?)
         };

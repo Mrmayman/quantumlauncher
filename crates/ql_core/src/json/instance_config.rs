@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use serde::{Deserialize, Serialize};
@@ -312,7 +313,7 @@ pub struct ModTypeInfo {
     /// If an unofficial implementation of the loader
     /// was used, which one (eg: Legacy Fabric).
     pub backend_implementation: Option<String>,
-    pub optifine_jar: Option<String>,
+    pub optifine_jar: Option<Arc<str>>,
 
     #[serde(flatten)]
     _extra: HashMap<String, serde_json::Value>,

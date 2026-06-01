@@ -43,7 +43,7 @@ pub enum ForgeInstallError {
     )]
     ChronoTime(#[from] chrono::ParseError),
     #[error("NeoForge only supports Minecraft 1.20.2 and above, your version is outdated")]
-    NeoforgeOutdatedMinecraft,
+    NeoForgeOutdatedMinecraft,
 
     #[error("{FORGE_INSTALL_ERR_PREFIX}zip: {0}")]
     Zip(#[from] zip::result::ZipError),

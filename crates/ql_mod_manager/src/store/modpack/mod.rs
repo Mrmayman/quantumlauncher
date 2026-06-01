@@ -20,36 +20,45 @@ use crate::{Preset, store::download_mods_bulk};
 
 use super::CurseforgeNotAllowed;
 
-/// Installs a modpack file.
+/// Installs a Curseforge or Modrinth modpack.
 ///
-/// Not to be confused with [`crate::Preset`]
-/// (`.qmp` mod presets). Those are QuantumLauncher-only,
-/// but these are found across the internet.
+/// Unlike [`crate::Preset`] (`.qmp`) which are QuantumLauncher-only,
+/// these are standard modpack files.
 ///
-/// This function supports both Curseforge and Modrinth modpacks,
-/// it doesn't matter which one you put in.
-///
-/// # Arguments
-/// - `file: Vec<u8>`: The bytes of the modpack file.
-/// - `instance: InstanceSelection`: The selected instance you want to download this pack to.
-/// - `sender: Option<&Sender<GenericProgress>>`: Supply a [`Sender`] if you want
-///   to see the progress of installation. Leave `None` if otherwise.
-///
-/// # Returns
-/// - `Ok(Some(HashSet<CurseforgeNotAllowed))` - The list of mods that
-///   Curseforge blocked the launcher from automatically downloading. The user must
-///   manually download these from the browser and import them. May be empty
-///   if none present, or if it's a modrinth pack.
-/// - `Ok(None)` - This isn't a modpack.
-/// - `Err` - Any error that occurred.
+/// Returns:
+/// - `Ok(Some(HashSet))` for Curseforge mods that must be downloaded manually (from browser).
+/// - `Ok(None)` if the format is unsupported.
+/// - `Err(_)` on failure.
 pub async fn install_modpack(
     file: Vec<u8>,
+    filename: Option<String>,
     instance: Instance,
     sender: Option<&Sender<GenericProgress>>,
 ) -> Result<Option<HashSet<CurseforgeNotAllowed>>, PackError> {
     let mut zip = zip::ZipArchive::new(Cursor::new(file.as_slice()))?;
 
     info!("Installing modpack");
+    let json = VersionDetails::load(&instance).await?;
+
+    // If user accidentally added regular file
+    if zip.by_name("pack.mcmeta").is_ok() {
+        if zip.file_names().any(|n| n.starts_with("data/")) {
+            write_regular_file(&file, filename, &instance, "datapacks").await?;
+        } else {
+            // Resource Pack/Canvas Shader
+            let dir = if json.is_legacy_texturepacks() {
+                "texturepacks"
+            } else {
+                "resourcepacks"
+            };
+            write_regular_file(&file, filename, &instance, dir).await?;
+        }
+        return Ok(Some(HashSet::new()));
+    } else if zip.file_names().any(|n| n.starts_with("shaders/")) {
+        // Shader pack
+        write_regular_file(&file, filename, &instance, "shaderpacks").await?;
+        return Ok(Some(HashSet::new()));
+    }
 
     let index_json_modrinth: Option<modrinth::PackIndex> =
         read_json_from_zip(&mut zip, "modrinth.index.json")?;
@@ -82,7 +91,6 @@ pub async fn install_modpack(
 
     let mc_dir = instance.get_dot_minecraft_path();
     let config = InstanceConfigJson::read(&instance).await?;
-    let json = VersionDetails::load(&instance).await?;
 
     let mut is_valid = false;
 
@@ -152,6 +160,32 @@ pub async fn install_modpack(
     pt!("Done!");
 
     Ok(Some(not_allowed))
+}
+
+async fn write_regular_file(
+    file: &[u8],
+    name: Option<String>,
+    instance: &Instance,
+    dir_name: &str,
+) -> Result<(), PackError> {
+    let dir = instance.get_dot_minecraft_path().join(dir_name);
+    tokio::fs::create_dir_all(&dir).await.path(&dir)?;
+
+    let name = name.unwrap_or_else(|| {
+        let time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|n| n.as_secs())
+            .unwrap_or(0);
+        format!("{dir_name}_{time}")
+    });
+    let Some(safe_name) = std::path::Path::new(&name).file_name() else {
+        err!("Tried writing outside dir: {name}");
+        return Ok(());
+    };
+
+    let path = dir.join(safe_name);
+    tokio::fs::write(&path, file).await.path(&path)?;
+    Ok(())
 }
 
 fn read_json_from_zip<T: serde::de::DeserializeOwned>(

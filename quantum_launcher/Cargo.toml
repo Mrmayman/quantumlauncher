@@ -1,6 +1,6 @@
 [package]
 name = "quantum_launcher"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2024"
 rust-version = "1.85"
 
@@ -64,9 +64,10 @@ paste = "1" # Icon widget macro
 rfd.workspace = true # File picker
 constcat = "0.6"
 rand = "0.10" # Instance folder unique id
+sysinfo.workspace = true # Dynamic min/max RAM allocation
 
 # For Discord Rich Presence management
-filthy-rich = "0.13.2"
+filthy-rich = "1.0.5"
 # Launcher Update
 thiserror.workspace = true
 zip.workspace = true

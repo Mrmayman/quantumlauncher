@@ -8,32 +8,25 @@ const GAMEOPEN_STATE: &str = "Instance name: ${instance}";
 const GAMEEXIT_DETAILS: &str = "Just quit game";
 const GAMEEXIT_STATE: &str = "Minecraft v${version}";
 
+// Since: v0.5.2
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RpcConfig {
     /// Enable Discord Rich Presence support
-    // Since: TBD
     pub enable: bool,
     /// Custom rich presence activity name
-    // Since: TBD
     pub name: Option<String>,
     /// Details for the basic/initial rich presence activity
-    // Since: TBD
     pub basic: RpcText,
     /// The default status display type to use.
-    // Since: TBD
     #[serde(default)]
     pub status_display_type: PresenceStatusDisplayType,
     /// Whether to change rich presence with instance open/exit events.
-    // Since: TBD
     pub update_on_game_open: bool,
     /// Activity on opening the game
-    // Since: TBD
     pub on_gameopen: RpcText,
     /// Activity on closing the game
-    // Since: TBD
     pub on_gameexit: RpcText,
     /// Whether to display "Competing on ..." in the rich presence activity
-    // Since: TBD
     #[serde(default = "competing_default")]
     pub competing: bool,
     #[serde(flatten)]

@@ -2,7 +2,7 @@ use std::path::Path;
 
 use ql_core::{Instance, IoError, err};
 
-use crate::store::{ModId, ModIndex};
+use crate::store::{LocalMod, ModId, ModIndex, QueryType};
 
 use super::ModError;
 
@@ -15,12 +15,15 @@ pub fn flip_filename(name: &str) -> String {
     }
 }
 
-pub async fn toggle_mods_local(names: Vec<String>, instance: Instance) -> Result<(), ModError> {
+pub async fn toggle_mods_local(names: Vec<LocalMod>, instance: Instance) -> Result<(), ModError> {
     let mods_dir = instance.get_dot_minecraft_path().join("mods");
 
-    for file in names {
+    for LocalMod(file, kind) in names {
+        if !kind.is_toggleable() {
+            continue;
+        }
         let flipped = flip_filename(&file);
-        rename_file(&mods_dir.join(&file), &mods_dir.join(flipped)).await?;
+        rename_file(&mods_dir.join(&*file), &mods_dir.join(flipped)).await?;
     }
     Ok(())
 }
@@ -28,10 +31,15 @@ pub async fn toggle_mods_local(names: Vec<String>, instance: Instance) -> Result
 pub async fn toggle_mods(ids: Vec<ModId>, instance: Instance) -> Result<(), ModError> {
     let mut index = ModIndex::load(&instance).await?;
 
-    let mods_dir = instance.get_dot_minecraft_path().join("mods");
+    let dot_mc_dir = instance.get_dot_minecraft_path();
+    let mods_dir = dot_mc_dir.join("mods");
 
     for id in ids {
         if let Some(info) = index.mods.get_mut(&id) {
+            if info.project_type != QueryType::Mods {
+                continue;
+            }
+
             for file in &info.files {
                 let enabled_path = mods_dir.join(&file.filename);
                 let disabled_path = mods_dir.join(format!("{}.disabled", file.filename));

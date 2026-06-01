@@ -1,10 +1,31 @@
+use std::{path::PathBuf, sync::OnceLock};
+
 use futures::StreamExt;
-use reqwest::Response;
+use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
+use reqwest::Client;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use tokio_util::io::StreamReader;
 
 use crate::{
-    CLIENT, DownloadFileError, IntoIoError, IntoJsonError, JsonDownloadError, RequestError, retry,
+    DownloadFileError, IntoIoError, IntoJsonError, JsonDownloadError, LAUNCHER_CACHE_DIR,
+    RequestError, retry,
 };
+
+pub static CLIENT: OnceLock<ClientWithMiddleware> = OnceLock::new();
+
+pub fn build_middleware(path: PathBuf, cache: bool) -> ClientWithMiddleware {
+    ClientBuilder::new(Client::new())
+        .with(Cache(HttpCache {
+            mode: if cache {
+                CacheMode::Default
+            } else {
+                CacheMode::NoStore
+            },
+            manager: CACacheManager::new(path, false),
+            options: HttpCacheOptions::default(),
+        }))
+        .build()
+}
 
 #[must_use]
 pub struct DownloadRequest<'a> {
@@ -24,7 +45,10 @@ impl DownloadRequest<'_> {
     }
 
     async fn send(&self) -> Result<reqwest::Response, RequestError> {
-        let mut get = CLIENT.get(self.url);
+        let client =
+            CLIENT.get_or_init(|| build_middleware(LAUNCHER_CACHE_DIR.to_path_buf(), true));
+        let mut get = client.get(self.url);
+
         match self.user_agent {
             UserAgentKind::None => {}
             UserAgentKind::Ql => {
@@ -63,6 +87,9 @@ impl DownloadRequest<'_> {
 
     pub async fn json<T: serde::de::DeserializeOwned>(&self) -> Result<T, JsonDownloadError> {
         let json_raw = self.string().await?;
+        if json_raw.is_empty() {
+            return Err(JsonDownloadError::EmptyResponse(self.url.to_owned()));
+        }
         Ok(serde_json::from_str(&json_raw).json(json_raw)?)
     }
 
@@ -119,13 +146,13 @@ pub fn download(url: &str) -> DownloadRequest<'_> {
     }
 }
 
-pub fn check_for_success(response: &Response) -> Result<(), RequestError> {
-    if response.status().is_success() {
+pub fn check_for_success(r: &reqwest::Response) -> Result<(), RequestError> {
+    if r.status().is_success() {
         Ok(())
     } else {
         Err(RequestError::DownloadError {
-            code: response.status(),
-            url: response.url().clone(),
+            code: r.status(),
+            url: r.url().clone(),
         })
     }
 }

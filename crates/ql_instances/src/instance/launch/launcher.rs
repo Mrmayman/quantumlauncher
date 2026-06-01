@@ -345,7 +345,7 @@ impl GameLauncher {
         java_arguments: &mut Vec<String>,
         game_arguments: &mut Vec<String>,
     ) -> Result<Option<forge::JsonDetails>, GameLaunchError> {
-        if !matches!(self.config.mod_type, Loader::Forge | Loader::Neoforge) {
+        if !matches!(self.config.mod_type, Loader::Forge | Loader::NeoForge) {
             return Ok(None);
         }
         if self.version_json.is_legacy_version() && self.version_json.get_id() != "1.5.2" {

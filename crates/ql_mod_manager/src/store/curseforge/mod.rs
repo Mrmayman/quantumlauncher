@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::{atomic::AtomicI32, mpsc::Sender},
+    sync::{Arc, atomic::AtomicI32, mpsc::Sender},
     time::Instant,
 };
 
@@ -46,7 +46,7 @@ impl ModQuery {
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct Mod {
-    pub name: String,
+    pub name: Arc<str>,
     pub slug: String,
     pub summary: String,
     #[serde(rename = "downloadCount")]
@@ -65,7 +65,7 @@ pub struct Mod {
 impl Mod {
     async fn get_file<T: std::fmt::Display>(
         &self,
-        title: String,
+        title: Arc<str>,
         id: T,
         version: String,
         loader: Option<&str>,
@@ -136,31 +136,31 @@ impl From<CfScreenshot> for GalleryItem {
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct CfLinks {
-    website_url: Option<String>,
-    wiki_url: Option<String>,
-    issues_url: Option<String>,
-    source_url: Option<String>,
+    website: Option<String>,
+    wiki: Option<String>,
+    issues: Option<String>,
+    source: Option<String>,
 }
 
 impl CfLinks {
     fn build_urls(&self) -> Vec<(UrlKind, String)> {
         let mut urls = Vec::new();
-        if let Some(website_url) = &self.website_url {
+        if let Some(website_url) = &self.website {
             if !website_url.is_empty() {
                 urls.push((UrlKind::Website, website_url.clone()));
             }
         }
-        if let Some(wiki_url) = &self.wiki_url {
+        if let Some(wiki_url) = &self.wiki {
             if !wiki_url.is_empty() {
                 urls.push((UrlKind::Wiki, wiki_url.clone()));
             }
         }
-        if let Some(issues_url) = &self.issues_url {
+        if let Some(issues_url) = &self.issues {
             if !issues_url.is_empty() {
                 urls.push((UrlKind::Issues, issues_url.clone()));
             }
         }
-        if let Some(source_url) = &self.source_url {
+        if let Some(source_url) = &self.source {
             if !source_url.is_empty() {
                 urls.push((UrlKind::Source, source_url.clone()));
             }
@@ -224,7 +224,7 @@ pub struct CFSearchResult {
 }
 
 impl CFSearchResult {
-    pub async fn get_from_ids(ids: &[String]) -> Result<Self, ModError> {
+    pub async fn get_from_ids(ids: &[Arc<str>]) -> Result<Self, ModError> {
         if ids.is_empty() {
             return Ok(Self { data: Vec::new() });
         }
@@ -316,7 +316,7 @@ impl Backend for CurseforgeBackend {
                     description: n.summary,
                     downloads: n.download_count,
                     internal_name: n.slug,
-                    id: n.id.to_string(),
+                    id: Arc::from(n.id.to_string()),
                     project_type: query_type_str.to_owned(),
                     icon_url: n.logo.map(|n| n.url),
                     backend: StoreBackendType::Curseforge,
@@ -342,7 +342,10 @@ impl Backend for CurseforgeBackend {
         let description = send_request(&format!("mods/{id}/description"), &map).await?;
         let description: Resp2 = serde_json::from_str(&description).json(description)?;
 
-        Ok((ModId::Curseforge(id.to_string()), description.data))
+        Ok((
+            ModId::Curseforge(Arc::from(id.to_string())),
+            description.data,
+        ))
     }
 
     async fn get_latest_version_date(
@@ -387,7 +390,7 @@ impl Backend for CurseforgeBackend {
     }
 
     async fn download_bulk(
-        ids: &[String],
+        ids: &[Arc<str>],
         instance: &ql_core::Instance,
         ignore_incompatible: bool,
         set_manually_installed: bool,
@@ -486,7 +489,7 @@ impl Backend for CurseforgeBackend {
             description: query.data.summary,
             downloads: query.data.download_count,
             internal_name: query.data.slug,
-            id: query.data.id.to_string(),
+            id: Arc::from(query.data.id.to_string()),
             project_type: get_query_type(query.data.class_id)
                 .await
                 .unwrap_or(QueryType::Mods)
@@ -504,7 +507,7 @@ impl Backend for CurseforgeBackend {
         })
     }
 
-    async fn get_info_bulk(ids: &[String]) -> Result<Vec<SearchMod>, ModError> {
+    async fn get_info_bulk(ids: &[Arc<str>]) -> Result<Vec<SearchMod>, ModError> {
         let queries = CFSearchResult::get_from_ids(ids).await?;
         let mut out = Vec::with_capacity(queries.data.len());
         for query in queries.data {
@@ -513,7 +516,7 @@ impl Backend for CurseforgeBackend {
                 description: query.summary,
                 downloads: query.download_count,
                 internal_name: query.slug,
-                id: query.id.to_string(),
+                id: Arc::from(query.id.to_string()),
                 project_type: get_query_type(query.class_id)
                     .await
                     .unwrap_or(QueryType::Mods)
