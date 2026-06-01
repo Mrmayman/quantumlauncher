@@ -6,14 +6,20 @@ use std::{
     sync::LazyLock,
 };
 
+use std::sync::mpsc::Sender;
+
 use flate2::read::GzDecoder;
-use reqwest::header::InvalidHeaderValue;
+use futures::StreamExt;
+use reqwest::{Response, header::InvalidHeaderValue};
 use serde::de::DeserializeOwned;
 use thiserror::Error;
+use tokio::io::AsyncWriteExt;
 use walkdir::WalkDir;
 use zip::{ZipArchive, ZipWriter, write::FileOptions};
 
-use crate::{IntoIoError, JsonDownloadError, download, error::IoError};
+use crate::{
+    CLIENT, DownloadFileError, IntoIoError, JsonDownloadError, download, error::IoError, retry,
+};
 
 /// The path to the QuantumLauncher root folder.
 ///
@@ -255,6 +261,105 @@ pub async fn download_file_to_bytes(url: &str, user_agent: bool) -> Result<Vec<u
         r = r.user_agent_ql();
     }
     r.bytes().await
+}
+
+/// Downloads a file from the given URL and saves it to a path,
+/// while optionally sending progress updates.
+///
+/// Progress is reported as bytes downloaded vs total content length when known.
+/// When the response doesn't provide a `Content-Length`, the progress bar will
+/// remain indeterminate (0/1) and only the message will update.
+///
+/// # Errors
+/// Same as [`download_file_to_path`].
+pub async fn download_file_to_path_with_progress(
+    url: &str,
+    user_agent: bool,
+    path: &Path,
+    progress_sender: Option<&Sender<crate::GenericProgress>>,
+    progress_label: Option<&str>,
+) -> Result<(), DownloadFileError> {
+    async fn inner(
+        url: &str,
+        user_agent: bool,
+        path: &Path,
+        progress_sender: Option<&Sender<crate::GenericProgress>>,
+        progress_label: Option<&str>,
+    ) -> Result<(), DownloadFileError> {
+        let mut get = CLIENT.get(url);
+        if user_agent {
+            get = get.header("User-Agent", "quantumlauncher");
+        }
+        let response = get.send().await?;
+        check_for_success(&response)?;
+
+        let total_len = response.content_length();
+
+        if let Some(parent) = path.parent() {
+            if !parent.is_dir() {
+                tokio::fs::create_dir_all(&parent).await.path(parent)?;
+            }
+        }
+
+        let mut file = tokio::fs::File::create(&path).await.path(path)?;
+
+        let mut downloaded: u64 = 0;
+        let mut stream = response
+            .bytes_stream()
+            .map(|n| n.map_err(std::io::Error::other));
+
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| IoError::Io {
+                error: e,
+                path: path.to_owned(),
+            })?;
+            file.write_all(&chunk).await.path(path)?;
+            downloaded = downloaded.saturating_add(chunk.len() as u64);
+
+            if let Some(sender) = progress_sender {
+                let (done, total) = match total_len {
+                    Some(total) if total > 0 => {
+                        let done = downloaded.min(total);
+                        (done as usize, total as usize)
+                    }
+                    _ => (0, 1),
+                };
+
+                let message = progress_label.map(|label| {
+                    if let Some(total) = total_len {
+                        format!("{label} ({downloaded}/{total} bytes)")
+                    } else {
+                        format!("{label} ({downloaded} bytes)")
+                    }
+                });
+
+                let _ = sender.send(crate::GenericProgress {
+                    done,
+                    total,
+                    message,
+                    has_finished: false,
+                });
+            }
+        }
+
+        file.flush().await.path(path)?;
+        Ok(())
+    }
+
+    retry(|| async { inner(url, user_agent, path, progress_sender, progress_label).await }).await
+}
+
+/// # Errors
+/// If the HTTP response status is not a success code.
+pub fn check_for_success(response: &Response) -> Result<(), RequestError> {
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(RequestError::DownloadError {
+            code: response.status(),
+            url: response.url().clone(),
+        })
+    }
 }
 
 const NETWORK_ERROR_MSG: &str = r"

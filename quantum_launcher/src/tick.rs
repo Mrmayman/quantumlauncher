@@ -178,7 +178,8 @@ impl Launcher {
             | State::InstallPaper(_)
             | State::CreateShortcut(_)
             | State::ModDescription(_)
-            | State::ExportModsText(_) => {}
+            | State::ExportModsText(_)
+            | State::EditLwjgl(_) => {}
         }
 
         Task::none()

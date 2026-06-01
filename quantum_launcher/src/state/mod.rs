@@ -78,6 +78,7 @@ pub struct Launcher {
     pub server_list: Option<Vec<String>>,
     pub client_watcher: Option<FsWatcher>,
     pub server_watcher: Option<FsWatcher>,
+    pub lwjgl_versions_cache: Option<ql_core::json::LwjglVersionList>,
 
     pub processes: HashMap<Instance, GameProcess>,
     pub logs: HashMap<Instance, InstanceLog>,
@@ -248,6 +249,7 @@ impl Launcher {
             server_list: None,
             client_watcher: None,
             server_watcher: None,
+            lwjgl_versions_cache: None,
             java_recv: None,
             custom_jar: None,
 
@@ -308,6 +310,7 @@ impl Launcher {
             server_list: None,
             client_watcher: None,
             server_watcher: None,
+            lwjgl_versions_cache: None,
             selected_instance: None,
             custom_jar: None,
 

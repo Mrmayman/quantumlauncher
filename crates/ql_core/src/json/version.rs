@@ -578,6 +578,11 @@ impl LibraryDownloadArtifact {
             }
         })
     }
+
+    #[must_use]
+    pub fn get_size(&self) -> Option<u64> {
+        self.size.as_u64()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
