@@ -11,8 +11,7 @@ use ql_core::constants::*;
 use cfg_if::cfg_if;
 use owo_colors::OwoColorize;
 use ql_core::{
-    DownloadProgress, IntoIoError, IoError,
-    do_jobs, err,
+    DownloadProgress, IntoIoError, IoError, do_jobs, err,
     file_utils::{self, exists},
     info,
     json::{
