@@ -148,7 +148,16 @@ impl Display for KeyringError {
             {
                 write!(
                     f,
-                    "{error}\n\nTry installing gnome-keyring and libsecret packages\n(may be called differently depending on your distro)"
+                    r"{error}
+
+Try installing gnome-keyring and libsecret packages
+(may be called differently depending on your distro).
+
+If that doesn't work, try this terminal command:
+eval $(/usr/bin/gnome-keyring-daemon --start)
+
+Note: you might need to run this command after every startup of your computer.
+Consider adding it to startup commands, or creating a script that runs this before the launcher."
                 )
             }
             #[cfg(target_os = "linux")]

@@ -55,7 +55,7 @@ What about the others? Well...
 - **Windows**: `C:/Users/YOUR_USERNAME/AppData/Roaming/QuantumLauncher/`
   - You probably won't see the `AppData` folder (hidden). Press Windows + R and paste this path, and hit enter
 - **macOS**: `/Users/YOURNAME/Library/Application Support/QuantumLauncher/`
-- **Linux/BSD**: `~/.local/share/QuantumLauncher/` (`~` refers to your home directory)
+- **Linux/FreeBSD**: `~/.local/share/QuantumLauncher/` (`~` refers to your home directory)
 
 Structure:
 
