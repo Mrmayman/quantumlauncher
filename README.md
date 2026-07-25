@@ -38,6 +38,8 @@ cargo run --release
 You can omit the `--release` flag for faster compile times, but slightly worse performance and MUCH larger build file
 size.
 
+Nix/NixOS users: see [docs/NIX.md](docs/NIX.md) for flake usage, the NixOS module, and the Home Manager module.
+
 # Why QuantumLauncher?
 
 - QuantumLauncher provides a feature rich, flexible, simple

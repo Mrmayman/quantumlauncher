@@ -51,3 +51,10 @@ build/
 # --------
 book
 docs/book
+
+
+#----
+# NIX
+#----
+result/
+result
