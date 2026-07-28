@@ -12,6 +12,7 @@ use tokio::fs::read;
 
 mod curseforge;
 mod modrinth;
+mod multimc;
 
 #[derive(Serialize)]
 pub struct Hashes {
