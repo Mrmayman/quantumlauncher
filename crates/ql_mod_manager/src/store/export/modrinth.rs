@@ -3,14 +3,16 @@ use std::{collections::HashSet, path::PathBuf};
 use ql_core::{Instance, json::VersionDetails};
 use serde::Serialize;
 use serde_json::{Map, Value};
+use std::io::Result as StdResult;
 
 use crate::store::{
     ModId, ModIndex,
     export::{
-        FormatMQFileEntry, create_override_mods_full_path, format_1_file_entry, hash_file,
-        overrides_fn, package_format1_pack,
+        create_override_mods_full_path, hash_file,
+        overrides_fn, package_format_1_modpack,
     },
 };
+use crate::store::export::Hashes;
 
 #[derive(Serialize)]
 pub struct ModrinthModpackManifest {
@@ -23,6 +25,16 @@ pub struct ModrinthModpackManifest {
     summary: String,
     files: Vec<FormatMQFileEntry>,
     dependencies: Value,
+}
+
+#[derive(Serialize)]
+pub struct FormatMQFileEntry {
+    path: String,
+    hashes: Hashes,
+    #[serde(rename = "downloads")]
+    downloads: Vec<String>,
+    #[serde(rename = "fileSize")]
+    file_size: u64,
 }
 
 pub async fn export_modrinth_modpack(
@@ -123,7 +135,7 @@ pub async fn export_modrinth_modpack(
     let overrides: Vec<(String, String)> =
         overrides_fn(override_mods_full_path_string, overrides, instance);
 
-    package_format1_pack("modrinth.index".to_string(), json_data, zip_path, overrides)
+    package_format_1_modpack("modrinth.index".to_string(), json_data, zip_path, overrides)
         .await
         .unwrap();
 }
@@ -146,7 +158,27 @@ fn create_modrinth_index_json(
     dependencies.insert("minecraft".to_string(), Value::String(minecraft_version));
     dependencies.insert(loader_id.to_string(), Value::String(loader_version));
 
-    let files: Vec<FormatMQFileEntry> = format_1_file_entry(paths, sha1, sha512, links, file_size)?;
+    let sha1: Vec<&str> = sha1.iter().map(|s| s.as_str()).collect();
+    let sha512: Vec<&str> = sha512.iter().map(|s| s.as_str()).collect();
+
+    let files: Vec<FormatMQFileEntry> = paths
+        .iter()
+        .zip(&sha1)
+        .zip(&sha512)
+        .zip(&links)
+        .zip(&file_size)
+        .map(
+            |((((path, sha1), sha512), download), &file_size)| FormatMQFileEntry {
+                path: path.to_string(),
+                hashes: Hashes {
+                    sha1: sha1.to_string(),
+                    sha512: sha512.to_string(),
+                },
+                downloads: vec![download.to_string()],
+                file_size,
+            },
+        )
+        .collect();
 
     let manifest = ModrinthModpackManifest {
         format_version,

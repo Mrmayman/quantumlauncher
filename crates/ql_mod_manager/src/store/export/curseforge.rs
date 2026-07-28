@@ -5,7 +5,7 @@ use serde::Serialize;
 
 use crate::store::{
     ModId, ModIndex,
-    export::{create_override_mods_full_path, overrides_fn, package_format1_pack},
+    export::{create_override_mods_full_path, overrides_fn, package_format_1_modpack},
 };
 
 #[derive(Serialize)]
@@ -122,7 +122,7 @@ pub async fn export_curseforge_modpack(
     )
     .unwrap();
 
-    package_format1_pack("manifest".to_string(), json_data, zip_path, overrides)
+    package_format_1_modpack("manifest".to_string(), json_data, zip_path, overrides)
         .await
         .unwrap();
 }

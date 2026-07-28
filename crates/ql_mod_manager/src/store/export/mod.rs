@@ -1,16 +1,12 @@
-use crate::store::{ModId, ModIndex};
 use async_zip::tokio::write::ZipFileWriter;
 use async_zip::{Compression, ZipEntryBuilder};
 use hex;
-use ql_core::json::VersionDetails;
 use ql_core::{Instance, JsonFileError};
 use serde::Serialize;
-use serde_json::{Map, Value};
 use sha1::{Digest, Sha1};
 use sha2::Sha512;
-use std::collections::HashSet;
 use std::io::Result as StdResult;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use thiserror::Error;
 use tokio::fs::read;
 
@@ -18,33 +14,9 @@ mod curseforge;
 mod modrinth;
 
 #[derive(Serialize)]
-pub struct FormatMQFileEntry {
-    // This file entry is used for Modrinth and QLMP
-    path: String,
-    hashes: Hashes,
-    #[serde(rename = "downloads")]
-    downloads: Vec<String>,
-    #[serde(rename = "fileSize")]
-    file_size: u64,
-}
-
-#[derive(Serialize)]
 pub struct Hashes {
     sha1: String,
     sha512: String,
-}
-
-#[derive(Serialize)]
-pub struct QlModpackManifest {
-    format_version: u8,
-    minecraft_version: String,
-    loader_id: Value,
-    version_id: String,
-    name: String,
-    author: String,
-    summary: String,
-    icon: String,
-    files: Vec<FormatMQFileEntry>,
 }
 
 struct FileHashes {
@@ -65,142 +37,6 @@ pub enum ModpackExportError {
     Json(#[from] JsonFileError),
 }
 
-pub async fn export_qlmp_modpack(
-    author: String,
-    icon: String,
-    modpack_path: PathBuf,
-    modpack_name: String,
-    modpack_version: String,
-    modpack_summary: String,
-    modpack_file_name: String,
-    mod_ids: HashSet<ModId>,
-    overrides: Vec<String>,
-    instance: Instance,
-) -> Result<(), ModpackExportError> {
-    let index = ModIndex::load(&instance).await?;
-
-    let mut urls: Vec<String> = Vec::new();
-    let mut filenames: Vec<String> = Vec::new();
-    let mut override_filenames: Vec<String> = Vec::new();
-
-    for id in &mod_ids {
-        let modrinth_or_curseforge = matches!(id, ModId::Modrinth(_) | ModId::Curseforge(_));
-
-        let Some(config) = index.mods.get(id) else {
-            continue;
-        };
-        let Some(primary_file) = config
-            .files
-            .iter()
-            .find(|file| file.primary)
-            .or_else(|| config.files.first())
-        else {
-            continue;
-        };
-
-        if modrinth_or_curseforge {
-            urls.push(primary_file.url.clone());
-            filenames.push(primary_file.filename.clone());
-        } else {
-            override_filenames.push(primary_file.filename.clone());
-        }
-    }
-
-    let details = VersionDetails::load(&instance).await?;
-    let minecraft_version = details.get_id();
-    let config = ql_core::InstanceConfigJson::read(&instance).await;
-    let loader_name = config.as_ref().unwrap().mod_type.to_modrinth_str();
-    let loader_version = config.unwrap().mod_type_info.unwrap().version;
-    let mods_folder_path = instance.get_dot_minecraft_path().join("mods");
-    let override_mods_full_path_string: Vec<String> =
-        create_override_mods_full_path(override_filenames, &mods_folder_path);
-
-    let full_path: Vec<PathBuf> = filenames
-        .iter()
-        .map(|rel_path| mods_folder_path.join(rel_path))
-        .collect();
-
-    let mut sha1s = Vec::new();
-    let mut sha512s = Vec::new();
-    let mut file_sizes = Vec::new();
-
-    for path in &full_path {
-        let hashes = hash_file(path).await?;
-        sha1s.push(hashes.sha1);
-        sha512s.push(hashes.sha512);
-        file_sizes.push(hashes.file_size);
-    }
-
-    let json_data = create_qlmp_index_json(
-        1,
-        minecraft_version.to_string(),
-        loader_name.to_string(),
-        loader_version.unwrap(),
-        modpack_version,
-        modpack_name,
-        author,
-        modpack_summary,
-        icon,
-        filenames
-            .iter()
-            .map(|name| format!("mods/{}", name))
-            .collect::<Vec<String>>(),
-        sha1s,
-        sha512s,
-        urls,
-        file_sizes,
-    )?;
-
-    let zip_path = modpack_path
-        .join(format!("{}.qlmp", modpack_file_name))
-        .to_string_lossy()
-        .to_string();
-
-    let overrides: Vec<(String, String)> =
-        overrides_fn(override_mods_full_path_string, overrides, instance);
-
-    package_format1_pack("qlmp.index".to_string(), json_data, zip_path, overrides).await?;
-
-    Ok(())
-}
-
-fn create_qlmp_index_json(
-    format_version: u8,
-    minecraft_version: String,
-    loader_id: String,
-    loader_version: String,
-    version_id: String,
-    name: String,
-    author: String,
-    summary: String,
-    icon: String,
-    paths: Vec<String>,
-    sha1: Vec<String>,
-    sha512: Vec<String>,
-    links: Vec<String>,
-    file_size: Vec<u64>,
-) -> StdResult<String> {
-    let mut loader = Map::new();
-    loader.insert(loader_id.to_string(), Value::String(loader_version));
-
-    let files: Vec<FormatMQFileEntry> = format_1_file_entry(paths, sha1, sha512, links, file_size)?;
-
-    let manifest = QlModpackManifest {
-        format_version,
-        minecraft_version,
-        loader_id: Value::Object(loader),
-        version_id,
-        name,
-        author,
-        summary,
-        icon,
-        files,
-    };
-
-    let json_data = serde_json::to_string_pretty(&manifest)?;
-
-    Ok(json_data)
-}
 
 #[derive(Error, Debug)]
 pub enum PackageError {
@@ -215,8 +51,8 @@ pub enum PackageError {
     ParentPathUndefined(String),
 }
 
-async fn package_format1_pack(
-    //  Used for Modrinth, QLMP and CurseForge packs
+async fn package_format_1_modpack(
+    //  Used for Modrinth and CurseForge packs
     json_name: String,
     json_data: String,
     zip_path: String,
@@ -253,39 +89,6 @@ async fn add_file_to_zip<W: tokio::io::AsyncWrite + Unpin>(
     let builder = ZipEntryBuilder::new(zip_relative_path.into(), Compression::Deflate);
     writer.write_entry_whole(builder, &data).await?;
     Ok(())
-}
-
-fn format_1_file_entry(
-    // Used by Modrinth and QLMP
-    paths: Vec<String>,
-    sha1: Vec<String>,
-    sha512: Vec<String>,
-    links: Vec<String>,
-    file_size: Vec<u64>,
-) -> StdResult<Vec<FormatMQFileEntry>> {
-    let sha1: Vec<&str> = sha1.iter().map(|s| s.as_str()).collect();
-    let sha512: Vec<&str> = sha512.iter().map(|s| s.as_str()).collect();
-
-    let files: Vec<FormatMQFileEntry> = paths
-        .iter()
-        .zip(&sha1)
-        .zip(&sha512)
-        .zip(&links)
-        .zip(&file_size)
-        .map(
-            |((((path, sha1), sha512), download), &file_size)| FormatMQFileEntry {
-                path: path.to_string(),
-                hashes: Hashes {
-                    sha1: sha1.to_string(),
-                    sha512: sha512.to_string(),
-                },
-                downloads: vec![download.to_string()],
-                file_size,
-            },
-        )
-        .collect();
-
-    Ok(files)
 }
 
 fn overrides_fn(
@@ -336,70 +139,4 @@ fn create_override_mods_full_path(
         .collect();
 
     override_mods_full_path_string
-}
-
-async fn write_modlist_json(path: PathBuf, json: &str) -> StdResult<()> {
-    if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent).await?;
-    }
-    tokio::fs::write(path, json.as_bytes()).await?;
-    Ok(())
-}
-
-pub async fn create_modlist(modlist_path: PathBuf, mod_ids: HashSet<ModId>, instance: Instance) {
-    let index = ModIndex::load(&instance).await.unwrap();
-
-    let mut urls: Vec<String> = Vec::new();
-    let mut filenames: Vec<String> = Vec::new();
-
-    for id in &mod_ids {
-        let Some(config) = index.mods.get(id) else {
-            continue;
-        };
-        let Some(primary_file) = config
-            .files
-            .iter()
-            .find(|file| file.primary)
-            .or_else(|| config.files.first())
-        else {
-            continue;
-        };
-
-        urls.push(primary_file.url.clone());
-        filenames.push(primary_file.filename.clone());
-    }
-
-    let mods_folder_path = instance.get_dot_minecraft_path().join("mods");
-
-    let full_path: Vec<PathBuf> = filenames
-        .iter()
-        .map(|rel_path| mods_folder_path.join(rel_path))
-        .collect();
-
-    let mut sha1s = Vec::new();
-    let mut sha512s = Vec::new();
-    let mut file_sizes = Vec::new();
-
-    for path in &full_path {
-        let hashes = hash_file(path).await.unwrap();
-        sha1s.push(hashes.sha1);
-        sha512s.push(hashes.sha512);
-        file_sizes.push(hashes.file_size);
-    }
-
-    let files: Vec<FormatMQFileEntry> = format_1_file_entry(
-        filenames
-            .iter()
-            .map(|name| format!("mods/{}", name))
-            .collect::<Vec<String>>(),
-        sha1s,
-        sha512s,
-        urls,
-        file_sizes,
-    )
-    .unwrap();
-
-    let json_data = serde_json::to_string_pretty(&files).unwrap();
-
-    write_modlist_json(modlist_path, &json_data).await.unwrap();
 }
