@@ -1,8 +1,11 @@
 use owo_colors::OwoColorize;
-use std::process::exit;
+use std::{
+    io::{self, IsTerminal},
+    process::exit,
+};
 
+use ql_auth::{AccountType, TokenStorageMethod};
 use ql_core::err;
-use ql_instances::auth::{self, AccountType};
 
 use crate::{
     cli::show_notification,
@@ -14,7 +17,7 @@ pub async fn refresh_account(
     use_account: bool,
     show_progress: bool,
     override_account_type: Option<&str>,
-) -> Result<Option<auth::AccountData>, Box<dyn std::error::Error>> {
+) -> Result<Option<ql_auth::AccountData>, Box<dyn std::error::Error>> {
     if !use_account {
         if show_progress {
             tokio::task::spawn_blocking(|| {
@@ -30,6 +33,10 @@ pub async fn refresh_account(
         exit(1);
     };
     let refresh_name = account.get_keyring_identifier(username);
+    let method = account.c_token_storage();
+
+    ql_auth::token_store::set_storage_method(method);
+    unlock_encrypted_store_if_needed(method)?;
 
     if show_progress {
         tokio::task::spawn_blocking(|| {
@@ -37,20 +44,62 @@ pub async fn refresh_account(
         });
     }
 
-    let refresh_token =
-        auth::read_refresh_token(refresh_name, account.account_type.unwrap_or_default())?;
+    let refresh_token = ql_auth::token_store::read_refresh_token_from(
+        refresh_name,
+        account.account_type.unwrap_or_default(),
+        method,
+    )?;
 
     // Hook: Account types
     let account = if let Some(account_type @ (AccountType::ElyBy | AccountType::LittleSkin)) =
         account.account_type
     {
-        auth::yggdrasil::login_refresh(refresh_name.to_owned(), refresh_token, account_type).await?
+        ql_auth::yggdrasil::login_refresh(refresh_name.to_owned(), refresh_token, account_type)
+            .await?
     } else {
-        let refresh_token = auth::read_refresh_token(username, AccountType::Microsoft)?;
-        auth::ms::login_refresh(username.clone(), refresh_token, None).await?
+        let refresh_token = ql_auth::token_store::read_refresh_token_from(
+            username,
+            AccountType::Microsoft,
+            method,
+        )?;
+        ql_auth::ms::login_refresh(username.clone(), refresh_token, None).await?
     };
 
     Ok(Some(account))
+}
+
+fn unlock_encrypted_store_if_needed(
+    method: TokenStorageMethod,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if method != TokenStorageMethod::EncryptedFile {
+        return Ok(());
+    }
+    if ql_auth::encrypted_store::is_unlocked() {
+        return Ok(());
+    }
+    if !ql_auth::encrypted_store::file_exists() {
+        return Err(ql_auth::encrypted_store::EncryptedStoreError::FileNotFound.into());
+    }
+
+    if let Ok(secret) = std::env::var("QL_FILE_SECRET") {
+        let secret = secret.trim();
+        if !secret.is_empty() {
+            ql_auth::encrypted_store::unlock(secret)?;
+            return Ok(());
+        }
+    }
+
+    if !io::stdin().is_terminal() {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "Encrypted token store is locked. Set QL_FILE_SECRET or run in an interactive terminal to enter the password.",
+        )
+        .into());
+    }
+
+    let password = rpassword::prompt_password("Encrypted token store password: ")?;
+    ql_auth::encrypted_store::unlock(&password)?;
+    Ok(())
 }
 
 fn get_account<'a>(

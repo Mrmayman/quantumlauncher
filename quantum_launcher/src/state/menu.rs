@@ -787,6 +787,7 @@ pub enum LauncherSettingsTab {
     Presence,
     Launcher,
     Game,
+    Security,
     About,
 }
 
@@ -794,10 +795,11 @@ impl std::fmt::Display for LauncherSettingsTab {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             LauncherSettingsTab::UserInterface => "Appearance",
+            LauncherSettingsTab::Presence => "Discord Presence",
             LauncherSettingsTab::Game => "Game",
             LauncherSettingsTab::Launcher => "Launcher",
+            LauncherSettingsTab::Security => "Security",
             LauncherSettingsTab::About => "About",
-            LauncherSettingsTab::Presence => "Discord Presence",
         })
     }
 }
@@ -808,6 +810,7 @@ impl LauncherSettingsTab {
         Self::Presence,
         Self::Game,
         Self::Launcher,
+        Self::Security,
         Self::About,
     ];
 
@@ -816,7 +819,8 @@ impl LauncherSettingsTab {
             Self::UserInterface => Self::Presence,
             Self::Presence => Self::Game,
             Self::Game => Self::Launcher,
-            Self::Launcher | Self::About => Self::About,
+            Self::Launcher => Self::Security,
+            Self::Security | Self::About => Self::About,
         }
     }
 
@@ -825,7 +829,8 @@ impl LauncherSettingsTab {
             Self::UserInterface | Self::Presence => Self::UserInterface,
             Self::Game => Self::Presence,
             Self::Launcher => Self::Game,
-            Self::About => Self::Launcher,
+            Self::Security => Self::Launcher,
+            Self::About => Self::Security,
         }
     }
 }
@@ -968,6 +973,8 @@ pub enum State {
     CreateShortcut(MenuShortcut),
 
     License(MenuLicense),
+
+    TokenPasswordPrompt(MenuTokenPassword),
 }
 
 pub struct MenuShortcut {
@@ -981,6 +988,23 @@ pub struct MenuShortcut {
 pub struct MenuLicense {
     pub selected_tab: LicenseTab,
     pub content: widget::text_editor::Content,
+}
+
+/// Password prompt for the encrypted token store.
+/// Shown at startup when the encrypted file exists but isn't unlocked,
+/// or when the user manually triggers unlock from settings.
+pub struct MenuTokenPassword {
+    /// The password the user is currently typing.
+    pub password: String,
+    /// Whether the password field is visible as plain text.
+    pub show_password: bool,
+    /// An error message to display (e.g., wrong password).
+    pub error: Option<String>,
+    /// Whether a pending crypto operation is in progress.
+    pub is_loading: bool,
+    /// If `Some`, this is a "create new store" flow with a confirm field.
+    /// Otherwise it's an "unlock existing store" flow.
+    pub confirm_password: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

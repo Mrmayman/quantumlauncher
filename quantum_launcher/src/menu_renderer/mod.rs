@@ -2,8 +2,8 @@ use iced::{
     Alignment, Length,
     widget::{self, column, row, tooltip::Position},
 };
+use ql_auth::AccountType;
 use ql_core::Progress;
-use ql_instances::auth::AccountType;
 
 use crate::{
     config::LauncherConfig,
