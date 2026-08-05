@@ -84,7 +84,7 @@ pub async fn export_curseforge_modpack(
     let details = VersionDetails::load(&instance).await?;
     let minecraft_version = details.get_id().to_string();
     let config = ql_core::InstanceConfigJson::read(&instance).await?;
-    let loader_name = match config.mod_type {
+    let loader_id = match config.mod_type {
         Loader::Forge => "forge",
         Loader::Fabric => "fabric",
         Loader::Quilt => "quilt",
@@ -93,7 +93,7 @@ pub async fn export_curseforge_modpack(
         _ => panic!(),
     };
     let loader_version = config.mod_type_info.unwrap().version;
-    let loader = loader_name.to_string() + "-" + loader_version.unwrap().as_str();
+    let loader = loader_id.to_string() + "-" + loader_version.unwrap().as_str();
 
     let file_ids: Vec<&str> = vec!["temp"]; // TODO: get FileIds here!!
 

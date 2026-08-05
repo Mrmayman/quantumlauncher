@@ -77,7 +77,7 @@ pub async fn export_modrinth_modpack(
     let details = VersionDetails::load(&instance).await?;
     let minecraft_version = details.get_id();
     let config = ql_core::InstanceConfigJson::read(&instance).await?;
-    let loader_name = match config.mod_type.to_modrinth_str() {
+    let loader_id = match config.mod_type.to_modrinth_str() {
         // Modrinth only supports these for modpacks
         "fabric" => "fabric-loader",
         "quilt" => "quilt-loader",
@@ -111,7 +111,7 @@ pub async fn export_modrinth_modpack(
         modpack_name,
         modpack_version,
         modpack_summary,
-        loader_name.to_string(),
+        loader_id.to_string(),
         loader_version.unwrap(),
         minecraft_version.to_string(),
         filenames
