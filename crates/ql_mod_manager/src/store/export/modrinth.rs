@@ -122,8 +122,7 @@ pub async fn export_modrinth_modpack(
         sha512s,
         urls,
         file_sizes,
-    )
-    .unwrap();
+    )?;
 
     let zip_path = PathBuf::from(&modpack_path)
         .join(format!("{}.mrpack", modpack_file_name))
