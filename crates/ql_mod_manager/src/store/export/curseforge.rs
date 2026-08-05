@@ -5,7 +5,11 @@ use serde::Serialize;
 
 use crate::store::{
     ModId, ModIndex,
-    export::{create_override_mods_full_path, overrides_fn, package_format_1_modpack},
+    export::{
+        ModpackExportError,
+        create_override_mods_full_path,
+        overrides_fn,
+        package_format_1_modpack},
 };
 
 #[derive(Serialize)]
@@ -50,8 +54,8 @@ pub async fn export_curseforge_modpack(
     overrides: Vec<String>, // MUST BE FULL PATH!!
     icon_url: String,
     instance: Instance,
-) {
-    let index = ModIndex::load(&instance).await.unwrap();
+)-> Result<(), ModpackExportError> {
+    let index = ModIndex::load(&instance).await?;
 
     let mut override_filenames: Vec<String> = Vec::new();
 
@@ -77,18 +81,18 @@ pub async fn export_curseforge_modpack(
         }
     }
 
-    let details = VersionDetails::load(&instance).await.unwrap();
+    let details = VersionDetails::load(&instance).await?;
     let minecraft_version = details.get_id().to_string();
-    let config = ql_core::InstanceConfigJson::read(&instance).await;
-    let loader_name = match config.as_ref().unwrap().mod_type {
+    let config = ql_core::InstanceConfigJson::read(&instance).await?;
+    let loader_name = match config.mod_type {
         Loader::Forge => "forge",
         Loader::Fabric => "fabric",
         Loader::Quilt => "quilt",
         Loader::Neoforge => "neoforge",
-        // Loader::Liteloader => "lightloader",
+        // Loader::Liteloader => "liteloader",
         _ => panic!(),
     };
-    let loader_version = config.unwrap().mod_type_info.unwrap().version;
+    let loader_version = config.mod_type_info.unwrap().version;
     let loader = loader_name.to_string() + "-" + loader_version.unwrap().as_str();
 
     let file_ids: Vec<&str> = vec!["temp"]; // TODO: get FileIds here!!
@@ -120,11 +124,13 @@ pub async fn export_curseforge_modpack(
         minecraft_version,
         icon_url,
     )
-    .unwrap();
+    ?;
 
     package_format_1_modpack("manifest".to_string(), json_data, zip_path, overrides)
         .await
         .unwrap();
+
+    Ok(())
 }
 
 fn write_curseforge_manifest_json(
@@ -136,7 +142,7 @@ fn write_curseforge_manifest_json(
     loader_id: String,
     version: String,
     image: String,
-) -> std::io::Result<String> {
+) -> Result<String, serde_json::Error> {
     let primary = true;
 
     let files: Vec<CurseForgeFileEntry> = mod_id

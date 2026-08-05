@@ -28,16 +28,18 @@ struct FileHashes {
 
 #[derive(Error, Debug)]
 pub enum ModpackExportError {
-    #[error("could not package: {0}")]
-    FailedPackaging(#[from] PackageError),
+    #[error("zip error: {0}")]
+    Zip(#[from] async_zip::error::ZipError),
 
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 
     #[error("failed to parse JSON: {0}")]
-    Json(#[from] JsonFileError),
-}
+    Json(#[from] ql_core::JsonFileError),
 
+    #[error("manifest serialization failed: {0}")]
+    ManifestSerialization(#[from] serde_json::Error),
+}
 
 #[derive(Error, Debug)]
 pub enum PackageError {
@@ -79,6 +81,11 @@ async fn package_format_1_modpack(
 
     writer.close().await?;
     Ok(())
+}
+
+async fn package_format_2_modpack() {
+
+
 }
 
 async fn add_file_to_zip<W: tokio::io::AsyncWrite + Unpin>(
