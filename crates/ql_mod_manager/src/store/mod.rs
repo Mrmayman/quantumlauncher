@@ -7,7 +7,6 @@ mod add_file;
 mod curseforge;
 mod delete;
 mod error;
-mod export;
 mod id;
 pub mod image;
 mod local_json;
