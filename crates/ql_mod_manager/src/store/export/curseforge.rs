@@ -90,7 +90,7 @@ pub async fn export_curseforge_modpack(
         Loader::Quilt => "quilt",
         Loader::Neoforge => "neoforge",
         // Loader::Liteloader => "liteloader",
-        _ => panic!(),
+        _ => panic!("Unsupported Loader") // TODO: make it not panic
     };
     let loader_version = config.mod_type_info.unwrap().version;
     let loader = loader_id.to_string() + "-" + loader_version.unwrap().as_str();

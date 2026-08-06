@@ -83,7 +83,7 @@ pub async fn export_modrinth_modpack(
         "quilt" => "quilt-loader",
         "forge" => "forge",
         "neoforge" => "neoforge",
-        _ => "Unsupported Loader"
+        _ => panic!("Unsupported Loader") // TODO: make it not panic
     };
     let loader_version = config.mod_type_info.unwrap().version;
     let mods_folder_path = instance.get_dot_minecraft_path().join("mods");
