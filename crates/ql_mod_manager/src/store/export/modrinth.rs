@@ -133,8 +133,7 @@ pub async fn export_modrinth_modpack(
         overrides_fn(override_mods_full_path_string, overrides, instance);
 
     package_format_1_modpack("modrinth.index".to_string(), json_data, zip_path, overrides)
-        .await
-        .unwrap();
+        .await?;
 
     Ok(())
 }

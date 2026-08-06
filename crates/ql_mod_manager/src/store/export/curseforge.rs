@@ -128,7 +128,7 @@ pub async fn export_curseforge_modpack(
 
     package_format_1_modpack("manifest".to_string(), json_data, zip_path, overrides)
         .await
-        .unwrap();
+        ?;
 
     Ok(())
 }

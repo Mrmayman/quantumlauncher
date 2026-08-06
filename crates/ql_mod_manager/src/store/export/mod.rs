@@ -1,7 +1,7 @@
 use async_zip::tokio::write::ZipFileWriter;
 use async_zip::{Compression, ZipEntryBuilder};
 use hex;
-use ql_core::{Instance, JsonFileError};
+use ql_core::Instance;
 use serde::Serialize;
 use sha1::{Digest, Sha1};
 use sha2::Sha512;
@@ -39,6 +39,9 @@ pub enum ModpackExportError {
 
     #[error("manifest serialization failed: {0}")]
     ManifestSerialization(#[from] serde_json::Error),
+
+    #[error("packaging failed: {0}")]
+    Packaging(#[from] PackageError),
 }
 
 #[derive(Error, Debug)]
@@ -83,9 +86,37 @@ async fn package_format_1_modpack(
     Ok(())
 }
 
-async fn package_format_2_modpack() {
+async fn package_multimc_modpack(
+    mmc_pack: String,
+    instance_cfg: String,
+    zip_path: String,
+    content: Vec<(String, String)>
+) -> Result<(), PackageError> {
+    let parent_dir = Path::new(&zip_path)
+        .parent()
+        .ok_or(PackageError::ParentPathUndefined(zip_path.clone()))?;
+    tokio::fs::create_dir_all(parent_dir).await?;
 
+    let output_file = tokio::fs::File::create(&zip_path).await?;
+    let mut writer = ZipFileWriter::with_tokio(output_file);
 
+    for (full_path, relative_path) in &content {
+        let in_zip_path = format!(".minecraft/{}", relative_path);
+        add_file_to_zip(&mut writer, full_path, &in_zip_path).await?;
+    }
+    
+    let json_builder = ZipEntryBuilder::new("mmc_pack.json".into(), Compression::Deflate);
+    writer
+        .write_entry_whole(json_builder, mmc_pack.as_bytes())
+        .await?;
+
+    let instance_cfg_builder = ZipEntryBuilder::new("instance.cfg".into(), Compression::Deflate);
+    writer
+        .write_entry_whole(instance_cfg_builder, instance_cfg.as_bytes())
+        .await?;
+
+    writer.close().await?;
+    Ok(())
 }
 
 async fn add_file_to_zip<W: tokio::io::AsyncWrite + Unpin>(
