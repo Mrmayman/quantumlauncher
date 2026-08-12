@@ -9,7 +9,6 @@ env:
   REPO_NAME: Mrmayman/quantum-launcher
   FINAL_NAME: quantum_launcher
   CARGO_TERM_COLOR: always # Tell cargo to always use colors
-  MACOSX_DEPLOYMENT_TARGET: 10.15
 
 jobs:
   dist:
@@ -66,7 +65,7 @@ jobs:
         shell: bash
         run: |
           mkdir dist
-          APP_DIR="build/quantum-launcher.app"
+          APP_DIR="build/QuantumLauncher.app"
           MACOS_DIR="$APP_DIR/Contents/MacOS"
           RESOURCES_DIR="$APP_DIR/Contents/Resources"
           mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"

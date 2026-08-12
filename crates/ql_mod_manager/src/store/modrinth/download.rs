@@ -203,7 +203,7 @@ impl ModDownloader {
         }
 
         // Handling the same mod across multiple store backends
-        if let Some(mod_info) = self.index.mods.values_mut().find(|n| n.name == name) {
+        if let Some(mod_info) = self.index.mods.values_mut().find(|n| &*n.name == name) {
             if let Some(dependent) = dependent {
                 mod_info.dependents.insert(mid(dependent));
             } else {
@@ -277,9 +277,7 @@ impl ModDownloader {
         if let QueryType::ModPacks = project_type {
             let bytes = file_utils::download_file_to_bytes(&file.url, true).await?;
             let (valid, incompatible) =
-                modpack::install(&bytes, self.instance.clone(), self.sender.as_ref())
-                    .await
-                    .map_err(Box::new)?;
+                modpack::install(&bytes, self.instance.clone(), self.sender.as_ref()).await?;
             debug_assert!(valid, "invalid modpack downloaded from modrinth store!");
             debug_assert!(
                 incompatible.is_empty(),
@@ -287,7 +285,11 @@ impl ModDownloader {
             );
             return Ok(());
         }
-        let file_path = self.dirs.get(project_type).unwrap().join(&file.filename);
+        let file_path = self
+            .dirs
+            .get(project_type)
+            .expect("we already handled modpacks earlier")
+            .join(&file.filename);
         download(&file.url).user_agent_ql().path(&file_path).await?;
         Ok(())
     }

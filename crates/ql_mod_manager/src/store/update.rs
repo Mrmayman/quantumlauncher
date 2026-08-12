@@ -97,7 +97,7 @@ fn build_changelog_entries(mod_index: &ModIndex, updates: &[(ModId, String)]) ->
         .map(|(mod_id, new_version)| {
             let (name, old_version) = match mod_index.mods.get(mod_id) {
                 Some(mod_cfg) => (mod_cfg.name.clone(), mod_cfg.installed_version.clone()),
-                None => (mod_id.get_internal_id().to_owned(), String::new()),
+                None => (mod_id.get_internal_id().into(), String::new()),
             };
 
             let name = trim(&name);

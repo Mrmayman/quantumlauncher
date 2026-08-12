@@ -47,7 +47,7 @@ impl SidebarConfig {
         self.list.push(yoinked);
     }
 
-    pub fn remove(&mut self, selection: &SidebarSelection) -> Option<SidebarNode> {
+    fn remove(&mut self, selection: &SidebarSelection) -> Option<SidebarNode> {
         if let Some(index) = self.list.iter().position(|n| n == selection) {
             return Some(self.list.remove(index));
         }
@@ -95,7 +95,7 @@ impl SidebarNode {
         None
     }
 
-    pub fn insert_at(&mut self, node: &SidebarNode, location: &SDragLocation) -> bool {
+    fn insert_at(&mut self, node: &SidebarNode, location: &SDragLocation) -> bool {
         let offset = location.offset as usize;
         let SidebarNodeKind::Folder(f) = &mut self.kind else {
             return false;
@@ -128,7 +128,7 @@ impl SidebarNode {
         f.children.iter_mut().any(|c| c.insert_at(node, location))
     }
 
-    pub fn is_contained_by(&self, node: &Self) -> bool {
+    fn is_contained_by(&self, node: &Self) -> bool {
         if self == node {
             return true;
         }

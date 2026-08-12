@@ -78,7 +78,7 @@ jobs:
         run: |
           mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/{256x256,512x512}/apps
           cp target/${{ matrix.target }}/release/${{ env.BIN_NAME }} AppDir/usr/bin/quantum-launcher
-          cp assets/freedesktop/quantum-launcher.desktop AppDir/usr/share/applications/
+          cp assets/freedesktop/quantum-launcher.desktop AppDir/usr/share/applications/io.github.Mrmayman.QuantumLauncher.desktop
           cp assets/icon/256x256/ql_logo.png AppDir/usr/share/icons/hicolor/256x256/apps/io.github.Mrmayman.QuantumLauncher.png
           cp assets/icon/512x512/ql_logo.png AppDir/usr/share/icons/hicolor/512x512/apps/io.github.Mrmayman.QuantumLauncher.png
           linuxdeploy --appdir AppDir

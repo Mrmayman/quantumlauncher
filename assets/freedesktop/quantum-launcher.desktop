@@ -8,3 +8,4 @@ Categories=Game;
 Icon=io.github.Mrmayman.QuantumLauncher
 Exec=quantum-launcher
 PrefersNonDefaultGPU=true
+StartupWMClass=io.github.Mrmayman.QuantumLauncher

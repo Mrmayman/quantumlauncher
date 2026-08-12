@@ -104,7 +104,7 @@ async fn import_modpack(
             .file_stem()
             .and_then(|n| n.to_str())
             .unwrap_or("imported-modpack")
-            .to_string()
+            .into()
     };
 
     let instance = Instance::client(&instance_name);
@@ -123,7 +123,13 @@ async fn import_modpack(
     }
 
     // Create the instance
-    ql_instances::create_instance(instance_name, version, Some(d_send), download_assets).await?;
+    ql_instances::create_instance(
+        instance_name.to_string(),
+        version,
+        Some(d_send),
+        download_assets,
+    )
+    .await?;
 
     // Install the loader
     ql_mod_manager::loaders::install_specified_loader(

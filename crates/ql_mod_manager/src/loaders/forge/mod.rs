@@ -48,7 +48,7 @@ struct ForgeInstaller {
 }
 
 impl ForgeInstaller {
-    pub async fn delete(&self, path: &str) -> Result<(), IoError> {
+    async fn delete(&self, path: &str) -> Result<(), IoError> {
         let delete_path = self.forge_dir.join(path);
         if exists(&delete_path).await {
             fs::remove_file(&delete_path).await.path(delete_path)?;

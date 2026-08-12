@@ -86,7 +86,7 @@ struct ServerLauncher {
 }
 
 impl ServerLauncher {
-    pub async fn new(name: &str) -> Result<Self, ServerError> {
+    async fn new(name: &str) -> Result<Self, ServerError> {
         let dir = LAUNCHER_DIR.join("servers").join(name);
         Ok(Self {
             version_json: VersionDetails::load_from_path(&dir).await?,
@@ -95,15 +95,15 @@ impl ServerLauncher {
         })
     }
 
-    pub fn is_neoforge(&self) -> bool {
+    fn is_neoforge(&self) -> bool {
         self.config.mod_type == Loader::Neoforge
     }
 
-    pub fn is_classic_server(&self) -> bool {
+    fn is_classic_server(&self) -> bool {
         self.config.is_classic_server.unwrap_or_default()
     }
 
-    pub async fn get_java(
+    async fn get_java(
         &self,
         java_install_progress: Option<&Sender<GenericProgress>>,
     ) -> Result<PathBuf, ServerError> {
@@ -120,7 +120,7 @@ impl ServerLauncher {
         Ok(path)
     }
 
-    pub async fn get_server_jar(&self) -> Result<PathBuf, ServerError> {
+    async fn get_server_jar(&self) -> Result<PathBuf, ServerError> {
         Ok(if let Some(custom_jar) = &self.config.custom_jar {
             // Should I prioritize Fabric/Forge/Paper over a custom JAR?
             PathBuf::from(&custom_jar.name)
@@ -145,7 +145,7 @@ impl ServerLauncher {
         })
     }
 
-    pub async fn get_java_args(&self, jar: &Path) -> Result<Vec<String>, ServerError> {
+    async fn get_java_args(&self, jar: &Path) -> Result<Vec<String>, ServerError> {
         let mut java_args: Vec<String> = self.config.get_java_args(&[]);
         java_args.push(self.config.get_ram_argument());
         if self.config.mod_type == Loader::Forge {

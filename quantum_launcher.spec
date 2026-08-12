@@ -26,19 +26,19 @@ cargo build --profile release
 
 %install
 install -Dm755 target/release/quantum_launcher %{buildroot}%{_bindir}/quantum-launcher
-install -Dm644 assets/freedesktop/quantum-launcher.desktop %{buildroot}%{_datadir}/applications/quantum-launcher.desktop
+install -Dm644 assets/freedesktop/quantum-launcher.desktop %{buildroot}%{_datadir}/applications/io.github.Mrmayman.QuantumLauncher.desktop
 install -Dm644 assets/icon/256x256/ql_logo.png %{buildroot}%{_datadir}/pixmaps/io.github.Mrmayman.QuantumLauncher.png
 install -Dm644 assets/icon/256x256/ql_logo.png %{buildroot}%{_datadir}/icons/hicolor/256x256/apps/io.github.Mrmayman.QuantumLauncher.png
-install -Dm644 assets/freedesktop/quantum-launcher.metainfo.xml %{buildroot}%{_datadir}/metainfo/quantum-launcher.metainfo.xml
+install -Dm644 assets/freedesktop/quantum-launcher.metainfo.xml %{buildroot}%{_datadir}/metainfo/io.github.Mrmayman.QuantumLauncher.metainfo.xml
 
 %files
 %license LICENSE
 %doc README.md
 %{_bindir}/quantum-launcher
-%{_datadir}/applications/quantum-launcher.desktop
+%{_datadir}/applications/io.github.Mrmayman.QuantumLauncher.desktop
 %{_datadir}/pixmaps/io.github.Mrmayman.QuantumLauncher.png
 %{_datadir}/icons/hicolor/256x256/apps/io.github.Mrmayman.QuantumLauncher.png
-%{_datadir}/metainfo/quantum-launcher.metainfo.xml
+%{_datadir}/metainfo/io.github.Mrmayman.QuantumLauncher.metainfo.xml
 
 %changelog
 %autochangelog

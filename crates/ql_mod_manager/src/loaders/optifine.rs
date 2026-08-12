@@ -11,9 +11,7 @@ use ql_core::{
     LAUNCHER_DIR, Loader, OptifineUniqueVersion, Progress, RequestError, download,
     file_utils::{self, exists},
     impl_3_errs_jri, info, jarmod,
-    json::{
-        InstanceConfigJson, VersionDetails, instance_config::ModTypeInfo, optifine::JsonOptifine,
-    },
+    json::{InstanceConfigJson, VersionDetails, optifine::JsonOptifine},
     no_window, pt,
 };
 use ql_java_handler::{JAVA, JavaInstallError, JavaVersion, get_java_binary};
@@ -120,10 +118,7 @@ pub async fn install(
             tokio::fs::copy(&path_to_installer, &dest)
                 .await
                 .path(&path_to_installer)?;
-            config
-                .mod_type_info
-                .get_or_insert_with(ModTypeInfo::default)
-                .optifine_jar = Some(filename.to_owned());
+            config.mod_type_info.get_or_insert_default().optifine_jar = Some(filename.to_owned());
             config.save_to_dir(&instance_path).await?;
             return Ok(());
         }

@@ -1,3 +1,4 @@
+use crate::config::discord_rpc::RpcConfig;
 use crate::config::sidebar::{SidebarConfig, SidebarNode, SidebarNodeKind};
 use crate::stylesheet::styles::{LauncherTheme, LauncherThemeColor, LauncherThemeLightness};
 use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
@@ -13,6 +14,7 @@ use std::{
     path::Path,
 };
 
+pub mod discord_rpc;
 pub mod sidebar;
 
 pub const SIDEBAR_WIDTH: f32 = 0.33;
@@ -39,7 +41,7 @@ pub struct LauncherConfig {
         since = "0.2.0",
         note = "removed feature, field left here for backwards compatibility"
     )]
-    pub java_installs: Option<Vec<String>>,
+    java_installs: Option<Vec<String>>,
 
     /// UI mode (Light/Dark/Auto) set by the user.
     // Since: v0.3
@@ -102,10 +104,12 @@ pub struct LauncherConfig {
     pub persistent: Option<PersistentSettings>,
     // Since: v0.5.1
     pub sidebar: Option<SidebarConfig>,
+    // Since: TBD
+    pub discord_rpc: Option<RpcConfig>,
     /// Time of last auto-update check result, in seconds since the Unix epoch.
     // Since: TBD
     #[cfg(feature = "auto_update")]
-    pub last_update_check: Option<u64>,
+    last_update_check: Option<u64>,
 
     /// Preserve fields when downgrading
     #[serde(flatten)]
@@ -131,6 +135,7 @@ impl Default for LauncherConfig {
             ui: None,
             persistent: None,
             sidebar: None,
+            discord_rpc: None,
             _extra: HashMap::new(),
             #[cfg(feature = "auto_update")]
             last_update_check: None,
@@ -188,6 +193,11 @@ impl LauncherConfig {
         Ok(())
     }
 
+    /// Resets the Discord Rich Presence configuration to default.
+    pub fn reset_presence(&mut self) {
+        self.discord_rpc = Some(RpcConfig::default());
+    }
+
     pub fn update_sidebar(&mut self, instances: &[String], kind: InstanceKind) {
         let sidebar = self.sidebar.get_or_insert_with(SidebarConfig::default);
 
@@ -218,9 +228,6 @@ impl LauncherConfig {
     }
 
     fn fix(&mut self) {
-        if self.ui_antialiasing.is_none() {
-            self.ui_antialiasing = Some(true);
-        }
         if let (Some(accounts), Some(selected)) = (&self.accounts, &self.account_selected) {
             if !accounts.contains_key(selected) {
                 self.account_selected = None;
@@ -232,6 +239,10 @@ impl LauncherConfig {
             if self.java_installs.is_none() {
                 self.java_installs = Some(Vec::new());
             }
+        }
+
+        if let Some(rpc) = &mut self.discord_rpc {
+            rpc.fix();
         }
     }
 
@@ -281,21 +292,19 @@ impl LauncherConfig {
     }
 
     pub fn c_window(&mut self) -> &mut WindowProperties {
-        self.window.get_or_insert_with(WindowProperties::default)
+        self.window.get_or_insert_default()
     }
 
     pub fn c_global(&mut self) -> &mut GlobalSettings {
-        self.global_settings
-            .get_or_insert_with(GlobalSettings::default)
+        self.global_settings.get_or_insert_default()
     }
 
     pub fn c_persistent(&mut self) -> &mut PersistentSettings {
-        self.persistent
-            .get_or_insert_with(PersistentSettings::default)
+        self.persistent.get_or_insert_default()
     }
 
     pub fn c_sidebar(&mut self) -> &mut SidebarConfig {
-        self.sidebar.get_or_insert_with(SidebarConfig::default)
+        self.sidebar.get_or_insert_default()
     }
 
     pub fn c_idle_fps(&self) -> u64 {
@@ -313,6 +322,10 @@ impl LauncherConfig {
             debug_assert!(false, "idle FPS shouldn't be zero");
             IDLE_FPS
         }
+    }
+
+    pub fn c_rpc_enabled(&self) -> bool {
+        self.discord_rpc.as_ref().is_some_and(|n| n.enable)
     }
 
     #[cfg(feature = "auto_update")]
@@ -354,7 +367,7 @@ pub struct ConfigAccount {
     pub uuid: String,
 
     /// Currently unimplemented, does nothing.
-    pub skin: Option<String>, // TODO: Add skin visualization?
+    skin: Option<String>, // TODO: Add skin visualization?
 
     /// Type of account (default: `Microsoft`)
     pub account_type: Option<AccountType>,
@@ -445,7 +458,7 @@ pub struct UiSettings {
     pub idle_fps: Option<u64>,
     /// When the game is launched, the launcher can either
     /// minimize itself, close itself, or do nothing (default).
-    // Since: v0.5.2
+    // Since: TBD
     #[serde(default)]
     pub after_game_opens: AfterLaunchBehavior,
     #[serde(flatten)]
@@ -489,13 +502,14 @@ impl AfterLaunchBehavior {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
 pub enum UiWindowDecorations {
-    #[serde(rename = "system")]
-    #[default]
-    System,
     #[serde(rename = "left")]
     Left,
     #[serde(rename = "right")]
     Right,
+    #[serde(rename = "system")]
+    #[default]
+    #[serde(other)]
+    System,
 }
 
 /*impl Default for UiWindowDecorations {

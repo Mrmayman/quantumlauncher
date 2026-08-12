@@ -35,7 +35,7 @@ pub struct ModConfig {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ModIndex {
     pub mods: HashMap<ModId, ModConfig>,
-    pub is_server: Option<bool>,
+    is_server: Option<bool>,
 }
 
 impl ModIndex {
@@ -62,7 +62,7 @@ impl ModIndex {
         }
     }
 
-    pub async fn fix(&mut self, selected_instance: &Instance) -> Result<(), IoError> {
+    async fn fix(&mut self, selected_instance: &Instance) -> Result<(), IoError> {
         let mods_dir = selected_instance.get_dot_minecraft_path().join("mods");
         if !exists(&mods_dir).await {
             fs::create_dir(&mods_dir).await.path(&mods_dir)?;

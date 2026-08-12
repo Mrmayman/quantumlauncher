@@ -44,7 +44,7 @@ impl MenuCreateInstance {
 }
 
 impl MenuCreateInstanceChoosing {
-    pub fn view(&self, existing_instances: Option<&[String]>, timer: usize) -> Element<'_> {
+    fn view(&self, existing_instances: Option<&[String]>, timer: usize) -> Element<'_> {
         let view = widget::pane_grid(&self.sidebar_grid_state, |_, is_sidebar, _| {
             if *is_sidebar {
                 self.get_sidebar_contents(timer).into()
@@ -118,7 +118,7 @@ impl MenuCreateInstanceChoosing {
             widget::column![
                 widget::column![header].padding(10),
                 widget::scrollable(widget::column(versions_iter.map(|n| {
-                    let label = widget::text(&n.name).size(14).style(|t: &LauncherTheme| {
+                    let label = widget::text(&*n.name).size(14).style(|t: &LauncherTheme| {
                         t.style_text(if n.kind == ListEntryKind::Snapshot {
                             Color::SecondLight
                         } else {
@@ -224,7 +224,8 @@ impl MenuCreateInstanceChoosing {
     fn get_main_page(&self, existing_instances: Option<&[String]>) -> Element<'_> {
         let already_exists = existing_instances.is_some_and(|n| {
             n.contains(&self.instance_name)
-                || (self.instance_name.is_empty() && n.contains(&self.selected_version.name))
+                || (self.instance_name.is_empty()
+                    && n.contains(&self.selected_version.name.to_string()))
         });
 
         let main_part = column![

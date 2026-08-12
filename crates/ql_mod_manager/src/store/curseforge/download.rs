@@ -20,14 +20,14 @@ use super::Mod;
 pub struct ModDownloader<'a> {
     version: String,
     instance: Instance,
-    pub loader: Option<&'static str>,
+    loader: Option<&'static str>,
     pub index: ModIndex,
 
     dirs: DirStructure,
 
     pub query_cache: HashMap<String, Mod>,
     pub not_allowed: CurseforgeNotAllowed,
-    pub already_installed: HashSet<String>,
+    already_installed: HashSet<String>,
     pub sender: Option<&'a Sender<GenericProgress>>,
 }
 
@@ -159,9 +159,7 @@ impl<'a> ModDownloader<'a> {
                 let bytes = file_utils::download_file_to_bytes(&url, true).await?;
                 self.index.save(&self.instance).await?;
                 let (valid, not_allowed_new) =
-                    modpack::install(&bytes, self.instance.clone(), self.sender)
-                        .await
-                        .map_err(Box::new)?;
+                    modpack::install(&bytes, self.instance.clone(), self.sender).await?;
                 if !valid {
                     err!("Invalid modpack downloaded from curseforge! Corrupted?");
                 }
@@ -194,7 +192,11 @@ impl<'a> ModDownloader<'a> {
         const FABRIC: &str = "4";
 
         if self.loader == Some(FABRIC)
-            && !self.index.mods.values_mut().any(|n| n.name == "Fabric API")
+            && !self
+                .index
+                .mods
+                .values_mut()
+                .any(|n| &*n.name == "Fabric API")
         {
             self.download("306612", None).await?;
         }

@@ -50,15 +50,15 @@ pub struct Mod {
     pub slug: String,
     pub summary: String,
     #[serde(rename = "downloadCount")]
-    pub download_count: usize,
+    download_count: usize,
     pub logo: Option<Logo>,
     pub id: i32,
     #[serde(rename = "latestFilesIndexes")]
-    pub latest_files_indexes: Vec<CurseforgeFileIdx>,
+    latest_files_indexes: Vec<CurseforgeFileIdx>,
     #[serde(rename = "classId")]
     pub class_id: i32,
-    pub screenshots: Vec<CfScreenshot>,
-    pub links: CfLinks,
+    screenshots: Vec<CfScreenshot>,
+    links: CfLinks,
     // latestFiles: Vec<CurseforgeFile>,
 }
 
@@ -143,7 +143,7 @@ pub struct CfLinks {
 }
 
 impl CfLinks {
-    pub fn build_urls(&self) -> Vec<(UrlKind, String)> {
+    fn build_urls(&self) -> Vec<(UrlKind, String)> {
         let mut urls = Vec::new();
         if let Some(website_url) = &self.website_url {
             if !website_url.is_empty() {
@@ -201,7 +201,7 @@ pub struct CurseforgeFile {
     pub fileName: String,
     pub downloadUrl: Option<String>,
     pub gameVersions: Vec<String>,
-    pub dependencies: Vec<Dependency>,
+    dependencies: Vec<Dependency>,
     pub fileDate: String,
     pub displayName: String,
     pub fileLength: u64,
@@ -210,7 +210,7 @@ pub struct CurseforgeFile {
 #[derive(Deserialize, Clone, Debug)]
 #[allow(non_snake_case)]
 pub struct Dependency {
-    pub modId: usize,
+    modId: usize,
 }
 
 #[derive(Deserialize, Clone, Debug)]
