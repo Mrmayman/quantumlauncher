@@ -63,10 +63,11 @@ pub async fn install(
 
     if instance.is_server() {
         fs::remove_dir_all(&neoforge_dir).await.path(neoforge_dir)?;
-        delete(&instance_dir, "installer.jar.log").await?;
-        delete(&instance_dir, "run.bat").await?;
-        delete(&instance_dir, "run.sh").await?;
-        delete(&instance_dir, "user_jvm_args.txt").await?;
+        let dir = instance.get_dot_minecraft_path();
+        delete(&dir, "installer.jar.log").await?;
+        delete(&dir, "run.bat").await?;
+        delete(&dir, "run.sh").await?;
+        delete(&dir, "user_jvm_args.txt").await?;
     } else {
         download_libraries(f_progress, &json, &installer_bytes, &neoforge_dir).await?;
         delete(&neoforge_dir, "launcher_profiles.json").await?;
@@ -320,20 +321,22 @@ pub async fn run_installer(
     let java_path = get_java_binary(JavaVersion::Java21, "java", j_progress).await?;
     let mut command = Command::new(&java_path);
     no_window!(command);
+
+    let current_dir = match kind {
+        InstanceKind::Client => neoforge_dir.to_owned(),
+        InstanceKind::Server => neoforge_dir
+            .parent()
+            .map(|n| n.join("data"))
+            .unwrap_or_else(|| neoforge_dir.join("../data")),
+    };
+
+    let classpath = format!(
+        "forge/{INSTALLER_NAME}{CLASSPATH_SEPARATOR}{INSTALLER_NAME}{CLASSPATH_SEPARATOR}forge/{CLASSPATH_SEPARATOR}."
+    );
+
     command
-        .args([
-            "-cp",
-            &format!(
-                "forge/{INSTALLER_NAME}{CLASSPATH_SEPARATOR}{INSTALLER_NAME}{CLASSPATH_SEPARATOR}forge/{CLASSPATH_SEPARATOR}."
-            ),
-            "NeoForgeInstaller",
-        ])
-        .current_dir(match kind {
-            InstanceKind::Client => neoforge_dir.to_owned(),
-            InstanceKind::Server => neoforge_dir
-                .parent()
-                .map_or(neoforge_dir.join(".."), Path::to_owned)
-        });
+        .args(["-cp", &classpath, "NeoForgeInstaller"])
+        .current_dir(current_dir);
 
     let output = command.output().await.path(java_path)?;
     if !output.status.success() {

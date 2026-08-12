@@ -175,6 +175,22 @@ impl QueryType {
             QueryType::ModPacks => &["zip", "mrpack", "qmp"],
         }
     }
+
+    pub fn get_dirname(&self, is_legacy_texturepacks: bool) -> &str {
+        match self {
+            QueryType::Mods => "mods",
+            QueryType::Shaders => "shaderpacks",
+            QueryType::ModPacks => "modpacks",
+            QueryType::DataPacks => "datapacks",
+            QueryType::ResourcePacks => {
+                if is_legacy_texturepacks {
+                    "texturepacks"
+                } else {
+                    "resourcepacks"
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

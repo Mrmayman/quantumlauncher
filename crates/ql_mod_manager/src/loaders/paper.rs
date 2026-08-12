@@ -2,13 +2,13 @@ use std::fmt::{Display, Formatter};
 use std::path::Path;
 
 use ql_core::file_utils::exists;
+use ql_core::{Instance, InstanceKind, download, impl_3_errs_jri};
 use ql_core::{
     IntoIoError, IntoJsonError, IoError, JsonError, LAUNCHER_DIR, Loader, RequestError, file_utils,
     info,
     json::{VersionDetails, instance_config::ModTypeInfo},
     pt,
 };
-use ql_core::{download, impl_3_errs_jri};
 use serde::Deserialize;
 use thiserror::Error;
 
@@ -62,9 +62,15 @@ impl PaperVer {
     }
 }
 
-pub async fn install(instance_name: String, version: PaperVer) -> Result<(), PaperInstallerError> {
+pub async fn install(instance: Instance, version: PaperVer) -> Result<(), PaperInstallerError> {
+    debug_assert_eq!(
+        instance.kind,
+        InstanceKind::Server,
+        "Paper only supports servers"
+    );
+
     info!("Installing Paper");
-    let server_dir = LAUNCHER_DIR.join("servers").join(&instance_name);
+    let server_dir = instance.get_dot_minecraft_path();
     let json = VersionDetails::load_from_path(&server_dir).await?;
 
     let version = version.get(json.get_id()).await?;
