@@ -27,9 +27,70 @@ use crate::{
     stylesheet::styles::LauncherTheme,
 };
 
+use serde::{Deserialize, Serialize};
+
 mod images;
 mod menu;
 mod message;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GraphicsBackend {
+    Default,
+    Vulkan,
+    OpenGL,
+    DirectX,
+    Metal,
+    TinySkia,
+}
+
+impl GraphicsBackend {
+    pub fn from_flags(flags: &HashSet<String>) -> Self {
+        if flags.contains("i_vulkan") {
+            Self::Vulkan
+        } else if flags.contains("i_opengl") {
+            Self::OpenGL
+        } else if flags.contains("i_directx") {
+            Self::DirectX
+        } else if flags.contains("i_metal") {
+            Self::Metal
+        } else if flags.contains("i_tiny_skia") {
+            Self::TinySkia
+        } else {
+            Self::Default
+        }
+    }
+
+    pub fn available_backends() -> Vec<Self> {
+        let mut list = vec![Self::Default];
+        #[cfg(any(target_os = "windows", target_os = "linux"))]
+        list.push(Self::Vulkan);
+        list.push(Self::OpenGL);
+        #[cfg(target_os = "windows")]
+        list.push(Self::DirectX);
+        #[cfg(target_os = "macos")]
+        list.push(Self::Metal);
+        list.push(Self::TinySkia);
+        list
+    }
+}
+
+impl std::fmt::Display for GraphicsBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Default => "Default (Auto)",
+                Self::Vulkan => "Vulkan",
+                Self::OpenGL => "OpenGL",
+                Self::DirectX => "DirectX",
+                Self::Metal => "Metal",
+                Self::TinySkia => "Software (Tiny-Skia)",
+            }
+        )
+    }
+}
 pub use images::ImageState;
 pub use menu::*;
 pub use message::*;
@@ -85,6 +146,8 @@ pub struct Launcher {
     pub window_state: WindowState,
     pub keys_pressed: HashSet<iced::keyboard::Key>,
     pub modifiers_pressed: iced::keyboard::Modifiers,
+
+    pub is_safe_mode: bool,
 }
 
 /// Used to temporarily "block" auto-saving something,
@@ -182,6 +245,7 @@ impl Launcher {
     pub fn load_new(
         is_new_user: bool,
         config: Result<LauncherConfig, JsonFileError>,
+        is_safe_mode: bool,
     ) -> Result<Self, JsonFileError> {
         if let Err(err) = file_utils::get_launcher_dir() {
             err!("Could not get launcher dir (This is a bug):");
@@ -268,6 +332,7 @@ impl Launcher {
             autosave: HashSet::new(),
             images: ImageState::default(),
             modifiers_pressed: iced::keyboard::Modifiers::empty(),
+            is_safe_mode,
         })
     }
 
@@ -335,6 +400,7 @@ impl Launcher {
             accounts_dropdown: vec![OFFLINE_ACCOUNT_NAME.to_owned(), NEW_ACCOUNT_NAME.to_owned()],
             account_selected: OFFLINE_ACCOUNT_NAME.to_owned(),
             modifiers_pressed: iced::keyboard::Modifiers::empty(),
+            is_safe_mode: false,
         }
     }
 
