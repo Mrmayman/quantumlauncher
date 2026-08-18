@@ -13,7 +13,9 @@ use versions::ModVersion;
 
 use crate::{
     rate_limiter::{RATE_LIMITER, lock},
-    store::{Category, ModId, QueryType, SearchMod, StoreBackendType, types::GalleryItem},
+    store::{
+        Category, ModId, ModVersionInfo, QueryType, SearchMod, StoreBackendType, types::GalleryItem,
+    },
 };
 
 use super::{Backend, CurseforgeNotAllowed, ModError, Query, SearchResult};
@@ -24,6 +26,97 @@ mod search;
 mod versions;
 
 pub struct ModrinthBackend;
+
+impl ModrinthBackend {
+    pub async fn get_versions(
+        id: &str,
+        instance: &Instance,
+        include_incompatible: bool,
+        all_versions: bool,
+    ) -> Result<Vec<ModVersionInfo>, ModError> {
+        let details = ql_core::json::VersionDetails::load(instance).await?;
+        let config = ql_core::InstanceConfigJson::read(instance).await?;
+        let mc = details.get_id();
+        let loader = config.mod_type.to_modrinth_str();
+
+        let first_page_ids = if include_incompatible && !all_versions {
+            ModVersion::download_page(id, 0)
+                .await?
+                .into_iter()
+                .map(|version| version.id)
+                .collect()
+        } else {
+            HashSet::new()
+        };
+
+        let versions = ModVersion::download_all(id).await?;
+        Ok(versions
+            .into_iter()
+            .filter_map(|v| {
+                let compatible = v.game_versions.iter().any(|n| n == mc)
+                    && (config.mod_type.is_vanilla() || v.loaders.iter().any(|n| n == loader));
+                let visible = if include_incompatible && !all_versions {
+                    first_page_ids.contains(&v.id) || compatible
+                } else {
+                    include_incompatible || compatible
+                };
+                visible.then_some(ModVersionInfo {
+                    id: v.id,
+                    name: v.name.to_string(),
+                    date_published: v.date_published,
+                    game_versions: v.game_versions,
+                    loaders: v.loaders,
+                    compatible,
+                })
+            })
+            .collect())
+    }
+
+    pub async fn download_version(
+        id: &str,
+        version_id: &str,
+        instance: &Instance,
+        sender: Option<Sender<GenericProgress>>,
+    ) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
+        if let Some(sender) = &sender {
+            _ = sender.send(GenericProgress {
+                done: 0,
+                total: 3,
+                message: Some("Preparing selected version".to_owned()),
+                has_finished: false,
+            });
+        }
+        let project = crate::store::get_info(&ModId::Modrinth(Arc::from(id))).await?;
+        crate::store::delete_mod_named(&project.title, instance.clone()).await?;
+        if let Some(sender) = &sender {
+            _ = sender.send(GenericProgress {
+                done: 1,
+                total: 3,
+                message: Some("Removed installed version".to_owned()),
+                has_finished: false,
+            });
+        }
+        let _guard = lock().await;
+        if let Some(sender) = &sender {
+            _ = sender.send(GenericProgress {
+                done: 2,
+                total: 3,
+                message: Some("Downloading selected version".to_owned()),
+                has_finished: false,
+            });
+        }
+        let progress_sender = sender.clone();
+        let mut downloader = download::ModDownloader::new(instance, sender).await?;
+        downloader
+            .download_version(id.into(), None, true, version_id)
+            .await?;
+        downloader.index.save(instance).await?;
+        if let Some(sender) = &progress_sender {
+            _ = sender.send(GenericProgress::finished());
+        }
+        Ok(HashSet::new())
+    }
+}
 
 impl Backend for ModrinthBackend {
     async fn search(query: Query, offset: usize) -> Result<SearchResult, ModError> {
@@ -77,7 +170,7 @@ impl Backend for ModrinthBackend {
         version: &str,
         loader: Loader,
     ) -> Result<(DateTime<chrono::FixedOffset>, String), ModError> {
-        let download_info = ModVersion::download(id).await?;
+        let download_info = ModVersion::download_all(id).await?;
         let version = version.to_owned();
 
         let mut download_versions: Vec<ModVersion> = download_info

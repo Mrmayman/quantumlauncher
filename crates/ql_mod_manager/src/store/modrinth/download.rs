@@ -80,7 +80,9 @@ impl ModDownloader {
         id: &str,
         query_type: QueryType,
     ) -> Result<String, ModError> {
-        let download_version = self.get_download_version(id, None, query_type).await?;
+        let download_version = self
+            .get_download_version(id, None, query_type, None)
+            .await?;
 
         if let Some(file) = download_version
             .files
@@ -100,6 +102,28 @@ impl ModDownloader {
         dependent: Option<&str>,
         manually_installed: bool,
     ) -> Result<(), ModError> {
+        self.download_inner(id, dependent, manually_installed, None)
+            .await
+    }
+
+    pub async fn download_version(
+        &mut self,
+        id: Arc<str>,
+        dependent: Option<&str>,
+        manually_installed: bool,
+        version_id: &str,
+    ) -> Result<(), ModError> {
+        self.download_inner(id, dependent, manually_installed, Some(version_id))
+            .await
+    }
+
+    async fn download_inner(
+        &mut self,
+        id: Arc<str>,
+        dependent: Option<&str>,
+        manually_installed: bool,
+        selected_version: Option<&str>,
+    ) -> Result<(), ModError> {
         let project_info = if let Some(n) = self.info.get(&id) {
             info!("Getting project info (name: {})", n.title);
             n.clone()
@@ -117,26 +141,34 @@ impl ModDownloader {
         let query_type = QueryType::from_modrinth_str(&project_info.project_type).ok_or(
             ModError::UnknownProjectType(project_info.project_type.clone()),
         )?;
+        self.send_progress(1, "Loaded project information");
 
-        if let QueryType::Mods | QueryType::ModPacks = query_type {
-            if !self.has_compatible_loader(&project_info) {
-                if let Some(loader) = &self.loader {
-                    pt!("Mod {} doesn't support {loader}", project_info.title);
-                } else {
-                    err!("Mod {} doesn't support unknown loader!", project_info.title);
+        if selected_version.is_none() {
+            if let QueryType::Mods | QueryType::ModPacks = query_type {
+                if !self.has_compatible_loader(&project_info) {
+                    if let Some(loader) = &self.loader {
+                        pt!("Mod {} doesn't support {loader}", project_info.title);
+                    } else {
+                        err!("Mod {} doesn't support unknown loader!", project_info.title);
+                    }
+                    return Ok(());
                 }
-                return Ok(());
             }
         }
 
         print_downloading_message(&project_info, dependent);
-        let download_version = self
-            .get_download_version(&id, Some(&project_info.title), query_type)
-            .await?;
+        let download_version = if let Some(version_id) = selected_version {
+            ModVersion::download_by_id(version_id).await?
+        } else {
+            self.get_download_version(&id, Some(&project_info.title), query_type, None)
+                .await?
+        };
+        self.send_progress(1, "Loaded selected version");
 
         let mut dependency_list = HashSet::new();
         if QueryType::ModPacks != query_type {
             pt!("Getting dependencies");
+            self.send_progress(1, "Resolving dependencies");
             self.download_dependencies(&id, &download_version, &mut dependency_list)
                 .await?;
         }
@@ -159,9 +191,26 @@ impl ModDownloader {
                 manually_installed,
                 query_type,
             );
+            self.send_progress(3, "Downloaded selected version");
         }
 
+        if selected_version.is_some() {
+            if let Some(config) = self.index.mods.get_mut(&ModId::Modrinth(id.clone())) {
+                config.pinned_version = Some(download_version.id.to_string());
+            }
+        }
         Ok(())
+    }
+
+    fn send_progress(&self, done: usize, message: &str) {
+        if let Some(sender) = &self.sender {
+            _ = sender.send(GenericProgress {
+                done,
+                total: 3,
+                message: Some(message.to_owned()),
+                has_finished: false,
+            });
+        }
     }
 
     async fn download_dependencies(
@@ -183,6 +232,8 @@ impl ModDownloader {
                 continue;
             }
             if dependency_list.insert(mid(dep_id)) {
+                info!("Resolving dependency {dep_id} for {id}");
+                self.send_progress(1, &format!("Resolving dependency {dep_id}"));
                 Box::pin(self.download(dep_id.clone(), Some(id), false)).await?;
             }
         }
@@ -233,21 +284,26 @@ impl ModDownloader {
         id: &str,
         title: Option<&str>,
         project_type: QueryType,
+        selected_version: Option<&str>,
     ) -> Result<ModVersion, ModError> {
         pt!("Getting download info");
-        let download_info = ModVersion::download(id).await?;
+        let download_info = ModVersion::download_all(id).await?;
 
         let mut download_versions: Vec<ModVersion> = download_info
             .iter()
-            .filter(|v| v.game_versions.contains(&self.version))
+            .filter(|v| match selected_version {
+                Some(id) => v.id.as_ref() == id,
+                None => v.game_versions.contains(&self.version),
+            })
             .filter(|v| {
-                if let (Some(loader), QueryType::Mods | QueryType::ModPacks) =
-                    (self.loader, project_type)
-                {
-                    v.loaders.iter().any(|n| n == loader)
-                } else {
-                    true
-                }
+                selected_version.is_some()
+                    || if let (Some(loader), QueryType::Mods | QueryType::ModPacks) =
+                        (self.loader, project_type)
+                    {
+                        v.loaders.iter().any(|n| n == loader)
+                    } else {
+                        true
+                    }
             })
             .cloned()
             .collect();
@@ -311,6 +367,7 @@ impl ModDownloader {
             return;
         }
         let config = ModConfig {
+            pinned_version: None,
             name: project_info.title.clone(),
             description: project_info.description.clone(),
             icon_url: project_info.icon_url.clone(),

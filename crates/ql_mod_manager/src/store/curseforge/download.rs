@@ -12,7 +12,7 @@ use ql_core::{
 use crate::store::{
     CurseforgeNotAllowed, DirStructure, ModConfig, ModError, ModFile, ModId, ModIndex, QueryType,
     StoreBackendType,
-    curseforge::{ModQuery, get_query_type},
+    curseforge::{CurseforgeFileQuery, ModQuery, get_query_type},
     install_modpack,
 };
 
@@ -29,6 +29,7 @@ pub struct ModDownloader<'a> {
     pub not_allowed: HashSet<CurseforgeNotAllowed>,
     already_installed: HashSet<String>,
     pub sender: Option<&'a Sender<GenericProgress>>,
+    pub selected_file: Option<i32>,
 }
 
 impl<'a> ModDownloader<'a> {
@@ -48,6 +49,7 @@ impl<'a> ModDownloader<'a> {
             query_cache: HashMap::new(),
             not_allowed: HashSet::new(),
             sender,
+            selected_file: None,
         })
     }
 
@@ -63,6 +65,7 @@ impl<'a> ModDownloader<'a> {
             already_installed: HashSet::new(),
             query_cache: HashMap::new(),
             sender: None,
+            selected_file: None,
             not_allowed: HashSet::new(),
         })
     }
@@ -81,6 +84,7 @@ impl<'a> ModDownloader<'a> {
                 self.version.clone(),
                 self.loader,
                 query_type,
+                self.selected_file,
             )
             .await?;
 
@@ -128,15 +132,20 @@ impl<'a> ModDownloader<'a> {
 
         let query_type = get_query_type(response.class_id).await?;
 
-        let (file_query, file_id) = response
-            .get_file(
-                response.name.clone(),
-                id,
-                self.version.clone(),
-                self.loader,
-                query_type,
-            )
-            .await?;
+        let (file_query, file_id) = if let Some(file_id) = self.selected_file {
+            (CurseforgeFileQuery::load(id, file_id).await?, file_id)
+        } else {
+            response
+                .get_file(
+                    response.name.clone(),
+                    id,
+                    self.version.clone(),
+                    self.loader,
+                    query_type,
+                    None,
+                )
+                .await?
+        };
 
         let filename = file_query.data.fileName.clone();
         pt!("File: {}", filename.bright_black());
@@ -218,6 +227,7 @@ impl<'a> ModDownloader<'a> {
         self.index.mods.insert(
             id_mod.clone(),
             ModConfig {
+                pinned_version: None,
                 name: response.name.clone(),
                 manually_installed: dependent.is_none(),
                 installed_version: file_query.data.displayName.clone(),

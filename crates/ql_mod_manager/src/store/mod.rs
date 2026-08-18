@@ -22,7 +22,7 @@ mod update;
 
 pub use add_file::add_files;
 pub use curseforge::CurseforgeBackend;
-pub use delete::delete_mods;
+pub use delete::{delete_mod_named, delete_mods, delete_mods_for_update};
 pub use error::{GameExpectation, ModError};
 pub use id::ModId;
 pub use local_json::{ModConfig, ModFile, ModIndex};
@@ -31,8 +31,8 @@ pub use modrinth::ModrinthBackend;
 pub use recommended::{RECOMMENDED_MODS, RecommendedMod};
 pub use toggle::{flip_filename, toggle_mods, toggle_mods_local};
 pub use types::{
-    Category, CurseforgeNotAllowed, DirStructure, LocalMod, Query, QueryType, SearchMod,
-    SearchResult, SelectedMod, StoreBackendType,
+    Category, CurseforgeNotAllowed, DirStructure, LocalMod, ModVersionInfo, Query, QueryType,
+    SearchMod, SearchResult, SelectedMod, StoreBackendType,
 };
 pub use update::{ChangelogFile, apply_updates, check_for_updates};
 
@@ -175,6 +175,38 @@ pub async fn download_mod(
     match id {
         ModId::Modrinth(n) => ModrinthBackend::download(n, instance, sender).await,
         ModId::Curseforge(n) => CurseforgeBackend::download(n, instance, sender).await,
+    }
+}
+
+pub async fn download_mod_version(
+    id: &ModId,
+    version_id: &str,
+    instance: &Instance,
+    sender: Option<Sender<GenericProgress>>,
+) -> Result<HashSet<CurseforgeNotAllowed>, ModError> {
+    match id {
+        ModId::Modrinth(n) => {
+            ModrinthBackend::download_version(n, version_id, instance, sender).await
+        }
+        ModId::Curseforge(n) => {
+            CurseforgeBackend::download_version(n, version_id, instance, sender).await
+        }
+    }
+}
+
+pub async fn get_versions(
+    id: &ModId,
+    instance: &Instance,
+    include_incompatible: bool,
+    all_versions: bool,
+) -> Result<Vec<ModVersionInfo>, ModError> {
+    match id {
+        ModId::Modrinth(n) => {
+            ModrinthBackend::get_versions(n, instance, include_incompatible, all_versions).await
+        }
+        ModId::Curseforge(n) => {
+            CurseforgeBackend::get_versions(n, instance, include_incompatible, all_versions).await
+        }
     }
 }
 

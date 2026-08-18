@@ -104,6 +104,21 @@ impl MenuEditMods {
                             .is_some_and(|n| n.project_type == QueryType::Mods)
                             .then_some(ManageModsMessage::ToggleSelected.into())
                     ),
+                    ctx_button_icon(
+                        icons::pin_s(CTXI_SIZE),
+                        if self
+                            .file_data
+                            .mod_index
+                            .mods
+                            .get(id)
+                            .is_some_and(|n| n.pinned_version.is_some())
+                        {
+                            "Unpin (allow updates)"
+                        } else {
+                            "Pin (ignore updates)"
+                        }
+                    )
+                    .on_press(ManageModsMessage::TogglePin(id.clone()).into()),
                     ctx_button_icon(icons::bin_s(CTXI_SIZE), "Delete")
                         .on_press(ManageModsMessage::DeleteSelected.into()),
                     ctx_button_icon(icons::file_info_s(CTXI_SIZE), "Mod Details")

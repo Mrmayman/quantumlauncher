@@ -7,7 +7,7 @@ use ql_core::{GenericProgress, Instance, do_jobs, err, info, json::VersionDetail
 
 use crate::store::{get_latest_version_date, toggle_mods};
 
-use super::{ModError, ModId, ModIndex, delete_mods, download_mods_bulk};
+use super::{ModError, ModId, ModIndex, delete_mods_for_update, download_mods_bulk};
 
 #[derive(Debug, Clone)]
 pub struct ChangelogFile {
@@ -39,7 +39,7 @@ pub async fn apply_updates(
     };
 
     // It's as simple as that!
-    delete_mods(update_ids.clone(), selected_instance.clone()).await?;
+    delete_mods_for_update(update_ids.clone(), selected_instance.clone()).await?;
     download_mods_bulk(update_ids, selected_instance.clone(), progress).await?;
 
     let mut changelog_file = None;
@@ -124,6 +124,9 @@ pub async fn check_for_updates(instance: Instance) -> Result<Vec<(ModId, String)
             .mods
             .into_iter()
             .map(|(mod_id, installed_mod)| async move {
+                if installed_mod.pinned_version.is_some() {
+                    return Ok(None);
+                }
                 let (download_version_time, download_version) =
                     get_latest_version_date(loader, &mod_id, version).await?;
 
