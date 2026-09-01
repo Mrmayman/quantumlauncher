@@ -45,7 +45,9 @@ pub async fn install_server(
     }
 
     let server_dir = LAUNCHER_DIR.join("servers").join(server_name);
-    let libraries_dir = server_dir.join("libraries");
+    let mc_dir = server_dir.join("data");
+
+    let libraries_dir = mc_dir.join("libraries");
     tokio::fs::create_dir_all(&libraries_dir)
         .await
         .path(&libraries_dir)?;
@@ -53,7 +55,8 @@ pub async fn install_server(
     let version_json = VersionDetails::load_from_path(&server_dir).await?;
     let json: FabricJSON = {
         let json = if let BackendType::CursedLegacy = backend {
-            CURSED_LEGACY_JSON.replace("INSERT_COMMIT", &get_latest_cursed_legacy_commit().await?)
+            let latest_commit = get_latest_cursed_legacy_commit().await?;
+            CURSED_LEGACY_JSON.replace("INSERT_COMMIT", &latest_commit)
         } else {
             get_fabric_json(&loader_version, backend, version_json.get_id(), "server").await?
         };
@@ -84,12 +87,12 @@ pub async fn install_server(
     let shade_libraries = (matches!(backend, BackendType::Fabric | BackendType::LegacyFabric)
         && compare_versions(&loader_version, "0.12.5").is_le())
         | matches!(backend, BackendType::CursedLegacy);
-    let launch_jar = server_dir.join("fabric-server-launch.jar");
+    let launch_jar = mc_dir.join("fabric-server-launch.jar");
 
     info!("Making launch jar");
     make_launch_jar::make_launch_jar(
         &launch_jar,
-        &server_dir,
+        &mc_dir,
         json.mainClassServer.as_deref().unwrap_or(&json.mainClass),
         &library_files,
         shade_libraries,

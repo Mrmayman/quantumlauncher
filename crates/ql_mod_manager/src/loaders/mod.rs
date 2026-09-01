@@ -104,7 +104,7 @@ pub async fn install_specified_loader(
                 return Ok(LoaderInstallResult::Unsupported);
             }
             paper::install(
-                instance.get_name().to_owned(),
+                instance,
                 if let Some(s) = specified_version {
                     PaperVer::Id(s)
                 } else {

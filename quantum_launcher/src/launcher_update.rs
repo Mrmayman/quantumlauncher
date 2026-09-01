@@ -5,8 +5,10 @@ use std::{
     sync::{Arc, mpsc::Sender},
 };
 
+use iced::Task;
 use ql_core::{
-    GenericProgress, IntoIoError, IoError, JsonError, LAUNCHER_VERSION, RequestError, err,
+    GenericProgress, IntoIoError, IntoStringError, IoError, JsonError, LAUNCHER_VERSION,
+    RequestError, err,
     file_utils::{self, exists},
     impl_3_errs_jri, pt,
 };
@@ -14,10 +16,35 @@ use serde::Deserialize;
 use thiserror::Error;
 use tokio::task::JoinError;
 
+use crate::state::{Launcher, Message, ProgressBar, State};
+
 #[derive(Debug, Clone)]
 pub enum UpdateCheckInfo {
     UpToDate,
     NewVersion { url: String },
+}
+
+impl Launcher {
+    pub fn update_download_start(&mut self) -> Task<Message> {
+        if let State::UpdateFound(crate::state::MenuLauncherUpdate { url, progress, .. }) =
+            &mut self.state
+        {
+            let (sender, update_receiver) = std::sync::mpsc::channel();
+            *progress = Some(ProgressBar::with_recv_and_msg(
+                update_receiver,
+                "Starting Update".to_owned(),
+            ));
+
+            let url = url.clone();
+
+            Task::perform(
+                async move { install(url, sender).await.strerr() },
+                Message::UpdateDownloadEnd,
+            )
+        } else {
+            Task::none()
+        }
+    }
 }
 
 /// Checks for any launcher updates to be installed.
@@ -145,7 +172,7 @@ pub async fn check() -> Result<UpdateCheckInfo, UpdateError> {
 /// ## Current executable:
 /// - Couldn't be found
 /// - Has a name with invalid UNICODE
-pub async fn install(url: String, progress: Sender<GenericProgress>) -> Result<(), UpdateError> {
+async fn install(url: String, progress: Sender<GenericProgress>) -> Result<(), UpdateError> {
     _ = progress.send(GenericProgress::default());
 
     let exe_path = std::env::current_exe().map_err(UpdateError::CurrentExeError)?;
