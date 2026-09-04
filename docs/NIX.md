@@ -18,7 +18,6 @@ nix build github:Mrmayman/quantumlauncher
 nix develop github:Mrmayman/quantumlauncher
 ```
 
-
 ## Without flakes enabled
 
 Uses the `default.nix` / `shell.nix` compat shims (via `flake-compat`):
@@ -93,18 +92,21 @@ Supported systems: `x86_64-linux`, `aarch64-linux`, `x86_64-darwin`,
 ## Non-NixOS Linux: graphics may need nixGL
 
 If you're using Nix on a non-NixOS distro (Ubuntu, Fedora, Arch, etc. via
-the standalone Nix installer), you are likely to hit a crash on wayland
-which i faced when running QuantumLauncher. This happens
-because the OpenGL/Vulkan libraries QuantumLauncher links against come
-from nixpkgs, not your system's actual GPU driver. on NixOS these are
+the standalone Nix installer), you may hit a crash on Wayland.
+I encountered this when running QuantumLauncher.
+
+This happens because the OpenGL/Vulkan libraries QuantumLauncher links against come
+from nixpkgs, not your system's actual GPU driver. On NixOS these are
 wired together automatically, but on other distros they aren't.
 
 The fix is to wrap the binary with [nixGL](https://github.com/nix-community/nixGL),
 which makes it use your host system's real driver instead. Example using
 Home Manager (adjust `nixGLIntel` to `nixGLNvidia`/`nixGLMesa`/etc. to match
 your GPU):
-Note: the above paragraph may not be entirely accurate , this is workaround i found.
-feel free to open a pr to correct it :).
+
+> Note: the above paragraph may not be entirely accurate,
+> this is a workaround I found.
+> Feel free to open a PR to correct it.
 
 ```nix
 { pkgs, nixgl, quantumlauncher, ... }:
@@ -117,8 +119,6 @@ feel free to open a pr to correct it :).
   ];
 }
 ```
-
-
 
 ## Known limitations
 
