@@ -39,9 +39,8 @@ pub use update::{ChangelogFile, apply_updates, check_for_updates};
 #[allow(async_fn_in_trait)]
 pub trait Backend {
     /// # Takes in
-    /// - Query information,
+    /// - [`Query`] information,
     /// - Offset from the start (how far you scrolled down)
-    /// - Query type (Mod/Resource Pack/Shader/...)
     ///
     /// Returns a search result containing a list of matching items
     ///

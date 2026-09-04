@@ -595,21 +595,15 @@ impl Launcher {
                 }
             }
             ModDescriptionMessage::ShowAllVersions => {
-                let Some((id, instance, include)) = (|| {
-                    if let State::ModDescription(menu) = &mut self.state {
-                        menu.show_all_versions = true;
-                        menu.versions = None;
-                        Some((
-                            menu.mod_id.clone(),
-                            self.instance().clone(),
-                            self.config.show_incompatible_mod_versions,
-                        ))
-                    } else {
-                        None
-                    }
-                })() else {
+                let State::ModDescription(menu) = &mut self.state else {
                     return Task::none();
                 };
+                menu.show_all_versions = true;
+                menu.versions = None;
+
+                let id = menu.mod_id.clone();
+                let instance = self.instance().clone();
+                let include = self.config.show_incompatible_mod_versions;
                 return Task::perform(
                     async move {
                         ql_mod_manager::store::get_versions(&id, &instance, include, true)
