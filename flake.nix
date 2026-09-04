@@ -165,7 +165,7 @@
             }
           );
 
-          release = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
+          # packagename = whatever;
         }
       );
       # ==========================================

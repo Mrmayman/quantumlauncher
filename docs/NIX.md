@@ -36,17 +36,6 @@ nix-build
 nix-shell
 ```
 
-## Package outputs
-
-| Output | Cargo profile | Use case |
-|---|---|---|
-| `packages.default` | `release-ql` | The tuned release build (LTO, stripped, panic=abort)  |
-| `packages.release` | `release-ql` | Alias of `default` |
-
-Build a specific output with:
-
-    nix build .#release
-
 Supported systems: `x86_64-linux`, `aarch64-linux`, `x86_64-darwin`,
 `aarch64-darwin`. Only `x86_64-linux` has been tested so far.
 
