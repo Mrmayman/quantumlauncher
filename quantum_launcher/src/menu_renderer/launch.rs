@@ -7,7 +7,7 @@ use ql_core::{Instance, InstanceKind, LAUNCHER_VERSION_NAME};
 use crate::cli::EXPERIMENTAL_MMC_IMPORT;
 use crate::menu_renderer::onboarding::x86_warning;
 use crate::menu_renderer::{
-    CTXI_SIZE, Column, FONT_MONO, barthin, ctx_button_icon, ctxbox, sidebar, tsubtitle, underline,
+    CTXI_SIZE, Column, FONT_MONO, barthin, ctx_button_icon, ctxbox, sidebar, tsubtitle,
     view_info_message,
 };
 use crate::state::{
@@ -28,14 +28,6 @@ use crate::{
 use super::{Element, button_with_icon, shortcut_ctrl, tooltip};
 
 pub const TAB_BUTTON_WIDTH: f32 = 64.0;
-
-const fn tab_height(decor: bool) -> f32 {
-    if decor { 31.0 } else { 28.0 }
-}
-
-const fn decorh(decor: bool) -> f32 {
-    if decor { 0.0 } else { 32.0 }
-}
 
 pub(super) fn import_description() -> widget::Row<'static, Message, LauncherTheme> {
     row![
@@ -294,17 +286,23 @@ impl Launcher {
             .height(Length::Fill)
             .on_action(|a| GameLogMessage::Action(a).into());
 
-        let small_button = |t| widget::button(widget::text(t).size(12)).padding([4, 8]);
+        let small_button = |i, t| button_with_icon(i, t, 12).padding([4, 8]);
 
         column![
             row![
-                small_button("Copy Log").on_press(GameLogMessage::Copy.into()),
-                small_button("Upload Log").on_press_maybe(
+                small_button(icons::file_s(12), "Copy Log").on_press(GameLogMessage::Copy.into()),
+                small_button(icons::upload_s(12), "Share Logs (mclo.gs)").on_press_maybe(
                     (!log_data.is_empty() && !menu.is_uploading_mclogs)
                         .then_some(GameLogMessage::Upload.into())
                 ),
-                small_button("Join Discord").on_press(Message::CoreOpenLink(DISCORD.to_owned())),
-                widget::horizontal_space(),
+                small_button(icons::discord_s(12), "Join Discord")
+                    .on_press(Message::CoreOpenLink(DISCORD.to_owned())),
+            ]
+            .spacing(7),
+            row![
+                widget::text(" Having issues? Copy and send the game log for support")
+                    .size(12)
+                    .width(Length::Fill),
                 widget::mouse_area(widget::container(icons::arrow_up_s(12))).on_press(
                     GameLogMessage::Action(text_editor::Action::Move(text_editor::Motion::PageUp))
                         .into()
@@ -315,8 +313,6 @@ impl Launcher {
                     )))
                 ),
             ]
-            .spacing(7),
-            widget::text(" Having issues? Copy and send the game log for support").size(12)
         ]
         .push_maybe(
             has_crashed.then_some(
@@ -389,22 +385,44 @@ impl Launcher {
         .spacing(5)
         .width(Length::Fill);
 
-        column![
-            widget::mouse_area(
-                widget::container(get_sidebar_new_button(decor))
-                    .align_y(Alignment::End)
-                    .width(Length::Fill)
-                    .height(tab_height(decor) + decorh(decor))
-                    .style(|t: &LauncherTheme| t.style_container_bg_semiround(
-                        [true, false, false, false],
-                        Some((Color::ExtraDark, t.alpha))
-                    ))
+        let search = if let Some(LaunchModal::SSearch(search)) = &menu.modal {
+            Some(
+                column![
+                    widget::text_input("Type to search...", search)
+                        .on_input(|s| MainMenuMessage::Modal(Some(LaunchModal::SSearch(s))).into())
+                        .size(14)
+                        .padding([4, 8]),
+                    widget::text!(" {} results found", 8) // TODO
+                        .size(10)
+                        .style(|t: &LauncherTheme| t.style_text(Color::Mid)),
+                ]
+                .padding([5, 4])
+                .spacing(4),
             )
-            .on_press(WindowMessage::Dragged.into()),
-            widget::container(list)
-                .height(Length::Fill)
-                .style(|n| n.style_container_sharp_box(0.0, Color::ExtraDark))
-        ]
+        } else {
+            None
+        };
+
+        widget::container(
+            column![
+                row![
+                    get_sidebar_new_button(),
+                    get_sidebar_search_button(search.is_some()),
+                    get_sidebar_settings_button()
+                ]
+                .padding(3)
+                .spacing(3)
+            ]
+            .push_maybe(search)
+            .push(list),
+        )
+        .height(Length::Fill)
+        .style(move |t: &LauncherTheme| {
+            t.style_container_bg_semiround(
+                [!decor, false, false, false],
+                Some((Color::ExtraDark, t.alpha)),
+            )
+        })
         .into()
     }
 
@@ -446,7 +464,7 @@ impl Launcher {
         };
 
         column![
-            row![widget::text(" Accounts:").size(14), horizontal_space()].push_maybe(
+            row![widget::text(" Accounts:").size(14).width(Length::Fill)].push_maybe(
                 (self.account_selected != OFFLINE_ACCOUNT_NAME).then_some(
                     widget::button(widget::text("Logout").size(11))
                         .padding(3)
@@ -543,40 +561,61 @@ impl Launcher {
     }
 }
 
+fn get_sidebar_settings_button() -> widget::Button<'static, Message, LauncherTheme> {
+    widget::button(icons::gear_s(14))
+        .padding([4, 8])
+        .style(move |n, status| n.style_button(status, StyleButton::RoundDark))
+        .on_press(LauncherSettingsMessage::Open(LauncherSettingsTab::default()).into())
+}
+
+fn get_sidebar_search_button(
+    is_searching: bool,
+) -> widget::Button<'static, Message, LauncherTheme> {
+    widget::button(icons::search_s(14))
+        .padding([4, 8])
+        .style(move |n, status| {
+            n.style_button(
+                status,
+                if is_searching {
+                    StyleButton::Round
+                } else {
+                    StyleButton::RoundDark
+                },
+            )
+        })
+        .on_press(if is_searching {
+            MainMenuMessage::Modal(None).into()
+        } else {
+            Message::Multiple(vec![
+                MainMenuMessage::Modal(Some(LaunchModal::SSearch(String::new()))).into(),
+                Message::CoreFocusNext,
+            ])
+        })
+}
+
 impl MenuLaunch {
     fn get_tab_selector(&'_ self, decor: bool) -> Element<'_> {
-        let tab_bar = widget::row(
-            [LaunchTab::Buttons, LaunchTab::Edit, LaunchTab::Log]
-                .into_iter()
-                .map(|n| render_tab_button(n, decor, self)),
-        )
-        .align_y(Alignment::End)
-        .wrap();
-
-        let settings_button = widget::button(
-            row![horizontal_space(), icons::gear_s(12), horizontal_space()]
-                .width(tab_height(decor) + 4.0)
-                .height(tab_height(decor) + 4.0)
-                .align_y(Alignment::Center),
-        )
-        .padding(0)
-        .style(|n, status| n.style_button(status, StyleButton::FlatExtraDark))
-        .on_press(LauncherSettingsMessage::Open(LauncherSettingsTab::default()).into());
+        let tab_bar = row![widget::Space::with_width(5)]
+            .extend(
+                [LaunchTab::Buttons, LaunchTab::Edit, LaunchTab::Log]
+                    .into_iter()
+                    .map(|n| render_tab_button(n, decor, self)),
+            )
+            // .push_maybe(window_handle_buttons)
+            // .height(tab_height(decor) + decorh(decor))
+            .width(Length::Fill)
+            .align_y(Alignment::End)
+            .wrap();
 
         widget::mouse_area(
-            widget::container(
-                row![settings_button, tab_bar, horizontal_space()]
-                    // .push_maybe(window_handle_buttons)
-                    .height(tab_height(decor) + decorh(decor))
-                    .align_y(Alignment::End),
-            )
-            .width(Length::Fill)
-            .style(move |n| {
-                n.style_container_bg_semiround(
-                    [false, !decor, false, false],
-                    Some((Color::ExtraDark, 1.0)),
-                )
-            }),
+            widget::container(tab_bar)
+                .width(Length::Fill)
+                .style(move |n| {
+                    n.style_container_bg_semiround(
+                        [false, !decor, false, false],
+                        Some((Color::ExtraDark, 1.0)),
+                    )
+                }),
         )
         .on_press(WindowMessage::Dragged.into())
         .into()
@@ -585,62 +624,44 @@ impl MenuLaunch {
 
 fn render_tab_button(tab: LaunchTab, decor: bool, menu: &'_ MenuLaunch) -> Element<'_> {
     let padding = Padding {
-        top: 5.0,
+        top: 4.0,
         right: 5.0,
         bottom: if decor { 5.0 } else { 7.0 },
         left: 5.0,
     };
 
-    let name = widget::text(tab.to_string()).size(15);
+    let txt = widget::text(tab.to_string())
+        .size(14)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(Alignment::Center)
+        .align_y(Alignment::End);
 
-    let txt: Element = if let LaunchTab::Log = tab {
-        if menu
-            .message
+    let is_warn = if let LaunchTab::Log = tab {
+        menu.message
             .as_ref()
             .is_some_and(|n| n.text.contains("crashed!"))
-        {
-            underline(name, Color::Mid).into()
-        } else {
-            name.into()
-        }
     } else {
-        name.into()
+        false
     };
 
-    let txt = row![horizontal_space(), txt, horizontal_space()];
-
-    if menu.tab == tab {
-        widget::container(txt)
-            .style(move |t: &LauncherTheme| {
-                if decor {
-                    t.style_container_selected_flat_button()
-                } else {
-                    t.style_container_selected_flat_button_semi([true, true, false, false])
-                }
-            })
-            .padding(padding)
-            .width(TAB_BUTTON_WIDTH)
-            .height(tab_height(decor) + 4.0)
-            .align_y(Alignment::End)
-            .into()
-    } else {
-        widget::button(
-            row![txt]
-                .width(TAB_BUTTON_WIDTH)
-                .height(tab_height(decor) + 4.0)
-                .padding(padding)
-                .align_y(Alignment::End),
-        )
-        .style(move |n, status| {
+    widget::button(txt)
+        .style(move |n: &LauncherTheme, status| {
+            let shape = [!decor, !decor, false, false];
             n.style_button(
                 status,
-                StyleButton::SemiExtraDark([!decor, !decor, false, false]),
+                if is_warn {
+                    StyleButton::SemiWarnExtraDark(shape)
+                } else {
+                    StyleButton::SemiExtraDark(shape)
+                },
             )
         })
-        .on_press(MainMenuMessage::ChangeTab(tab).into())
-        .padding(0)
+        .on_press_maybe((menu.tab != tab).then_some(MainMenuMessage::ChangeTab(tab).into()))
+        .width(TAB_BUTTON_WIDTH)
+        .height(if decor { 31.0 } else { 28.0 })
+        .padding(padding)
         .into()
-    }
 }
 
 fn get_no_logs_message<'a>() -> Column<'a> {
@@ -692,23 +713,14 @@ fn get_footer_text() -> widget::Column<'static, Message, LauncherTheme> {
     ]
 }
 
-fn get_sidebar_new_button(decor: bool) -> widget::Button<'static, Message, LauncherTheme> {
+fn get_sidebar_new_button() -> widget::Button<'static, Message, LauncherTheme> {
     widget::button(
-        row![icons::new(), widget::text("New").size(15)]
+        row![icons::new_s(13), widget::text("New").size(14)]
             .align_y(Alignment::Center)
-            .height(tab_height(decor) - 6.0)
-            .spacing(10),
+            .spacing(8),
     )
-    .style(move |n, status| {
-        n.style_button(
-            status,
-            if decor {
-                StyleButton::FlatDark
-            } else {
-                StyleButton::SemiDarkBorder([true, true, false, false])
-            },
-        )
-    })
+    .padding([4, 10])
+    .style(move |n, status| n.style_button(status, StyleButton::RoundDark))
     .on_press(Message::CreateInstance(CreateInstanceMessage::ScreenOpen(
         InstanceKind::Client,
     )))

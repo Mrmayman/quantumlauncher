@@ -29,7 +29,7 @@ futures = { version = "0.3", default-features = false, features = ["executor"] }
 cfg-if = "1"
 
 owo-colors = "4"
-chrono = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
 rfd = { version = "0.16.*", default-features = false, features = [
     "xdg-portal",

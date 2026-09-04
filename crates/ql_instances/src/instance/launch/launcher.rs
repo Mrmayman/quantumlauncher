@@ -797,8 +797,6 @@ impl GameLauncher {
             delete_junk_file(&forge_dir, "ClientInstaller.java").await?;
             delete_junk_file(&forge_dir, "ForgeInstaller.class").await?;
             delete_junk_file(&forge_dir, "ForgeInstaller.java").await?;
-            delete_junk_file(&forge_dir, "launcher_profiles.json").await?;
-            delete_junk_file(&forge_dir, "launcher_profiles_microsoft_store.json").await?;
 
             let versions_dir = forge_dir.join("versions");
             delete_junk_dir(&versions_dir.join(self.version_json.get_id())).await?;
@@ -855,6 +853,8 @@ impl GameLauncher {
             command.stdout(Stdio::piped()).stderr(Stdio::piped());
         }
 
+        self.config.apply_env_vars(&mut command);
+
         #[cfg(all(target_arch = "aarch64", target_os = "linux"))]
         {
             // Minecraft 21w19a release date (1.17 snapshot)
@@ -862,18 +862,15 @@ impl GameLauncher {
             // but the env var started being required sometime between 1.16.5 and 1.17
             const MC_1_17: &str = "2021-05-12T11:19:15+00:00";
 
-            if let (Ok(dt), Ok(v1_17)) = (
-                chrono::DateTime::parse_from_rfc3339(&self.version_json.releaseTime),
-                chrono::DateTime::parse_from_rfc3339(MC_1_17),
-            ) {
-                // On Raspberry Pi (aarch64 linux), the game crashes with some GL
-                // error. Adding this environment variable fixes it.
-                if dt >= v1_17 {
-                    command.env("MESA_GL_VERSION_OVERRIDE", "3.3");
-                }
-                // I don't know if this is the perfect solution,
-                // contact me if there's a better way
+            let v1_17 = chrono::DateTime::parse_from_rfc3339(MC_1_17)
+                .expect("statically known to be valid");
+            // On Raspberry Pi (aarch64 linux), the game crashes with some GL
+            // error. Adding this environment variable fixes it.
+            if self.version_json.releaseTime >= v1_17 {
+                command.env("MESA_GL_VERSION_OVERRIDE", "3.3");
             }
+            // I don't know if this is the perfect solution,
+            // contact me if there's a better way
         }
         Ok((command, path))
     }

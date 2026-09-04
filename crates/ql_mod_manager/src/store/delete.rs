@@ -20,22 +20,34 @@ pub async fn delete_mods(ids: Vec<ModId>, instance: Instance) -> Result<Vec<ModI
     let mut index = ModIndex::load(&instance).await?;
     let dirs = DirStructure::new(instance.clone(), &version_json).await?;
 
+    // Let's say we delete `DeletedMod`
     for id in &ids {
         pt!("Deleting: {id:?}");
+
+        // `ParentMod` depends on `DeletedMod`,
+        // so we need to remove `DeletedMod` from its dependencies
+        let dependents = if let Some(mod_info) = index.mods.get(id) {
+            mod_info.dependents.clone()
+        } else {
+            HashSet::new()
+        };
+
+        for dependent in &dependents {
+            if let Some(dependent_info) = index.mods.get_mut(dependent) {
+                dependent_info.dependencies.remove(id);
+            }
+        }
+
         delete_mod(&mut index, id, &dirs).await?;
     }
 
-    // Remove all orphaned mods (dependencies)
-
     let mut has_been_removed;
-    // let mut iteration = 0;
     loop {
-        // iteration += 1;
-        // pt!("Iteration {iteration}");
-
         has_been_removed = false;
         let mut removed_dependents_map = HashMap::new();
 
+        // `DeletedMod` depends on `ChildMod` but nothing else does
+        // so `ChildMod` is useless now
         for (mod_id, mod_info) in &index.mods {
             if !mod_info.manually_installed {
                 let mut removed_dependents = HashSet::new();

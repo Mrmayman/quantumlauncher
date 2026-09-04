@@ -211,7 +211,17 @@ pub fn get_sdt_selector(config: &RpcConfig) -> widget::Row<'static, Message, Lau
     let s_dt = config.status_display_type;
 
     widget::row(PresenceStatusDisplayType::ALL.iter().map(|dt| {
-        if *dt != s_dt {
+        if *dt == s_dt {
+            // Selected item
+            widget::container(row![
+                icons::checkmark_s(15),
+                widget::Space::with_width(5),
+                widget::text(dt.to_string()).size(14)
+            ])
+            .padding(PADDING)
+            .into()
+        } else {
+            // Unselected item (click to select)
             widget::button(widget::text(dt.to_string()).size(14))
                 .padding(PADDING)
                 .style(|theme: &LauncherTheme, s| {
@@ -223,14 +233,6 @@ pub fn get_sdt_selector(config: &RpcConfig) -> widget::Row<'static, Message, Lau
                 })
                 .on_press(RpcMessage::StatusDisplayTypePicked(*dt).into())
                 .into()
-        } else {
-            widget::container(row![
-                icons::checkmark_s(15),
-                widget::Space::with_width(5),
-                widget::text(dt.to_string()).size(14)
-            ])
-            .padding(PADDING)
-            .into()
         }
     }))
     .spacing(5)

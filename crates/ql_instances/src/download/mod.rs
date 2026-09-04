@@ -70,7 +70,6 @@ pub async fn create_instance(
         .version_json
         .save_to_dir(&game_downloader.instance_dir)
         .await?;
-    game_downloader.create_profiles_json().await?;
     game_downloader.create_config_json().await?;
 
     let version_file_path = LAUNCHER_DIR

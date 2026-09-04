@@ -5,6 +5,7 @@ use std::{
     sync::Arc,
 };
 
+use chrono::DateTime;
 use ql_core::{
     Instance, IntoIoError, IntoJsonError, JsonFileError, file_utils::exists, info,
     json::VersionDetails,
@@ -21,7 +22,7 @@ pub struct ModConfig {
     pub name: Arc<str>,
     pub manually_installed: bool,
     pub installed_version: String,
-    pub version_release_time: String,
+    pub version_release_time: DateTime<chrono::FixedOffset>,
     pub enabled: bool,
     pub description: String,
     pub icon_url: Option<String>,

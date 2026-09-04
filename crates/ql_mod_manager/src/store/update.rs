@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
-use chrono::DateTime;
 use chrono::Local;
 use ql_core::InstanceConfigJson;
 use ql_core::{GenericProgress, Instance, do_jobs, err, info, json::VersionDetails};
@@ -128,8 +127,7 @@ pub async fn check_for_updates(instance: Instance) -> Result<Vec<(ModId, String)
                 let (download_version_time, download_version) =
                     get_latest_version_date(loader, &mod_id, version).await?;
 
-                let installed_version_time =
-                    DateTime::parse_from_rfc3339(&installed_mod.version_release_time)?;
+                let installed_version_time = installed_mod.version_release_time;
 
                 Ok((download_version_time > installed_version_time)
                     .then_some((mod_id, download_version)))

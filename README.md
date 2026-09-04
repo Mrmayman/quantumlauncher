@@ -49,6 +49,20 @@ QuantumLauncher can be installed in several ways.
   cargo run --release
   ```
   Omit `--release` for faster compile times during development. Debug builds have worse performance and produce much larger build artifacts.
+# Downloads and Building
+
+Download stable versions from [the website](https://mrmayman.github.io/quantumlauncher/#downloads), or from [Releases](http://github.com/Mrmayman/quantumlauncher/releases/latest)
+
+Or, compile the launcher to get the latest experimental version:
+
+```sh
+git clone https://github.com/Mrmayman/quantumlauncher.git
+cd quantumlauncher
+cargo run --release
+```
+
+You can omit the `--release` flag for faster compile times, but slightly worse performance and MUCH larger build file
+size.
 
 # Why QuantumLauncher?
 

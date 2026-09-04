@@ -65,7 +65,7 @@
 //! # Ok(()) }
 //! ```
 
-use ql_core::{CLIENT, GenericProgress, IntoJsonError, JsonError, RequestError, info, pt, retry};
+use ql_core::{CLIENT, GenericProgress, IntoJsonError, info, pt, retry};
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use serde_json::json;
@@ -73,7 +73,10 @@ use std::collections::HashMap;
 
 use crate::auth::AccountType;
 
-use super::{AccountData, KeyringError};
+use super::AccountData;
+
+mod error;
+pub use error::{Error, MsaResponseError, ResponseError};
 
 /// The API key for logging into Minecraft.
 ///
@@ -134,73 +137,9 @@ struct RefreshResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
-struct AuthServiceErrorMessage {
-    error: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[allow(non_snake_case)]
-pub struct MsaResponseError {
-    path: String,
-    error: String,
-    errorMessage: String,
-}
-
-impl std::fmt::Display for MsaResponseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "error: {}\nat: {}\n({})",
-            self.errorMessage, self.path, self.error
-        )
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Deserialize)]
 struct MinecraftFinalDetails {
     id: Option<String>,
     name: String,
-}
-
-const AUTH_ERR_PREFIX: &str = "while managing Microsoft account:\n";
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("{AUTH_ERR_PREFIX}{0}")]
-    Request(#[from] RequestError),
-    #[error("{AUTH_ERR_PREFIX}{0}")]
-    Json(#[from] JsonError),
-    #[error("{AUTH_ERR_PREFIX}Invalid account access token!")]
-    InvalidAccessToken,
-    #[error(
-        "{AUTH_ERR_PREFIX}An unknown error has occurred (code: {0})\n\nThis is a major bug! Please report in discord."
-    )]
-    UnknownError(StatusCode),
-    #[error("{AUTH_ERR_PREFIX}missing JSON field: {0}")]
-    MissingField(String),
-    #[error("{AUTH_ERR_PREFIX}no uuid found for account")]
-    NoUuid,
-    #[error("{AUTH_ERR_PREFIX}{0}")]
-    KeyringError(#[from] KeyringError),
-    #[error("{AUTH_ERR_PREFIX}{0}")]
-    Response(MsaResponseError),
-
-    #[error(
-        "Your Microsoft account doesn't own Minecraft!\nJust enter the username in the text box instead of logging in."
-    )]
-    DoesntOwnGame,
-}
-
-impl From<reqwest::Error> for Error {
-    fn from(value: reqwest::Error) -> Self {
-        Self::Request(RequestError::ReqwestError(value))
-    }
-}
-
-impl From<keyring::Error> for Error {
-    fn from(err: keyring::Error) -> Self {
-        Self::KeyringError(KeyringError(err))
-    }
 }
 
 /// Gets the account info from the
@@ -237,7 +176,7 @@ pub async fn login_refresh(
     })
     .await?;
 
-    let data: RefreshResponse = serde_json::from_str(&response).json(response)?;
+    let data: RefreshResponse = parse_json(&response)?;
 
     let entry = keyring::Entry::new("QuantumLauncher", &username)?;
     entry.set_password(&data.refresh_token)?;
@@ -270,7 +209,7 @@ pub async fn login_1_link() -> Result<AuthCodeResponse, Error> {
         .text()
         .await?;
 
-    let data: AuthCodeResponse = serde_json::from_str(&response).json(response)?;
+    let data: AuthCodeResponse = parse_json(&response)?;
 
     pt!(
         "Go to {} and enter code {} (shown in menu)",
@@ -357,9 +296,14 @@ pub async fn login_2_wait(response: AuthCodeResponse) -> Result<AuthTokenRespons
 
         match code_resp.status() {
             StatusCode::BAD_REQUEST => {
+                #[derive(Deserialize)]
+                struct AuthServiceErrorMessage {
+                    error: String,
+                }
+
                 let txt = code_resp.text().await?;
-                let error: AuthServiceErrorMessage = serde_json::from_str(&txt).json(txt)?;
-                match &error.error as &str {
+                let error: AuthServiceErrorMessage = parse_json(&txt)?;
+                match error.error.as_str() {
                     "authorization_declined" | "expired_token" | "invalid_grant" => {
                         return Err(Error::InvalidAccessToken);
                     }
@@ -369,7 +313,7 @@ pub async fn login_2_wait(response: AuthCodeResponse) -> Result<AuthTokenRespons
 
             StatusCode::OK => {
                 let text = code_resp.text().await?;
-                let response: AuthTokenResponse = serde_json::from_str(&text).json(text)?;
+                let response: AuthTokenResponse = parse_json(&text)?;
                 return Ok(response);
             }
             code => {
@@ -401,7 +345,7 @@ async fn login_in_xbox_live(
         .text()
         .await?;
 
-    let xbox_res: XboxLiveAuthResponse = serde_json::from_str(&xbox_res).json(xbox_res)?;
+    let xbox_res: XboxLiveAuthResponse = parse_json(&xbox_res)?;
     Ok(xbox_res)
 }
 
@@ -440,8 +384,7 @@ async fn login_in_minecraft(
         .text()
         .await?;
 
-    let xbox_security_token_res: XboxLiveAuthResponse =
-        serde_json::from_str(&xbox_security_token_res).json(xbox_security_token_res)?;
+    let xbox_security_token_res: XboxLiveAuthResponse = parse_json(&xbox_security_token_res)?;
 
     let xbox_security_token = &xbox_security_token_res.token;
 
@@ -458,8 +401,7 @@ async fn login_in_minecraft(
         .text()
         .await?;
 
-    let minecraft_resp: MinecraftAuthResponse =
-        serde_json::from_str(&minecraft_resp).json(minecraft_resp)?;
+    let minecraft_resp: MinecraftAuthResponse = parse_json(&minecraft_resp)?;
     Ok(minecraft_resp)
 }
 
@@ -476,19 +418,7 @@ async fn get_final_details(
         .text()
         .await?;
 
-    let info = match serde_json::from_str::<MinecraftFinalDetails>(&text).json(text.clone()) {
-        Ok(n) => n,
-        Err(err) => {
-            if let Ok(response_err) = serde_json::from_str::<MsaResponseError>(&text) {
-                return Err(if response_err.error == "NOT_FOUND" {
-                    Error::DoesntOwnGame
-                } else {
-                    Error::Response(response_err)
-                });
-            }
-            return Err(err.into());
-        }
-    };
+    let info: MinecraftFinalDetails = parse_json(&text)?;
     Ok(info)
 }
 
@@ -507,7 +437,22 @@ async fn check_minecraft_ownership(access_token: &str) -> Result<bool, Error> {
         .await?
         .text()
         .await?;
-    let response: Ownership = serde_json::from_str(&response).json(response)?;
+    let response: Ownership = parse_json(&response)?;
 
     Ok(!response.items.is_empty())
+}
+
+fn parse_json<T: serde::de::DeserializeOwned>(text: &str) -> Result<T, Error> {
+    match serde_json::from_str(text) {
+        Ok(n) => Ok(n),
+        Err(err) => {
+            if let Ok(response_err) = serde_json::from_str::<MsaResponseError>(text) {
+                Err(response_err.into())
+            } else if let Ok(response_err) = serde_json::from_str::<ResponseError>(text) {
+                Err(response_err.into())
+            } else {
+                Err(err.json(text.to_owned()).into())
+            }
+        }
+    }
 }

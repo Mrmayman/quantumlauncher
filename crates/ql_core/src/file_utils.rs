@@ -273,7 +273,7 @@ pub enum RequestError {
         code: reqwest::StatusCode,
         url: reqwest::Url,
     },
-    #[error("Network Request Error{NETWORK_ERROR_MSG}{0}")]
+    #[error("Network Request Error{NETWORK_ERROR_MSG}{0}\n\n{0:?}")]
     ReqwestError(#[from] reqwest::Error),
     #[error("Download Error (invalid header value){NETWORK_ERROR_MSG}")]
     InvalidHeaderValue(#[from] InvalidHeaderValue),

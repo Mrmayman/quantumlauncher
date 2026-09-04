@@ -120,8 +120,7 @@ impl Launcher {
                 } else {
                     self.selected_instance
                         .as_ref()
-                        .map(|n| n.kind)
-                        .unwrap_or(InstanceKind::Client)
+                        .map_or(InstanceKind::Client, |n| n.kind)
                 };
                 let list = match kind {
                     InstanceKind::Server => self.server_list.as_deref(),

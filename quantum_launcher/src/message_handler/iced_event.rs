@@ -431,15 +431,6 @@ impl Launcher {
                 menu.search = None;
                 return true;
             }
-        } else if let State::Create(MenuCreateInstance::Choosing(MenuCreateInstanceChoosing {
-            show_category_dropdown,
-            ..
-        })) = &mut self.state
-        {
-            if *show_category_dropdown {
-                *show_category_dropdown = false;
-                return true;
-            }
         } else if let State::Launch(menu) = &mut self.state {
             if menu.modal.is_some() {
                 menu.modal = None;

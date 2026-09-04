@@ -125,6 +125,16 @@ impl Launcher {
                     split,
                 );
             }
+            LauncherSettingsMessage::GlobalEnvVars(msg) => {
+                let split = self.should_split_args();
+                msg.apply(
+                    self.config
+                        .c_global()
+                        .env_vars
+                        .get_or_insert_default(),
+                    split,
+                );
+            }
             LauncherSettingsMessage::ToggleWindowDecorations(b) => {
                 let decor = if b {
                     UiWindowDecorations::default()
@@ -140,7 +150,10 @@ impl Launcher {
                 Err(err) if err.contains("Timeout reached") => {
                     // The system is just lagging, nothing we can do
                 }
-                Err(err) if err.contains("org.freedesktop.portal.Error.NotFound") => {
+                Err(err)
+                    if err.contains("org.freedesktop.portal.Error.NotFound")
+                        || err.contains("org.freedesktop.DBus.Error.NameHasNoOwner") =>
+                {
                     // User is on barebones desktop environment
                     // that doesn't support light/dark mode.
                     // eg: Raspberry Pi OS, LXDE, Openbox, etc

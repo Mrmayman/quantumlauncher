@@ -14,7 +14,6 @@ pub enum StyleScrollable {
 }
 
 #[derive(Default, Clone, Copy)]
-#[allow(unused)]
 pub enum StyleButton {
     #[default]
     Round,
@@ -22,12 +21,13 @@ pub enum StyleButton {
     Flat,
     FlatDark,
     FlatExtraDark,
-    FlatExtraDarkDead,
     /// top right, top left,
     /// bottom right, bottom left
+    #[allow(unused)]
     SemiDark([bool; 4]),
     SemiDarkBorder([bool; 4]),
     SemiExtraDark([bool; 4]),
+    SemiWarnExtraDark([bool; 4]),
 }
 
 pub trait IsFlat {
@@ -44,10 +44,10 @@ impl IsFlat for StyleButton {
             StyleButton::Flat
             | StyleButton::FlatDark
             | StyleButton::FlatExtraDark
-            | StyleButton::FlatExtraDarkDead
             | StyleButton::SemiDark(_)
             | StyleButton::SemiDarkBorder(_)
-            | Self::SemiExtraDark(_) => true,
+            | StyleButton::SemiExtraDark(_)
+            | StyleButton::SemiWarnExtraDark(_) => true,
         }
     }
 
@@ -57,11 +57,11 @@ impl IsFlat for StyleButton {
             | StyleButton::RoundDark
             | StyleButton::Flat
             | StyleButton::FlatDark
-            | StyleButton::FlatExtraDark
-            | StyleButton::FlatExtraDarkDead => [false; 4],
-            StyleButton::SemiDark(n) | StyleButton::SemiDarkBorder(n) | Self::SemiExtraDark(n) => {
-                *n
-            }
+            | StyleButton::FlatExtraDark => [false; 4],
+            StyleButton::SemiDark(n)
+            | StyleButton::SemiDarkBorder(n)
+            | Self::SemiExtraDark(n)
+            | StyleButton::SemiWarnExtraDark(n) => *n,
         }
     }
 }

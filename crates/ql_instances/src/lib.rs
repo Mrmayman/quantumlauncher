@@ -53,7 +53,6 @@
 pub mod auth;
 mod download;
 mod instance;
-mod json_profiles;
 
 pub use download::{DownloadError, create_instance, repeat_stage};
 pub use instance::{launch::launch, list_versions::list_versions, notes};

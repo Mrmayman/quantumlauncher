@@ -202,7 +202,7 @@ pub struct CurseforgeFile {
     pub downloadUrl: Option<String>,
     pub gameVersions: Vec<String>,
     dependencies: Vec<Dependency>,
-    pub fileDate: String,
+    pub fileDate: DateTime<chrono::FixedOffset>,
     pub displayName: String,
     pub fileLength: u64,
 }
@@ -368,9 +368,7 @@ impl Backend for CurseforgeBackend {
             )
             .await?;
 
-        let download_version_time = DateTime::parse_from_rfc3339(&file_query.data.fileDate)?;
-
-        Ok((download_version_time, file_query.data.displayName))
+        Ok((file_query.data.fileDate, file_query.data.displayName))
     }
 
     async fn download(

@@ -71,6 +71,7 @@ use ql_core::{
     do_jobs_with_limit, err,
     file_utils::{self, DirItem, canonicalize_a, exists, extract_tar_gz},
     info, pt,
+    request::{CLIENT_UNCACHED, check_for_success},
 };
 
 pub use ql_core::JavaVersion;
@@ -351,16 +352,21 @@ async fn java_install_fn(
 }
 
 async fn download_file(downloads: &JavaFileDownload) -> Result<Vec<u8>, JavaInstallError> {
-    async fn normal_download(downloads: &JavaFileDownload) -> Result<Vec<u8>, JavaInstallError> {
-        Ok(file_utils::download_file_to_bytes(&downloads.raw.url, false).await?)
+    async fn download(url: &str) -> Result<Vec<u8>, JavaInstallError> {
+        let response = CLIENT_UNCACHED
+            .get(url)
+            .send()
+            .await
+            .map_err(RequestError::from)?;
+        check_for_success(&response)?;
+
+        Ok(response.bytes().await.map_err(RequestError::from)?.to_vec())
     }
 
     let Some(lzma) = &downloads.lzma else {
-        return normal_download(downloads).await;
+        return download(&downloads.raw.url).await;
     };
-    let mut lzma = std::io::BufReader::new(std::io::Cursor::new(
-        file_utils::download_file_to_bytes(&lzma.url, false).await?,
-    ));
+    let mut lzma = std::io::BufReader::new(std::io::Cursor::new(download(&lzma.url).await?));
 
     let mut out = Vec::new();
     match lzma_rs::lzma_decompress(&mut lzma, &mut out) {
@@ -370,7 +376,7 @@ async fn download_file(downloads: &JavaFileDownload) -> Result<Vec<u8>, JavaInst
                 "Could not decompress lzma file: {err}\n  ({})",
                 downloads.raw.url.bright_black()
             );
-            Ok(normal_download(downloads).await?)
+            download(&downloads.raw.url).await
         }
     }
 }

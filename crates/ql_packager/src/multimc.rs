@@ -50,13 +50,11 @@ impl InstanceRecipe {
         async fn adjust_for_lwjgl3(mc_version: &str) -> Result<bool, InstancePackageError> {
             let manifest = Manifest::download().await?;
             if let Some(version) = manifest.find_name(mc_version) {
-                if let (Ok(look), Ok(expect)) = (
-                    DateTime::parse_from_rfc3339(&version.releaseTime),
-                    DateTime::parse_from_rfc3339(V_1_12_2),
-                ) {
-                    if look <= expect {
-                        return Ok(true);
-                    }
+                let v1_12_2 =
+                    DateTime::parse_from_rfc3339(V_1_12_2).expect("statically known to be valid");
+
+                if version.releaseTime <= v1_12_2 {
+                    return Ok(true);
                 }
             }
             Ok(false)

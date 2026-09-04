@@ -1,4 +1,7 @@
-use std::{path::PathBuf, sync::OnceLock};
+use std::{
+    path::PathBuf,
+    sync::{LazyLock, OnceLock},
+};
 
 use futures::StreamExt;
 use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache, HttpCacheOptions};
@@ -12,7 +15,9 @@ use crate::{
 };
 
 pub static CLIENT: OnceLock<ClientWithMiddleware> = OnceLock::new();
+pub static CLIENT_UNCACHED: LazyLock<Client> = LazyLock::new(Client::new);
 
+#[must_use]
 pub fn build_middleware(path: PathBuf, cache: bool) -> ClientWithMiddleware {
     ClientBuilder::new(Client::new())
         .with(Cache(HttpCache {

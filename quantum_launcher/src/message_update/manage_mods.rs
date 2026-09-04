@@ -125,6 +125,11 @@ impl Launcher {
             }
             ManageModsMessage::DeleteOptiforge(name) => {
                 let mods_dir = self.instance().get_dot_minecraft_path().join("mods");
+                if let State::ConfirmAction { .. } = &mut self.state {
+                    return self
+                        .go_to_edit_mods_menu(None)
+                        .chain(Task::done(ManageModsMessage::DeleteOptiforge(name).into()));
+                }
                 if let State::EditMods(menu) = &mut self.state {
                     menu.locally_installed_mods
                         .remove(&LocalMod(name.clone(), QueryType::Mods));

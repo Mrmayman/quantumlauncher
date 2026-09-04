@@ -60,7 +60,7 @@ cfg-if.workspace = true
 semver.workspace = true
 
 chrono.workspace = true # Logging time/date
-paste = "1" # Icon widget macro
+pastey = "0.2.*" # Icon widget macro
 rfd.workspace = true # File picker
 constcat = "0.6"
 rand = "0.10" # Instance folder unique id

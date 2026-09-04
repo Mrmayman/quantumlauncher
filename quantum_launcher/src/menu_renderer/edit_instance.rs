@@ -11,7 +11,7 @@ use crate::{
 };
 use iced::{
     Alignment, Length,
-    widget::{self, column, horizontal_space, row},
+    widget::{self, column, row},
 };
 use ql_core::{Instance, InstanceKind};
 use ql_core::{
@@ -24,44 +24,56 @@ use ql_core::{
 
 use super::Element;
 
+const LOG_DIALOG: &str = r"Once disabled, logs will be printed in launcher STDOUT.
+Run the launcher executable from the terminal/command prompt to see it";
+
+const RES_DIALOG: &str = r"(Leave empty for default)
+Common resolutions: 854x480, 1366x768, 1920x1080, 2560x1440, 3840x2160";
+
+const JARMOD_DIALOG: &str = r"For *replacing* the Minecraft JAR, not adding to it.
+To patch your existing JAR file, use 'Mods->Jarmod Patches'";
+
 impl MenuEditInstance {
     pub fn view<'a>(
         &'a self,
         selected_instance: &Instance,
         jar_choices: Option<&'a CustomJarState>,
     ) -> Element<'a> {
-        widget::scrollable(
-            checkered_list([
-                self.item_rename(selected_instance),
-                self.item_mem_alloc(),
-
-                // Instance type specific settings
-                match selected_instance.kind {
-                    InstanceKind::Client => column![
-                        resolution_dialog(
-                            self.config.global_settings.as_ref(),
-                            |n| EditInstanceMessage::WindowWidthChanged(n).into(),
-                            |n| EditInstanceMessage::WindowHeightChanged(n).into(),
-                        ),
-                        column![
-                            widget::Space::with_height(5),
-                            widget::checkbox("DEBUG: Enable log system (recommended)", self.config.enable_logger.unwrap_or(true))
-                                .on_toggle(|t| EditInstanceMessage::LoggingToggle(t).into()),
-                            widget::text("Once disabled, logs will be printed in launcher STDOUT.\nRun the launcher executable from the terminal/command prompt to see it").size(12).style(tsubtitle),
-                            horizontal_space(),
-                        ].spacing(5),
-                    ].spacing(20),
-                    // TODO: Add option to edit server.properties in user-friendly way
-                    InstanceKind::Server => column![widget::button("Edit server.properties")],
-                },
-
-                self.item_args(),
-                self.item_java_override(),
-                self.item_custom_jar(jar_choices),
-
-                item_footer(selected_instance.kind)
-            ]),
-        ).style(LauncherTheme::style_scrollable_flat_extra_dark).spacing(1).into()
+        widget::scrollable(checkered_list([
+            self.item_rename(selected_instance),
+            self.item_mem_alloc(),
+            // Instance type specific settings
+            match selected_instance.kind {
+                InstanceKind::Client => column![
+                    resolution_dialog(
+                        self.config.global_settings.as_ref(),
+                        |n| EditInstanceMessage::WindowWidthChanged(n).into(),
+                        |n| EditInstanceMessage::WindowHeightChanged(n).into(),
+                    ),
+                    column![
+                        widget::Space::with_height(5),
+                        widget::checkbox(
+                            "DEBUG: Enable log system (recommended)",
+                            self.config.enable_logger.unwrap_or(true)
+                        )
+                        .on_toggle(|t| EditInstanceMessage::LoggingToggle(t).into()),
+                        widget::text(LOG_DIALOG).size(12).style(tsubtitle),
+                    ]
+                    .width(Length::Fill)
+                    .spacing(5),
+                ]
+                .spacing(20),
+                // TODO: Add option to edit server.properties in user-friendly way
+                InstanceKind::Server => column![widget::button("Edit server.properties")],
+            },
+            self.item_args(),
+            self.item_java_override(),
+            self.item_custom_jar(jar_choices),
+            item_footer(selected_instance.kind),
+        ]))
+        .style(LauncherTheme::style_scrollable_flat_extra_dark)
+        .spacing(1)
+        .into()
     }
 
     fn item_rename(&self, selected_instance: &Instance) -> Column<'_> {
@@ -122,8 +134,7 @@ impl MenuEditInstance {
 
         column![
             row![
-                "Java arguments:",
-                widget::horizontal_space(),
+                widget::text("Java arguments:").width(Length::Fill),
                 widget::checkbox("Use global arguments", current_mode)
                     .on_toggle(|t| EditInstanceMessage::JavaArgsModeChanged(t).into())
                     .style(|t: &LauncherTheme, s| t.style_checkbox(s, Some(Color::SecondLight)))
@@ -141,6 +152,8 @@ impl MenuEditInstance {
             )),
             sp(),
             self.item_args_prefix(prefix_mode),
+            sp(),
+            self.item_env_vars(),
             sp(),
             args_split_by_space(self.arg_split_by_space),
         ]
@@ -163,7 +176,11 @@ impl MenuEditInstance {
             .text_size(12);
 
         column![
-            row!["Pre-launch prefix:", horizontal_space(), checkbox].align_y(Alignment::Center),
+            row![
+                widget::text("Pre-launch prefix:").width(Length::Fill),
+                checkbox
+            ]
+            .align_y(Alignment::Center),
             row![get_args_list(
                 self.config
                     .global_settings
@@ -196,6 +213,26 @@ impl MenuEditInstance {
             )
             .spacing(10),
             widget::text(PREFIX_EXPLANATION).size(12).style(tsubtitle),
+        ]
+        .width(Length::Fill)
+        .spacing(7)
+    }
+
+    fn item_env_vars(&self) -> Column<'_> {
+        column![
+            "Environment variables:",
+            get_args_list(
+                self.config
+                    .global_settings
+                    .as_ref()
+                    .and_then(|n| n.env_vars.as_deref()),
+                |n| Message::EditInstance(EditInstanceMessage::EnvVars(n)),
+            ),
+            widget::text(
+                "Format: KEY=VALUE (e.g., JAVA_OPTS=-Xmx2G)\nThese will be set when launching the instance"
+            )
+            .size(12)
+            .style(tsubtitle),
         ]
         .width(Length::Fill)
         .spacing(7)
@@ -345,12 +382,9 @@ Heavy modpacks / High settings: 4-8 GB+"
         };
 
         column![
-            row!["Custom JAR file", horizontal_space(), picker].align_y(Alignment::Center),
-            widget::text(
-                "For *replacing* the Minecraft JAR, not adding to it.\nTo patch your existing JAR file, use \"Mods->Jarmod Patches\""
-            )
-            .size(12)
-            .style(tsubtitle),
+            row![widget::text("Custom JAR file").width(Length::Fill), picker]
+                .align_y(Alignment::Center),
+            widget::text(JARMOD_DIALOG).size(12).style(tsubtitle),
             widget::Space::with_height(10),
             widget::text("Main Class:"),
             widget::radio("Default", None, Some(self.main_class_mode), |t| {
@@ -366,17 +400,16 @@ Heavy modpacks / High settings: 4-8 GB+"
             )
             .size(14)
             .text_size(13),
-            row![widget::radio(
-                "Custom",
-                Some(MainClassMode::Custom),
-                Some(self.main_class_mode),
-                |t| EditInstanceMessage::SetMainClass(
-                    t,
-                    Some(String::new())
-                ).into()
-            )
-            .size(14)
-            .text_size(13)]
+            row![
+                widget::radio(
+                    "Custom",
+                    Some(MainClassMode::Custom),
+                    Some(self.main_class_mode),
+                    |t| EditInstanceMessage::SetMainClass(t, Some(String::new())).into()
+                )
+                .size(14)
+                .text_size(13)
+            ]
             .push_maybe(
                 (self.main_class_mode == Some(MainClassMode::Custom)).then_some(
                     widget::text_input(
@@ -386,9 +419,10 @@ Heavy modpacks / High settings: 4-8 GB+"
                             .as_deref()
                             .unwrap_or_default()
                     )
-                    .on_input(|t| Message::EditInstance(
-                        EditInstanceMessage::SetMainClass(Some(MainClassMode::Custom), Some(t))
-                    ))
+                    .on_input(|t| Message::EditInstance(EditInstanceMessage::SetMainClass(
+                        Some(MainClassMode::Custom),
+                        Some(t)
+                    )))
                     .font(FONT_MONO)
                     .size(13)
                 )
@@ -435,7 +469,7 @@ pub fn resolution_dialog<'a>(
 ) -> Column<'a> {
     column![
         "Custom Game Window Size (px):",
-        widget::text("(Leave empty for default)\nCommon resolutions: 854x480, 1366x768, 1920x1080, 2560x1440, 3840x2160").size(12).style(tsubtitle),
+        widget::text(RES_DIALOG).size(12).style(tsubtitle),
         row![
             widget::text("Width:").size(14),
             widget::text_input(
@@ -459,7 +493,8 @@ pub fn resolution_dialog<'a>(
             .width(100),
         ]
         .spacing(10)
-        .align_y(Alignment::Center),
+        .align_y(Alignment::Center)
+        .wrap(),
     ]
     .spacing(5)
 }

@@ -64,7 +64,6 @@ pub enum CreateInstanceMessage {
 
     SearchInput(String),
     SearchSubmit,
-    ContextMenuToggle,
     CategoryToggle(ql_core::ListEntryKind),
 
     Start,
@@ -96,6 +95,7 @@ pub enum EditInstanceMessage {
 
     PreLaunchPrefix(ListMessage),
     PreLaunchPrefixModeChanged(PreLaunchPrefixMode),
+    EnvVars(ListMessage),
 
     RenameEdit(String),
     RenameApply,
@@ -312,6 +312,7 @@ pub enum LauncherSettingsMessage {
 
     GlobalJavaArgs(ListMessage),
     GlobalPreLaunchPrefix(ListMessage),
+    GlobalEnvVars(ListMessage),
 }
 
 #[derive(Debug, Clone)]
@@ -483,6 +484,7 @@ pub enum Message {
     Error(String),
     Done(Res),
     Multiple(Vec<Message>),
+    #[allow(dead_code)]
     ShowScreen(String),
 
     WelcomeContinueToTheme,

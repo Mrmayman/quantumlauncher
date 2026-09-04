@@ -392,7 +392,7 @@ impl MenuCreateInstance {
     fn tick(&mut self) {
         match self {
             MenuCreateInstance::Choosing { .. } => {}
-            MenuCreateInstance::DownloadingInstance(progress) => {
+            MenuCreateInstance::DownloadingInstance(progress, _) => {
                 progress.tick();
             }
             MenuCreateInstance::ImportingInstance(progress) => {

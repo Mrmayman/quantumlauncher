@@ -159,7 +159,7 @@ impl Launcher {
                     Err(e) => err!(no_log, "Failed to bake custom RPC activity: {e}"),
                 }
             },
-            |_| Message::Nothing,
+            |()| Message::Nothing,
         )
     }
 
@@ -265,7 +265,7 @@ pub fn bake_activity(
         });
 
     if let Some(n) = name {
-        activity = activity.name(n)
+        activity = activity.name(n);
     }
     if let Some(d) = details {
         activity = activity.details(d);

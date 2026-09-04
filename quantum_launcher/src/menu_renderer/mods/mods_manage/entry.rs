@@ -1,14 +1,17 @@
 use iced::{
-    Alignment,
+    Alignment, Length,
     widget::{self, row, tooltip::Position},
 };
-use ql_mod_manager::store::{ModConfig, ModId, QueryType, SelectedMod};
+use ql_mod_manager::store::{ModConfig, ModId, ModIndex, QueryType, SelectedMod};
 
 use crate::{
-    menu_renderer::{Element, FONT_MONO, select_box, tooltip},
+    menu_renderer::{Element, FONT_MONO, select_box, tooltip, tsubtitle},
     state::{ImageState, ManageModsMessage, MenuEditMods, Message, ModListEntry},
     stylesheet::{color::Color, styles::LauncherTheme},
 };
+
+const MOD_ENABLED_COL: Color = Color::Light;
+const MOD_DISABLED_COL: Color = Color::Mid;
 
 const PADDING: iced::Padding = iced::Padding {
     top: 4.0,
@@ -56,19 +59,38 @@ impl MenuEditMods {
         let label = file_name.strip_suffix(".disabled").unwrap_or(file_name);
         let label_len = label.len();
 
+        let name = widget::text(label)
+            .font(FONT_MONO)
+            .shaping(widget::text::Shaping::Advanced)
+            .size(13);
+
+        let name: Element = if is_enabled {
+            name.style(|t: &LauncherTheme| t.style_text(MOD_ENABLED_COL))
+                .into()
+        } else {
+            widget::stack!(
+                name.style(|t: &LauncherTheme| t.style_text(MOD_DISABLED_COL)),
+                row![
+                    widget::horizontal_rule(1)
+                        .style(|t: &LauncherTheme| t.style_rule(MOD_DISABLED_COL, 1))
+                ]
+                .height(Length::Fill)
+                .align_y(Alignment::Center)
+            )
+            .into()
+        };
+
         select_box(
             row![
                 mod_toggler_or_indicator(
                     project_type,
+                    None,
+                    &self.file_data.mod_index,
                     move |_| ManageModsMessage::ToggleOneLocal(local.clone()).into(),
                     is_enabled,
                     true
                 ),
-                widget::text(label)
-                    .font(FONT_MONO)
-                    .shaping(widget::text::Shaping::Advanced)
-                    .style(mod_name_style(is_enabled, local.1))
-                    .size(13)
+                name
             ]
             .push_maybe({
                 // Measure the length of the text
@@ -99,7 +121,7 @@ impl MenuEditMods {
     }
 
     fn render_downloaded_mod_entry<'a>(
-        &self,
+        &'a self,
         size: iced::Size,
         images: &ImageState,
         id: &'a ModId,
@@ -114,31 +136,54 @@ impl MenuEditMods {
                 id: (*id).clone(),
             });
 
-        let image = config
-            .icon_url
-            .as_ref()
-            .map(|url| images.view(Some(url), Some(ICON_SIZE), Some(ICON_SIZE)))
-            .unwrap_or_else(empty_icon);
+        let image = config.icon_url.as_ref().map_or_else(empty_icon, |url| {
+            images.view(Some(url), Some(ICON_SIZE), Some(ICON_SIZE))
+        });
 
         let toggle: Element = mod_toggler_or_indicator(
             config.project_type,
+            Some(config),
+            &self.file_data.mod_index,
             move |_| ManageModsMessage::ToggleOne(id.clone()).into(),
             is_enabled,
             config.manually_installed,
         );
+
+        let is_enabled_ui = is_enabled || !config.project_type.is_toggleable();
+        let name = widget::text(&*config.name)
+            .shaping(widget::text::Shaping::Advanced)
+            .size(14);
+
+        let name: Element = if is_enabled_ui {
+            name.width(self.ui_state.width_name)
+                .style(|t: &LauncherTheme| t.style_text(MOD_ENABLED_COL))
+                .into()
+        } else {
+            row![widget::stack!(
+                name.style(|t: &LauncherTheme| t.style_text(MOD_DISABLED_COL)),
+                row![
+                    widget::horizontal_rule(1)
+                        .style(|t: &LauncherTheme| t.style_rule(MOD_DISABLED_COL, 1))
+                ]
+                .height(Length::Fill)
+                .align_y(Alignment::Center)
+            )]
+            .width(self.ui_state.width_name)
+            .into()
+        };
 
         let select = select_box(
             row![
                 toggle,
                 image,
                 widget::Space::with_width(1),
-                widget::text(&*config.name)
-                    .shaping(widget::text::Shaping::Advanced)
-                    .style(mod_name_style(is_enabled, config.project_type))
-                    .size(14)
-                    .width(self.ui_state.width_name),
+                name,
                 widget::text(&config.installed_version)
-                    .style(|t: &LauncherTheme| t.style_text(Color::Mid))
+                    .style(move |t: &LauncherTheme| t.style_text(if is_enabled {
+                        Color::Mid
+                    } else {
+                        Color::SecondDark
+                    }))
                     .font(FONT_MONO)
                     .size(12)
             ]
@@ -213,23 +258,50 @@ fn empty_icon() -> Element<'static> {
 
 fn mod_toggler_or_indicator<'a>(
     project_type: QueryType,
+    config: Option<&ModConfig>,
+    index: &'a ModIndex,
     f: impl Fn(bool) -> Message + 'a,
     is_enabled: bool,
     manually_installed: bool,
 ) -> Element<'a> {
-    let mut size = 14;
+    let size = 14;
 
     let (label, tooltip_text, color) = match project_type {
         QueryType::Mods => {
             if manually_installed {
                 return widget::toggler(is_enabled).on_toggle(f).size(14).into();
             }
-            size = 12;
-            (
-                " Dep",
-                "Dependency",
-                iced::Color::from_rgb8(0x4E, 0x6E, 0x8A),
+            return tooltip(
+                widget::text(" Dep")
+                    .size(12)
+                    .color(iced::Color::from_rgb8(0x4E, 0x6E, 0x8A))
+                    .width(36),
+                widget::column![
+                    widget::text!(
+                        "{}Dependency of:",
+                        if is_enabled { "" } else { "(Disabled) " }
+                    )
+                    .size(12)
+                    .style(tsubtitle)
+                ]
+                .extend(config.into_iter().flat_map(|n| {
+                    n.dependents.iter().filter_map(|id| {
+                        index
+                            .mods
+                            .get(id)
+                            .map(|m| widget::text(&*m.name).size(14).into())
+                    })
+                }))
+                .push(
+                    widget::text(
+                        "\nTo enable/disable (not recommended),\ndo Right Click -> Toggle",
+                    )
+                    .size(12)
+                    .style(tsubtitle),
+                ),
+                Position::Left,
             )
+            .into();
         }
         QueryType::Shaders => ("  S", "Shader", iced::Color::from_rgb8(0xB8, 0x6E, 0x3C)),
         QueryType::ModPacks => ("  M", "Modpack", iced::Color::from_rgb8(0x6E, 0x5A, 0x8A)),
@@ -246,18 +318,4 @@ fn mod_toggler_or_indicator<'a>(
         Position::FollowCursor,
     )
     .into()
-}
-
-fn mod_name_style(
-    enabled: bool,
-    project_type: QueryType,
-) -> impl Fn(&LauncherTheme) -> widget::text::Style {
-    move |t: &LauncherTheme| {
-        // Don't want any state bugs, do we?
-        t.style_text(if enabled || !project_type.is_toggleable() {
-            Color::SecondLight
-        } else {
-            Color::Mid
-        })
-    }
 }
