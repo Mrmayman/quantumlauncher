@@ -243,7 +243,7 @@ pub async fn get_versions(
     }
 
     let version = version_json.get_id();
-    let start_pattern = if REGEX_SNAPSHOT.is_match(version) {
+    let start_pattern = if REGEX_SNAPSHOT.is_match(&version) {
         // Snapshot version
         format!("0.{version}.")
     } else {

@@ -9,6 +9,26 @@ use std::{
 };
 
 pub async fn delete_mods(ids: Vec<ModId>, instance: Instance) -> Result<Vec<ModId>, ModError> {
+    delete_mods_inner(ids, instance, true).await
+}
+
+/// Deletes only the requested entries while replacing them during an update.
+///
+/// Unlike a normal user deletion, updating a mod must not remove its
+/// dependencies as orphaned content. The replacement downloader needs those
+/// entries and their files to remain available while it rebuilds the index.
+pub async fn delete_mods_for_update(
+    ids: Vec<ModId>,
+    instance: Instance,
+) -> Result<Vec<ModId>, ModError> {
+    delete_mods_inner(ids, instance, false).await
+}
+
+async fn delete_mods_inner(
+    ids: Vec<ModId>,
+    instance: Instance,
+    remove_orphans: bool,
+) -> Result<Vec<ModId>, ModError> {
     let _guard = lock().await;
 
     if ids.is_empty() {
@@ -41,58 +61,73 @@ pub async fn delete_mods(ids: Vec<ModId>, instance: Instance) -> Result<Vec<ModI
         delete_mod(&mut index, id, &dirs).await?;
     }
 
-    let mut has_been_removed;
-    loop {
-        has_been_removed = false;
-        let mut removed_dependents_map = HashMap::new();
+    if remove_orphans {
+        let mut has_been_removed;
+        loop {
+            has_been_removed = false;
+            let mut removed_dependents_map = HashMap::new();
 
-        // `DeletedMod` depends on `ChildMod` but nothing else does
-        // so `ChildMod` is useless now
-        for (mod_id, mod_info) in &index.mods {
-            if !mod_info.manually_installed {
-                let mut removed_dependents = HashSet::new();
-                for dependent in &mod_info.dependents {
-                    if !index.mods.contains_key(dependent) {
-                        removed_dependents.insert(dependent.clone());
+            // `DeletedMod` depends on `ChildMod` but nothing else does
+            // so `ChildMod` is useless now
+            for (mod_id, mod_info) in &index.mods {
+                if !mod_info.manually_installed {
+                    let mut removed_dependents = HashSet::new();
+                    for dependent in &mod_info.dependents {
+                        if !index.mods.contains_key(dependent) {
+                            removed_dependents.insert(dependent.clone());
+                        }
                     }
+                    removed_dependents_map.insert(mod_id.clone(), removed_dependents);
                 }
-                removed_dependents_map.insert(mod_id.clone(), removed_dependents);
             }
-        }
 
-        for (id, removed_dependents) in removed_dependents_map {
-            if let Some(mod_info) = index.mods.get_mut(&id) {
-                for dependent in removed_dependents {
-                    has_been_removed = true;
-                    mod_info.dependents.remove(&dependent);
+            for (id, removed_dependents) in removed_dependents_map {
+                if let Some(mod_info) = index.mods.get_mut(&id) {
+                    for dependent in removed_dependents {
+                        has_been_removed = true;
+                        mod_info.dependents.remove(&dependent);
+                    }
+                } else {
+                    err!("Dependent {id:?} does not exist");
                 }
-            } else {
-                err!("Dependent {id:?} does not exist");
             }
-        }
 
-        let mut orphaned_mods = HashSet::new();
+            let mut orphaned_mods = HashSet::new();
 
-        for (mod_id, mod_info) in &index.mods {
-            if !mod_info.manually_installed && mod_info.dependents.is_empty() {
-                pt!("Deleting dependency: {}", mod_info.name);
-                orphaned_mods.insert(mod_id.clone());
+            for (mod_id, mod_info) in &index.mods {
+                if !mod_info.manually_installed && mod_info.dependents.is_empty() {
+                    pt!("Deleting dependency: {}", mod_info.name);
+                    orphaned_mods.insert(mod_id.clone());
+                }
             }
-        }
 
-        for orphan in orphaned_mods {
-            has_been_removed = true;
-            delete_mod(&mut index, &orphan, &dirs).await?;
-        }
+            for orphan in orphaned_mods {
+                has_been_removed = true;
+                delete_mod(&mut index, &orphan, &dirs).await?;
+            }
 
-        if !has_been_removed {
-            break;
+            if !has_been_removed {
+                break;
+            }
         }
     }
 
     index.save(&instance).await?;
     info!("Finished deleting content");
     Ok(ids)
+}
+
+/// Removes every indexed store entry with this project name before replacement.
+/// This is needed because the same project can have been installed from either backend.
+pub async fn delete_mod_named(name: &str, instance: Instance) -> Result<Vec<ModId>, ModError> {
+    let index = ModIndex::load(&instance).await?;
+    let ids = index
+        .mods
+        .iter()
+        .filter(|(_, config)| config.name.as_ref() == name)
+        .map(|(id, _)| id.clone())
+        .collect();
+    delete_mods(ids, instance).await
 }
 
 async fn delete_mod(index: &mut ModIndex, id: &ModId, dirs: &DirStructure) -> Result<(), ModError> {

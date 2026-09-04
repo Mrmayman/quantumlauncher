@@ -101,6 +101,9 @@ impl Launcher {
             LauncherSettingsMessage::ToggleCaching(t) => {
                 self.config.do_cache = t;
             }
+            LauncherSettingsMessage::ToggleIncompatibleModVersions(t) => {
+                self.config.show_incompatible_mod_versions = t;
+            }
             LauncherSettingsMessage::AfterLaunchBehaviorChanged(behavior) => {
                 self.config.ui.get_or_insert_default().after_game_opens = behavior;
                 self.autosave.remove(&AutoSaveKind::LauncherConfig);
@@ -128,10 +131,7 @@ impl Launcher {
             LauncherSettingsMessage::GlobalEnvVars(msg) => {
                 let split = self.should_split_args();
                 msg.apply(
-                    self.config
-                        .c_global()
-                        .env_vars
-                        .get_or_insert_default(),
+                    self.config.c_global().env_vars.get_or_insert_default(),
                     split,
                 );
             }

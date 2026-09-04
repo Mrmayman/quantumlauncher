@@ -5,6 +5,7 @@ use iced::{
 use ql_mod_manager::store::{ModConfig, ModId, ModIndex, QueryType, SelectedMod};
 
 use crate::{
+    icons,
     menu_renderer::{Element, FONT_MONO, select_box, tooltip, tsubtitle},
     state::{ImageState, ManageModsMessage, MenuEditMods, Message, ModListEntry},
     stylesheet::{color::Color, styles::LauncherTheme},
@@ -148,6 +149,13 @@ impl MenuEditMods {
             is_enabled,
             config.manually_installed,
         );
+        let pin: Element = if config.pinned_version.is_some() {
+            icons::pin_s(14)
+                .style(|theme: &LauncherTheme| theme.style_text(Color::SecondLight))
+                .into()
+        } else {
+            widget::Space::with_width(14).into()
+        };
 
         let is_enabled_ui = is_enabled || !config.project_type.is_toggleable();
         let name = widget::text(&*config.name)
@@ -173,43 +181,47 @@ impl MenuEditMods {
         };
 
         let select = select_box(
-            row![
-                toggle,
-                image,
-                widget::Space::with_width(1),
-                name,
-                widget::text(&config.installed_version)
-                    .style(move |t: &LauncherTheme| t.style_text(if is_enabled {
-                        Color::Mid
-                    } else {
-                        Color::SecondDark
-                    }))
-                    .font(FONT_MONO)
-                    .size(12)
-            ]
-            .push_maybe({
-                // Measure the length of the text
-                // then from there measure the space it would occupy
-                // (only possible because monospace font)
+            row![]
+                .push(toggle)
+                .push(pin)
+                .push(image)
+                .push(widget::Space::with_width(1))
+                .push(name)
+                .push(
+                    widget::text(&config.installed_version)
+                        .style(move |t: &LauncherTheme| {
+                            t.style_text(if is_enabled {
+                                Color::Mid
+                            } else {
+                                Color::SecondDark
+                            })
+                        })
+                        .font(FONT_MONO)
+                        .size(12),
+                )
+                .push_maybe({
+                    // Measure the length of the text
+                    // then from there measure the space it would occupy
+                    // (only possible because monospace font)
 
-                // This is for finding the filler space
-                //
-                // ║ Some Mod         v0.0.1                ║
-                // ║ Some other mod   2.4.1-fabric          ║
-                //
-                //  ╙═╦══════════════╜            ╙═╦══════╜
-                //  Measured by:                   What we want
-                //  `self.width_name`              to find
+                    // This is for finding the filler space
+                    //
+                    // ║ Some Mod         v0.0.1                ║
+                    // ║ Some other mod   2.4.1-fabric          ║
+                    //
+                    //  ╙═╦══════════════╜            ╙═╦══════╜
+                    //  Measured by:                   What we want
+                    //  `self.width_name`              to find
 
-                let measured: f32 = (config.installed_version.len() as f32) * MONO_CHAR_WIDTH;
-                let occupied =
-                    measured + self.ui_state.width_name + PADDING.left + PADDING.right + 150.0;
-                let space = size.width - occupied;
-                (space > 0.0).then_some(widget::Space::with_width(space))
-            })
-            .align_y(Alignment::Center)
-            .padding(PADDING)
-            .spacing(SPACING),
+                    let measured: f32 = (config.installed_version.len() as f32) * MONO_CHAR_WIDTH;
+                    let occupied =
+                        measured + self.ui_state.width_name + PADDING.left + PADDING.right + 150.0;
+                    let space = size.width - occupied;
+                    (space > 0.0).then_some(widget::Space::with_width(space))
+                })
+                .align_y(Alignment::Center)
+                .padding(PADDING)
+                .spacing(SPACING),
             is_selected,
             ManageModsMessage::SelectMod(
                 config.name.clone(),
