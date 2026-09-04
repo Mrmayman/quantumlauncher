@@ -83,7 +83,7 @@ impl ForgeInstaller {
         let version = if let Some(n) = forge_version {
             n
         } else {
-            get_forge_version(minecraft_version).await?
+            get_forge_version(&minecraft_version).await?
         };
 
         pt!("{}: {version}", "Version".underline());

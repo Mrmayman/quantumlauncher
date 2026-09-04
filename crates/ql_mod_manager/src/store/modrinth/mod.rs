@@ -36,7 +36,7 @@ impl ModrinthBackend {
     ) -> Result<Vec<ModVersionInfo>, ModError> {
         let details = ql_core::json::VersionDetails::load(instance).await?;
         let config = ql_core::InstanceConfigJson::read(instance).await?;
-        let mc = details.get_id();
+        let installed_ver = details.get_id();
         let loader = config.mod_type.to_modrinth_str();
 
         let first_page_ids = if include_incompatible && !all_versions {
@@ -53,7 +53,7 @@ impl ModrinthBackend {
         Ok(versions
             .into_iter()
             .filter_map(|v| {
-                let compatible = v.game_versions.iter().any(|n| n == mc)
+                let compatible = v.game_versions.iter().any(|ver| *ver == installed_ver)
                     && (config.mod_type.is_vanilla() || v.loaders.iter().any(|n| n == loader));
                 let visible = if include_incompatible && !all_versions {
                     first_page_ids.contains(&v.id) || compatible

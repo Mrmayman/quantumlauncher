@@ -117,7 +117,7 @@ pub async fn check_for_updates(instance: Instance) -> Result<Vec<(ModId, String)
         instance.get_name()
     );
 
-    let version = version_json.get_id();
+    let version = &version_json.get_id();
 
     let updated_mods: Result<Vec<Option<(ModId, String)>>, ModError> = do_jobs(
         index

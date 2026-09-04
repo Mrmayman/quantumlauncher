@@ -40,7 +40,7 @@ impl RecommendedMod {
         let mut tasks = futures::stream::FuturesOrdered::new();
         for id in ids {
             let i = i.clone();
-            tasks.push_back(id.check_compatibility(&sender, i, len, loader, version, &index));
+            tasks.push_back(id.check_compatibility(&sender, i, len, loader, &version, &index));
             if tasks.len() > LIMIT {
                 if let Some(task) = tasks.next().await.flatten() {
                     mods.push(task);
