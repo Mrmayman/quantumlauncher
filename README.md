@@ -23,30 +23,37 @@ A simple, powerful, cross platform Minecraft launcher.
 | <img src="https://github.com/Mrmayman/quantumlauncher/raw/main/assets/screenshots/old_mc.png"> | <h2>Support for old Minecraft versions (via Omniarchive)</h2> Includes skin and sound fixes, and adds rare versions to the list |
 | <img src="https://github.com/Mrmayman/quantumlauncher/raw/main/assets/screenshots/mod_manage.png"> | Manage hundreds of mods conveniently!<br>Package and share them with friends. |
 
-# Downloads and Building
+# Installation
 
-Download stable versions from [the website](https://mrmayman.github.io/quantumlauncher/#downloads), or from [Releases](http://github.com/Mrmayman/quantumlauncher/releases/latest)
+QuantumLauncher can be installed in several ways.
 
-Or, compile the launcher to get the latest experimental version:
-
-```sh
-git clone https://github.com/Mrmayman/quantumlauncher.git
-cd quantum-launcher
-cargo run --release
-```
-
-You can omit the `--release` flag for faster compile times, but slightly worse performance and MUCH larger build file
-size.
-
-Nix/NixOS users: see [docs/NIX.md](docs/NIX.md) for flake usage, the NixOS module, and the Home Manager module.
+- **Stable releases (recommended) (Windows, macOS, Linux):**
+  Available from [the website](https://mrmayman.github.io/quantumlauncher/#downloads) or
+  [GitHub Releases](https://github.com/Mrmayman/quantumlauncher/releases/latest).
+- **Flatpak (Linux):**
+  ```sh
+  flatpak remote-add quantum-launcher oci+https://mrmayman.github.io/ql-flatpak-remote/
+  flatpak install io.github.Mrmayman.QuantumLauncher
+  ```
+- **Fedora COPR (Linux):**
+  ```sh
+  sudo dnf copr enable apicalshark/quantum-launcher-rpm
+  sudo dnf install quantum-launcher
+  ```
+- **Nix/NixOS flake (Linux, macOS):** See [docs/NIX.md](docs/NIX.md) for flake usage,
+  the NixOS module, and the Home Manager module.
+- **Build from source (Windows, macOS, Linux, FreeBSD):**
+  ```sh
+  git clone https://github.com/Mrmayman/quantumlauncher.git
+  cd quantumlauncher
+  cargo run --release
+  ```
+  Omit `--release` for faster compile times during development. Debug builds have worse performance and produce much larger build artifacts.
 
 # Why QuantumLauncher?
 
 - QuantumLauncher provides a feature rich, flexible, simple
   and lightweight experience with plenty of modding features.
-
-What about the others? Well...
-
 - The official Minecraft launcher is slow, unstable, buggy and frustrating to use,
   with barely any modding features
 - Legacy Launcher lacks *many* features
@@ -57,7 +64,7 @@ What about the others? Well...
 - **Windows**: `C:/Users/YOUR_USERNAME/AppData/Roaming/QuantumLauncher/`
   - You probably won't see the `AppData` folder (hidden). Press Windows + R and paste this path, and hit enter
 - **macOS**: `/Users/YOURNAME/Library/Application Support/QuantumLauncher/`
-- **Linux/BSD**: `~/.local/share/QuantumLauncher/` (`~` refers to your home directory)
+- **Linux/FreeBSD**: `~/.local/share/QuantumLauncher/` (`~` refers to your home directory)
 
 Structure:
 

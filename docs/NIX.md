@@ -8,7 +8,11 @@ is also supported via `default.nix` / `shell.nix`.
 
 ```sh
 # Run without installing
-nix run github:Mrmayman/quantumlauncher
+nix run github:Mrmayman/quantumlauncher/v0.5.1
+# Omit the /v0.5.1 suffix to use the main branch
+
+# Install
+nix profile install github:Mrmayman/quantumlauncher/v0.5.1
 
 # Build locally
 nix build github:Mrmayman/quantumlauncher
