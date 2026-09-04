@@ -1,3 +1,4 @@
+# Update using `nix flake update`
 {
   description = "QuantumLauncher";
 
