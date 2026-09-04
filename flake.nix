@@ -101,7 +101,7 @@
         meta = with pkgs.lib; {
           description = cargoToml.package.description;
           homepage = cargoToml.package.homepage;
-          mainProgram = cargoToml.package.name;
+          mainProgram = "quantum-launcher";
           license = licenses.gpl3Only;
         };
 
