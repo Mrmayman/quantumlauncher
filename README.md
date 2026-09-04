@@ -31,7 +31,7 @@ Or, compile the launcher to get the latest experimental version:
 
 ```sh
 git clone https://github.com/Mrmayman/quantumlauncher.git
-cd quantum-launcher
+cd quantumlauncher
 cargo run --release
 ```
 
