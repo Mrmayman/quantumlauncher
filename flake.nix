@@ -75,7 +75,7 @@
           with pkgs;
           [ libxkbcommon ]
 
-          ++ lib.optionals stdenv.isLinux [
+          ++ lib.optionals stdenv.hostPlatform.isLinux [
             libGL
             vulkan-loader
             wayland
@@ -86,8 +86,8 @@
             libxrandr
           ];
 
-        postInstall = pkgs.lib.optionalString pkgs.stdenv.isLinux ''
-          wrapProgram $out/bin/${cargoToml.package.name} \
+        postInstall = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+          wrapProgram $out/bin/quantum-launcher \
             --prefix LD_LIBRARY_PATH : "${
               pkgs.lib.makeLibraryPath [
                 pkgs.wayland
@@ -157,8 +157,8 @@
                 mkdir -p $out/share/icons/hicolor/512x512/apps
                 cp assets/icon/512x512/ql_logo.png $out/share/icons/hicolor/512x512/apps/io.github.Mrmayman.QuantumLauncher.png
 
-                mkdir -p $out/share/doc/${cargoToml.package.name}
-                cp LICENSE $out/share/doc/${cargoToml.package.name}/
+                mkdir -p $out/share/doc/quantum-launcher
+                cp LICENSE $out/share/doc/quantum-launcher/
 
                 runHook postInstall
               '';
@@ -185,7 +185,7 @@
 
           buildInputs = (commonAttrs pkgs).buildInputs;
 
-          LD_LIBRARY_PATH = pkgs.lib.optionalString pkgs.stdenv.isLinux (
+          LD_LIBRARY_PATH = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux (
             pkgs.lib.makeLibraryPath [
               pkgs.wayland
               pkgs.libxkbcommon

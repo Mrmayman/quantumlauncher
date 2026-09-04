@@ -12,7 +12,7 @@ nix run github:Mrmayman/quantumlauncher/v0.5.1
 # Omit the /v0.5.1 suffix to use the main branch
 
 # Install
-nix profile install github:Mrmayman/quantumlauncher/v0.5.1
+nix profile add github:Mrmayman/quantumlauncher/v0.5.1
 
 # Build locally
 nix build github:Mrmayman/quantumlauncher
