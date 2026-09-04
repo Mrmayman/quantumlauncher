@@ -45,9 +45,7 @@ nix-shell
 
 Build a specific output with:
 
-```sh
-nix build .#release-ql
-```
+    nix build .#release
 
 Supported systems: `x86_64-linux`, `aarch64-linux`, `x86_64-darwin`,
 `aarch64-darwin`. Only `x86_64-linux` has been tested so far.
