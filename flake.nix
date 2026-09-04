@@ -140,6 +140,25 @@
                 runHook preInstall
                 mkdir -p $out/bin
                 cp target/release-ql/${cargoToml.package.name} $out/bin/
+
+                mkdir -p $out/share/applications
+                cp assets/freedesktop/quantum-launcher.desktop $out/share/applications/
+
+                mkdir -p $out/share/icons/hicolor/32x32/apps
+                cp assets/icon/32x32/ql_logo.png $out/share/icons/hicolor/32x32/apps/io.github.Mrmayman.QuantumLauncher.png
+
+                mkdir -p $out/share/icons/hicolor/128x128/apps
+                cp assets/icon/128x128/ql_logo.png $out/share/icons/hicolor/128x128/apps/io.github.Mrmayman.QuantumLauncher.png
+
+                mkdir -p $out/share/icons/hicolor/256x256/apps
+                cp assets/icon/256x256/ql_logo.png $out/share/icons/hicolor/256x256/apps/io.github.Mrmayman.QuantumLauncher.png
+
+                mkdir -p $out/share/icons/hicolor/512x512/apps
+                cp assets/icon/512x512/ql_logo.png $out/share/icons/hicolor/512x512/apps/io.github.Mrmayman.QuantumLauncher.png
+
+                mkdir -p $out/share/doc/${cargoToml.package.name}
+                cp LICENSE $out/share/doc/${cargoToml.package.name}/
+
                 runHook postInstall
               '';
             }
