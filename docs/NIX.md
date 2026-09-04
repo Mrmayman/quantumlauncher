@@ -38,12 +38,11 @@ nix-shell
 |---|---|---|
 | `packages.default` | `release-ql` | The tuned release build (LTO, stripped, panic=abort)  |
 | `packages.release` | `release-ql` | Alias of `default` |
-| `packages.release-dbg` | `release-dbg` | Release build with debug symbols |
 
 Build a specific output with:
 
 ```sh
-nix build .#release-dbg
+nix build .#release-ql
 ```
 
 Supported systems: `x86_64-linux`, `aarch64-linux`, `x86_64-darwin`,
@@ -62,7 +61,7 @@ Supported systems: `x86_64-linux`, `aarch64-linux`, `x86_64-darwin`,
         {
           programs.quantum-launcher.enable = true;
           # Optional: override the package used
-          # programs.quantum-launcher.package = quantumlauncher.packages.x86_64-linux.release-dbg;
+          # programs.quantum-launcher.package = quantumlauncher.packages.x86_64-linux.release-ql;
         }
       ];
     };

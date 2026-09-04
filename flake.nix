@@ -146,32 +146,6 @@
           );
 
           release = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
-
-          release-dbg = pinnedRustPlatform.buildRustPackage (
-            (commonAttrs pkgs)
-            // {
-              src = pkgs.lib.cleanSource ./.;
-              buildPhase = ''
-                runHook preBuild
-
-                export CARGO_TARGET_DIR=target
-
-                cargo build \
-                  --offline \
-                  --frozen \
-                  --profile release-dbg
-
-                runHook postBuild
-              '';
-
-              installPhase = ''
-                runHook preInstall
-                mkdir -p $out/bin
-                cp target/release-dbg/${cargoToml.package.name} $out/bin/
-                runHook postInstall
-              '';
-            }
-          );
         }
       );
       # ==========================================

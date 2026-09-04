@@ -64,10 +64,6 @@ debug = false
 inherits = "release"
 opt-level = "s"
 
-[profile.release-dbg]
-inherits = "release"
-debug = true
-
 [profile.release-ql]
 inherits = "release"
 opt-level = "s"
