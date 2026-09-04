@@ -140,7 +140,7 @@
               installPhase = ''
                 runHook preInstall
                 mkdir -p $out/bin
-                cp target/release-ql/${cargoToml.package.name} $out/bin/
+                cp target/release-ql/${cargoToml.package.name} $out/bin/quantum-launcher
 
                 mkdir -p $out/share/applications
                 cp assets/freedesktop/quantum-launcher.desktop $out/share/applications/
