@@ -56,6 +56,7 @@ impl Launcher {
 
     pub fn close_launcher(&mut self) -> ! {
         self.uninitialize_presence();
+        ql_core::file_utils::cleanup_running_file();
         std::process::exit(0);
     }
 

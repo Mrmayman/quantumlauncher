@@ -770,11 +770,21 @@ pub struct MenuLauncherSettings {
 
     pub temp_scale: f64,
     pub arg_split_by_space: bool,
-
+    pub portable_mode_status: ql_core::FullPortableStatus,
+    pub temp_paths: TempPaths,
     pub outmsg: Option<String>,
     pub outmsg_at: SettingsOutmsg,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct TempPaths {
+    pub portable: String,
+    pub portable_flags: HashSet<String>,
+    pub system_redirect: String,
+    pub system_redirect_flags: HashSet<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SettingsOutmsg {
     Assets,
     Cache,
@@ -787,6 +797,7 @@ pub enum LauncherSettingsTab {
     Presence,
     Launcher,
     Game,
+    Location,
     About,
 }
 
@@ -796,6 +807,7 @@ impl std::fmt::Display for LauncherSettingsTab {
             LauncherSettingsTab::UserInterface => "Appearance",
             LauncherSettingsTab::Game => "Game",
             LauncherSettingsTab::Launcher => "Launcher",
+            LauncherSettingsTab::Location => "Location",
             LauncherSettingsTab::About => "About",
             LauncherSettingsTab::Presence => "Discord Presence",
         })
@@ -808,6 +820,7 @@ impl LauncherSettingsTab {
         Self::Presence,
         Self::Game,
         Self::Launcher,
+        Self::Location,
         Self::About,
     ];
 
@@ -816,7 +829,8 @@ impl LauncherSettingsTab {
             Self::UserInterface => Self::Presence,
             Self::Presence => Self::Game,
             Self::Game => Self::Launcher,
-            Self::Launcher | Self::About => Self::About,
+            Self::Launcher => Self::Location,
+            Self::Location | Self::About => Self::About,
         }
     }
 
@@ -825,7 +839,8 @@ impl LauncherSettingsTab {
             Self::UserInterface | Self::Presence => Self::UserInterface,
             Self::Game => Self::Presence,
             Self::Launcher => Self::Game,
-            Self::About => Self::Launcher,
+            Self::Location => Self::Launcher,
+            Self::About => Self::Location,
         }
     }
 }
