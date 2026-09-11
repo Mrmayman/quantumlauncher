@@ -320,8 +320,8 @@ impl MenuEditMods {
                     ]
                     .spacing(5),
                     row![
-                        widget::button("Bukkit").width(97),
-                        widget::button("Spigot").width(97)
+                        install_ldr("Bukkit").width(97),
+                        install_ldr("Spigot").width(97)
                     ]
                     .spacing(5),
                     install_ldr("Paper")

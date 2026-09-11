@@ -57,6 +57,7 @@ impl MenuLauncherSettings {
                         text,
                         LauncherSettingsMessage::Open(*tab).into(),
                     )
+                    .into()
                 })
             )
             .style(|_: &LauncherTheme| widget::container::Style {

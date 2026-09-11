@@ -4,7 +4,6 @@ use std::{
     sync::mpsc::Sender,
 };
 
-use crate::json_profiles::ProfileJson;
 use ql_core::{
     DownloadFileError, DownloadProgress, IntoIoError, IntoJsonError, IoError, JsonError, ListEntry,
     RequestError, do_jobs, download,
@@ -93,6 +92,11 @@ impl GameDownloader {
                 }
                 Err(err) => return Err(err),
             };
+
+        let profile_json_path = instance_dir.join(".minecraft/launcher_profiles.json");
+        tokio::fs::write(&profile_json_path, "{}")
+            .await
+            .path(profile_json_path)?;
 
         Ok(Self {
             instance_dir,
@@ -295,21 +299,6 @@ impl GameDownloader {
         Ok(())
     }*/
 
-    pub async fn create_profiles_json(&self) -> Result<(), DownloadError> {
-        let profile_json = ProfileJson::default();
-
-        let profile_json = serde_json::to_string(&profile_json).json_to()?;
-        let profile_json_path = self
-            .instance_dir
-            .join(".minecraft")
-            .join("launcher_profiles.json");
-        tokio::fs::write(&profile_json_path, profile_json)
-            .await
-            .path(profile_json_path)?;
-
-        Ok(())
-    }
-
     pub async fn create_config_json(&self) -> Result<(), DownloadError> {
         let config_json = InstanceConfigJson::new(
             ql_core::InstanceKind::Client,
@@ -363,6 +352,11 @@ impl GameDownloader {
         tokio::fs::create_dir_all(&current_instance_dir)
             .await
             .path(&current_instance_dir)?;
+
+        let dotmc_dir = current_instance_dir.join(".minecraft");
+        tokio::fs::create_dir_all(&dotmc_dir)
+            .await
+            .path(&dotmc_dir)?;
 
         Ok(Some(current_instance_dir))
     }

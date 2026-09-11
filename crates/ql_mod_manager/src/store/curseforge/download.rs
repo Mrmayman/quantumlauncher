@@ -221,7 +221,7 @@ impl<'a> ModDownloader<'a> {
                 name: response.name.clone(),
                 manually_installed: dependent.is_none(),
                 installed_version: file_query.data.displayName.clone(),
-                version_release_time: file_query.data.fileDate.clone(),
+                version_release_time: file_query.data.fileDate,
                 enabled: true,
                 description: response.summary.clone(),
                 icon_url: response.logo.clone().map(|n| n.url),

@@ -201,19 +201,34 @@ pub enum JsonError {
     To { error: serde_json::Error },
 }
 
-pub trait IntoJsonError<T> {
+pub trait IntoJsonError {
+    type Out;
     #[allow(clippy::missing_errors_doc)]
-    fn json(self, p: String) -> Result<T, JsonError>;
+    fn json(self, p: String) -> Self::Out;
     #[allow(clippy::missing_errors_doc)]
-    fn json_to(self) -> Result<T, JsonError>;
+    fn json_to(self) -> Self::Out;
 }
 
-impl<T> IntoJsonError<T> for Result<T, serde_json::Error> {
+impl<T> IntoJsonError for Result<T, serde_json::Error> {
+    type Out = Result<T, JsonError>;
+
     fn json(self, json: String) -> Result<T, JsonError> {
-        self.map_err(|error: serde_json::Error| JsonError::From { error, json })
+        self.map_err(|error| error.json(json))
     }
 
     fn json_to(self) -> Result<T, JsonError> {
-        self.map_err(|error: serde_json::Error| JsonError::To { error })
+        self.map_err(serde_json::Error::json_to)
+    }
+}
+
+impl IntoJsonError for serde_json::Error {
+    type Out = JsonError;
+
+    fn json(self, json: String) -> JsonError {
+        JsonError::From { error: self, json }
+    }
+
+    fn json_to(self) -> JsonError {
+        JsonError::To { error: self }
     }
 }

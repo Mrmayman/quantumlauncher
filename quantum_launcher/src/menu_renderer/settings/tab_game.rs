@@ -41,6 +41,22 @@ impl MenuLauncherSettings {
                 args_split_by_space(self.arg_split_by_space),
             ]
             .spacing(10),
+            column![
+                "Global Environment Variables:",
+                widget::text(
+                    "Format: KEY=VALUE (e.g., JAVA_OPTS=-Xmx2G)\nThese will be set when launching any instance"
+                )
+                .size(12)
+                .style(tsubtitle),
+                get_args_list(
+                    config
+                        .global_settings
+                        .as_ref()
+                        .and_then(|n| n.env_vars.as_deref()),
+                    |n| LauncherSettingsMessage::GlobalEnvVars(n).into(),
+                ),
+            ]
+            .spacing(10),
         ])
     }
 }

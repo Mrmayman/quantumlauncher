@@ -74,6 +74,7 @@ pub enum LaunchModal {
         dragged_to: Option<SDragLocation>,
     },
     SRenamingFolder(FolderId, String, bool),
+    SSearch(String),
 }
 
 pub enum InstanceNotes {
@@ -603,7 +604,7 @@ pub struct MenuEditJarMods {
 
 pub enum MenuCreateInstance {
     Choosing(MenuCreateInstanceChoosing),
-    DownloadingInstance(ProgressBar<DownloadProgress>),
+    DownloadingInstance(ProgressBar<DownloadProgress>, InstanceKind),
     ImportingInstance(ProgressBar<GenericProgress>),
 }
 
@@ -613,7 +614,6 @@ pub struct MenuCreateInstanceChoosing {
     // UI:
     pub kind: InstanceKind,
     pub search_box: String,
-    pub show_category_dropdown: bool,
     pub selected_categories: HashSet<ql_core::ListEntryKind>,
     // Sidebar resizing:
     pub sidebar_grid_state: widget::pane_grid::State<bool>,

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     DEFAULT_RAM_MB_FOR_INSTANCE, Instance, InstanceKind, IntoIoError, IntoJsonError, JsonFileError,
-    Loader,
+    Loader, info,
 };
 
 /// Configuration for a specific instance.
@@ -251,6 +251,33 @@ impl InstanceConfigJson {
         }
     }
 
+    /// Applies formatted environment variables from instance settings to the command.
+    pub fn apply_env_vars(&self, cmd: &mut tokio::process::Command) {
+        let env_vars: Vec<String> = self
+            .global_settings
+            .as_ref()
+            .and_then(|n| n.env_vars.as_ref())
+            .map(|vars| {
+                vars.iter()
+                    .map(|n| n.trim().to_owned())
+                    .filter(|n| !n.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        if env_vars.is_empty() {
+            return;
+        }
+        info!("Environment variables: {env_vars:?}");
+        for env_var in env_vars {
+            if let Some((key, value)) = env_var.split_once('=') {
+                if !key.trim().is_empty() {
+                    cmd.env(key.trim(), value);
+                }
+            }
+        }
+    }
+
     #[must_use]
     pub fn c_global_settings(&mut self) -> &mut GlobalSettings {
         self.global_settings.get_or_insert_default()
@@ -351,6 +378,10 @@ pub struct GlobalSettings {
     /// to the launch command (e.g., "prime-run" for NVIDIA GPU usage on Linux).
     // Since: v0.5.0
     pub pre_launch_prefix: Option<Vec<String>>,
+    /// This is an optional list of environment variables to set
+    /// when launching the instance (e.g., "KEY=VALUE").
+    // Since: v0.5.2
+    pub env_vars: Option<Vec<String>>,
 
     #[serde(flatten)]
     _extra: HashMap<String, serde_json::Value>,

@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use iced::{Task, futures::executor::block_on};
 use ql_core::{Instance, IntoStringError, JsonFileError, json::InstanceConfigJson};
 use ql_mod_manager::store::{ModId, RECOMMENDED_MODS, RecommendedMod};
@@ -37,11 +35,10 @@ impl Launcher {
                                 .into_iter()
                                 .map(|n| (n.enabled_by_default, n))
                                 .collect(),
-                            filters: HashSet::from_iter(
-                                ql_mod_manager::store::recommended::Category::ALL
-                                    .iter()
-                                    .cloned(),
-                            ),
+                            filters: ql_mod_manager::store::recommended::Category::ALL
+                                .iter()
+                                .cloned()
+                                .collect(),
                             config,
                         }
                     });

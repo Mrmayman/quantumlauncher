@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use chrono::DateTime;
 use ql_core::file_utils;
 use serde::Deserialize;
 
@@ -19,7 +20,7 @@ pub struct ModVersion {
     pub version_number: String,
     // pub changelog: Option<String>,
     // pub changelog_url: Option<String>,
-    pub date_published: String,
+    pub date_published: DateTime<chrono::FixedOffset>,
     // pub downloads: usize,
     // pub version_type: String,
     // pub status: String,

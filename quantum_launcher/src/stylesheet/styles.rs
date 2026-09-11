@@ -1,8 +1,10 @@
+use std::f32;
 use std::{fmt::Display, str::FromStr};
 
+use iced::gradient::{ColorStop, Linear};
 use iced::widget::container::Style;
 use iced::widget::scrollable::Rail;
-use iced::{Border, widget};
+use iced::{Background, Border, Gradient, Radians, widget};
 use ql_core::err;
 use serde::{Deserialize, Serialize};
 
@@ -107,7 +109,7 @@ pub struct LauncherTheme {
 }
 
 impl LauncherTheme {
-    fn is_light(&self) -> bool {
+    pub fn is_light(&self) -> bool {
         match self.lightness {
             LauncherThemeLightness::Light => true,
             LauncherThemeLightness::Dark => false,
@@ -358,28 +360,6 @@ impl LauncherTheme {
         }
     }
 
-    pub fn style_container_selected_flat_button(&self) -> Style {
-        Style {
-            border: self.get_border_sharp(Color::Mid),
-            background: Some(self.get_bg(Color::SecondDark)),
-            text_color: None,
-            ..Default::default()
-        }
-    }
-
-    pub fn style_container_selected_flat_button_semi(&self, radii: [bool; 4]) -> Style {
-        Style {
-            border: Border {
-                radius: get_radius_semi(radii),
-                width: 1.0,
-                color: self.get(Color::SecondDark),
-            },
-            background: Some(self.get_bg(Color::Dark)),
-            text_color: None,
-            ..Default::default()
-        }
-    }
-
     pub fn style_container_sharp_box(&self, width: f32, color: Color) -> Style {
         self.style_container_round_box(width, color, 0.0)
     }
@@ -433,12 +413,23 @@ impl LauncherTheme {
     }
 
     fn get_bg_color(&self) -> iced::Background {
-        let c = if let LauncherThemeColor::Adwaita = self.color {
+        let color = if let LauncherThemeColor::Adwaita = self.color {
             self.get(Color::Dark)
         } else {
             mix(self.get(Color::Dark), self.get(Color::ExtraDark))
-        };
-        iced::Background::Color(c.scale_alpha(self.alpha))
+        }
+        .scale_alpha(self.alpha);
+
+        let mut stops = [None; 8];
+        stops[0] = Some(ColorStop { offset: 0.0, color });
+        stops[1] = Some(ColorStop {
+            offset: 1.0,
+            color: self.get(Color::Dark).scale_alpha(self.alpha),
+        });
+        iced::Background::Gradient(Gradient::Linear(Linear {
+            angle: Radians(0.0),
+            stops,
+        }))
     }
 
     pub fn style_scrollable_round(
@@ -559,15 +550,42 @@ impl LauncherTheme {
                     | StyleButton::SemiDarkBorder(_) => Color::Dark,
                     StyleButton::FlatExtraDark
                     | StyleButton::SemiExtraDark(_)
-                    | StyleButton::FlatExtraDarkDead => Color::ExtraDark,
+                    | StyleButton::SemiWarnExtraDark(_) => Color::ExtraDark,
                 };
                 widget::button::Style {
-                    background: Some(self.get_bg(color)),
+                    background: Some(if let StyleButton::SemiWarnExtraDark(_) = style {
+                        self.gradient_vertical([
+                            (0.0, Color::ExtraDark),
+                            (0.9, Color::ExtraDark),
+                            (1.0, Color::SecondDark),
+                        ])
+                    } else if let StyleButton::Round = style {
+                        self.gradient_vertical_raw([
+                            (0.0, mix(self.get(Color::Dark), self.get(Color::SecondDark))),
+                            (0.7, self.get(Color::SecondDark)),
+                            (1.0, self.get(Color::SecondDark)),
+                        ])
+                    } else if let StyleButton::RoundDark = style {
+                        self.gradient_vertical_raw([
+                            (0.0, mix(self.get(Color::ExtraDark), self.get(Color::Dark))),
+                            (0.7, self.get(Color::Dark)),
+                            (1.0, self.get(Color::Dark)),
+                        ])
+                    } else if let StyleButton::Flat = style {
+                        self.gradient_horizontal_raw([
+                            (0.0, self.get(Color::SecondDark)),
+                            (0.01, self.get(Color::Dark)),
+                            (1.0, self.get(Color::ExtraDark)),
+                        ])
+                    } else {
+                        self.get_bg(color)
+                    }),
                     text_color: self.get(Color::White),
                     border: if let StyleButton::Round = style {
                         Border {
                             radius: BORDER_RADIUS.into(),
-                            ..Default::default()
+                            width: BORDER_WIDTH,
+                            color: self.get(Color::SecondDark),
                         }
                     } else if let StyleButton::SemiDarkBorder(n) = style {
                         Border {
@@ -584,16 +602,50 @@ impl LauncherTheme {
             widget::button::Status::Hovered => {
                 let color = match style {
                     StyleButton::Round
-                    | StyleButton::RoundDark
-                    | StyleButton::Flat
-                    | StyleButton::FlatDark
                     | StyleButton::SemiDark(_)
                     | StyleButton::SemiDarkBorder(_) => Color::Mid,
-                    StyleButton::FlatExtraDark | StyleButton::SemiExtraDark(_) => Color::Dark,
-                    StyleButton::FlatExtraDarkDead => Color::ExtraDark,
+                    StyleButton::RoundDark | StyleButton::FlatDark => Color::SecondDark,
+                    StyleButton::Flat
+                    | StyleButton::FlatExtraDark
+                    | StyleButton::SemiExtraDark(_)
+                    | StyleButton::SemiWarnExtraDark(_) => Color::Dark,
                 };
                 widget::button::Style {
-                    background: Some(self.get_bg(color)),
+                    background: Some(if let StyleButton::SemiExtraDark(_) = style {
+                        self.gradient_vertical([
+                            (0.0, Color::Dark),
+                            (0.9, Color::Dark),
+                            (1.0, Color::ExtraDark),
+                        ])
+                    } else if let StyleButton::SemiWarnExtraDark(_) = style {
+                        self.gradient_vertical([(0.0, Color::Dark), (1.0, Color::SecondDark)])
+                    } else if let StyleButton::Round = style {
+                        self.gradient_vertical_raw([
+                            (0.0, mix(self.get(Color::Dark), self.get(Color::Mid))),
+                            (0.7, self.get(Color::Mid)),
+                            (1.0, self.get(Color::Mid)),
+                        ])
+                    } else if let StyleButton::RoundDark = style {
+                        self.gradient_vertical_raw([
+                            (0.0, mix(self.get(Color::Dark), self.get(Color::SecondDark))),
+                            (0.7, self.get(Color::SecondDark)),
+                            (1.0, self.get(Color::SecondDark)),
+                        ])
+                    } else if let StyleButton::FlatExtraDark = style {
+                        self.gradient_horizontal_raw([
+                            (0.0, self.get(Color::Dark)),
+                            (0.5, mix(self.get(Color::Dark), self.get(Color::ExtraDark))),
+                            (1.0, self.get(Color::Dark)),
+                        ])
+                    } else if let StyleButton::Flat = style {
+                        self.gradient_horizontal([
+                            (0.0, Color::Mid),
+                            (0.01, Color::SecondDark),
+                            (1.0, Color::Dark),
+                        ])
+                    } else {
+                        self.get_bg(color)
+                    }),
                     text_color: self.get(match style {
                         StyleButton::Round | StyleButton::Flat => Color::Dark,
                         _ => Color::White,
@@ -603,7 +655,7 @@ impl LauncherTheme {
                 }
             }
             widget::button::Status::Pressed => widget::button::Style {
-                background: Some(self.get_bg(Color::SecondLight)),
+                background: Some(self.get_bg(Color::Mid)),
                 text_color: self.get(Color::Dark),
                 border: self.get_border_style(&style, Color::White),
                 ..Default::default()
@@ -614,15 +666,35 @@ impl LauncherTheme {
                     | StyleButton::Round
                     | StyleButton::RoundDark
                     | StyleButton::FlatDark => Color::Dark,
-                    StyleButton::SemiDark(_)
-                    | StyleButton::SemiDarkBorder(_)
-                    | StyleButton::SemiExtraDark(_)
-                    | StyleButton::FlatExtraDarkDead => Color::ExtraDark,
+                    StyleButton::SemiDark(_) | StyleButton::SemiDarkBorder(_) => Color::ExtraDark,
                     // Selected button
-                    StyleButton::FlatExtraDark => Color::SecondDark,
+                    StyleButton::SemiExtraDark(_)
+                    | StyleButton::FlatExtraDark
+                    | StyleButton::SemiWarnExtraDark(_) => Color::SecondDark,
                 };
                 widget::button::Style {
-                    background: Some(self.get_bg(color)),
+                    background: Some(if let StyleButton::SemiExtraDark(_) = style {
+                        self.gradient_vertical([
+                            (0.0, Color::SecondLight),
+                            (0.1, Color::Dark),
+                            (1.0, Color::ExtraDark),
+                        ])
+                    } else if let StyleButton::SemiWarnExtraDark(_) = style {
+                        self.gradient_vertical([
+                            (0.0, Color::Mid),
+                            (0.1, Color::Dark),
+                            (0.9, Color::Dark),
+                            (1.0, Color::SecondDark),
+                        ])
+                    } else if let StyleButton::FlatExtraDark = style {
+                        self.gradient_horizontal([
+                            (0.0, Color::Mid),
+                            (0.02, Color::SecondDark),
+                            (1.0, Color::Dark),
+                        ])
+                    } else {
+                        self.get_bg(color)
+                    }),
                     text_color: self.get(Color::ExtraDark),
                     border: if let StyleButton::Round = style {
                         let (palette, color) = self.get_base(Color::SecondDark);
@@ -638,6 +710,52 @@ impl LauncherTheme {
                 }
             }
         }
+    }
+
+    fn gradient_vertical(&self, colors: impl IntoIterator<Item = (f32, Color)>) -> Background {
+        self.gradient_vertical_raw(
+            colors
+                .into_iter()
+                .map(|(offset, color)| (offset, self.get(color))),
+        )
+    }
+
+    fn gradient_vertical_raw(
+        &self,
+        colors: impl IntoIterator<Item = (f32, iced::Color)>,
+    ) -> Background {
+        self.gradient_raw(Radians(0.0), colors)
+    }
+
+    fn gradient_horizontal(&self, colors: impl IntoIterator<Item = (f32, Color)>) -> Background {
+        self.gradient_horizontal_raw(
+            colors
+                .into_iter()
+                .map(|(offset, color)| (offset, self.get(color))),
+        )
+    }
+
+    fn gradient_horizontal_raw(
+        &self,
+        colors: impl IntoIterator<Item = (f32, iced::Color)>,
+    ) -> Background {
+        self.gradient_raw(Radians(f32::consts::FRAC_PI_2), colors)
+    }
+
+    fn gradient_raw(
+        &self,
+        angle: Radians,
+        colors: impl IntoIterator<Item = (f32, iced::Color)>,
+    ) -> Background {
+        let mut stops = [None; 8];
+        for (i, (offset, color)) in colors.into_iter().enumerate() {
+            if i == stops.len() {
+                break;
+            }
+            stops[i] = Some(ColorStop { offset, color });
+        }
+
+        Background::Gradient(Gradient::Linear(Linear { angle, stops }))
     }
 
     pub fn style_radio(&self, status: widget::radio::Status, color: Color) -> widget::radio::Style {

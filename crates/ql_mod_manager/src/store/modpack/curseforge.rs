@@ -142,7 +142,7 @@ async fn add_to_index(
                 name: mod_info.name.clone(),
                 manually_installed: true,
                 installed_version: query.data.displayName.clone(),
-                version_release_time: query.data.fileDate.clone(),
+                version_release_time: query.data.fileDate,
                 enabled: true,
                 description: mod_info.summary.clone(),
                 icon_url: mod_info.logo.clone().map(|n| n.url),

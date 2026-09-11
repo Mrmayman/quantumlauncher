@@ -5,7 +5,6 @@ use iced::{
 use ql_core::Instance;
 use ql_mod_manager::loaders::fabric::{self, FabricVersionList, FabricVersionListItem};
 
-use crate::menu_renderer::Column;
 use crate::state::{InstallPaperMessage, MenuInstallPaper};
 use crate::{
     icons,
@@ -16,6 +15,7 @@ use crate::{
     },
     stylesheet::styles::LauncherTheme,
 };
+use crate::{menu_renderer::Column, stylesheet::color::Color};
 
 impl MenuInstallOptifine {
     pub fn view(&'_ self) -> Element<'_> {
@@ -69,12 +69,14 @@ impl MenuInstallOptifine {
         delete_installer: bool,
     ) -> widget::Column<'a, Message, LauncherTheme, iced::Renderer> {
         column![
-            back_button().on_press(ManageModsMessage::Open.into()),
+            row![
+                back_button().on_press(ManageModsMessage::Open.into()),
+                widget::text("Install OptiFine").size(20),
+            ].spacing(10).align_y(Alignment::Center),
             widget::container(
                 column![
-                    widget::text("Install OptiFine").size(20),
-                    "Step 1: Open the OptiFine download page and download the installer.",
-                    "WARNING: Make sure to download the correct version.",
+                    "1. Open the OptiFine download page and download the installer.",
+                    "WARNING: Make sure to download the correct version. You may need to click 'Show all versions'",
                     widget::button("Open download page")
                         .on_press(Message::CoreOpenLink(self.get_url().to_owned()))
                 ]
@@ -83,8 +85,11 @@ impl MenuInstallOptifine {
             ),
             widget::container(
                 column![
-                    "Step 2: Select the installer file",
+                    "2. Select the installer file",
                     widget::checkbox("Delete installer after use", delete_installer)
+                        .size(14)
+                        .text_size(14)
+                        .style(|t: &LauncherTheme, s| t.style_checkbox(s, Some(Color::SecondLight)))
                         .on_toggle(|t| InstallOptifineMessage::DeleteInstallerToggle(t).into()),
                     widget::button("Select File")
                         .on_press(InstallOptifineMessage::SelectInstallerStart.into())

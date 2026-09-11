@@ -10,7 +10,7 @@
 //! and the special character that corresponds to the icon.
 
 use crate::stylesheet::styles::LauncherTheme;
-use paste::paste;
+use pastey::paste;
 
 const ICON_FONT: iced::Font = iced::Font::with_name("QuantumLauncher");
 

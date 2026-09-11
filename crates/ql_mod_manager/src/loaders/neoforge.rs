@@ -4,7 +4,7 @@ use ql_core::{
     IoError, Loader, REGEX_SNAPSHOT, download,
     file_utils::{self, exists},
     info,
-    json::{VersionDetails, instance_config::ModTypeInfo},
+    json::{V_1_20_2, VersionDetails, instance_config::ModTypeInfo},
     no_window, pt,
 };
 use ql_java_handler::{JavaVersion, get_java_binary};
@@ -69,8 +69,6 @@ pub async fn install(
         delete(&instance_dir, "user_jvm_args.txt").await?;
     } else {
         download_libraries(f_progress, &json, &installer_bytes, &neoforge_dir).await?;
-        delete(&neoforge_dir, "launcher_profiles.json").await?;
-        delete(&neoforge_dir, "launcher_profiles_microsoft_store.json").await?;
     }
 
     pt!("Finished");
@@ -238,10 +236,9 @@ pub async fn get_versions(
         file_utils::download_file_to_json(NEOFORGE_VERSIONS_URL, false).await?;
 
     let version_json = VersionDetails::load(&instance).await?;
-    let release_time = DateTime::parse_from_rfc3339(&version_json.releaseTime)?;
 
-    let v1_20_2 = DateTime::parse_from_rfc3339("2023-09-20T09:02:57+00:00")?;
-    if release_time < v1_20_2 {
+    let v1_20_2 = DateTime::parse_from_rfc3339(V_1_20_2).expect("statically known to be valid");
+    if version_json.releaseTime < v1_20_2 {
         return Err(ForgeInstallError::NeoForgeOutdatedMinecraft);
     }
 

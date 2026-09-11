@@ -28,7 +28,6 @@ impl MenuModsDownload {
     fn view_main<'a>(&'a self, images: &'a ImageState, tick_timer: usize) -> Element<'a> {
         column![
             self.get_top_bar(),
-            widget::horizontal_rule(1).style(barthin),
             row![
                 self.get_side_panel(tick_timer),
                 self.mods_display(images, tick_timer)

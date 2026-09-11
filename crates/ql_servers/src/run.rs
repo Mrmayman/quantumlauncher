@@ -66,6 +66,8 @@ pub async fn run(
             .stdin(Stdio::piped());
     }
 
+    launcher.config.apply_env_vars(&mut command);
+
     let child = command.spawn().path(server_jar_path)?;
     if let Some(id) = child.id() {
         pt!("PID: {id}");

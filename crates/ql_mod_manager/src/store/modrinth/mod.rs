@@ -5,7 +5,6 @@ use std::{
 };
 
 use chrono::DateTime;
-use download::version_sort;
 use indexmap::IndexMap;
 use info::ProjectInfo;
 use ql_core::{GenericProgress, Instance, Loader, download, pt};
@@ -92,8 +91,7 @@ impl Backend for ModrinthBackend {
             .cloned()
             .collect();
 
-        // Sort by date published
-        download_versions.sort_by(version_sort);
+        download_versions.sort_by(|a, b| a.date_published.cmp(&b.date_published));
 
         let download_version =
             download_versions
@@ -106,9 +104,10 @@ impl Backend for ModrinthBackend {
                         .unwrap_or_default(),
                 ))?;
 
-        let download_version_time = DateTime::parse_from_rfc3339(&download_version.date_published)?;
-
-        Ok((download_version_time, download_version.version_number))
+        Ok((
+            download_version.date_published,
+            download_version.version_number,
+        ))
     }
 
     async fn download(

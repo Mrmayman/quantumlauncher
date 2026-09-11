@@ -285,14 +285,12 @@ fn sidebar_button<'a, A: PartialEq>(
     selected: &A,
     text: impl Into<Element<'a>>,
     message: Message,
-) -> Element<'a> {
+) -> widget::Button<'a, Message, LauncherTheme> {
     let is_selected = current == selected;
-    let button = widget::button(text)
+    widget::button(text)
         .on_press_maybe((!is_selected).then_some(message))
         .style(|n: &LauncherTheme, status| n.style_button(status, StyleButton::FlatExtraDark))
-        .width(Length::Fill);
-
-    underline_maybe(button, Color::SecondDark, !is_selected)
+        .width(Length::Fill)
 }
 
 fn tsubtitle(t: &LauncherTheme) -> widget::text::Style {
@@ -481,6 +479,7 @@ impl MenuLicense {
                         text,
                         Message::LicenseChangeTab(*tab),
                     )
+                    .into()
                 }),
             ),
             widget::scrollable(

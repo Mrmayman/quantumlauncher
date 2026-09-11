@@ -30,10 +30,6 @@ pub enum ModError {
         "{MOD_ERR_PREFIX}no \"minecraft\" game entry found in curseforge API\n\nThis is a bug, please report in discord!"
     )]
     NoMinecraftInCurseForge,
-    #[error(
-        "curseforge is blocking you from downloading the mod {0}\nGo to the official website at:\nhttps://www.curseforge.com/minecraft/mc-mods/{1}\nand download from there"
-    )]
-    CurseforgeModNotAllowedForDownload(String, String),
 
     #[error(
         "{MOD_ERR_PREFIX}no category {0} found in curseforge API\n\nThis is a bug, please report in discord!"
@@ -45,8 +41,6 @@ pub enum ModError {
     #[error("{MOD_ERR_PREFIX}zip error:\n{0}")]
     Zip(#[from] zip::result::ZipError),
 
-    #[error("while checking for mod update:\ncould not parse date:\n{0}")]
-    Chrono(#[from] chrono::ParseError),
     #[error("{MOD_ERR_PREFIX}couldn't parse int (curseforge mod id):\n{0}")]
     ParseInt(#[from] ParseIntError),
 
