@@ -33,6 +33,9 @@ mod uninstall;
 pub use error::ForgeInstallError;
 pub use uninstall::uninstall;
 
+const V_1_12_2: usize = 14;
+const V_1_18_1: usize = 39;
+
 struct ForgeInstaller {
     f_progress: Option<Sender<ForgeInstallProgress>>,
 
@@ -62,22 +65,17 @@ impl ForgeInstaller {
         instance: Instance,
     ) -> Result<Self, ForgeInstallError> {
         let instance_dir = instance.get_instance_path();
-        let forge_dir = if instance.is_server() {
-            instance_dir.clone()
-        } else {
-            get_forge_dir(&instance_dir).await?
-        };
+        let mc_dir = instance.get_dot_minecraft_path();
+        let forge_dir = get_forge_dir(&instance_dir, instance.kind).await?;
 
         let version_json = VersionDetails::load(&instance).await?;
         let minecraft_version = version_json.get_id();
 
-        create_mods_dir(&instance_dir).await?;
+        create_mods_dir(&mc_dir).await?;
 
         pt!("Downloading JSON");
         if let Some(progress) = &f_progress {
-            progress
-                .send(ForgeInstallProgress::P2DownloadingJson)
-                .unwrap();
+            _ = progress.send(ForgeInstallProgress::P2DownloadingJson);
         }
 
         let version = if let Some(n) = forge_version {
@@ -150,7 +148,7 @@ impl ForgeInstaller {
 
     fn send_progress(&self, message: ForgeInstallProgress) {
         if let Some(progress) = &self.f_progress {
-            progress.send(message).unwrap();
+            _ = progress.send(message);
         }
     }
 
@@ -186,11 +184,11 @@ impl ForgeInstaller {
             .await
             .path(&libraries_dir)?;
 
-        let classpath = if self.major_version >= 14 {
+        let classpath = if self.major_version >= V_1_12_2 {
             // 1.12+
             self.run_installer(j_progress, installer_name).await?;
 
-            if self.major_version < 39 {
+            if self.major_version < V_1_18_1 {
                 // 1.12 - 1.18
                 format!(
                     "../forge/libraries/net/minecraftforge/forge/{}/forge-{}.jar{CLASSPATH_SEPARATOR}",
@@ -262,16 +260,13 @@ impl ForgeInstaller {
 
     async fn run_installer_create_garbage_files(&self) -> Result<(), ForgeInstallError> {
         if matches!(self.kind, InstanceKind::Client) {
-            let launcher_profiles_json_path = self.forge_dir.join("launcher_profiles.json");
-            fs::write(&launcher_profiles_json_path, "{}")
-                .await
-                .path(launcher_profiles_json_path)?;
-            let launcher_profiles_json_microsoft_store_path = self
+            let p1 = self.forge_dir.join("launcher_profiles.json");
+            fs::write(&p1, "{}").await.path(p1)?;
+
+            let p2 = self
                 .forge_dir
                 .join("launcher_profiles_microsoft_store.json");
-            fs::write(&launcher_profiles_json_microsoft_store_path, "{}")
-                .await
-                .path(launcher_profiles_json_microsoft_store_path)?;
+            fs::write(&p2, "{}").await.path(p2)?;
         }
         Ok(())
     }
@@ -425,14 +420,20 @@ async fn get_forge_version(minecraft_version: &str) -> Result<String, ForgeInsta
     Ok(version)
 }
 
-async fn get_forge_dir(instance_dir: &Path) -> Result<PathBuf, ForgeInstallError> {
-    let forge_dir = instance_dir.join("forge");
+async fn get_forge_dir(
+    instance_dir: &Path,
+    kind: InstanceKind,
+) -> Result<PathBuf, ForgeInstallError> {
+    let forge_dir = instance_dir.join(match kind {
+        InstanceKind::Server => "data",
+        InstanceKind::Client => "forge",
+    });
     fs::create_dir_all(&forge_dir).await.path(&forge_dir)?;
     Ok(forge_dir)
 }
 
-async fn create_mods_dir(instance_dir: &Path) -> Result<(), ForgeInstallError> {
-    let mods_dir_path = instance_dir.join(".minecraft/mods");
+async fn create_mods_dir(dir: &Path) -> Result<(), ForgeInstallError> {
+    let mods_dir_path = dir.join("mods");
     fs::create_dir_all(&mods_dir_path)
         .await
         .path(mods_dir_path)?;

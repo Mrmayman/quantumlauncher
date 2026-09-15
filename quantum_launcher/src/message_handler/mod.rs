@@ -16,11 +16,10 @@ use ql_core::{
 };
 use ql_mod_manager::{
     loaders,
-    store::{LocalMod, ModIndex, QueryType},
+    store::{ModIndex, QueryType},
 };
 use std::{
     collections::HashSet,
-    ffi::OsStr,
     path::{Path, PathBuf},
     sync::{
         Arc,
@@ -298,27 +297,6 @@ impl Launcher {
             *drag_and_drop_hovered = is_hovered;
         }
     }
-    #[cfg(feature = "auto_update")]
-    pub fn update_download_start(&mut self) -> Task<Message> {
-        if let State::UpdateFound(crate::state::MenuLauncherUpdate { url, progress, .. }) =
-            &mut self.state
-        {
-            let (sender, update_receiver) = std::sync::mpsc::channel();
-            *progress = Some(ProgressBar::with_recv_and_msg(
-                update_receiver,
-                "Starting Update".to_owned(),
-            ));
-
-            let url = url.clone();
-
-            Task::perform(
-                async move { crate::launcher_update::install(url, sender).await.strerr() },
-                Message::UpdateDownloadEnd,
-            )
-        } else {
-            Task::none()
-        }
-    }
 
     pub fn go_to_delete_instance_menu(&mut self) {
         let instance = self.instance();
@@ -337,65 +315,6 @@ impl Launcher {
             no: back_to_launch_screen(None),
         };
     }
-}
-
-pub async fn get_locally_installed_mods(
-    dot_mc: PathBuf,
-    blacklist: HashSet<String>,
-    project_type: QueryType,
-) -> HashSet<LocalMod> {
-    let dirs: &[&str] = match project_type {
-        QueryType::Mods => &["mods"],
-        QueryType::ResourcePacks => &["resourcepacks", "texturepacks"],
-        QueryType::Shaders => &["shaderpacks"],
-        QueryType::DataPacks => &["datapacks"],
-        QueryType::ModPacks => return HashSet::new(),
-    };
-    let mut set = HashSet::new();
-
-    for dir in dirs {
-        let mods_dir_path = dot_mc.join(dir);
-
-        let mut dir = match tokio::fs::read_dir(&mods_dir_path).await {
-            Ok(dir) => dir,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                continue;
-            }
-            Err(err) => {
-                err!("While reading {dir} directory: {err}");
-                continue;
-            }
-        };
-
-        while let Ok(Some(entry)) = dir.next_entry().await {
-            let path = entry.path();
-            let Some(file_name) = path.file_name().and_then(OsStr::to_str) else {
-                continue;
-            };
-            if blacklist.contains(file_name) {
-                continue;
-            }
-            if let Ok(f) = entry.file_type().await {
-                if f.is_dir() {
-                    if project_type == QueryType::Mods {
-                        continue;
-                    }
-                } else {
-                    let Some(extension) = path.extension() else {
-                        continue;
-                    };
-                    if !(extension.eq_ignore_ascii_case("jar")
-                        || extension.eq_ignore_ascii_case("zip")
-                        || extension.eq_ignore_ascii_case("disabled"))
-                    {
-                        continue;
-                    }
-                }
-            }
-            set.insert(LocalMod(Arc::from(file_name), project_type));
-        }
-    }
-    set
 }
 
 #[derive(Debug, Clone, Copy)]

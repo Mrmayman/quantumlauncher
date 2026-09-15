@@ -1,7 +1,10 @@
 use std::{collections::HashSet, path::PathBuf};
 
 use ql_core::{IoError, JsonError, RequestError, impl_3_errs_jri};
-use ql_mod_manager::loaders::{fabric::FabricInstallError, forge::ForgeInstallError};
+use ql_mod_manager::{
+    loaders::{fabric::FabricInstallError, forge::ForgeInstallError},
+    store::ModError,
+};
 use ql_servers::ServerError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -11,11 +14,13 @@ use ql_instances::DownloadError;
 mod export;
 mod import;
 mod multimc;
+mod upgrade;
 
-pub use export::{EXCEPTIONS, export_instance};
+pub use export::{EXCEPTIONS, SOFT_EXCEPTIONS, export_instance};
 pub use import::import_instance;
+pub use upgrade::upgrade;
 
-const PKG_ERR_PREFIX: &str = "while importing/exporting instance:\n";
+const PKG_ERR_PREFIX: &str = "while importing/exporting/updating instance:\n";
 #[derive(Debug, Error)]
 pub enum InstancePackageError {
     #[error("{PKG_ERR_PREFIX}can't get filename of path {0:?}")]
@@ -36,9 +41,11 @@ pub enum InstancePackageError {
     Download(#[from] DownloadError),
     #[error("{PKG_ERR_PREFIX}while creating new base server for import:\n{0}")]
     Server(#[from] ServerError),
+    #[error("{PKG_ERR_PREFIX}{0}")]
+    Mod(#[from] ModError),
+
     #[error("{PKG_ERR_PREFIX}while installing packaged loader:\n{0}")]
     Loader(String),
-
     #[error("{PKG_ERR_PREFIX}{0}")]
     Forge(#[from] ForgeInstallError),
     #[error("{PKG_ERR_PREFIX}{0}")]

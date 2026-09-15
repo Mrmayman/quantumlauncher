@@ -1,4 +1,4 @@
-use std::sync::mpsc::Sender;
+use std::{path::PathBuf, sync::mpsc::Sender};
 
 use ql_core::{
     DownloadProgress, IntoIoError, IntoJsonError, IntoStringError, LAUNCHER_DIR, ListEntry,
@@ -22,26 +22,26 @@ use crate::ServerError;
 /// # Errors
 ///
 /// TLDR; there's a lot of errors. I only wrote this because
-/// clippy was bothering me (WTF: )
+/// clippy was bothering me.
 ///
 /// If:
 /// - server already exists
 /// - EULA and `config.json` file couldn't be saved
 /// ## Server Jar...
-/// - ...couldn't be downloaded from
+/// - couldn't be downloaded from
 ///   Mojang/Omniarchive (internet/server issue)
-/// - ...couldn't be saved to a file
+/// - couldn't be saved to a file
 /// - classic server zip file couldn't be extracted
 /// - classic server zip file doesn't have a `minecraft-server.jar`
 /// ## Manifest...
-/// - ...couldn't be downloaded
-/// - ...couldn't be parsed into JSON
-/// - ...doesn't have server version
+/// - couldn't be downloaded
+/// - couldn't be parsed into JSON
+/// - doesn't have server version
 /// ## Version JSON...
-/// - ...couldn't be downloaded
-/// - ...couldn't be parsed into JSON
-/// - ...couldn't be saved to `details.json`
-/// - ...doesn't have `downloads` field
+/// - couldn't be downloaded
+/// - couldn't be parsed into JSON
+/// - couldn't be saved to `details.json`
+/// - doesn't have `downloads` field
 pub async fn create_server(
     name: String,
     version: ListEntry,
@@ -59,8 +59,8 @@ pub async fn create_server(
     progress_manifest(sender);
     let manifest = Manifest::download().await?;
 
-    let server_dir = get_server_dir(&name).await?;
-    let server_jar_path = server_dir.join("server.jar");
+    let (server_dir, mc_dir) = get_server_dir(&name).await?;
+    let server_jar_path = mc_dir.join("server.jar");
 
     let mut is_classic_server = false;
 
@@ -80,9 +80,9 @@ pub async fn create_server(
         is_classic_server = true;
 
         let archive = file_utils::download_file_to_bytes(&server.url, true).await?;
-        file_utils::extract_zip_archive(std::io::Cursor::new(archive), &server_dir, true).await?;
+        file_utils::extract_zip_archive(std::io::Cursor::new(archive), &mc_dir, true).await?;
 
-        let old_path = server_dir.join("minecraft-server.jar");
+        let old_path = mc_dir.join("minecraft-server.jar");
         tokio::fs::rename(&old_path, &server_jar_path)
             .await
             .path(old_path)?;
@@ -91,10 +91,10 @@ pub async fn create_server(
     }
 
     version_json.save_to_dir(&server_dir).await?;
-    write_eula(&server_dir).await?;
-    write_config(is_classic_server, &server_dir, &version_json).await?;
+    write_eula(&mc_dir).await?;
+    write_config(is_classic_server, &mc_dir, &version_json).await?;
 
-    let mods_dir = server_dir.join("mods");
+    let mods_dir = mc_dir.join("mods");
     tokio::fs::create_dir(&mods_dir).await.path(mods_dir)?;
 
     pt!("Finished");
@@ -122,7 +122,7 @@ async fn write_config(
     Ok(())
 }
 
-async fn get_server_dir(name: &str) -> Result<std::path::PathBuf, ServerError> {
+async fn get_server_dir(name: &str) -> Result<(PathBuf, PathBuf), ServerError> {
     let server_dir = LAUNCHER_DIR.join("servers").join(name);
     if exists(&server_dir).await {
         return Err(ServerError::ServerAlreadyExists);
@@ -130,7 +130,11 @@ async fn get_server_dir(name: &str) -> Result<std::path::PathBuf, ServerError> {
     tokio::fs::create_dir_all(&server_dir)
         .await
         .path(&server_dir)?;
-    Ok(server_dir)
+
+    let mc_dir = server_dir.join("data");
+    tokio::fs::create_dir_all(&mc_dir).await.path(&mc_dir)?;
+
+    Ok((server_dir, mc_dir))
 }
 
 fn progress_manifest(sender: Option<&Sender<DownloadProgress>>) {
