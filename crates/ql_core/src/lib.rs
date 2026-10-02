@@ -53,7 +53,11 @@ pub use error::{
     DownloadFileError, IntoIoError, IntoJsonError, IntoStringError, IoError, JsonDownloadError,
     JsonError, JsonFileError,
 };
-pub use file_utils::{LAUNCHER_CACHE_DIR, LAUNCHER_DIR, RequestError};
+pub use file_utils::{
+    FullPortableStatus, LAUNCHER_CACHE_DIR, LAUNCHER_DIR, RequestError, create_portable_file,
+    create_system_redirect_file, delete_portable_file, delete_system_redirect_file,
+    get_portable_status, get_system_redirect_status, portable_mode_status,
+};
 pub use print::{LOGGER, LogType, LoggingState, logger_finish};
 pub use progress::{DownloadProgress, GenericProgress, Progress};
 pub use request::download;
@@ -239,11 +243,19 @@ pub async fn do_jobs_with_limit<T, E>(
 /// Notice how we don't await on `download_file`? Here's another one.
 ///
 /// ```no_run
+/// # use ql_core::retry;
+/// # async fn download_file(url: &str) -> Result<(), String> {
+/// #     let _ = url;
+/// #     Ok(())
+/// # }
+/// # async fn try_again() -> Result<(), String> {
 /// // Use this pattern for inline async blocks
 /// retry(|| async move {
-///     download_file("example.com/my_file").await;
-///     download_file("example.com/another_file").await;
+///     download_file("example.com/my_file").await?;
+///     download_file("example.com/another_file").await?;
+///     Ok(())
 /// }).await
+/// # }
 /// ```
 ///
 /// # Errors

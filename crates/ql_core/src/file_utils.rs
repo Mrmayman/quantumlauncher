@@ -3,7 +3,7 @@ use std::{
     ffi::OsStr,
     io::{Cursor, Write},
     path::{MAIN_SEPARATOR, Path, PathBuf},
-    sync::LazyLock,
+    sync::{LazyLock, Mutex},
 };
 
 use flate2::read::GzDecoder;
@@ -32,6 +32,26 @@ use crate::{IntoIoError, JsonDownloadError, download, error::IoError};
 #[allow(clippy::doc_markdown)]
 pub static LAUNCHER_DIR: LazyLock<PathBuf> = LazyLock::new(|| get_launcher_dir().unwrap());
 
+static PORTABLE_WARNING: LazyLock<Mutex<Option<String>>> = LazyLock::new(|| Mutex::new(None));
+
+fn set_portable_warning(message: impl Into<String>) -> bool {
+    if let Ok(mut warning) = PORTABLE_WARNING.lock() {
+        if warning.is_none() {
+            *warning = Some(message.into());
+            return true;
+        }
+    }
+    false
+}
+
+#[must_use]
+pub fn take_portable_warning() -> Option<String> {
+    PORTABLE_WARNING
+        .lock()
+        .ok()
+        .and_then(|mut warning| warning.take())
+}
+
 /// The path to the QuantumLauncher cache folder.
 #[allow(clippy::doc_markdown)]
 pub static LAUNCHER_CACHE_DIR: LazyLock<PathBuf> =
@@ -51,9 +71,11 @@ pub static LAUNCHER_CACHE_DIR: LazyLock<PathBuf> =
 /// - if the launcher directory could not be created (permissions issue)
 #[allow(clippy::doc_markdown)]
 pub fn get_launcher_dir() -> Result<PathBuf, IoError> {
+    let mut allow_fallback = false;
     let launcher_directory = if let Ok(n) = std::env::var("QL_DIR").or(std::env::var("QLDIR")) {
         canonicalize_s(&n)
     } else if let Some(n) = check_qlportable_file() {
+        allow_fallback = true;
         canonicalize_s(&n.path)
     } else {
         dirs::data_dir()
@@ -61,7 +83,33 @@ pub fn get_launcher_dir() -> Result<PathBuf, IoError> {
             .join("QuantumLauncher")
     };
 
-    std::fs::create_dir_all(&launcher_directory).path(&launcher_directory)?;
+    if let Err(err) = std::fs::create_dir_all(&launcher_directory).path(&launcher_directory) {
+        if allow_fallback {
+            if let IoError::Io { error, .. } = &err {
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::PermissionDenied | std::io::ErrorKind::ReadOnlyFilesystem
+                ) {
+                    if let Some(fallback_dir) = dirs::data_dir().map(|d| d.join("QuantumLauncher"))
+                    {
+                        if std::fs::create_dir_all(&fallback_dir)
+                            .path(&fallback_dir)
+                            .is_ok()
+                        {
+                            let warning = "Portable data path is read-only. Portable mode was disabled and the system data directory is being used instead.";
+                            if set_portable_warning(warning) {
+                                eprintln!("{warning}");
+                            }
+                            return Ok(fallback_dir);
+                        }
+                    }
+                }
+            }
+        }
+
+        return Err(err);
+    }
+
     Ok(launcher_directory)
 }
 
@@ -89,8 +137,249 @@ pub fn get_launcher_cache_dir() -> Result<PathBuf, IoError> {
     Ok(cache_dir)
 }
 
-struct QlDirInfo {
-    path: PathBuf,
+#[cfg(unix)]
+fn expand_tilde(path: &str) -> Option<PathBuf> {
+    let home = dirs::home_dir()?;
+    if path == "~" {
+        return Some(home);
+    }
+    if let Some(stripped) = path.strip_prefix("~/") {
+        return Some(home.join(stripped));
+    }
+    None
+}
+
+#[cfg(not(unix))]
+fn expand_tilde(_path: &str) -> Option<PathBuf> {
+    None
+}
+
+/// Deletes the `running` sentinel file if it exists.
+pub fn cleanup_running_file() {
+    if let Ok(dir) = get_launcher_dir() {
+        _ = std::fs::remove_file(dir.join("running"));
+    }
+}
+
+pub(crate) struct QlDirInfo {
+    pub path: PathBuf,
+    #[allow(dead_code)]
+    pub flags: HashSet<String>,
+}
+
+/// The filename of the portable mode marker file.
+pub const PORTABLE_FILENAME: &str = "qldir.txt";
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct QlDirStatus {
+    pub path: Option<PathBuf>,
+    pub flags: HashSet<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PortableModeKind {
+    /// `qldir.txt` is beside the executable. Contained path and flags are from the file.
+    Portable(QlDirStatus),
+    /// `qldir.txt` is in the system data/config directory. Contained path and flags are from the file.
+    SystemRedirect(QlDirStatus),
+}
+
+/// Returns the current portable-mode state, or `None` if it is not active.
+///
+/// Reads `qldir.txt` from beside the executable (if it exists).
+/// Returns the current portable-mode state for the executable directory.
+#[must_use]
+pub fn get_portable_status() -> Option<QlDirStatus> {
+    if let Some(exe_dir) = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(Path::to_owned))
+    {
+        let qldir_path = exe_dir.join(PORTABLE_FILENAME);
+        if let Ok(contents) = std::fs::read_to_string(&qldir_path) {
+            let (path_str, flags_str) = line_and_body(&contents);
+            let path = if path_str.is_empty() {
+                None
+            } else {
+                Some(PathBuf::from(path_str))
+            };
+            let flags = flags_str
+                .split(',')
+                .map(|s| s.trim().to_lowercase())
+                .filter(|n| !n.is_empty())
+                .collect();
+            return Some(QlDirStatus { path, flags });
+        }
+    }
+    None
+}
+
+/// Returns the current portable-mode state for the system data directory.
+#[must_use]
+pub fn get_system_redirect_status() -> Option<QlDirStatus> {
+    if let Some(data_dir) = dirs::data_dir().map(|d| d.join("QuantumLauncher")) {
+        let qldir_path = data_dir.join(PORTABLE_FILENAME);
+        if let Ok(contents) = std::fs::read_to_string(&qldir_path) {
+            let (path_str, flags_str) = line_and_body(&contents);
+            let path = if path_str.is_empty() {
+                None
+            } else {
+                Some(PathBuf::from(path_str))
+            };
+            let flags = flags_str
+                .split(',')
+                .map(|s| s.trim().to_lowercase())
+                .filter(|n| !n.is_empty())
+                .collect();
+            return Some(QlDirStatus { path, flags });
+        }
+    }
+    None
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FullPortableStatus {
+    pub portable: Option<QlDirStatus>,
+    pub system_redirect: Option<QlDirStatus>,
+}
+
+/// Returns the current portable-mode state, checking both locations.
+#[must_use]
+pub fn portable_mode_status() -> FullPortableStatus {
+    FullPortableStatus {
+        portable: get_portable_status(),
+        system_redirect: get_system_redirect_status(),
+    }
+}
+
+/// Creates a `qldir.txt` file next to the executable to enable portable mode.
+///
+/// If `path` is empty or `.`, the launcher stores data in a
+/// `QuantumLauncher/` folder next to the executable.
+///
+/// # Errors
+/// - The executable path cannot be determined
+/// - The file cannot be written (permissions, disk full, etc.)
+pub fn create_portable_file(path: String, flags: HashSet<String>) -> Result<(), IoError> {
+    let exe_dir = std::env::current_exe()
+        .map_err(|e| IoError::Io {
+            error: e,
+            path: PathBuf::from("<current_exe>"),
+        })?
+        .parent()
+        .map(Path::to_owned)
+        .ok_or_else(|| IoError::Io {
+            error: std::io::Error::other("Could not determine executable directory"),
+            path: PathBuf::from("<exe parent>"),
+        })?;
+    ensure_qldir_target_dir(&exe_dir, &path, &flags, false)?;
+    let qldir_path = exe_dir.join(PORTABLE_FILENAME);
+    let mut contents = path;
+    if !flags.is_empty() {
+        contents.push('\n');
+        contents.push_str(&flags.into_iter().collect::<Vec<_>>().join(","));
+    }
+    std::fs::write(&qldir_path, contents).path(&qldir_path)
+}
+
+/// Creates a `qldir.txt` file in the system data directory to enable system-level redirection.
+///
+/// # Errors
+/// - The system data directory cannot be determined
+/// - The file cannot be written (permissions, disk full, etc.)
+pub fn create_system_redirect_file(path: String, flags: HashSet<String>) -> Result<(), IoError> {
+    let data_dir = dirs::data_dir()
+        .map(|d| d.join("QuantumLauncher"))
+        .ok_or_else(|| IoError::Io {
+            error: std::io::Error::other("Could not determine system data directory"),
+            path: PathBuf::from("<system data dir>"),
+        })?;
+
+    // Ensure the directory exists
+    if !data_dir.exists() {
+        std::fs::create_dir_all(&data_dir).path(&data_dir)?;
+    }
+
+    ensure_qldir_target_dir(&data_dir, &path, &flags, true)?;
+    let qldir_path = data_dir.join(PORTABLE_FILENAME);
+    let mut contents = path;
+    if !flags.is_empty() {
+        contents.push('\n');
+        contents.push_str(&flags.into_iter().collect::<Vec<_>>().join(","));
+    }
+    std::fs::write(&qldir_path, contents).path(&qldir_path)
+}
+
+fn ensure_qldir_target_dir(
+    place: &Path,
+    path: &str,
+    flags: &HashSet<String>,
+    relative_from_parent: bool,
+) -> Result<(), IoError> {
+    let mut join_dir = !flags.contains("top");
+    let target = if let Some(expanded) = expand_tilde(path) {
+        expanded
+    } else if path == "." {
+        join_dir = false;
+        place.to_owned()
+    } else if path.is_empty() && !relative_from_parent {
+        place.to_owned()
+    } else {
+        let path_buf = PathBuf::from(path);
+        if path_buf.is_relative() {
+            let base_dir = if relative_from_parent {
+                place.parent().unwrap_or(place)
+            } else {
+                place
+            };
+            base_dir.join(path_buf)
+        } else {
+            path_buf
+        }
+    };
+
+    let target = if join_dir {
+        target.join("QuantumLauncher")
+    } else {
+        target
+    };
+
+    std::fs::create_dir_all(&target).path(&target)
+}
+
+/// Deletes the `qldir.txt` file from beside the executable.
+pub fn delete_portable_file() -> Result<(), IoError> {
+    if let Some(exe_dir) = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(Path::to_owned))
+    {
+        let qldir_path = exe_dir.join(PORTABLE_FILENAME);
+        if qldir_path.exists() {
+            return std::fs::remove_file(&qldir_path).path(&qldir_path);
+        }
+    }
+
+    Err(IoError::Io {
+        error: std::io::Error::new(std::io::ErrorKind::NotFound, "Portable qldir.txt not found"),
+        path: PathBuf::from("qldir.txt"),
+    })
+}
+
+/// Deletes the `qldir.txt` file from the system data directory.
+pub fn delete_system_redirect_file() -> Result<(), IoError> {
+    if let Some(data_dir) = dirs::data_dir().map(|d| d.join("QuantumLauncher")) {
+        let qldir_path = data_dir.join(PORTABLE_FILENAME);
+        if qldir_path.exists() {
+            return std::fs::remove_file(&qldir_path).path(&qldir_path);
+        }
+    }
+
+    Err(IoError::Io {
+        error: std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "System redirect qldir.txt not found",
+        ),
+        path: PathBuf::from("qldir.txt"),
+    })
 }
 
 fn line_and_body(input: &str) -> (String, String) {
@@ -106,8 +395,6 @@ fn line_and_body(input: &str) -> (String, String) {
 }
 
 fn check_qlportable_file() -> Option<QlDirInfo> {
-    const PORTABLE_FILENAME: &str = "qldir.txt";
-
     let places = [
         std::env::current_exe()
             .ok()
@@ -131,46 +418,41 @@ fn check_qlportable_file() -> Option<QlDirInfo> {
         let flags: HashSet<_> = qldir_options
             .split(',')
             .map(|s| s.trim().to_lowercase())
+            .filter(|n| !n.is_empty())
             .collect();
-
-        // Safety: At this specific moment, nothing else
-        // would read/write these env vars. This function
-        // is called at launcher startup on the main thread.
-        unsafe {
-            if flags.contains("i_vulkan") {
-                std::env::set_var("WGPU_BACKEND", "vulkan");
-            } else if flags.contains("i_opengl") {
-                std::env::set_var("WGPU_BACKEND", "opengl");
-            } else if flags.contains("i_directx") {
-                std::env::set_var("WGPU_BACKEND", "dx12");
-            } else if flags.contains("i_metal") {
-                std::env::set_var("WGPU_BACKEND", "metal");
-            }
-        }
 
         let mut join_dir = !flags.contains("top");
 
-        let path = if let (Some(stripped), Some(home)) = (path.strip_prefix("~"), dirs::home_dir())
-        {
-            home.join(stripped)
+        let path = if let Some(expanded) = expand_tilde(&path) {
+            expanded
         } else if path == "." {
             join_dir = false;
             place
         } else if path.is_empty() && i < 2 {
             place
         } else {
-            PathBuf::from(&path)
+            let path_buf = PathBuf::from(&path);
+            if path_buf.is_relative() {
+                let base_dir = if i >= 2 {
+                    place.parent().unwrap_or(&place)
+                } else {
+                    &place
+                };
+                base_dir.join(path_buf)
+            } else {
+                path_buf
+            }
         };
 
         return Some(if join_dir {
             QlDirInfo {
                 path: path.join("QuantumLauncher"),
+                flags,
             }
         } else {
-            QlDirInfo { path }
+            QlDirInfo { path, flags }
         });
     }
-
     None
 }
 

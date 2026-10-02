@@ -23,7 +23,7 @@ impl Launcher {
     pub fn iced_event(&mut self, event: iced::Event, status: iced::event::Status) -> Task<Message> {
         match event {
             iced::Event::Window(event) => match event {
-                iced::window::Event::CloseRequested => {
+                iced::window::Event::CloseRequested | iced::window::Event::Closed => {
                     pt!(no_log, "Closing...");
                     self.close_launcher();
                 }
@@ -65,8 +65,7 @@ impl Launcher {
                         return self.drag_and_drop(&path, &extension, filename);
                     }
                 }
-                iced::window::Event::Closed
-                | iced::window::Event::RedrawRequested(_)
+                iced::window::Event::RedrawRequested(_)
                 | iced::window::Event::Moved { .. }
                 | iced::window::Event::Opened { .. }
                 | iced::window::Event::Focused
@@ -333,9 +332,11 @@ impl Launcher {
 
             State::License(_) => {
                 if affect {
-                    self.go_to_launcher_settings(LauncherSettingsTab::About);
+                    return (
+                        true,
+                        self.go_to_launcher_settings(LauncherSettingsTab::About),
+                    );
                 }
-                return (true, Task::none());
             }
             State::ConfirmAction { no, .. } => {
                 if affect {

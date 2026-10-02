@@ -46,6 +46,22 @@ struct Cli {
     #[arg(help = "Log more information, useful for debugging")]
     verbose: bool,
     #[arg(long)]
+    #[arg(help = "Open the UI in safe mode (software rendering)")]
+    safe_mode: bool,
+    #[arg(long)]
+    #[arg(help = "Ignore safe mode even if a crash was detected")]
+    override_safety_mode: bool,
+    #[arg(long, help = "Force Vulkan backend")]
+    iced_vulkan: bool,
+    #[arg(long, help = "Force OpenGL backend")]
+    iced_opengl: bool,
+    #[arg(long, help = "Force DirectX backend")]
+    iced_directx: bool,
+    #[arg(long, help = "Force Metal backend")]
+    iced_metal: bool,
+    #[arg(long, help = "Force Software rendering (Tiny-Skia)")]
+    iced_tiny_skia: bool,
+    #[arg(long)]
     dir: Option<PathBuf>,
 }
 
@@ -219,7 +235,12 @@ fn get_right_text() -> String {
     message
 }
 
-pub fn start_cli(is_dir_err: bool, launcher_dir: &mut Option<PathBuf>) {
+use crate::state::GraphicsBackend;
+
+pub fn start_cli(
+    is_dir_err: bool,
+    launcher_dir: &mut Option<PathBuf>,
+) -> (bool, bool, bool, Option<GraphicsBackend>) {
     let cli = Cli::parse();
     flags::redact_sensitive_info_set(|| !cli.no_redact_info);
     flags::log_verbose_set(|| cli.verbose);
@@ -309,7 +330,29 @@ pub fn start_cli(is_dir_err: bool, launcher_dir: &mut Option<PathBuf>) {
         }
     } else {
         print_intro();
+
+        let backend_override = if cli.iced_vulkan {
+            Some(GraphicsBackend::Vulkan)
+        } else if cli.iced_opengl {
+            Some(GraphicsBackend::OpenGL)
+        } else if cli.iced_directx {
+            Some(GraphicsBackend::DirectX)
+        } else if cli.iced_metal {
+            Some(GraphicsBackend::Metal)
+        } else if cli.iced_tiny_skia {
+            Some(GraphicsBackend::TinySkia)
+        } else {
+            None
+        };
+
+        return (
+            true,
+            cli.safe_mode,
+            cli.override_safety_mode,
+            backend_override,
+        );
     }
+    (false, cli.safe_mode, cli.override_safety_mode, None)
 }
 
 fn show_notification(title: &str, body: &str) {

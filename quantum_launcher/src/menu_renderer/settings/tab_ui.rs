@@ -8,7 +8,7 @@ use crate::{
     menu_renderer::{
         Column, checkered_list, get_mode_selector, settings::get_theme_selector, tsubtitle,
     },
-    state::{LauncherSettingsMessage, MenuLauncherSettings, Message},
+    state::{GraphicsBackend, LauncherSettingsMessage, MenuLauncherSettings, Message},
     stylesheet::styles::LauncherTheme,
 };
 
@@ -73,6 +73,52 @@ impl MenuLauncherSettings {
                 widget::Space::with_height(5),
                 widget::checkbox("Remember last selected instance", config.persistent.clone().unwrap_or_default().selected_remembered)
                     .on_toggle(|n| LauncherSettingsMessage::ToggleInstanceRemembering(n).into()),
+            ]
+            .spacing(5),
+
+            column![
+                row![
+                    widget::text("Launcher Render:").size(15).width(SETTING_WIDTH),
+                    widget::pick_list(
+                        GraphicsBackend::available_backends(),
+                        Some(config.launcher_render.unwrap_or(GraphicsBackend::Default)),
+                        |backend| Message::LauncherSettings(
+                            LauncherSettingsMessage::AppearanceGraphicsBackend(backend),
+                        ),
+                    ),
+                ]
+                .spacing(5)
+                .align_y(Alignment::Center),
+                widget::text("Restart is required to apply the new rendering engine.")
+                    .size(12)
+                    .style(tsubtitle),
+            ]
+            .spacing(5),
+
+            column![
+                row![
+                    widget::text("Safe Mode (on crash):")
+                        .size(15)
+                        .width(SETTING_WIDTH),
+                    widget::pick_list(
+                        &["Enabled", "Disabled"][..],
+                        Some(if config.enable_safe_mode.unwrap_or(true) {
+                            "Enabled"
+                        } else {
+                            "Disabled"
+                        }),
+                        |s| Message::LauncherSettings(LauncherSettingsMessage::ToggleSafeMode(
+                            s == "Enabled",
+                        )),
+                    ),
+                ]
+                .spacing(5)
+                .align_y(Alignment::Center),
+                widget::text(
+                    "Automatically use software rendering if the launcher previously crashed.",
+                )
+                .size(12)
+                .style(tsubtitle),
             ]
             .spacing(5),
 
