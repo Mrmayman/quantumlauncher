@@ -147,7 +147,7 @@ impl GameLauncher {
     ) -> Result<(), GameLaunchError> {
         for arg in game_arguments.iter_mut() {
             replace_var(arg, "auth_player_name", &self.username);
-            replace_var(arg, "version_name", self.version_json.get_id());
+            replace_var(arg, "version_name", &self.version_json.get_id());
             let Some(minecraft_dir_path) = self.minecraft_dir.to_str() else {
                 return Err(GameLaunchError::PathBufToString(self.minecraft_dir.clone()));
             };
@@ -431,7 +431,7 @@ impl GameLauncher {
             );
             // I think this argument is only used by forge? Not sure
             replace_var(argument, "library_directory", "../forge/libraries");
-            replace_var(argument, "version_name", self.version_json.get_id());
+            replace_var(argument, "version_name", &self.version_json.get_id());
         }
     }
 

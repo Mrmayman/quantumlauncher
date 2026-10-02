@@ -29,6 +29,8 @@ pub struct ModConfig {
     /// Source platform where the mod was downloaded from
     pub project_source: StoreBackendType,
     pub project_id: ModId,
+    #[serde(default)]
+    pub pinned_version: Option<String>,
     pub files: Vec<ModFile>,
     pub supported_versions: Vec<String>,
     pub dependencies: HashSet<ModId>,

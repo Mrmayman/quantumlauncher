@@ -55,7 +55,7 @@ pub async fn install_server(
         let json = if let BackendType::CursedLegacy = backend {
             CURSED_LEGACY_JSON.replace("INSERT_COMMIT", &get_latest_cursed_legacy_commit().await?)
         } else {
-            get_fabric_json(&loader_version, backend, version_json.get_id(), "server").await?
+            get_fabric_json(&loader_version, backend, &version_json.get_id(), "server").await?
         };
         let json_path = server_dir.join("fabric.json");
         tokio::fs::write(&json_path, &json).await.path(json_path)?;
@@ -170,7 +170,7 @@ pub async fn install_client(
         let json = if let BackendType::CursedLegacy = backend {
             CURSED_LEGACY_JSON.replace("INSERT_COMMIT", &get_latest_cursed_legacy_commit().await?)
         } else {
-            get_fabric_json(&loader_version, backend, game_version, "profile").await?
+            get_fabric_json(&loader_version, backend, &game_version, "profile").await?
         };
         tokio::fs::write(&json_path, &json).await.path(json_path)?;
         serde_json::from_str(&json).json(json)?

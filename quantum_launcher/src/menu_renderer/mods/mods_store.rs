@@ -10,7 +10,8 @@ use ql_mod_manager::store::{Category, ModId, QueryType, SearchMod, StoreBackendT
 use crate::{
     icons,
     menu_renderer::{
-        Column, Element, barthin, button_with_icon, mods::description::view_project_description,
+        Column, Element, barthin, button_with_icon,
+        mods::description::{ProjectDescriptionArgs, view_project_description},
         tooltip, tsubtitle,
     },
     state::{
@@ -272,14 +273,26 @@ impl MenuModsDownload {
             return self.view_main(images, tick_timer);
         };
         // If a specific mod was selected, show the mod description page
-        view_project_description(
-            Ok::<_, &str>(&self.description),
-            self.backend,
-            InstallModsMessage::BackToMainScreen,
+        view_project_description(ProjectDescriptionArgs {
+            description: Ok::<_, &str>(&self.description),
+            backend: self.backend,
+            back_msg: InstallModsMessage::BackToMainScreen.into(),
             hit,
             images,
             tick_timer,
-        )
+            versions: self.versions.as_ref(),
+            selected_version: self.selected_version.as_deref(),
+            version_game_filter: self.version_game_filter.as_deref(),
+            version_loader_filter: self.version_loader_filter.as_deref(),
+            versions_only: self.show_all_versions,
+            version_msg: |version| InstallModsMessage::SelectVersion(version).into(),
+            download_version_msg: |version| InstallModsMessage::DownloadVersion(version).into(),
+            game_filter_msg: |filter| InstallModsMessage::SetVersionGameFilter(filter).into(),
+            loader_filter_msg: |filter| InstallModsMessage::SetVersionLoaderFilter(filter).into(),
+            download_msg: Some(InstallModsMessage::DownloadSelectedVersion.into()),
+            show_all_msg: Some(InstallModsMessage::ShowAllVersions.into()),
+            versions_back_msg: Some(InstallModsMessage::BackFromVersions.into()),
+        })
     }
 }
 

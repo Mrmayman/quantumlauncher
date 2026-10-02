@@ -25,6 +25,13 @@ impl MenuLauncherSettings {
             ]],
             self.opt_caching(config),
             column![
+                widget::checkbox(
+                    "Show incompatible historical mod versions",
+                    config.show_incompatible_mod_versions,
+                )
+                .on_toggle(|n| LauncherSettingsMessage::ToggleIncompatibleModVersions(n).into())
+            ],
+            column![
                 row![
                     button_with_icon(icons::bin_s(12), "Clean unused assets", 12)
                         .padding([5, 10])
