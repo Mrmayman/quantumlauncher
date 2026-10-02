@@ -5,7 +5,7 @@ use ql_core::{
     Instance, InstanceKind, IntoStringError, LaunchedProcess, err, info, pt,
     read_log::{Diagnostic, ReadError},
 };
-use ql_instances::auth::AccountData;
+use ql_auth::{AccountData, TokenStorageMethod, encrypted_store};
 use tokio::io::AsyncWriteExt;
 
 use crate::{
@@ -13,8 +13,8 @@ use crate::{
     message_handler::{SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
     state::{
         AutoSaveKind, GameProcess, InfoMessage, LaunchMessage, LaunchModal, LaunchTab, Launcher,
-        MainMenuMessage, MenuLaunch, Message, OFFLINE_ACCOUNT_NAME, ProgressBar, SidebarMessage,
-        State,
+        MainMenuMessage, MenuLaunch, MenuTokenPassword, Message, OFFLINE_ACCOUNT_NAME,
+        ProgressBar, SidebarMessage, State,
     },
 };
 
@@ -49,6 +49,32 @@ impl Launcher {
                     && (self.config.username.is_empty() || self.config.username.contains(' '))
                 {
                     return Task::none();
+                }
+
+                // Block launch if the selected account's encrypted store is locked
+                if self.account_selected != OFFLINE_ACCOUNT_NAME {
+                    if let Some(acct) = self
+                        .config
+                        .accounts
+                        .as_ref()
+                        .and_then(|m| m.get(&self.account_selected))
+                    {
+                        if acct.c_token_storage() == TokenStorageMethod::EncryptedFile
+                            && !encrypted_store::is_unlocked()
+                        {
+                            self.state = State::TokenPasswordPrompt(MenuTokenPassword {
+                                password: String::new(),
+                                confirm_password: None,
+                                show_password: false,
+                                error: Some(
+                                    "Unlock the encrypted store to play as this account."
+                                        .to_owned(),
+                                ),
+                                is_loading: false,
+                            });
+                            return Task::none();
+                        }
+                    }
                 }
 
                 self.is_launching_game = true;

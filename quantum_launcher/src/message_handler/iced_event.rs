@@ -390,6 +390,7 @@ impl Launcher {
             | State::LoginAlternate(_)
             | State::LogUploadResult { .. }
             | State::RecommendedMods(MenuRecommendedMods::Loading { .. })
+            | State::TokenPasswordPrompt(_)
             | State::Launch(_) => {}
         }
 

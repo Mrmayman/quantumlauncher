@@ -2,7 +2,7 @@ use iced::{
     Alignment, Length,
     widget::{self, column, row},
 };
-use ql_instances::auth::AccountType;
+use ql_auth::AccountType;
 
 use crate::{
     config::LauncherConfig,

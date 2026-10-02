@@ -38,6 +38,7 @@ ql_mod_manager.path = "../crates/ql_mod_manager"
 ql_core.path = "../crates/ql_core"
 ql_servers.path = "../crates/ql_servers"
 ql_packager.path = "../crates/ql_packager"
+ql_auth.path = "../crates/ql_auth"
 ezshortcut.path = "../crates/ezshortcut"
 
 # For the GUI
@@ -76,6 +77,7 @@ zip.workspace = true
 owo-colors.workspace = true
 clap.workspace = true
 terminal_size = "0.4"
+rpassword = "7"
 
 # OS APIs
 notify = "8"
