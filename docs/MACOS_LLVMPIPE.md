@@ -304,12 +304,17 @@ static void sync_layer(ZCtx *z) {
 static void attach_layer(ZCtx *z, NSView *v) {
   on_main(^{
     CALayer *l = v.layer;
-    if (![l isKindOfClass:[CAMetalLayer class]]) {
-      CAMetalLayer *m = [CAMetalLayer layer];
+    if (!l || ![l.name isEqualToString:@"hook"]) {
+      CALayer *m = [CALayer layer];
+      m.name = @"hook";
       m.opaque = YES;
-      m.framebufferOnly = NO;
-      [v setLayer:m];
-      [v setWantsLayer:YES];
+      m.contentsGravity = kCAGravityResize;
+      m.actions = @{ @"contents": [NSNull null],
+                     @"bounds": [NSNull null],
+                     @"position": [NSNull null],
+                     @"contentsScale": [NSNull null] };
+      [v setLayer:m];                          // layer-hosting: layer first,
+      [v setWantsLayer:YES];                   // then wantsLayer
       l = m;
     }
     z->layer = l;
@@ -438,88 +443,75 @@ static void release_pixels(void *info, const void *data, size_t size) {
 
 static void ctx_flush(id self, SEL _cmd) {
   ZCtx *z = zc(self);
-  if (!z || z->surf == EGL_NO_SURFACE || !z->layer) return;
+  if (!z || z->surf == EGL_NO_SURFACE || !z->layer || !z->view) return;
   EGLDisplay d = dpy();
-
-  {
-    NSView *v = z->view;
-    NSSize px = [v convertSizeToBacking:v.bounds.size];
-    EGLint newW = (EGLint)px.width;
-    EGLint newH = (EGLint)px.height;
-    if (newW > 0 && newH > 0 && (newW != z->width || newH != z->height)) {
-      DBG("resize %dx%d -> %dx%d", z->width, z->height, newW, newH);
-      if (tl_current == self)
-        eglMakeCurrent(d, EGL_NO_SURFACE, EGL_NO_SURFACE, z->ctx);
-      if (z->surf != EGL_NO_SURFACE) eglDestroySurface(d, z->surf);
-      z->width = newW;
-      z->height = newH;
-      EGLint pb_attribs[] = {
-        EGL_WIDTH, z->width,
-        EGL_HEIGHT, z->height,
-        EGL_NONE
-      };
-      z->surf = eglCreatePbufferSurface(d, z->cfg, pb_attribs);
-      if (z->surf == EGL_NO_SURFACE) {
-        fprintf(stderr, "[hook] resize: eglCreatePbufferSurface failed (0x%x)\n", eglGetError());
-      }
-      if (tl_current == self)
-        eglMakeCurrent(d, z->surf, z->surf, z->ctx);
-      sync_layer(z);
-    }
-  }
-
+ 
   if (tl_current != self) {
     eglMakeCurrent(d, z->surf, z->surf, z->ctx);
     tl_current = self;
   }
-
+ 
   typedef void (*PFNGLREADPIXELS)(int, int, int, int, unsigned int, unsigned int, void *);
   static PFNGLREADPIXELS p_glReadPixels = NULL;
   if (!p_glReadPixels) {
     p_glReadPixels = (PFNGLREADPIXELS)eglGetProcAddress("glReadPixels");
-    if (!p_glReadPixels) {
-      fprintf(stderr, "[hook] glReadPixels not available\n");
-      return;
-    }
+    if (!p_glReadPixels) { fprintf(stderr, "[hook] glReadPixels not available\n"); return; }
   }
-
-  size_t row_bytes = (size_t)z->width * 4;
-  size_t buf_size = row_bytes * (size_t)z->height;
+ 
+  // 1) Read back the frame at the CURRENT pbuffer size.
+  EGLint w = z->width, h = z->height;
+  size_t row_bytes = (size_t)w * 4;
+  size_t buf_size = row_bytes * (size_t)h;
   void *pixels = malloc(buf_size);
   if (!pixels) return;
-  p_glReadPixels(0, 0, z->width, z->height,
-                 0x1908 /* GL_RGBA */, 0x1401 /* GL_UNSIGNED_BYTE */, pixels);
 
-  {
-    unsigned char *bytes = (unsigned char *)pixels;
-    unsigned char *tmp = (unsigned char *)malloc(row_bytes);
-    if (tmp) {
-      size_t half = (size_t)z->height / 2;
-      for (size_t y = 0; y < half; y++) {
-        unsigned char *top = bytes + y * row_bytes;
-        unsigned char *bot = bytes + (size_t)(z->height - 1 - (EGLint)y) * row_bytes;
-        memcpy(tmp, top, row_bytes);
-        memcpy(top, bot, row_bytes);
-        memcpy(bot, tmp, row_bytes);
-      }
-      free(tmp);
-    }
-  }
+  typedef void (*PFNGLPIXELSTOREI)(unsigned int, int);
+  static PFNGLPIXELSTOREI p_glPixelStorei = NULL;
+  if (!p_glPixelStorei)
+    p_glPixelStorei = (PFNGLPIXELSTOREI)eglGetProcAddress("glPixelStorei");
 
+  if (p_glPixelStorei) p_glPixelStorei(0x8758 /* GL_PACK_INVERT_MESA */, 1);
+  p_glReadPixels(0, 0, w, h, 0x1908 /* GL_RGBA */, 0x1401 /* GL_UNSIGNED_BYTE */, pixels);
+  if (p_glPixelStorei) p_glPixelStorei(0x8758, 0);   // restore the game's state
+
+ 
+  // 2) Hand it to CoreAnimation, opaque, with implicit animations disabled.
   CGDataProviderRef provider = CGDataProviderCreateWithData(NULL, pixels, buf_size, release_pixels);
   CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-  CGImageRef img = CGImageCreate(z->width, z->height, 8, 32, row_bytes,
-                                 cs, kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big,
+  CGImageRef img = CGImageCreate(w, h, 8, 32, row_bytes, cs,
+                                 kCGImageAlphaNoneSkipLast | kCGBitmapByteOrder32Big,
                                  provider, NULL, false, kCGRenderingIntentDefault);
   if (img) {
+    CALayer *layer = z->layer;
     on_main(^{
-      z->layer.contents = (id)img;
-      [z->layer setNeedsDisplay];
+      [CATransaction begin];
+      [CATransaction setDisableActions:YES];
+      layer.contents = (id)img;
+      [CATransaction commit];
     });
     CGImageRelease(img);
   }
   CGColorSpaceRelease(cs);
   CGDataProviderRelease(provider);
+ 
+  // 3) Only now check for a resize, and recreate the pbuffer for the NEXT frame.
+  NSView *v = z->view;
+  NSSize px = [v convertSizeToBacking:v.bounds.size];
+  EGLint newW = (EGLint)px.width, newH = (EGLint)px.height;
+  if (newW > 0 && newH > 0 && (newW != z->width || newH != z->height)) {
+    DBG("resize %dx%d -> %dx%d", z->width, z->height, newW, newH);
+    eglMakeCurrent(d, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(d, z->surf);
+    z->width = newW;
+    z->height = newH;
+    EGLint pb[] = { EGL_WIDTH, newW, EGL_HEIGHT, newH, EGL_NONE };
+    z->surf = eglCreatePbufferSurface(d, z->cfg, pb);
+    if (z->surf == EGL_NO_SURFACE)
+      fprintf(stderr, "[hook] resize: eglCreatePbufferSurface failed (0x%x)\n", eglGetError());
+    else
+      eglMakeCurrent(d, z->surf, z->surf, z->ctx);
+    sync_layer(z);
+  }
 }
 
 static void ctx_update(id self, SEL _cmd) {
