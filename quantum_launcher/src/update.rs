@@ -98,6 +98,7 @@ impl Launcher {
                 }
                 return self.go_to_main_menu(message);
             }
+            Message::EditLwjgl(message) => return self.update_edit_lwjgl(message),
             Message::EditInstance(message) => {
                 if message.edits_config() {
                     self.autosave.remove(&AutoSaveKind::InstanceConfig);
