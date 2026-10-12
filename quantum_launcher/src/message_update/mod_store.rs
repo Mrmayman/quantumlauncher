@@ -26,9 +26,16 @@ impl Launcher {
             | InstallModsMessage::DownloadComplete(Err(err))
             | InstallModsMessage::SearchResult(Err(err))
             | InstallModsMessage::IndexUpdated(Err(err))
-            | InstallModsMessage::UninstallComplete(Err(err)) => {
+            | InstallModsMessage::UninstallComplete(Err(err))
+            | InstallModsMessage::DownloadCompleteToStore(Err(err)) => {
                 self.set_error(err);
             }
+            InstallModsMessage::VersionsLoaded(Ok((_id, versions))) => {
+                if let State::ModsDownload(menu) = &mut self.state {
+                    menu.versions = Some(Ok(versions));
+                }
+            }
+            InstallModsMessage::VersionsLoaded(Err(err)) => self.set_error(err),
 
             InstallModsMessage::SearchResult(Ok(search)) => {
                 if let State::ModsDownload(menu) = &mut self.state {
@@ -116,6 +123,7 @@ impl Launcher {
                                 InstallModsMessage::LoadedDescription(n.strerr()).into()
                             });
                             let id2 = id.clone();
+                            let id3 = id.clone();
                             let t2 = Task::perform(
                                 async move { store::get_info(&id2).await },
                                 move |n| {
@@ -126,7 +134,18 @@ impl Launcher {
                                     .into()
                                 },
                             );
-                            return Task::batch([t1, t2]);
+                            let instance = self.instance().clone();
+                            let include = self.config.show_incompatible_mod_versions;
+                            let version_id = id3.clone();
+                            let t3 = Task::perform(
+                                async move {
+                                    store::get_versions(&version_id, &instance, include, false)
+                                        .await
+                                        .map(|v| (version_id, v))
+                                },
+                                |n| InstallModsMessage::VersionsLoaded(n.strerr()).into(),
+                            );
+                            return Task::batch([t1, t2, t3]);
                         }
                     }
                 }
@@ -135,6 +154,7 @@ impl Launcher {
                 if let State::ModsDownload(menu) = &mut self.state {
                     menu.opened_mod = None;
                     menu.description = None;
+                    menu.show_all_versions = false;
                     return iced::widget::scrollable::scroll_to(
                         iced::widget::scrollable::Id::new("MenuModsDownload:main:mods_list"),
                         menu.scroll_offset,
@@ -163,27 +183,146 @@ impl Launcher {
             InstallModsMessage::Download(index) => {
                 return self.mod_download(index);
             }
-            InstallModsMessage::DownloadComplete(Ok((id, not_allowed))) => {
-                let task = if let State::ModsDownload(menu) = &mut self.state {
-                    menu.mods_download_in_progress.remove(&id);
-                    Task::none()
+            InstallModsMessage::SelectVersion(version) => {
+                if let State::ModsDownload(menu) = &mut self.state {
+                    menu.selected_version = Some(version);
+                }
+            }
+            InstallModsMessage::DownloadVersion(version) => {
+                if let State::ModsDownload(menu) = &mut self.state {
+                    menu.selected_version = Some(version);
+                }
+                return self.update_install_mods(InstallModsMessage::DownloadSelectedVersion);
+            }
+            InstallModsMessage::SetVersionGameFilter(filter) => {
+                if let State::ModsDownload(menu) = &mut self.state {
+                    menu.version_game_filter = filter;
+                }
+            }
+            InstallModsMessage::SetVersionLoaderFilter(filter) => {
+                if let State::ModsDownload(menu) = &mut self.state {
+                    menu.version_loader_filter = filter;
+                }
+            }
+            InstallModsMessage::ShowAllVersions => {
+                let Some((version_id, instance, include)) = (|| {
+                    if let State::ModsDownload(menu) = &mut self.state {
+                        let index = menu.opened_mod?;
+                        let hit = menu.results.as_ref()?.mods.get(index)?;
+                        menu.show_all_versions = true;
+                        menu.versions = None;
+                        Some((
+                            ModId::from_pair(&hit.id, menu.backend),
+                            self.instance().clone(),
+                            self.config.show_incompatible_mod_versions,
+                        ))
+                    } else {
+                        None
+                    }
+                })() else {
+                    return Task::none();
+                };
+                return Task::perform(
+                    async move {
+                        store::get_versions(&version_id, &instance, include, true)
+                            .await
+                            .map(|versions| (version_id, versions))
+                    },
+                    |n| InstallModsMessage::VersionsLoaded(n.strerr()).into(),
+                );
+            }
+            InstallModsMessage::BackFromVersions => {
+                if let State::ModsDownload(menu) = &mut self.state {
+                    menu.show_all_versions = false;
+                }
+            }
+            InstallModsMessage::DownloadSelectedVersion => {
+                let Some((id, version)) = (|| -> Option<(ModId, String)> {
+                    if let State::ModsDownload(menu) = &self.state {
+                        let version = menu.selected_version.clone()?;
+                        let index = menu.opened_mod?;
+                        let hit = menu.results.as_ref()?.mods.get(index)?;
+                        Some((ModId::from_pair(&hit.id, menu.backend), version))
+                    } else {
+                        None
+                    }
+                })() else {
+                    return Task::none();
+                };
+                let incompatible = if let State::ModsDownload(menu) = &self.state {
+                    menu.selected_version
+                        .as_deref()
+                        .and_then(|id| {
+                            menu.versions
+                                .as_ref()?
+                                .as_ref()
+                                .ok()?
+                                .iter()
+                                .find(|v| v.id.as_ref() == id)
+                        })
+                        .is_some_and(|v| !v.compatible)
                 } else {
-                    match block_on(self.open_mods_store()) {
-                        Ok(n) => n,
-                        Err(err) => {
-                            self.set_error(err);
-                            Task::none()
-                        }
+                    false
+                };
+                if incompatible {
+                    self.state = State::ConfirmAction {
+                        msg1: "download an incompatible mod version".to_owned(),
+                        msg2: "This version may not work with this Minecraft version or loader. Continue anyway?".to_owned(),
+                        yes: InstallModsMessage::DownloadSelectedVersionConfirmed(id, version).into(),
+                        no: InstallModsMessage::BackToMainScreen.into(),
+                    };
+                    return Task::none();
+                }
+                return self.update_install_mods(
+                    InstallModsMessage::DownloadSelectedVersionConfirmed(id, version),
+                );
+            }
+            InstallModsMessage::DownloadSelectedVersionConfirmed(id, version) => {
+                let instance = self.instance().clone();
+                let (sender, receiver) = std::sync::mpsc::channel();
+                self.state = State::ImportModpack(ProgressBar::with_recv(receiver));
+                return Task::perform(
+                    async move {
+                        store::download_mod_version(&id, &version, &instance, Some(sender))
+                            .await
+                            .map(|n| (id, n))
+                    },
+                    |n| InstallModsMessage::DownloadCompleteToStore(n.strerr()).into(),
+                );
+            }
+            InstallModsMessage::DownloadComplete(Ok((id, not_allowed))) => {
+                if !not_allowed.is_empty() {
+                    self.state = State::CurseforgeManualDownload(MenuCurseforgeManualDownload {
+                        not_allowed,
+                        delete_mods: true,
+                    });
+                    return Task::none();
+                }
+
+                if let State::ModsDownload(menu) = &mut self.state {
+                    menu.mods_download_in_progress.remove(&id);
+                }
+                let instance = self.instance().clone();
+                return Task::perform(async move { ModIndex::load(&instance).await }, |res| {
+                    InstallModsMessage::IndexUpdated(res.strerr()).into()
+                });
+            }
+            InstallModsMessage::DownloadCompleteToStore(Ok((_id, not_allowed))) => {
+                if !not_allowed.is_empty() {
+                    self.state = State::CurseforgeManualDownload(MenuCurseforgeManualDownload {
+                        not_allowed,
+                        delete_mods: true,
+                    });
+                    return Task::none();
+                }
+
+                return match block_on(self.open_mods_store()) {
+                    Ok(task) => task,
+                    Err(err) => {
+                        self.set_error(err);
+                        Task::none()
                     }
                 };
-
-                if not_allowed.is_empty() {
-                    return task;
-                }
-                self.state = State::CurseforgeManualDownload(MenuCurseforgeManualDownload {
-                    not_allowed,
-                    delete_mods: true,
-                });
             }
             InstallModsMessage::IndexUpdated(Ok(idx)) => {
                 if let State::ModsDownload(menu) = &mut self.state {
@@ -249,7 +388,7 @@ impl Launcher {
                             .await
                             .map(|not_allowed| (id, not_allowed))
                     },
-                    |n| InstallModsMessage::DownloadComplete(n.strerr()).into(),
+                    |n| InstallModsMessage::DownloadCompleteToStore(n.strerr()).into(),
                 );
             }
             InstallModsMessage::Uninstall(index) => {
@@ -297,6 +436,11 @@ impl Launcher {
             Box::new(VersionDetails::load(instance).await?)
         };
         let mod_index = ModIndex::load(instance).await?;
+        let version_game_filter = Some(version_json.get_id().to_owned());
+        let version_loader_filter = config
+            .mod_type
+            .not_vanilla()
+            .map(|loader| loader.to_modrinth_str().to_owned());
 
         let menu = MenuModsDownload {
             scroll_offset: AbsoluteOffset::default(),
@@ -312,6 +456,11 @@ impl Launcher {
             is_loading_continuation: false,
             has_continuation_ended: false,
             description: None,
+            versions: None,
+            selected_version: None,
+            version_game_filter,
+            version_loader_filter,
+            show_all_versions: false,
             categories: ModCategoryState::default(),
             force_open_source: false,
 

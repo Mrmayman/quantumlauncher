@@ -139,6 +139,7 @@ async fn add_to_index(
         index.mods.insert(
             project_id.clone(),
             ModConfig {
+                pinned_version: None,
                 name: mod_info.name.clone(),
                 manually_installed: true,
                 installed_version: query.data.displayName.clone(),

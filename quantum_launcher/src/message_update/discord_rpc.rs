@@ -198,7 +198,7 @@ impl Launcher {
                 if let Ok(version_details) = VersionDetails::load(&selected_instance).await {
                     if let Some(c) = client {
                         let instance = selected_instance.get_name();
-                        let minecraft_vers = version_details.get_id();
+                        let minecraft_vers = &version_details.get_id();
 
                         let activity = bake_activity(
                             name,

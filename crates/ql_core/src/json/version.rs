@@ -191,8 +191,25 @@ impl VersionDetails {
     }
 
     #[must_use]
-    pub fn get_id(&self) -> &str {
-        self.id.strip_suffix("-lwjgl3").unwrap_or(&self.id)
+    pub fn get_id(&self) -> String {
+        let id = self.id.strip_suffix("-lwjgl3").unwrap_or(&self.id);
+        let id = id.strip_suffix("-unobf").unwrap_or(id);
+
+        // New Minecraft naming scheme (post 2026)
+        // YY.N, eg: 26.1
+        if id.starts_with('2') && id.chars().nth(2).is_some_and(|n| n == '.') {
+            // Fix stupid BetterJSONs naming
+            if id.contains("-snap") && !id.contains("-snapshot-") {
+                return id.replace("-snap", "-snapshot-").to_owned();
+            }
+            if id.contains("-pre") && !id.contains("-pre-") {
+                return id.replace("-pre", "-pre-").to_owned();
+            }
+            if id.contains("-rc") && !id.contains("-rc-") {
+                return id.replace("-rc", "-rc-").to_owned();
+            }
+        }
+        id.to_owned()
     }
 }
 
