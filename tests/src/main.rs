@@ -53,6 +53,14 @@ impl Cli {
     }
 }
 
+pub struct TestError<T>(T, String);
+
+impl<T: Display> Display for TestError<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "error for instance {}: {}", self.1, self.0)
+    }
+}
+
 fn attempt<T, E: Display>(r: Result<T, E>) -> T {
     match r {
         Ok(n) => n,
@@ -74,14 +82,20 @@ async fn main() {
         if let Some(name) = &cli.specific {
             let path = LAUNCHER_DIR.join("instances").join(name);
             _ = tokio::fs::remove_dir_all(&path).await;
-            attempt(create_instance(name.to_owned()).await);
+            attempt(
+                create_instance(name.clone())
+                    .await
+                    .map_err(|n| TestError(n, name.clone())),
+            );
         } else {
             attempt(
                 do_jobs(cli.get_versions().map(|version| async {
                     let path = LAUNCHER_DIR.join("instances").join(version.0);
                     _ = tokio::fs::remove_dir_all(&path).await;
-                    create_instance(version.0.to_owned()).await?;
-                    Ok::<(), DownloadError>(())
+                    create_instance(version.0.to_owned())
+                        .await
+                        .map_err(|n| TestError(n, version.0.to_owned()))?;
+                    Ok::<(), TestError<DownloadError>>(())
                 }))
                 .await,
             );

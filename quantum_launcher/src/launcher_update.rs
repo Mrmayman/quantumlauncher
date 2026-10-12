@@ -40,6 +40,17 @@ pub enum UpdateCheckInfo {
 pub async fn check() -> Result<UpdateCheckInfo, UpdateError> {
     const URL: &str = "https://api.github.com/repos/Mrmayman/quantum-launcher/releases";
 
+    let curr_exe = std::env::current_exe();
+    if let Some(parent) = curr_exe.ok().map(|mut n| {
+        n.pop();
+        n
+    }) {
+        if parent.ends_with("quantumlauncher/target/debug") {
+            // This is a dev build, stop spamming GitHub servers
+            return Ok(UpdateCheckInfo::UpToDate);
+        }
+    }
+
     let json: Vec<GithubRelease> = file_utils::download_file_to_json(URL, true).await?;
     let mut json = json.into_iter();
 

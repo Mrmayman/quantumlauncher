@@ -298,7 +298,8 @@ impl Launcher {
                 small_button(icons::discord_s(12), "Join Discord")
                     .on_press(Message::CoreOpenLink(DISCORD.to_owned())),
             ]
-            .spacing(7),
+            .spacing(7)
+            .wrap(),
             row![
                 widget::text(" Having issues? Copy and send the game log for support")
                     .size(12)

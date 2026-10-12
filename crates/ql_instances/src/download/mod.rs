@@ -109,10 +109,7 @@ pub async fn repeat_stage(
     match stage {
         DownloadProgress::DownloadingLibraries { .. } => {
             let libraries_dir = instance_dir.join("libraries");
-            tokio::fs::remove_dir_all(&libraries_dir)
-                .await
-                .path(&libraries_dir)
-                .strerr()?;
+            _ = tokio::fs::remove_dir_all(&libraries_dir).await;
 
             downloader.download_libraries().await.strerr()?;
         }

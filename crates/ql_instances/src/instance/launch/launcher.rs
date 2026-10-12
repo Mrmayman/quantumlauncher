@@ -274,7 +274,8 @@ impl GameLauncher {
             args.push("-Xss1M".to_owned());
         }
 
-        if cfg!(target_os = "macos") {
+        #[cfg(target_os = "macos")]
+        {
             args.push("-XstartOnFirstThread".to_owned());
         }
 
