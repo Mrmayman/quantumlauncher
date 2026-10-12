@@ -33,7 +33,15 @@ struct Cli {
     #[arg(short, long)]
     #[arg(help = "See all the logs to diagnose issues")]
     verbose: bool,
+    #[arg(long)]
+    #[arg(help = "A pre-launch prefix command prepended to the Java launch command")]
+    #[arg(help = "(e.g. 'prime-run' to use a discrete NVIDIA GPU, or 'env VAR=value')")]
+    #[arg(
+        help = "Uses no prefix if not present. The string is shell-split, so quotes/escapes are supported."
+    )]
+    prelaunch_prefix: Option<String>,
 }
+
 impl Cli {
     fn get_versions(&self) -> impl Iterator<Item = &Version> {
         VERSIONS_LWJGL2.iter().chain(
