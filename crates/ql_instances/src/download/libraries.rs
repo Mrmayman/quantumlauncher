@@ -27,13 +27,13 @@ use super::{DownloadError, GameDownloader};
 mod macos_lwjgl {
     pub const OLD_BIN_1: &str = "https://libraries.minecraft.net/org/lwjgl/lwjgl/lwjgl-platform/2.9.4-nightly-20150209/lwjgl-platform-2.9.4-nightly-20150209-natives-osx.jar";
     pub const OLD_BIN_2: &str = "https://github.com/MinecraftMachina/lwjgl/releases/download/2.9.4-20150209-mmachina.2/lwjgl-platform-2.9.4-nightly-20150209-natives-osx.jar";
-    pub const OLD_JAR: &str = "https://libraries.minecraft.net/org/lwjgl/lwjgl/lwjgl/2.9.4-nightly-20150209/lwjgl-2.9.4-nightly-20150209.jar";
 
     #[cfg(any(target_arch = "aarch64", feature = "simulate_macos_arm64"))]
     pub const LWJGL_BIN: &str = "https://github.com/Mrmayman/lwjgl/releases/download/macos-1/lwjgl2.9_natives_macOS_aarch64.zip";
     #[cfg(not(any(target_arch = "aarch64", feature = "simulate_macos_arm64")))]
     pub const LWJGL_BIN: &str = "https://github.com/Mrmayman/lwjgl/releases/download/macos-1/lwjgl2.9_natives_macOS_x86_64.zip";
 
+    #[cfg(target_os = "macos")]
     pub const LWJGL_JAR: &str = "https://github.com/Mrmayman/lwjgl/releases/download/macos-1/lwjgl-2.9.4+legacyfabric.18.jar";
 }
 
@@ -481,7 +481,10 @@ fn patch_url(url: &mut String) {
         println!("PATCHING");
         macos_lwjgl::LWJGL_BIN.clone_into(url);
     }
-    if *url == macos_lwjgl::OLD_JAR {
+    #[cfg(target_os = "macos")]
+    if *url
+        == "https://libraries.minecraft.net/org/lwjgl/lwjgl/lwjgl/2.9.4-nightly-20150209/lwjgl-2.9.4-nightly-20150209.jar"
+    {
         macos_lwjgl::LWJGL_JAR.clone_into(url);
     }
 

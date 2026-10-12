@@ -1060,10 +1060,13 @@ async fn apply_policy_agent() -> Result<String, IoError> {
         .await
         .path(&downloads)?;
 
-    let temp = downloads.join(".policy-temp");
-    tokio::fs::write(&temp, AGENT).await.path(&temp)?;
     let policy_path = downloads.join("policy-agent.jar");
-    tokio::fs::rename(&temp, &policy_path).await.path(&temp)?;
+
+    if !exists(&policy_path).await {
+        let temp = downloads.join(".policy-temp");
+        tokio::fs::write(&temp, AGENT).await.path(&temp)?;
+        tokio::fs::rename(&temp, &policy_path).await.path(&temp)?;
+    }
 
     Ok(format!("-javaagent:{}", policy_path.display()))
 }
