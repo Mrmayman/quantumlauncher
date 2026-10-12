@@ -119,7 +119,7 @@ pub async fn repeat_stage(
         DownloadProgress::DownloadingAssets { .. } => {
             downloader.download_assets().await.strerr()?;
         }
-        DownloadProgress::DownloadingJar => {
+        DownloadProgress::DownloadingJar(_) => {
             downloader.download_jar().await.strerr()?;
         }
         DownloadProgress::DownloadingJsonManifest | DownloadProgress::DownloadingVersionJson => {

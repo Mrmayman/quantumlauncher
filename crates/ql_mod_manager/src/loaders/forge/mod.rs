@@ -3,7 +3,7 @@ use owo_colors::OwoColorize;
 use ql_core::{
     CLASSPATH_SEPARATOR, GenericProgress, Instance, InstanceKind, IntoIoError, IntoJsonError,
     IoError, Loader, Progress, do_jobs, download, err,
-    file_utils::{self, exists},
+    file_utils::exists,
     info,
     json::{
         VersionDetails,
@@ -125,7 +125,6 @@ impl ForgeInstaller {
         };
 
         info!("Downloading Installer");
-        self.send_progress(ForgeInstallProgress::P3DownloadingInstaller);
 
         let installer_file = self.try_downloading_from_urls(&[
             &format!("https://files.minecraftforge.net/maven/net/minecraftforge/forge/{ver}/forge-{ver}-{file_type}.jar", ver = self.short_version),
@@ -157,7 +156,11 @@ impl ForgeInstaller {
     async fn try_downloading_from_urls(&self, urls: &[&str]) -> Result<Vec<u8>, ForgeInstallError> {
         let num_urls = urls.len();
         for (i, url) in urls.iter().enumerate() {
-            let result = file_utils::download_file_to_bytes(url, false).await;
+            let result = download(url)
+                .bytes_with_progress(|percent| {
+                    self.send_progress(ForgeInstallProgress::P3DownloadingInstaller(percent));
+                })
+                .await;
 
             return match result {
                 Ok(file) => {
@@ -460,25 +463,25 @@ pub enum ForgeInstallProgress {
     #[default]
     P1Start,
     P2DownloadingJson,
-    P3DownloadingInstaller,
+    P3DownloadingInstaller(f32),
     P4RunningInstaller,
     P5DownloadingLibrary {
         num: usize,
         out_of: usize,
     },
-    P7Done,
+    P6Done,
 }
 
 impl Progress for ForgeInstallProgress {
     fn get_num(&self) -> f32 {
         match self {
             ForgeInstallProgress::P1Start | ForgeInstallProgress::P2DownloadingJson => 0.0,
-            ForgeInstallProgress::P3DownloadingInstaller => 1.0,
-            ForgeInstallProgress::P4RunningInstaller => 2.0,
+            ForgeInstallProgress::P3DownloadingInstaller(percent) => 1.0 + (*percent / 50.0),
+            ForgeInstallProgress::P4RunningInstaller => 3.0,
             ForgeInstallProgress::P5DownloadingLibrary { num, out_of } => {
-                4.0 + (*num as f32 * 2.0 / *out_of as f32)
+                5.0 + (*num as f32 * 2.0 / *out_of as f32)
             }
-            ForgeInstallProgress::P7Done => 8.0,
+            ForgeInstallProgress::P6Done => 8.0,
         }
     }
 
@@ -486,14 +489,16 @@ impl Progress for ForgeInstallProgress {
         Some(match self {
             ForgeInstallProgress::P1Start => "Installing forge...".to_owned(),
             ForgeInstallProgress::P2DownloadingJson => "Downloading JSON".to_owned(),
-            ForgeInstallProgress::P3DownloadingInstaller => "Downloading installer".to_owned(),
+            ForgeInstallProgress::P3DownloadingInstaller(percent) => {
+                format!("Downloading installer: {percent}%")
+            }
             ForgeInstallProgress::P4RunningInstaller => {
                 "Running Installer (this might take a while)".to_owned()
             }
             ForgeInstallProgress::P5DownloadingLibrary { num, out_of } => {
                 format!("Downloading Library ({num}/{out_of})")
             }
-            ForgeInstallProgress::P7Done => "Done!".to_owned(),
+            ForgeInstallProgress::P6Done => "Done!".to_owned(),
         })
     }
 

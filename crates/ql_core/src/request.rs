@@ -11,7 +11,7 @@ use tokio_util::io::StreamReader;
 
 use crate::{
     DownloadFileError, IntoIoError, IntoJsonError, JsonDownloadError, LAUNCHER_CACHE_DIR,
-    RequestError, retry,
+    RETRY_LIMIT, RequestError, retry,
 };
 
 pub static CLIENT: OnceLock<ClientWithMiddleware> = OnceLock::new();
@@ -82,6 +82,46 @@ impl DownloadRequest<'_> {
         .await
     }
 
+    pub async fn bytes_with_progress(
+        &self,
+        mut progress: impl FnMut(f32),
+    ) -> Result<Vec<u8>, RequestError> {
+        for attempt in 0..=RETRY_LIMIT {
+            let result = async {
+                progress(0.0);
+                let response = self.send().await?;
+                let total = response.content_length();
+
+                let mut stream = response.bytes_stream();
+                let mut bytes = Vec::new();
+                let mut downloaded = 0u64;
+
+                while let Some(chunk) = stream.next().await {
+                    let chunk = chunk?;
+                    downloaded += chunk.len() as u64;
+                    bytes.extend_from_slice(&chunk);
+
+                    if let Some(total) = total.filter(|&n| n > 0) {
+                        let percentage =
+                            (downloaded as f64 / total as f64 * 100.0).min(100.0) as f32;
+
+                        progress(percentage);
+                    }
+                }
+
+                progress(100.0);
+                Ok(bytes)
+            }
+            .await;
+
+            if result.is_ok() || attempt == RETRY_LIMIT {
+                return result;
+            }
+        }
+
+        unreachable!()
+    }
+
     pub async fn string(&self) -> Result<String, RequestError> {
         retry(|| async {
             let response = self.send().await?;
@@ -135,6 +175,65 @@ impl DownloadRequest<'_> {
             Ok(())
         })
         .await
+    }
+
+    /// Downloads a file directly to the specified path, reporting progress
+    /// as a percentage from 0.0 to 100.0.
+    pub async fn path_with_progress(
+        &self,
+        path: impl AsRef<std::path::Path>,
+        mut progress: impl FnMut(f32),
+    ) -> Result<(), DownloadFileError> {
+        let path = path.as_ref();
+
+        for attempt in 0..=RETRY_LIMIT {
+            let result = async {
+                progress(0.0);
+                let response = self.send().await?;
+                let total = response.content_length();
+
+                if let Some(parent) = path.parent() {
+                    if !parent.is_dir() {
+                        tokio::fs::create_dir_all(parent).await.path(parent)?;
+                    }
+                }
+
+                let mut file = tokio::fs::File::create(path).await.path(path)?;
+
+                let mut stream = response.bytes_stream();
+                let mut downloaded = 0u64;
+
+                while let Some(chunk) = stream.next().await {
+                    let chunk = chunk.map_err(RequestError::ReqwestError)?;
+                    downloaded += chunk.len() as u64;
+
+                    tokio::io::AsyncWriteExt::write_all(&mut file, &chunk)
+                        .await
+                        .map_err(|error| crate::IoError::FromUrl {
+                            error,
+                            path: path.to_owned(),
+                            url: self.url.to_owned(),
+                        })?;
+
+                    if let Some(total) = total.filter(|&n| n > 0) {
+                        let percentage =
+                            (downloaded as f64 / total as f64 * 100.0).min(100.0) as f32;
+
+                        progress(percentage);
+                    }
+                }
+
+                progress(100.0);
+                Ok(())
+            }
+            .await;
+
+            if result.is_ok() || attempt == RETRY_LIMIT {
+                return result;
+            }
+        }
+
+        unreachable!()
     }
 }
 
