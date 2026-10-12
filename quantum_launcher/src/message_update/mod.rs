@@ -315,7 +315,7 @@ impl Launcher {
                 }
             }
             InstallPaperMessage::ButtonClicked => {
-                let instance_name = self.instance().get_name().to_owned();
+                let instance = self.selected_instance.clone().unwrap();
                 let version =
                     if let State::InstallPaper(MenuInstallPaper::Loaded { version, .. }) =
                         &self.state
@@ -325,10 +325,9 @@ impl Launcher {
                         None
                     };
                 self.state = State::InstallPaper(MenuInstallPaper::Installing);
-                return Task::perform(
-                    loaders::paper::install(instance_name, version.into()),
-                    |n| Message::InstallPaper(InstallPaperMessage::End(n.strerr())),
-                );
+                return Task::perform(loaders::paper::install(instance, version.into()), |n| {
+                    Message::InstallPaper(InstallPaperMessage::End(n.strerr()))
+                });
             }
             InstallPaperMessage::End(res) => {
                 if let Err(err) = res {
