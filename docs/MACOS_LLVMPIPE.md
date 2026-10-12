@@ -143,6 +143,7 @@ Where SOMENUMBERHERE depends on your configuration. If that works without any er
 
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/QuartzCore.h>
+#import <OpenGL/OpenGL.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
 #include <dlfcn.h>
@@ -552,12 +553,17 @@ static void *egl_lookup(const char *n) {
   return p;
 }
 
+static void *hook_dlsym(void *h, const char *n);
+DYLD_INTERPOSE(hook_dlsym, dlsym);
 static void *hook_dlsym(void *h, const char *n) {
-  void *p = egl_lookup(n);
-  if (p) return p;
-  return dlsym(h, n);
+    void *p = egl_lookup(n);
+    if (p) return p;
+    static void *(*real_dlsym)(void *, const char *) = NULL;
+    if (!real_dlsym) {
+        real_dlsym = (void *(*)(void *, const char *))_interpose_dlsym.replacee;
+    }
+    return real_dlsym(h, n);
 }
-DYLD_INTERPOSE(hook_dlsym, dlsym)
 
 static void *hook_CFBundleGetFunctionPointerForName(CFBundleRef b, CFStringRef name) {
   char buf[256];
@@ -568,6 +574,9 @@ static void *hook_CFBundleGetFunctionPointerForName(CFBundleRef b, CFStringRef n
   return CFBundleGetFunctionPointerForName(b, name);
 }
 DYLD_INTERPOSE(hook_CFBundleGetFunctionPointerForName, CFBundleGetFunctionPointerForName)
+
+static CGLError hook_CGLDisable(CGLContextObj ctx, CGLContextEnable e) { return kCGLNoError; }
+DYLD_INTERPOSE(hook_CGLDisable, CGLDisable)
 
 static void rep(Class c, SEL s, IMP imp, BOOL meta) {
   Method m = meta ? class_getClassMethod(c, s) : class_getInstanceMethod(c, s);
@@ -614,7 +623,7 @@ clang -dynamiclib -fno-objc-arc -arch x86_64 \
   -I$HOME/mesa-llvmpipe-install/include \
   -o libhook_llvmpipe.dylib \
   hook_llvmpipe.m \
-  -framework Cocoa -framework QuartzCore \
+  -framework Cocoa -framework QuartzCore -framework OpenGL \
   -L$HOME/mesa-llvmpipe-install/lib -lEGL
 ```
 
