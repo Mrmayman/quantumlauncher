@@ -1,0 +1,9 @@
+Package: quantumlauncher
+Version: 0.5.1-1
+Homepage: https://mrmayman.github.io/quantumlauncher
+Section: games
+Priority: optional
+Architecture: amd64
+Depends: libgcc-s1, libc6
+Maintainer: Void98 <void98@noreply.codeberg.org>
+Description: A simple, fast and powerful Minecraft launcher.
