@@ -277,6 +277,8 @@ impl GameLauncher {
         #[cfg(target_os = "macos")]
         {
             args.push("-XstartOnFirstThread".to_owned());
+            // See docs of the function for more info
+            args.push(apply_policy_agent().await?);
         }
 
         self.java_arguments_betacraft(&mut args);
@@ -1033,4 +1035,35 @@ fn deduplicate_game_args(arr1: &[String], arr2: &[String]) -> Vec<String> {
 
     // HashMap -> Vec<String> (key, value, key, value, ...)
     result
+}
+
+/// A whole bunch of crappy hacks just to do
+///
+/// ```objc
+/// [NSApplication sharedApplication];
+/// [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+/// [NSApp activateIgnoringOtherApps:YES];
+/// ```
+///
+/// Otherwise, LWJGL2 versions' window will be invisible
+/// on (modern?) macOS.
+///
+/// This has to run before window creation hence we
+/// do it as an agent.
+#[cfg(target_os = "macos")]
+async fn apply_policy_agent() -> Result<String, IoError> {
+    const AGENT: &[u8] =
+        include_bytes!("../../../../../assets/binaries/macos_lwjgl_agent/policy-agent.jar");
+
+    let downloads = LAUNCHER_DIR.join("downloads");
+    tokio::fs::create_dir_all(&downloads)
+        .await
+        .path(&downloads)?;
+
+    let temp = downloads.join(".policy-temp");
+    tokio::fs::write(&temp, AGENT).await.path(&temp)?;
+    let policy_path = downloads.join("policy-agent.jar");
+    tokio::fs::rename(&temp, &policy_path).await.path(&temp)?;
+
+    Ok(format!("-javaagent:{}", policy_path.display()))
 }

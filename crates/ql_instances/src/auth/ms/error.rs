@@ -60,7 +60,7 @@ pub enum Error {
     Response2(ResponseError),
 
     #[error(
-        "Your Microsoft account doesn't own Minecraft!\nJust enter the username in the text box instead of logging in."
+        "Your Microsoft account doesn't own Minecraft!\nJust select \"(Offline)\" and enter your username instead of logging into Microsoft.\nOr maybe create an ely.by or littleskin account."
     )]
     DoesntOwnGame,
     #[error("Your account login has expired. Please log out and log in again.")]

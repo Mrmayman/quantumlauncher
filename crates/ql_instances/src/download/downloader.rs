@@ -36,8 +36,8 @@ pub enum DownloadError {
     VersionNotFoundInManifest(String),
     #[error("{DOWNLOAD_ERR_PREFIX}in assets JSON, field not found: \"{0}\"")]
     AssetsJsonFieldNotFound(String),
-    #[error("{DOWNLOAD_ERR_PREFIX}could not extract native libraries:\n{0}")]
-    NativesExtractError(zip::result::ZipError),
+    #[error("{DOWNLOAD_ERR_PREFIX}could not extract native libraries from url {1}\n{0}")]
+    NativesExtractError(zip::result::ZipError, String),
     #[error(
         "{DOWNLOAD_ERR_PREFIX}tried to remove natives outside folder. POTENTIAL SECURITY RISK AVOIDED"
     )]
