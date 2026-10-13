@@ -277,6 +277,13 @@ impl GameLauncher {
         #[cfg(target_os = "macos")]
         {
             args.push("-XstartOnFirstThread".to_owned());
+
+            let env_var = std::env::var("QL_POLICY_AGENT");
+            let apply = match env_var {
+                Ok(n) if n == "1" || n.to_lowercase() == "true" => true,
+                Ok(n) if n == "0" || n.to_lowercase() == "false" => false,
+                _ => self.version_json.is_lwjgl2(),
+            };
             // See docs of the function for more info
             if self.version_json.is_lwjgl2() {
                 args.push(apply_policy_agent().await?);
