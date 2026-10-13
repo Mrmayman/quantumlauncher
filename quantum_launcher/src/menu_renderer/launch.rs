@@ -421,7 +421,7 @@ impl Launcher {
         .style(move |t: &LauncherTheme| {
             t.style_container_bg_semiround(
                 [!decor, false, false, false],
-                Some((Color::ExtraDark, t.alpha)),
+                Some((Color::ExtraDark, 1.0)),
             )
         })
         .into()

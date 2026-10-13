@@ -278,7 +278,9 @@ impl GameLauncher {
         {
             args.push("-XstartOnFirstThread".to_owned());
             // See docs of the function for more info
-            args.push(apply_policy_agent().await?);
+            if self.version_json.is_lwjgl2() {
+                args.push(apply_policy_agent().await?);
+            }
         }
 
         self.java_arguments_betacraft(&mut args);
