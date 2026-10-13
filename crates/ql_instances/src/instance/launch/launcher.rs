@@ -285,7 +285,7 @@ impl GameLauncher {
                 _ => self.version_json.is_lwjgl2(),
             };
             // See docs of the function for more info
-            if self.version_json.is_lwjgl2() {
+            if apply {
                 args.push(apply_policy_agent().await?);
             }
         }
