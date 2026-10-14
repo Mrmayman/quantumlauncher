@@ -203,7 +203,7 @@ async fn get_version_json(
     installer_bytes: &[u8],
     neoforge_dir: &Path,
     json: &VersionDetails,
-) -> Result<ql_core::json::forge::JsonDetails, ForgeInstallError> {
+) -> Result<ql_core::json::forge::ForgeDetailsJson, ForgeInstallError> {
     let mut zip = zip::ZipArchive::new(Cursor::new(installer_bytes))?;
 
     let mut file = zip
@@ -217,7 +217,7 @@ async fn get_version_json(
         .await
         .path(&out_jar_version_path)?;
 
-    let jar_version_json: ql_core::json::forge::JsonDetails =
+    let jar_version_json: ql_core::json::forge::ForgeDetailsJson =
         serde_json::from_str(&forge_json).json(forge_json)?;
 
     Ok(jar_version_json)

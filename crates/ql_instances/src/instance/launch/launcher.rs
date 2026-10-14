@@ -344,7 +344,7 @@ impl GameLauncher {
         &mut self,
         java_arguments: &mut Vec<String>,
         game_arguments: &mut Vec<String>,
-    ) -> Result<Option<forge::JsonDetails>, GameLaunchError> {
+    ) -> Result<Option<forge::ForgeDetailsJson>, GameLaunchError> {
         if !matches!(self.config.mod_type, Loader::Forge | Loader::NeoForge) {
             return Ok(None);
         }
@@ -374,12 +374,12 @@ impl GameLauncher {
         Ok(serde_json::from_str(&fabric_json).json(fabric_json)?)
     }
 
-    async fn get_forge_json(&self) -> Result<forge::JsonDetails, JsonFileError> {
+    async fn get_forge_json(&self) -> Result<forge::ForgeDetailsJson, JsonFileError> {
         let json_path = self.instance_dir.join("forge/details.json");
         let json = tokio::fs::read_to_string(&json_path)
             .await
             .path(json_path)?;
-        let json_details: forge::JsonDetails = match serde_json::from_str(&json) {
+        let json_details: forge::ForgeDetailsJson = match serde_json::from_str(&json) {
             Ok(n) => n,
             Err(err) => {
                 if err.to_string().starts_with("invalid type: string") {
@@ -390,7 +390,7 @@ impl GameLauncher {
                     let json_details: String = serde_json::from_str(&json).json(json)?;
                     serde_json::from_str(&json_details).json(json_details)?
                 } else {
-                    let new: Result<forge::JsonInstallProfile, serde_json::Error> =
+                    let new: Result<forge::ForgeInstallProfile, serde_json::Error> =
                         serde_json::from_str(&json);
                     if let Ok(new) = new {
                         new.versionInfo
@@ -451,7 +451,7 @@ impl GameLauncher {
     pub fn get_main_class(
         &self,
         fabric_json: Option<&FabricJSON>,
-        forge_json: Option<&forge::JsonDetails>,
+        forge_json: Option<&forge::ForgeDetailsJson>,
         optifine_json: Option<&(JsonOptifine, PathBuf)>,
     ) -> String {
         if let Some(main_class_override) = self.main_class_override() {
@@ -470,7 +470,7 @@ impl GameLauncher {
     pub async fn get_class_path(
         &self,
         fabric_json: Option<&FabricJSON>,
-        forge_json: Option<&forge::JsonDetails>,
+        forge_json: Option<&forge::ForgeDetailsJson>,
         optifine_json: Option<&(JsonOptifine, PathBuf)>,
         main_class: &str,
     ) -> Result<String, GameLaunchError> {
@@ -598,7 +598,7 @@ impl GameLauncher {
 
     async fn classpath_forge_and_neoforge(
         &self,
-        forge_json: Option<&forge::JsonDetails>,
+        forge_json: Option<&forge::ForgeDetailsJson>,
         class_path: &mut String,
         classpath_entries: &mut HashSet<String>,
     ) -> Result<(), GameLaunchError> {

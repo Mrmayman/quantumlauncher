@@ -7,7 +7,7 @@ use ql_core::{
     info,
     json::{
         VersionDetails,
-        forge::{JsonDetails, JsonDetailsLibrary, JsonInstallProfile, JsonVersions},
+        forge::{ForgeDetailsJson, ForgeInstallProfile, ForgeVersionsJson, JsonDetailsLibrary},
         instance_config::ModTypeInfo,
     },
     pt,
@@ -279,7 +279,7 @@ impl ForgeInstaller {
     fn get_forge_json(
         &self,
         installer_file: &[u8],
-    ) -> Result<(JsonDetails, String), ForgeInstallError> {
+    ) -> Result<(ForgeDetailsJson, String), ForgeInstallError> {
         let mut zip = zip::ZipArchive::new(Cursor::new(installer_file))?;
 
         if let Ok(mut file) = zip.by_name("version.json") {
@@ -287,7 +287,7 @@ impl ForgeInstaller {
             let forge_json = forge_json
                 .map_err(|n| ForgeInstallError::ZipIoError(n, "version.json".to_owned()))?;
 
-            let forge_json_parsed: JsonDetails =
+            let forge_json_parsed: ForgeDetailsJson =
                 serde_json::from_str(&forge_json).json(forge_json.clone())?;
 
             return Ok((forge_json_parsed, forge_json));
@@ -298,13 +298,13 @@ impl ForgeInstaller {
                 .map_err(|n| ForgeInstallError::ZipIoError(n, "install_profile.json".to_owned()))?;
 
             return if let Ok(forge_json_parsed) = serde_json::from_str(&forge_json) {
-                let forge_json_parsed: JsonInstallProfile = forge_json_parsed;
+                let forge_json_parsed: ForgeInstallProfile = forge_json_parsed;
 
                 let to_string = serde_json::to_string(&forge_json_parsed.versionInfo)
                     .unwrap_or(forge_json.clone());
                 Ok((forge_json_parsed.versionInfo, to_string))
             } else {
-                let forge_json_parsed: JsonDetails =
+                let forge_json_parsed: ForgeDetailsJson =
                     serde_json::from_str(&forge_json).json(forge_json.clone())?;
                 Ok((forge_json_parsed, forge_json))
             };
@@ -418,7 +418,7 @@ impl ForgeInstaller {
 }
 
 async fn get_forge_version(minecraft_version: &str) -> Result<String, ForgeInstallError> {
-    let json = JsonVersions::download().await?;
+    let json = ForgeVersionsJson::download().await?;
     let version = json
         .get_forge_version(minecraft_version)
         .ok_or(ForgeInstallError::NoForgeVersionFound)?;

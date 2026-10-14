@@ -4,11 +4,11 @@ use crate::{JsonDownloadError, file_utils};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Deserialize)]
-pub struct JsonVersions {
+pub struct ForgeVersionsJson {
     promos: HashMap<String, String>,
 }
 
-impl JsonVersions {
+impl ForgeVersionsJson {
     /// Downloads the Forge versions JSON file from the Forge website.
     ///
     /// # Errors
@@ -34,14 +34,14 @@ impl JsonVersions {
 
 #[allow(non_snake_case)]
 #[derive(Clone, Deserialize)]
-pub struct JsonInstallProfile {
+pub struct ForgeInstallProfile {
     // install: serde_json::Value,
-    pub versionInfo: JsonDetails,
+    pub versionInfo: ForgeDetailsJson,
 }
 
 #[allow(non_snake_case)]
 #[derive(Clone, Serialize, Deserialize)]
-pub struct JsonDetails {
+pub struct ForgeDetailsJson {
     id: String,
     time: String,
     releaseTime: String,
