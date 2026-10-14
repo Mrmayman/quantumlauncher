@@ -143,6 +143,7 @@ pub enum ManageModsMessage {
 
     SelectAll,
     SetModal(Option<MenuEditModsModal>),
+    MoveMouse(iced::Point<f32>),
     RightClick(ModId),
     SetSearch(Option<String>),
     SetContentFilter(Option<QueryType>),

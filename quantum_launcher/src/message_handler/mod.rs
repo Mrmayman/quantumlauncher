@@ -1,22 +1,19 @@
 use crate::{
-    Launcher, Message,
+    Launcher, Message, iflet_menuedit,
     menu_renderer::back_to_launch_screen,
     state::{
-        AutoSaveKind, ContentWatcher, EditModsFileData, EditModsSelection, EditModsUiState,
-        EditModsUpdates, EditPresetsMessage, FsWatcher, InfoMessage, LaunchTab, LogState,
-        ManageModsMessage, MenuEditMods, MenuInstallForge, MenuInstallOptifine, ProgressBar,
-        SelectedState, State,
+        AutoSaveKind, EditPresetsMessage, InfoMessage, LaunchTab, LogState, ManageModsMessage,
+        MenuInstallForge, MenuInstallOptifine, ProgressBar, State,
     },
 };
-use iced::{Task, futures::executor::block_on, widget::scrollable::AbsoluteOffset};
+use iced::Task;
 use ql_core::{
-    GenericProgress, Instance, IntoIoError, IntoStringError, err,
-    file_utils::exists,
-    json::{VersionDetails, instance_config::InstanceConfigJson},
+    GenericProgress, Instance, IntoIoError, IntoStringError, err, file_utils::exists,
+    json::instance_config::InstanceConfigJson,
 };
 use ql_mod_manager::{
     loaders,
-    store::{LocalMod, ModIndex, QueryType},
+    store::{LocalMod, QueryType},
 };
 use std::{
     collections::HashSet,
@@ -37,6 +34,7 @@ mod iced_event;
 impl Launcher {
     pub fn on_selecting_instance(&mut self) -> Task<Message> {
         self.load_edit_instance(None);
+        let load_mods = self.load_edit_mods(None, None);
         let Some(instance) = self.selected_instance.clone() else {
             return Task::none();
         };
@@ -48,9 +46,10 @@ impl Launcher {
         self.load_logs();
         if let State::Launch(menu) = &mut self.state {
             menu.modal = None;
-            menu.reload_notes(instance.clone())
+            let reload_notes = menu.reload_notes(instance.clone());
+            Task::batch([reload_notes, load_mods])
         } else {
-            Task::none()
+            load_mods
         }
     }
 
@@ -67,7 +66,7 @@ impl Launcher {
             menu.log_state = None;
             return;
         };
-        if let (Some(logs), LaunchTab::Log) = (self.logs.get(instance), menu.tab) {
+        if let (Some(logs), LaunchTab::Logs) = (self.logs.get(instance), menu.tab) {
             menu.log_state = Some(LogState {
                 content: iced::widget::text_editor::Content::with_text(&logs.log.join("\n")),
             });
@@ -103,78 +102,6 @@ impl Launcher {
         p.selected_instance = None;
         p.selected_instance_kind = None;
         self.autosave.remove(&AutoSaveKind::LauncherConfig);
-    }
-
-    pub fn go_to_edit_mods_menu(&mut self, msg: Option<InfoMessage>) -> Task<Message> {
-        async fn inner(
-            this: &mut Launcher,
-            info_message: Option<InfoMessage>,
-        ) -> Result<Task<Message>, String> {
-            let instance = this.selected_instance.as_ref().unwrap();
-
-            let config = InstanceConfigJson::read(instance).await.strerr()?;
-            let details = Box::new(VersionDetails::load(instance).await.strerr()?);
-            let mod_index = ModIndex::load(instance).await.strerr()?;
-
-            let dotmc_dir = instance.get_dot_minecraft_path();
-
-            let update_local_mods_task =
-                Task::batch(QueryType::INDEX_SUPPORTED.iter().map(|n| {
-                    MenuEditMods::update_locally_installed_mods(&mod_index, instance, *n)
-                }));
-
-            let locally_installed_mods = HashSet::new();
-
-            this.state = State::EditMods(MenuEditMods {
-                sorted_mods_list: Vec::new(),
-                selection: EditModsSelection {
-                    selected_mods: HashSet::new(),
-                    shift_selected_mods: HashSet::new(),
-                    state: SelectedState::None,
-                    list_shift_index: None,
-                },
-                updates: EditModsUpdates {
-                    available: Vec::new(),
-                    progress: None,
-                    check_handle: None,
-                },
-                ui_state: EditModsUiState {
-                    // If you wanna test stuff out...
-                    // info_message: Some(crate::state::ModInfoMessage {
-                    //     text: "Hello, World!".to_owned(),
-                    //     kind: crate::state::InfoMessageKind::AtPath(PathBuf::from("/home/mrmayman")),
-                    // }),
-                    // info_message: Some(crate::state::ModInfoMessage {
-                    //     text: "Hello, World!".to_owned(),
-                    //     kind: crate::state::InfoMessageKind::Success,
-                    // }),
-                    info_message,
-                    list_scroll: AbsoluteOffset::default(),
-                    drag_and_drop_hovered: false,
-                    modal: None,
-                    width_name: 220.0,
-                },
-                file_data: EditModsFileData {
-                    config,
-                    mod_index,
-                    details,
-                    content_watcher: ContentWatcher::new(&dotmc_dir),
-                    index_watcher: FsWatcher::new(ModIndex::get_path(instance)).strerr()?,
-                },
-                locally_installed_mods,
-                search: None,
-                content_filter: None,
-            });
-
-            Ok(Task::batch([update_local_mods_task]))
-        }
-        match block_on(inner(self, msg)) {
-            Ok(n) => n,
-            Err(err) => {
-                self.set_error(format!("While opening Mods screen:\n{err}"));
-                Task::none()
-            }
-        }
     }
 
     pub fn install_forge(&mut self, kind: ForgeKind) -> Task<Message> {
@@ -260,9 +187,9 @@ impl Launcher {
         )) {
             Ok(mods) => {
                 let (sender, receiver) = std::sync::mpsc::channel();
-                if let State::EditMods(_) = &self.state {
+                iflet_menuedit!(self, _m, {
                     self.go_to_edit_presets_menu();
-                }
+                });
                 if let State::ManagePresets(menu) = &mut self.state {
                     menu.progress = Some(ProgressBar::with_recv(receiver));
                 }
@@ -284,9 +211,9 @@ impl Launcher {
     }
 
     fn set_drag_and_drop_hover(&mut self, is_hovered: bool) {
-        if let State::EditMods(menu) = &mut self.state {
+        iflet_menuedit!(self, mut menu, {
             menu.ui_state.drag_and_drop_hovered = is_hovered;
-        } else if let State::ManagePresets(menu) = &mut self.state {
+        } else { if let State::ManagePresets(menu) = &mut self.state {
             menu.drag_and_drop_hovered = is_hovered;
         } else if let State::EditJarMods(menu) = &mut self.state {
             menu.drag_and_drop_hovered = is_hovered;
@@ -296,7 +223,7 @@ impl Launcher {
         }) = &mut self.state
         {
             *drag_and_drop_hovered = is_hovered;
-        }
+        }})
     }
     #[cfg(feature = "auto_update")]
     pub fn update_download_start(&mut self) -> Task<Message> {

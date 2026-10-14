@@ -28,23 +28,26 @@ impl Launcher {
 
                 let mut commands = Vec::new();
 
-                let edit_config = if let State::Launch(MenuLaunch {
+                if let State::Launch(MenuLaunch {
                     edit_instance: Some(edit),
                     tab: LaunchTab::Edit,
                     ..
                 }) = &self.state
                 {
-                    Some(edit.config.clone())
-                } else {
-                    None
-                };
-
-                if let Some(config) = edit_config {
+                    let config = edit.config.clone();
                     if self.autosave.insert(AutoSaveKind::InstanceConfig)
                         || self.tick_timer % 5 == 0
                     {
                         self.autosave_instance_config(config, &mut commands);
                     }
+                } else if let State::Launch(MenuLaunch {
+                    edit_mods: Some(menu),
+                    tab: LaunchTab::Mods,
+                    ..
+                }) = &mut self.state
+                {
+                    let instance = self.selected_instance.as_ref().unwrap();
+                    commands.push(menu.tick(instance));
                 }
 
                 for (instance, process) in &mut self.processes {
@@ -72,10 +75,6 @@ impl Launcher {
             State::Create(menu) => {
                 menu.tick();
                 self.autosave_launcher_config();
-            }
-            State::EditMods(menu) => {
-                let instance = self.selected_instance.as_ref().unwrap();
-                return menu.tick(instance);
             }
             State::InstallFabric(menu) => {
                 if let MenuInstallFabric::Loaded {

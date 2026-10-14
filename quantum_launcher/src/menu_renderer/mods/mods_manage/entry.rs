@@ -281,7 +281,7 @@ fn mod_toggler_or_indicator<'a>(
                         "{}Dependency of:",
                         if is_enabled { "" } else { "(Disabled) " }
                     )
-                    .size(12)
+                    .size(10)
                     .style(tsubtitle)
                 ]
                 .extend(config.into_iter().flat_map(|n| {
@@ -289,14 +289,14 @@ fn mod_toggler_or_indicator<'a>(
                         index
                             .mods
                             .get(id)
-                            .map(|m| widget::text(&*m.name).size(14).into())
+                            .map(|m| widget::text(&*m.name).size(12).into())
                     })
                 }))
                 .push(
                     widget::text(
                         "\nTo enable/disable (not recommended),\ndo Right Click -> Toggle",
                     )
-                    .size(12)
+                    .size(10)
                     .style(tsubtitle),
                 ),
                 Position::Left,

@@ -8,9 +8,12 @@ use ql_mod_manager::store::{
     self, ModId, ModIndex, Query, QueryType, StoreBackendType, get_description,
 };
 
-use crate::state::{
-    InstallModsMessage, Launcher, MenuCurseforgeManualDownload, MenuModsDownload, Message,
-    ModCategoryState, ModOperation, ProgressBar, State,
+use crate::{
+    iflet_menuedit,
+    state::{
+        InstallModsMessage, Launcher, MenuCurseforgeManualDownload, MenuModsDownload, Message,
+        ModCategoryState, ModOperation, ProgressBar, State,
+    },
 };
 
 impl Launcher {
@@ -291,11 +294,11 @@ impl Launcher {
         let instance = self.instance();
 
         let config = InstanceConfigJson::read(instance).await?;
-        let version_json = if let State::EditMods(menu) = &self.state {
+        let version_json = iflet_menuedit!(self, menu, {
             menu.file_data.details.clone()
         } else {
             Box::new(VersionDetails::load(instance).await?)
-        };
+        });
         let mod_index = ModIndex::load(instance).await?;
 
         let menu = MenuModsDownload {

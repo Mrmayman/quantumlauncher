@@ -272,9 +272,10 @@ impl Launcher {
                 }
 
                 self.load_edit_instance(Some(tab));
-                if let LaunchTab::Log = tab {
+                if let LaunchTab::Logs = tab {
                     self.load_logs();
                 }
+                return self.load_edit_mods(None, Some(tab));
             }
             MainMenuMessage::Modal(modal) => {
                 if let State::Launch(menu) = &mut self.state {

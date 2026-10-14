@@ -3,9 +3,12 @@ use ql_core::{IntoIoError, IntoStringError};
 use ql_mod_manager::store::{QueryType, SelectedMod};
 use std::collections::HashSet;
 
-use crate::state::{
-    EditPresetsMessage, InfoMessage, Launcher, MenuCurseforgeManualDownload, MenuEditPresets,
-    Message, SelectedState, State,
+use crate::{
+    let_menuedit_else,
+    state::{
+        EditPresetsMessage, InfoMessage, Launcher, MenuCurseforgeManualDownload, MenuEditPresets,
+        Message, SelectedState, State,
+    },
 };
 
 macro_rules! iflet_manage_preset {
@@ -124,9 +127,7 @@ impl Launcher {
     }
 
     pub fn go_to_edit_presets_menu(&mut self) {
-        let State::EditMods(menu) = &self.state else {
-            return;
-        };
+        let_menuedit_else!(self, menu);
 
         // I'm anyway overhauling this thing in another PR
         let mods = || {
