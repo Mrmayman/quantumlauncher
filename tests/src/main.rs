@@ -35,10 +35,10 @@ struct Cli {
     verbose: bool,
 }
 impl Cli {
-    fn get_versions(&self) -> impl Iterator<Item = &Version> {
-        VERSIONS_LWJGL2.iter().chain(
+    fn get_versions(&self) -> impl Iterator<Item = (&Version, bool)> {
+        VERSIONS_LWJGL2.iter().map(|n| (n, false)).chain(
             (!self.skip_lwjgl3)
-                .then_some(VERSIONS_LWJGL3.iter())
+                .then_some(VERSIONS_LWJGL3.iter().map(|n| (n, true)))
                 .into_iter()
                 .flatten(),
         )
@@ -63,14 +63,16 @@ async fn main() {
     let cli = Cli::parse();
 
     if !cli.existing {
+        let instances = LAUNCHER_DIR.join("instances");
         if let Some(name) = &cli.specific {
-            let path = LAUNCHER_DIR.join("instances").join(name);
+            let path = instances.join(name);
             _ = tokio::fs::remove_dir_all(&path).await;
             attempt(create_instance(name.to_owned()).await);
         } else {
+            _ = tokio::fs::remove_dir_all(&instances).await;
             attempt(
-                do_jobs(cli.get_versions().map(|version| async {
-                    let path = LAUNCHER_DIR.join("instances").join(version.0);
+                do_jobs(cli.get_versions().map(|(version, _)| async {
+                    let path = instances.join(version.0);
                     _ = tokio::fs::remove_dir_all(&path).await;
                     create_instance(version.0.to_owned()).await?;
                     Ok::<(), DownloadError>(())
@@ -90,10 +92,10 @@ async fn main() {
     let mut fails = Vec::new();
 
     if let Some(name) = &cli.specific {
-        try_version(name, &[], &mut fails, &cli).await;
+        try_version(name, &[], &mut fails, &cli, true).await;
     } else {
-        for Version(name, loaders) in cli.get_versions() {
-            try_version(name, loaders, &mut fails, &cli).await;
+        for (Version(name, loaders), is_lwjgl3) in cli.get_versions() {
+            try_version(name, loaders, &mut fails, &cli, is_lwjgl3).await;
         }
     }
 
@@ -114,11 +116,12 @@ async fn try_version<'a>(
     loaders: &[Loader],
     fails: &mut Vec<(&'a str, Option<Loader>)>,
     cli: &Cli,
+    wait_extra: bool,
 ) {
     let instance = ql_core::Instance::client(name);
     attempt(ql_mod_manager::loaders::uninstall_loader(instance.clone()).await);
     set_terminal(cli.verbose);
-    if !launch::launch(name, cli.timeout.unwrap_or(60.0), cli).await {
+    if !launch::launch(name, cli, wait_extra).await {
         fails.push((name, None));
     }
     for loader in loaders {
@@ -133,7 +136,7 @@ async fn try_version<'a>(
         }
 
         println!("Done");
-        if !launch::launch(name, cli.timeout.unwrap_or(60.0), cli).await {
+        if !launch::launch(name, cli, wait_extra).await {
             fails.push((name, Some(*loader)));
         }
         set_terminal(cli.verbose);

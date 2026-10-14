@@ -7,7 +7,7 @@ use ql_core::{IntoStringError, err};
 
 use crate::{Cli, attempt, search::search_for_window, set_terminal};
 
-pub async fn launch(name: &str, timeout: f32, cli: &Cli) -> bool {
+pub async fn launch(name: &str, cli: &Cli, wait_extra: bool) -> bool {
     print!("Testing {name} ");
     _ = std::io::stdout().flush();
     let child = attempt(
@@ -35,7 +35,11 @@ pub async fn launch(name: &str, timeout: f32, cli: &Cli) -> bool {
     });
     // Ok((ExitStatus::default(), instance, None))
 
+    let timeout = cli.timeout.unwrap_or(60.0);
     let timeout_duration = Duration::from_secs_f32(timeout);
+    if wait_extra {
+        tokio::time::sleep(Duration::from_secs_f32(10.0)).await; // Give it some time to start
+    }
     let start_time = tokio::time::Instant::now();
 
     let sys = sysinfo::System::new_all();
