@@ -2,9 +2,12 @@ use iced::{Task, futures::executor::block_on};
 use ql_core::{Instance, IntoStringError, JsonFileError, json::InstanceConfigJson};
 use ql_mod_manager::store::{ModId, RECOMMENDED_MODS, RecommendedMod};
 
-use crate::state::{
-    InfoMessage, Launcher, MenuCurseforgeManualDownload, MenuRecommendedMods, Message, ProgressBar,
-    RecommendedModMessage, State,
+use crate::{
+    iflet_menuedit,
+    state::{
+        InfoMessage, Launcher, MenuCurseforgeManualDownload, MenuRecommendedMods, Message,
+        ProgressBar, RecommendedModMessage, State,
+    },
 };
 
 impl Launcher {
@@ -110,7 +113,7 @@ impl Launcher {
     }
 
     fn go_to_recommended_mods(&mut self) -> Task<Message> {
-        let config = if let State::EditMods(menu) = &self.state {
+        let config = iflet_menuedit!(self, menu, {
             menu.file_data.config.clone()
         } else {
             match block_on(InstanceConfigJson::read(self.instance())) {
@@ -120,7 +123,7 @@ impl Launcher {
                     return Task::none();
                 }
             }
-        };
+        });
         let (sender, recv) = std::sync::mpsc::channel();
         let progress = ProgressBar::with_recv(recv);
         self.state = State::RecommendedMods(MenuRecommendedMods::Loading {

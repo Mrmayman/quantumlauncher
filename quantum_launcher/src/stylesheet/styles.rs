@@ -582,7 +582,10 @@ impl LauncherTheme {
                     } else if let StyleButton::Flat = style {
                         self.gradient_horizontal_raw([
                             (0.0, self.get(Color::Mid)),
-                            (0.01, self.get(Color::SecondDark)),
+                            (
+                                0.01,
+                                mix(self.get(Color::SecondDark), self.get(Color::Dark)),
+                            ),
                             (1.0, self.get(Color::Dark)),
                         ])
                     } else {

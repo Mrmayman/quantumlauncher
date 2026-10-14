@@ -48,17 +48,28 @@ use super::{ManageModsMessage, Message, ProgressBar};
 #[derive(Clone, PartialEq, Eq, Debug, Default, Copy)]
 pub enum LaunchTab {
     #[default]
-    Buttons,
-    Log,
+    Play,
     Edit,
+    Mods,
+    Logs,
+}
+
+impl LaunchTab {
+    pub const ALL: &[Self] = &[
+        LaunchTab::Play,
+        LaunchTab::Edit,
+        LaunchTab::Mods,
+        LaunchTab::Logs,
+    ];
 }
 
 impl std::fmt::Display for LaunchTab {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            LaunchTab::Buttons => "Play",
-            LaunchTab::Log => "Logs",
+            LaunchTab::Play => "Play",
             LaunchTab::Edit => "Edit",
+            LaunchTab::Mods => "Mods",
+            LaunchTab::Logs => "Logs",
         })
     }
 }
@@ -106,7 +117,10 @@ pub struct MenuLaunch {
     pub message: Option<InfoMessage>,
     pub login_progress: Option<ProgressBar<GenericProgress>>,
     pub tab: LaunchTab,
+
     pub edit_instance: Option<MenuEditInstance>,
+    pub edit_mods: Option<MenuEditMods>,
+
     pub notes: Option<InstanceNotes>,
     pub log_state: Option<LogState>,
     pub modal: Option<LaunchModal>,
@@ -156,6 +170,7 @@ impl MenuLaunch {
             message,
             tab: LaunchTab::default(),
             edit_instance: None,
+            edit_mods: None,
             login_progress: None,
             sidebar_scroll: SidebarScroll::default(),
             sidebar_grid_state,
@@ -385,6 +400,7 @@ pub struct EditModsUiState {
     pub drag_and_drop_hovered: bool,
     pub modal: Option<MenuEditModsModal>,
     pub width_name: f32,
+    pub mouse_pos: (f32, f32),
 }
 
 pub struct EditModsFileData {
@@ -920,7 +936,6 @@ pub enum State {
     #[cfg(feature = "auto_update")]
     UpdateFound(MenuLauncherUpdate),
 
-    EditMods(MenuEditMods),
     ExportModsText(MenuExportModsText),
     EditJarMods(MenuEditJarMods),
     ImportModpack(ProgressBar<GenericProgress>),

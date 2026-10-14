@@ -19,8 +19,7 @@ use crate::{
     menu_renderer::DISCORD,
     state::{
         AccountMessage, CreateInstanceMessage, InstanceLog, LaunchTab, Launcher,
-        LauncherSettingsMessage, ManageModsMessage, MenuLaunch, Message, OFFLINE_ACCOUNT_NAME,
-        State,
+        LauncherSettingsMessage, MenuLaunch, Message, OFFLINE_ACCOUNT_NAME, State,
     },
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
@@ -70,8 +69,20 @@ impl Launcher {
 
         let tab_body = if let Some(selected) = &self.selected_instance {
             match menu.tab {
-                LaunchTab::Buttons => self.get_tab_main(menu, selected),
-                LaunchTab::Log => self.get_tab_logs(menu, selected.kind).into(),
+                LaunchTab::Play => self.get_tab_main(menu, selected),
+                LaunchTab::Logs => self.get_tab_logs(menu, selected.kind).into(),
+                LaunchTab::Mods => {
+                    if let Some(menu) = &menu.edit_mods {
+                        menu.view(
+                            self.instance(),
+                            self.tick_timer,
+                            &self.images,
+                            self.window_state.size.1,
+                        )
+                    } else {
+                        column!["Loading..."].padding(10).into()
+                    }
+                }
                 LaunchTab::Edit => {
                     if let Some(menu) = &menu.edit_instance {
                         menu.view(selected, self.custom_jar.as_ref())
@@ -168,7 +179,6 @@ impl Launcher {
             } else {
                 self.get_client_play_button(selected)
             },
-            Self::get_mods_button(),
             Self::get_files_button(selected),
         ]
         .spacing(5)
@@ -245,12 +255,6 @@ impl Launcher {
         .padding(16)
         .spacing(10)
         .into()
-    }
-
-    fn get_mods_button() -> widget::Button<'static, Message, LauncherTheme> {
-        button_with_icon(icons::download(), "Mods", 15)
-            .on_press(ManageModsMessage::Open.into())
-            .width(98)
     }
 
     fn get_tab_logs<'element>(
@@ -628,9 +632,9 @@ impl MenuLaunch {
     fn get_tab_selector(&'_ self, decor: bool) -> Element<'_> {
         let tab_bar = row![widget::Space::with_width(5)]
             .extend(
-                [LaunchTab::Buttons, LaunchTab::Edit, LaunchTab::Log]
-                    .into_iter()
-                    .map(|n| render_tab_button(n, decor, self)),
+                LaunchTab::ALL
+                    .iter()
+                    .map(|n| render_tab_button(*n, decor, self)),
             )
             // .push_maybe(window_handle_buttons)
             // .height(tab_height(decor) + decorh(decor))
@@ -668,7 +672,7 @@ fn render_tab_button(tab: LaunchTab, decor: bool, menu: &'_ MenuLaunch) -> Eleme
         .align_x(Alignment::Center)
         .align_y(Alignment::End);
 
-    let is_warn = if let LaunchTab::Log = tab {
+    let is_warn = if let LaunchTab::Logs = tab {
         menu.message
             .as_ref()
             .is_some_and(|n| n.text.contains("crashed!"))

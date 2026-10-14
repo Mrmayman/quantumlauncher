@@ -1,10 +1,11 @@
+use crate::iflet_menuedit;
 use crate::message_handler::arrow_keys::InstSelectOperation;
 use crate::message_update::MSG_RESIZE;
 use crate::state::{
     AutoSaveKind, CreateInstanceMessage, EditModsUpdates, InfoMessage, LaunchMessage, LaunchTab,
     Launcher, LauncherSettingsMessage, LauncherSettingsTab, MainMenuMessage, ManageModsMessage,
     MenuCreateInstance, MenuCreateInstanceChoosing, MenuEditMods, MenuEditPresets,
-    MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper,
+    MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLaunch,
     MenuLoginAlternate, MenuLoginMS, MenuRecommendedMods, MenuWelcome, Message, State,
 };
 use iced::{
@@ -119,6 +120,25 @@ impl Launcher {
         }
 
         if let Key::Character(ch) = &key {
+            if let State::Launch(_) = &self.state {
+                if let Some(m) = kb_launch(ch.as_str(), &modifiers) {
+                    return Task::done(m);
+                }
+            }
+
+            iflet_menuedit!(self, m, {
+                return Task::done(match (ch.as_str(), modifiers.command(), ignored) {
+                    ("q", true, true) => Message::CoreTryQuit,
+                    ("a", true, true) => ManageModsMessage::SelectAll.into(),
+                    // Ctrl-F search in mods list (with toggling)
+                    ("f", true, _) if m.search.is_some() => {
+                        ManageModsMessage::SetSearch(None).into()
+                    }
+                    ("f", true, _) => ManageModsMessage::SetSearch(Some(String::new())).into(),
+                    _ => Message::Nothing,
+                });
+            });
+
             let msg = match (
                 ch.as_str(),
                 modifiers.command(),
@@ -127,20 +147,6 @@ impl Launcher {
                 &self.state,
             ) {
                 ("q", true, _, true, _) => Message::CoreTryQuit,
-
-                // ========
-                // MANAGE MODS MENU
-                // ========
-                ("a", true, _, true, State::EditMods(_)) => ManageModsMessage::SelectAll.into(),
-                // Ctrl-F search in mods list (with toggling)
-                #[rustfmt::skip]
-                ("f", true, _, _, State::EditMods(MenuEditMods { search: Some(_), .. })) => {
-                    ManageModsMessage::SetSearch(None).into()
-                },
-                ("f", true, _, _, State::EditMods(_)) => Message::Multiple(vec![
-                    ManageModsMessage::SetSearch(Some(String::new())).into(),
-                    Message::CoreFocusNext,
-                ]),
 
                 // Search Action (general)
                 #[rustfmt::skip]
@@ -153,25 +159,6 @@ impl Launcher {
                 // Misc
                 ("a", true, _, true, State::EditJarMods(_)) => {
                     crate::state::ManageJarModsMessage::SelectAll.into()
-                }
-
-                // ========
-                // MAIN MENU
-                // ========
-                ("n", true, _, _, State::Launch(_)) => {
-                    CreateInstanceMessage::ScreenOpen(ql_core::InstanceKind::Client).into()
-                }
-                ("1", ctrl, alt, _, State::Launch(_)) if ctrl | alt => {
-                    MainMenuMessage::ChangeTab(LaunchTab::Buttons).into()
-                }
-                ("2", ctrl, alt, _, State::Launch(_)) if ctrl | alt => {
-                    MainMenuMessage::ChangeTab(LaunchTab::Edit).into()
-                }
-                ("3", ctrl, alt, _, State::Launch(_)) if ctrl | alt => {
-                    MainMenuMessage::ChangeTab(LaunchTab::Log).into()
-                }
-                (",", true, _, _, State::Launch(_)) => {
-                    LauncherSettingsMessage::Open(LauncherSettingsTab::default()).into()
                 }
 
                 _ => Message::Nothing,
@@ -235,7 +222,7 @@ impl Launcher {
     }
 
     fn drag_and_drop(&mut self, path: &Path, extension: &OsStr, filename: &str) -> Task<Message> {
-        if let State::EditMods(_) = &self.state {
+        iflet_menuedit!(self, _m, {
             if extension == "jar" || extension == "disabled" {
                 self.load_jar_from_path(path, filename);
                 Task::none()
@@ -246,7 +233,7 @@ impl Launcher {
             } else {
                 Task::none()
             }
-        } else if let State::ManagePresets(_) = &self.state {
+        } else { if let State::ManagePresets(_) = &self.state {
             if extension == "qmp" {
                 self.load_qmp_from_path(path)
             } else if extension == "zip" || extension == "mrpack" {
@@ -273,7 +260,7 @@ impl Launcher {
             }
         } else {
             Task::none()
-        }
+        }})
     }
 
     fn load_jarmods_from_path(
@@ -309,8 +296,12 @@ impl Launcher {
 
         match &self.state {
             State::ChangeLog
-            | State::EditMods(MenuEditMods {
-                updates: EditModsUpdates { progress: None, .. },
+            | State::Launch(MenuLaunch {
+                edit_mods:
+                    Some(MenuEditMods {
+                        updates: EditModsUpdates { progress: None, .. },
+                        ..
+                    }),
                 ..
             })
             | State::Create(MenuCreateInstance::Choosing { .. })
@@ -379,7 +370,6 @@ impl Launcher {
             | State::InstallJava
             | State::InstallOptifine(_)
             | State::InstallFabric(_)
-            | State::EditMods(_)
             | State::Create(_)
             | State::ManagePresets(_)
             | State::ModsDownload(_)
@@ -422,7 +412,7 @@ impl Launcher {
     }
 
     pub fn hide_submenu(&mut self) -> bool {
-        if let State::EditMods(menu) = &mut self.state {
+        iflet_menuedit!(self, mut menu, {
             if menu.ui_state.modal.is_some() {
                 menu.ui_state.modal = None;
                 return true;
@@ -431,12 +421,25 @@ impl Launcher {
                 menu.search = None;
                 return true;
             }
-        } else if let State::Launch(menu) = &mut self.state {
+        } else {if let State::Launch(menu) = &mut self.state {
             if menu.modal.is_some() {
                 menu.modal = None;
                 return true;
             }
-        }
+        }});
         false
     }
+}
+
+fn kb_launch(ch: &str, modifiers: &iced::keyboard::Modifiers) -> Option<Message> {
+    let m = modifiers.command() || modifiers.alt();
+    Some(match (ch, modifiers.command()) {
+        ("n", true) => CreateInstanceMessage::ScreenOpen(ql_core::InstanceKind::Client).into(),
+        ("1", _) if m => MainMenuMessage::ChangeTab(LaunchTab::Play).into(),
+        ("2", _) if m => MainMenuMessage::ChangeTab(LaunchTab::Edit).into(),
+        ("3", _) if m => MainMenuMessage::ChangeTab(LaunchTab::Mods).into(),
+        ("4", _) if m => MainMenuMessage::ChangeTab(LaunchTab::Logs).into(),
+        (",", true) => LauncherSettingsMessage::Open(LauncherSettingsTab::default()).into(),
+        _ => return None,
+    })
 }

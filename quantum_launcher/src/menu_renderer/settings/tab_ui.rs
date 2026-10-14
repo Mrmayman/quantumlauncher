@@ -47,7 +47,7 @@ impl MenuLauncherSettings {
                     0.5..=3.0,
                     self.temp_scale,
                     |n| LauncherSettingsMessage::UiScale(n).into()
-                ).step(0.1),
+                ).step(0.05),
             ]
             .align_y(Alignment::Center)
             .spacing(5)],

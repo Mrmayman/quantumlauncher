@@ -9,6 +9,7 @@ use owo_colors::OwoColorize;
 #[cfg(feature = "auto_update")]
 use crate::launcher_update::UpdateCheckInfo;
 use crate::{
+    iflet_menuedit,
     state::{
         AutoSaveKind, CustomJarState, FsWatcher, GameProcess, InfoMessage, Launcher,
         LauncherSettingsMessage, ManageModsMessage, MenuExportInstance, MenuLicense, MenuWelcome,
@@ -79,9 +80,9 @@ impl Launcher {
                 let sort = msg.edits_mod_list();
                 let t = self.update_manage_mods(msg);
                 if sort {
-                    if let State::EditMods(menu) = &mut self.state {
+                    iflet_menuedit!(self, mut menu, {
                         menu.sort_mods();
-                    }
+                    })
                 }
                 return t;
             }
@@ -407,9 +408,9 @@ impl Launcher {
             }
             Message::CoreHideModal => {
                 self.hide_submenu();
-                if let State::EditMods(menu) = &mut self.state {
+                iflet_menuedit!(self, menu, {
                     return menu.scroll_fix();
-                }
+                })
             }
         }
         Task::none()

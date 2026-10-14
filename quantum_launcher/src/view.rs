@@ -104,12 +104,6 @@ impl Launcher {
             .into(),
             State::GenericMessage(msg) => column![widget::text(msg)].padding(10).into(),
             State::AccountLogin => view_account_login(),
-            State::EditMods(menu) => menu.view(
-                self.instance(),
-                self.tick_timer,
-                &self.images,
-                self.window_state.size.1,
-            ),
             State::Create(menu) => {
                 let kind = if let MenuCreateInstance::Choosing(MenuCreateInstanceChoosing {
                     kind,

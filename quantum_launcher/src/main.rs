@@ -208,6 +208,7 @@ fn main() {
     let c = config.as_ref().cloned().unwrap_or_default();
     let decorations = c.uses_system_decorations();
     let (width, height) = c.c_window_size();
+    let scale = c.ui_scale.unwrap_or(1.0).max(0.05) as f32;
 
     iced::application("QuantumLauncher", Launcher::update, Launcher::view)
         .subscription(Launcher::subscription)
@@ -229,8 +230,8 @@ fn main() {
             exit_on_close_request: false,
             size: iced::Size { width, height },
             min_size: Some(iced::Size {
-                width: 420.0,
-                height: 310.0,
+                width: 420.0 * scale,
+                height: 310.0 * scale,
             }),
             decorations,
             transparent: true,

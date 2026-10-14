@@ -244,20 +244,6 @@ pub fn offsetbox<'a>(
     widget::stack!(base.into(), offset(ctxbox(inner).width(width), x, y))
 }
 
-pub fn subbutton_with_icon<'a>(
-    icon: impl Into<Element<'a>>,
-    text: &'a str,
-) -> widget::Button<'a, Message, LauncherTheme> {
-    widget::button(
-        row![icon.into()]
-            .push_maybe((!text.is_empty()).then_some(widget::text(text).size(12)))
-            .align_y(Alignment::Center)
-            .spacing(8)
-            .padding(1),
-    )
-    .style(|t: &LauncherTheme, s| t.style_button(s, StyleButton::RoundDark))
-}
-
 pub fn button_with_icon<'a>(
     icon: impl Into<Element<'a>>,
     text: &'a str,
@@ -267,7 +253,7 @@ pub fn button_with_icon<'a>(
         row![icon.into()]
             .push_maybe((!text.is_empty()).then_some(widget::text(text).size(size)))
             .align_y(Alignment::Center)
-            .spacing(f32::from(size) / 1.6),
+            .spacing(f32::from(size) / 1.8),
     )
     .padding([6, 12])
 }

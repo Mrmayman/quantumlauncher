@@ -17,11 +17,14 @@ mod recommended;
 mod settings;
 mod shortcuts;
 
-use crate::state::{
-    self, GameLogMessage, InfoMessage, InstallFabricMessage, InstallOptifineMessage,
-    InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsTab, MenuInstallFabric,
-    MenuInstallOptifine, MenuInstallPaper, MenuLaunch, MenuModDescription, Message,
-    ModDescriptionMessage, NotesMessage, ProgressBar, State, WindowMessage,
+use crate::{
+    iflet_menuedit, let_menuedit_else,
+    state::{
+        self, GameLogMessage, InfoMessage, InstallFabricMessage, InstallOptifineMessage,
+        InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsTab, MenuInstallFabric,
+        MenuInstallOptifine, MenuInstallPaper, MenuLaunch, MenuModDescription, Message,
+        ModDescriptionMessage, NotesMessage, ProgressBar, State, WindowMessage,
+    },
 };
 
 pub use discord_rpc::PresenceConnectionState;
@@ -133,11 +136,11 @@ impl Launcher {
     pub fn update_install_optifine(&mut self, message: InstallOptifineMessage) -> Task<Message> {
         match message {
             InstallOptifineMessage::ScreenOpen => {
-                let is_forge_installed = if let State::EditMods(menu) = &self.state {
+                let is_forge_installed = iflet_menuedit!(self, menu, {
                     menu.file_data.config.mod_type == Loader::Forge
                 } else {
                     false
-                };
+                });
                 let optifine_unique_version = if is_forge_installed {
                     Some(OptifineUniqueVersion::Forge)
                 } else {
@@ -300,19 +303,18 @@ impl Launcher {
                 Err(err) => self.set_error(err),
             },
             InstallPaperMessage::ScreenOpen => {
-                if let State::EditMods(menu) = &self.state {
-                    let (task, handle) = Task::perform(
-                        loaders::paper::get_list_of_versions(
-                            menu.file_data.details.get_id().to_owned(),
-                        ),
-                        |n| Message::InstallPaper(InstallPaperMessage::VersionsLoaded(n.strerr())),
-                    )
-                    .abortable();
-                    self.state = State::InstallPaper(MenuInstallPaper::Loading {
-                        _handle: handle.abort_on_drop(),
-                    });
-                    return task;
-                }
+                let_menuedit_else!(self, menu, Task);
+                let (task, handle) = Task::perform(
+                    loaders::paper::get_list_of_versions(
+                        menu.file_data.details.get_id().to_owned(),
+                    ),
+                    |n| Message::InstallPaper(InstallPaperMessage::VersionsLoaded(n.strerr())),
+                )
+                .abortable();
+                self.state = State::InstallPaper(MenuInstallPaper::Loading {
+                    _handle: handle.abort_on_drop(),
+                });
+                return task;
             }
             InstallPaperMessage::ButtonClicked => {
                 let instance_name = self.instance().get_name().to_owned();
