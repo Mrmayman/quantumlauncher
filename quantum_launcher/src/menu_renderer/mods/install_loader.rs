@@ -264,8 +264,12 @@ impl MenuInstallForge {
         ]
         .spacing(10);
 
-        if self.is_java_getting_installed {
-            column![main_block, self.java_progress.view()]
+        if self.is_java_getting_installed && self.java_progress.num < 1.0 {
+            column![
+                main_block,
+                widget::text("Installing Java...").size(20),
+                self.java_progress.view()
+            ]
         } else {
             main_block
         }

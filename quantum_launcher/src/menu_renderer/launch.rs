@@ -388,10 +388,7 @@ impl Launcher {
         let search = if let Some(LaunchModal::SSearch(search)) = &menu.modal {
             Some(
                 column![
-                    widget::text_input("Type to search...", search)
-                        .on_input(|s| MainMenuMessage::Modal(Some(LaunchModal::SSearch(s))).into())
-                        .size(14)
-                        .padding([4, 8]),
+                    search_input(search),
                     widget::text!(" {} results found", 8) // TODO
                         .size(10)
                         .style(|t: &LauncherTheme| t.style_text(Color::Mid)),
@@ -408,6 +405,7 @@ impl Launcher {
                 row![
                     get_sidebar_new_button(),
                     get_sidebar_search_button(search.is_some()),
+                    get_sidebar_new_folder_button(),
                     get_sidebar_settings_button()
                 ]
                 .padding(3)
@@ -420,7 +418,7 @@ impl Launcher {
         .style(move |t: &LauncherTheme| {
             t.style_container_bg_semiround(
                 [!decor, false, false, false],
-                Some((Color::ExtraDark, t.alpha)),
+                Some((Color::ExtraDark, 1.0)),
             )
         })
         .into()
@@ -561,11 +559,44 @@ impl Launcher {
     }
 }
 
+fn search_input(search: &String) -> widget::Stack<'_, Message, LauncherTheme> {
+    widget::stack!(
+        widget::text_input("Type to search...", search)
+            .on_input(|s| MainMenuMessage::Modal(Some(LaunchModal::SSearch(s))).into())
+            .size(14)
+            .padding([4, 8]),
+        column![
+            widget::Row::new()
+                .push_maybe((!search.is_empty()).then(|| {
+                    widget::button(icons::close_s(10))
+                        .padding([3, 6])
+                        .style(move |n, status| n.style_button(status, StyleButton::RoundDark))
+                        .on_press(
+                            MainMenuMessage::Modal(Some(LaunchModal::SSearch(String::new())))
+                                .into(),
+                        )
+                }))
+                .align_y(Alignment::Center)
+                .height(Length::Fill)
+        ]
+        .padding(2)
+        .width(Length::Fill)
+        .align_x(Alignment::End)
+    )
+}
+
 fn get_sidebar_settings_button() -> widget::Button<'static, Message, LauncherTheme> {
     widget::button(icons::gear_s(14))
         .padding([4, 8])
         .style(move |n, status| n.style_button(status, StyleButton::RoundDark))
         .on_press(LauncherSettingsMessage::Open(LauncherSettingsTab::default()).into())
+}
+
+fn get_sidebar_new_folder_button() -> widget::Button<'static, Message, LauncherTheme> {
+    widget::button(icons::folder_s(14))
+        .padding([4, 8])
+        .style(move |n, status| n.style_button(status, StyleButton::RoundDark))
+        .on_press(SidebarMessage::NewFolder(None).into())
 }
 
 fn get_sidebar_search_button(
