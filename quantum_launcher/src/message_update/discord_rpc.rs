@@ -204,9 +204,9 @@ impl Launcher {
                             name,
                             sdt,
                             competing,
-                            details.map(|f| f.substitute(instance, minecraft_vers)),
+                            details.map(|f| f.substitute(instance, &minecraft_vers)),
                             details_url,
-                            state.map(|f| f.substitute(instance, minecraft_vers)),
+                            state.map(|f| f.substitute(instance, &minecraft_vers)),
                             state_url,
                         );
 

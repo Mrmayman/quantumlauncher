@@ -259,12 +259,12 @@ async fn get_list_of_versions_inner(
 ) -> Result<FabricVersionList, JsonDownloadError> {
     let version = version_json.get_id();
     if is_quilt {
-        return get_quilt_list(version_json, kind, version).await;
+        return get_quilt_list(version_json, kind, &version).await;
     }
 
     if version_json.is_after_or_eq(V_OFFICIAL_FABRIC_SUPPORT) {
         let official_versions =
-            get_list_of_versions_from_backend(version, BackendType::Fabric, kind).await?;
+            get_list_of_versions_from_backend(&version, BackendType::Fabric, kind).await?;
         if !official_versions.is_empty() {
             return Ok(FabricVersionList::Fabric(official_versions));
         }
@@ -272,9 +272,9 @@ async fn get_list_of_versions_inner(
 
     if version == "b1.7.3" {
         let (ornithe_mc, cursed_legacy, babric) = tokio::try_join!(
-            get_list_of_versions_from_backend(version, BackendType::OrnitheMCFabric, kind),
-            get_list_of_versions_from_backend(version, BackendType::CursedLegacy, kind),
-            get_list_of_versions_from_backend(version, BackendType::Babric, kind),
+            get_list_of_versions_from_backend(&version, BackendType::OrnitheMCFabric, kind),
+            get_list_of_versions_from_backend(&version, BackendType::CursedLegacy, kind),
+            get_list_of_versions_from_backend(&version, BackendType::Babric, kind),
         )?;
 
         return Ok(FabricVersionList::Beta173 {
@@ -285,8 +285,8 @@ async fn get_list_of_versions_inner(
     }
 
     let (legacy_fabric, ornithe_mc) = tokio::try_join!(
-        get_list_of_versions_from_backend(version, BackendType::LegacyFabric, kind),
-        get_list_of_versions_from_backend(version, BackendType::OrnitheMCFabric, kind)
+        get_list_of_versions_from_backend(&version, BackendType::LegacyFabric, kind),
+        get_list_of_versions_from_backend(&version, BackendType::OrnitheMCFabric, kind)
     )?;
 
     Ok(match (legacy_fabric.is_empty(), ornithe_mc.is_empty()) {

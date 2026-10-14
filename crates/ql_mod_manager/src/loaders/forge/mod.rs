@@ -83,7 +83,7 @@ impl ForgeInstaller {
         let version = if let Some(n) = forge_version {
             n
         } else {
-            get_forge_version(minecraft_version).await?
+            get_forge_version(&minecraft_version).await?
         };
 
         pt!("{}: {version}", "Version".underline());
@@ -93,7 +93,7 @@ impl ForgeInstaller {
             if number_of_full_stops == 1 {
                 format!("{minecraft_version}.0")
             } else {
-                minecraft_version.to_owned()
+                minecraft_version.clone().into_owned()
             }
         };
         let short_version = format!("{minecraft_version}-{version}");
@@ -310,7 +310,7 @@ impl ForgeInstaller {
             };
         }
         Err(ForgeInstallError::NoInstallJson(
-            self.version_json.get_id().to_owned(),
+            self.version_json.get_id().into_owned(),
         ))
     }
 

@@ -303,7 +303,7 @@ impl Launcher {
                 if let State::EditMods(menu) = &self.state {
                     let (task, handle) = Task::perform(
                         loaders::paper::get_list_of_versions(
-                            menu.file_data.details.get_id().to_owned(),
+                            menu.file_data.details.get_id().into_owned(),
                         ),
                         |n| Message::InstallPaper(InstallPaperMessage::VersionsLoaded(n.strerr())),
                     )

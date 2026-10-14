@@ -37,6 +37,10 @@ pub async fn install(
     info!("Installing NeoForge");
     let (neoforge_version, json) =
         get_version_and_json(neoforge_version, &instance, f_progress).await?;
+    pt!(
+        "NeoForge {neoforge_version} for Minecraft {}",
+        json.get_id()
+    );
     let installer_bytes = get_installer(f_progress, &neoforge_version).await?;
 
     let instance_dir = instance.get_instance_path();
@@ -208,7 +212,7 @@ async fn get_version_json(
 
     let mut file = zip
         .by_name("version.json")
-        .map_err(|_| ForgeInstallError::NoInstallJson(json.get_id().to_owned()))?;
+        .map_err(|_| ForgeInstallError::NoInstallJson(json.get_id().into_owned()))?;
     let forge_json = std::io::read_to_string(&mut file)
         .map_err(|n| ForgeInstallError::ZipIoError(n, "version.json".to_owned()))?;
 
@@ -241,7 +245,7 @@ pub async fn get_versions(
     if version_json.releaseTime < v1_20_2 {
         return Err(ForgeInstallError::NeoForgeOutdatedMinecraft);
     }
-    let versions = filter_versions(&versions.versions, version_json.get_id());
+    let versions = filter_versions(&versions.versions, &version_json.get_id());
     if versions.is_empty() {
         return Err(ForgeInstallError::NoForgeVersionFound);
     }
@@ -267,13 +271,21 @@ fn filter_versions<S: AsRef<str>>(versions: &[S], version: &str) -> Vec<String> 
     } else if version.contains("-snapshot-") {
         // New snapshot
         let (ver, snap) = version.split_once('-').expect("should contain a dash");
-        end_pattern = Some(snap); // "26.1-snapshot-1" -> "26.1", "snapshot-1"
-        format!("{ver}.")
+        end_pattern = Some(snap.to_owned()); // "26.1-snapshot-1" -> "26.1", "snapshot-1"
+
+        let mut ver = ver.to_owned();
+        if !ver.contains('.') {
+            ver.push_str(".0");
+        }
+        ver.push('.');
+        ver
     } else {
         // Release
         // Normalize old and new into same format
         let mut start_pattern = version.strip_prefix("1.").unwrap_or(version).to_owned();
-        if !start_pattern.contains('.') {
+
+        let num_dots = version.chars().filter(|n| *n == '.').count();
+        if num_dots < 2 {
             // "20" (in 1.20) -> "20.0" (in 1.20.0)
             start_pattern.push_str(".0");
         }
@@ -286,7 +298,7 @@ fn filter_versions<S: AsRef<str>>(versions: &[S], version: &str) -> Vec<String> 
         .map(AsRef::as_ref)
         .filter(|n| {
             n.starts_with(&start_pattern)
-                && if let Some(p) = end_pattern {
+                && if let Some(p) = &end_pattern {
                     n.ends_with(p)
                 } else {
                     !n.contains("snapshot-")
@@ -400,20 +412,21 @@ mod tests {
         "0.25w14a",
         "0.25w14b",
         // New releases (YY.X)
-        "26.1.",
-        "26.2.",
-        "26.3.",
-        "26.10.",
-        "26.11.",
+        "26.1.0.",
+        "26.1.2.",
+        "26.2.0.",
+        "26.3.0.",
+        "26.10.0.",
+        "26.11.0.",
         // New snapshots (YY.X-snapshot-X)
-        "26.1.snapshot-1",
-        "26.1.snapshot-11",
-        "26.1.snapshot-2",
-        "26.1.snapshot-3",
-        "26.2.snapshot-1",
-        "26.2.snapshot-2",
-        "26.10.snapshot-1",
-        "26.11.snapshot-1",
+        "26.1.0.snapshot-1",
+        "26.1.0.snapshot-11",
+        "26.1.0.snapshot-2",
+        "26.1.0.snapshot-3",
+        "26.2.0.snapshot-1",
+        "26.2.0.snapshot-2",
+        "26.10.0.snapshot-1",
+        "26.11.0.snapshot-1",
     ];
 
     #[test]
@@ -442,16 +455,18 @@ mod tests {
     #[test]
     fn new_release_exact() {
         let filtered = filter_versions(SAMPLE_VERSIONS, "26.1");
-        assert_eq!(filtered, vec!["26.1."]);
+        assert_eq!(filtered, vec!["26.1.0."]);
+        let filtered = filter_versions(SAMPLE_VERSIONS, "26.1.2");
+        assert_eq!(filtered, vec!["26.1.2."]);
         let filtered = filter_versions(SAMPLE_VERSIONS, "26.2");
-        assert_eq!(filtered, vec!["26.2."]);
+        assert_eq!(filtered, vec!["26.2.0."]);
     }
 
     #[test]
     fn new_snapshot_exact() {
         let filtered = filter_versions(SAMPLE_VERSIONS, "26.1-snapshot-1");
-        assert_eq!(filtered, vec!["26.1.snapshot-1"]);
+        assert_eq!(filtered, vec!["26.1.0.snapshot-1"]);
         let filtered = filter_versions(SAMPLE_VERSIONS, "26.1-snapshot-11");
-        assert_eq!(filtered, vec!["26.1.snapshot-11"]);
+        assert_eq!(filtered, vec!["26.1.0.snapshot-11"]);
     }
 }

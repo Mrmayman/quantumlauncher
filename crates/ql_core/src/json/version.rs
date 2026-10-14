@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fmt::Debug, path::Path};
+use std::{borrow::Cow, collections::BTreeMap, fmt::Debug, path::Path};
 
 use cfg_if::cfg_if;
 use chrono::DateTime;
@@ -191,9 +191,48 @@ impl VersionDetails {
     }
 
     #[must_use]
-    pub fn get_id(&self) -> &str {
-        self.id.strip_suffix("-lwjgl3").unwrap_or(&self.id)
+    pub fn get_id(&self) -> Cow<str> {
+        let id = self.id.strip_suffix("-lwjgl3").unwrap_or(&self.id);
+
+        normalize_game_id(id)
     }
+
+    #[must_use]
+    pub fn eq_id(&self, id: &str) -> bool {
+        id == self.id
+            || if let Some(s) = self.id.strip_suffix("-lwjgl3") {
+                id == s
+            } else {
+                false
+            }
+            || id == self.get_id()
+    }
+}
+
+fn normalize_game_id(id: &str) -> Cow<'_, str> {
+    if !id.starts_with('2') {
+        return Cow::Borrowed(id);
+    }
+    let is_malformed_snapshot = id.contains("-snap") && !id.contains("-snapshot-");
+    let is_malformed_rc = id.contains("-rc") && !id.contains("-rc-");
+    let is_malformed_pre = id.contains("-pre") && !id.contains("-pre-");
+
+    if is_malformed_snapshot {
+        Cow::Owned(id.replace("-snap", "-snapshot-"))
+    } else if is_malformed_rc {
+        Cow::Owned(id.replace("-rc", "-rc-"))
+    } else if is_malformed_pre {
+        Cow::Owned(id.replace("-pre", "-pre-"))
+    } else {
+        Cow::Borrowed(id)
+    }
+}
+
+#[test]
+fn test_normalize_game_id() {
+    assert_eq!(normalize_game_id("1.21.1"), "1.21.1");
+    assert_eq!(normalize_game_id("1.21.1-pre1"), "1.21.1-pre1");
+    assert_eq!(normalize_game_id("26.1-pre1"), "26.1-pre-1");
 }
 
 impl Default for VersionDetails {

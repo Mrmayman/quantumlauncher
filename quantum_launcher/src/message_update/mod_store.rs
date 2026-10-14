@@ -389,7 +389,7 @@ impl MenuModsDownload {
 
         let query = Query {
             name: self.query.clone(),
-            version: self.version_json.get_id().to_owned(),
+            version: self.version_json.get_id().into_owned(),
             loader: self.config.mod_type,
             server_side: is_server,
             kind: self.query_type,

@@ -559,7 +559,7 @@ impl OptifineUniqueVersion {
         VersionDetails::load(instance)
             .await
             .ok()
-            .and_then(|n| Self::from_version(n.get_id()))
+            .and_then(|n| Self::from_version(&n.get_id()))
     }
 
     #[must_use]
@@ -621,9 +621,11 @@ pub fn get_jar_path(
     optifine_jar.map_or_else(
         || {
             let id = version_json.get_id();
-            let path1 = get_path_from_id(instance_dir, id);
+            let path1 = get_path_from_id(instance_dir, &id);
             if path1.exists() {
                 path1
+            } else if let Some(id) = version_json.id.strip_suffix("-lwjgl3") {
+                get_path_from_id(instance_dir, id)
             } else {
                 get_path_from_id(instance_dir, &version_json.id)
             }

@@ -222,8 +222,8 @@ impl Preset {
 
         let instance_type = get_instance_type(&instance).await?;
         // Only sideload mods if the version is the same
-        let should_sideload = index.minecraft_version == version_json.get_id()
-            && index.instance_type == instance_type;
+        let should_sideload =
+            version_json.eq_id(&index.minecraft_version) && index.instance_type == instance_type;
 
         for i in 0..zip.len() {
             let mut file = zip.by_index(i).map_err(ModError::Zip)?;
@@ -308,7 +308,7 @@ fn add_downloaded_mod_to_entries(
 
 async fn get_minecraft_version(instance: &Instance) -> Result<String, ModError> {
     let version_json = VersionDetails::load(instance).await?;
-    let minecraft_version = version_json.get_id().to_owned();
+    let minecraft_version = version_json.get_id().into_owned();
     Ok(minecraft_version)
 }
 

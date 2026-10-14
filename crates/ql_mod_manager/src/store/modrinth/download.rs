@@ -42,7 +42,7 @@ impl ModDownloader {
             .not_vanilla()
             .map(ql_core::Loader::to_modrinth_str);
         Ok(ModDownloader {
-            version: version_json.get_id().to_owned(),
+            version: version_json.get_id().into_owned(),
             index,
             loader,
             currently_installing_mods: HashSet::new(),
@@ -64,7 +64,7 @@ impl ModDownloader {
             .map(ql_core::Loader::to_modrinth_str);
 
         Ok(ModDownloader {
-            version: version_json.get_id().to_owned(),
+            version: version_json.get_id().into_owned(),
             index: ModIndex::default(),
             loader,
             currently_installing_mods: HashSet::new(),

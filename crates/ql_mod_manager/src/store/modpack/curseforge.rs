@@ -218,7 +218,7 @@ pub async fn install(
     if json.get_id() != index.minecraft.version {
         return Err(PackError::GameVersion {
             expect: index.minecraft.version.clone(),
-            got: json.get_id().to_owned(),
+            got: json.get_id().into_owned(),
         });
     }
 
