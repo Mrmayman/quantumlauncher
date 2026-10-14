@@ -1,3 +1,13 @@
+//! Installer for fabric modloader and derivatives
+//!
+//! | Version | Fabric/Quilt | Ornithe | Legacy Fabric | Cursed Legacy/Babric |
+//! |:-:|:-:|:-:|:-:|:-:|
+//! | 1.14.4+          | Y | |   |   |
+//! | 1.3 - 1.13.2     | | Y | Y |   |
+//! | b1.8 - 1.2.5     | | Y |   |   |
+//! | b1.7.3           | | Y | Y | Y |
+//! | Classic - b1.7.2 | | Y |   |   |
+
 use std::{
     path::{Path, PathBuf},
     sync::{Mutex, mpsc::Sender},
