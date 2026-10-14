@@ -241,17 +241,40 @@ pub async fn get_versions(
     if version_json.releaseTime < v1_20_2 {
         return Err(ForgeInstallError::NeoForgeOutdatedMinecraft);
     }
+    let versions = filter_versions(&versions.versions, version_json.get_id());
+    if versions.is_empty() {
+        return Err(ForgeInstallError::NoForgeVersionFound);
+    }
 
-    let version = version_json.get_id();
+    Ok((versions, version_json))
+}
+
+/// Minecraft has two naming conventions for versions.
+///
+/// | Convention | Minecraft Name | NeoForge Name |
+/// |:--|:--|:--|
+/// | Old Release  | 1.X.X   | X.X.\* |
+/// | Old Snapshot | YYwXXC | YYwXXC.\* |
+/// | New Release  | YY.X    | YY.X.\*
+/// | New Snapshot | YY.X-snapshot-X | YY.X.\*snapshot-X |
+///
+/// (YY is year, C is character, X is number)
+fn filter_versions<S: AsRef<str>>(versions: &[S], version: &str) -> Vec<String> {
+    let mut end_pattern = None;
     let start_pattern = if REGEX_SNAPSHOT.is_match(version) {
-        // Snapshot version
-        format!("0.{version}.")
+        // Old snapshot
+        format!("0.{version}")
+    } else if version.contains("-snapshot-") {
+        // New snapshot
+        let (ver, snap) = version.split_once('-').expect("should contain a dash");
+        end_pattern = Some(snap); // "26.1-snapshot-1" -> "26.1", "snapshot-1"
+        format!("{ver}.")
     } else {
-        // Release version
-        let mut start_pattern = version[2..].to_owned();
+        // Release
+        // Normalize old and new into same format
+        let mut start_pattern = version.strip_prefix("1.").unwrap_or(version).to_owned();
         if !start_pattern.contains('.') {
             // "20" (in 1.20) -> "20.0" (in 1.20.0)
-            // Ensures there are a constant number of parts in the version.
             start_pattern.push_str(".0");
         }
         start_pattern.push('.');
@@ -259,16 +282,19 @@ pub async fn get_versions(
     };
 
     let versions: Vec<String> = versions
-        .versions
         .iter()
-        .filter(|n| n.starts_with(&start_pattern))
-        .cloned()
+        .map(AsRef::as_ref)
+        .filter(|n| {
+            n.starts_with(&start_pattern)
+                && if let Some(p) = end_pattern {
+                    n.ends_with(p)
+                } else {
+                    !n.contains("snapshot-")
+                }
+        })
+        .map(str::to_owned)
         .collect();
-    if versions.is_empty() {
-        return Err(ForgeInstallError::NoForgeVersionFound);
-    }
-
-    Ok((versions, version_json))
+    versions
 }
 
 async fn delete(dir: &Path, path: &str) -> Result<(), IoError> {
@@ -340,4 +366,92 @@ pub async fn run_installer(
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A realistic list of Minecraft versions covering old and new schemes.
+    const SAMPLE_VERSIONS: &[&str] = &[
+        "20.1.",
+        "20.2.",
+        "20.3.",
+        "20.4.",
+        "20.5.",
+        "20.6.",
+        "21.0.",
+        "21.1.",
+        "21.2.",
+        "21.3.",
+        "21.4.",
+        "21.5.",
+        "21.6.",
+        "21.7.",
+        "21.8.",
+        "21.9.",
+        "21.10.",
+        "21.11.",
+        // Old snapshots (YYwXXC)
+        "0.23w45a",
+        "0.24w01a",
+        "0.24w14a",
+        "0.25w01a",
+        "0.25w14a",
+        "0.25w14b",
+        // New releases (YY.X)
+        "26.1.",
+        "26.2.",
+        "26.3.",
+        "26.10.",
+        "26.11.",
+        // New snapshots (YY.X-snapshot-X)
+        "26.1.snapshot-1",
+        "26.1.snapshot-11",
+        "26.1.snapshot-2",
+        "26.1.snapshot-3",
+        "26.2.snapshot-1",
+        "26.2.snapshot-2",
+        "26.10.snapshot-1",
+        "26.11.snapshot-1",
+    ];
+
+    #[test]
+    fn old_release() {
+        let filtered = filter_versions(SAMPLE_VERSIONS, "1.20.1");
+        assert_eq!(filtered, vec!["20.1."]);
+        let filtered = filter_versions(SAMPLE_VERSIONS, "1.20");
+        assert!(filtered.is_empty());
+
+        let filtered = filter_versions(SAMPLE_VERSIONS, "1.21");
+        assert_eq!(filtered, vec!["21.0."]);
+        let filtered = filter_versions(SAMPLE_VERSIONS, "1.21.1");
+        assert_eq!(filtered, vec!["21.1."]);
+        let filtered = filter_versions(SAMPLE_VERSIONS, "1.21.11");
+        assert_eq!(filtered, vec!["21.11."]);
+    }
+
+    #[test]
+    fn old_snapshot() {
+        let filtered = filter_versions(SAMPLE_VERSIONS, "25w14a");
+        assert_eq!(filtered, vec!["0.25w14a"]);
+        let filtered = filter_versions(SAMPLE_VERSIONS, "25w14b");
+        assert_eq!(filtered, vec!["0.25w14b"]);
+    }
+
+    #[test]
+    fn new_release_exact() {
+        let filtered = filter_versions(SAMPLE_VERSIONS, "26.1");
+        assert_eq!(filtered, vec!["26.1."]);
+        let filtered = filter_versions(SAMPLE_VERSIONS, "26.2");
+        assert_eq!(filtered, vec!["26.2."]);
+    }
+
+    #[test]
+    fn new_snapshot_exact() {
+        let filtered = filter_versions(SAMPLE_VERSIONS, "26.1-snapshot-1");
+        assert_eq!(filtered, vec!["26.1.snapshot-1"]);
+        let filtered = filter_versions(SAMPLE_VERSIONS, "26.1-snapshot-11");
+        assert_eq!(filtered, vec!["26.1.snapshot-11"]);
+    }
 }
