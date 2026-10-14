@@ -232,18 +232,25 @@ pub async fn do_jobs_with_limit<T, E>(
 ///     Ok("Hi".to_owned())
 /// }
 /// # async fn download_something_important() -> Result<String, String> {
-/// retry(|| download_file("example.com/my_file")).await
+/// let result = retry(|| download_file("example.com/my_file")).await;
+/// # result
 /// # }
 /// ```
 ///
 /// Notice how we don't await on `download_file`? Here's another one.
 ///
 /// ```no_run
+/// # use ql_core::retry;
+/// # async fn download_file(_: &str) -> Result<(), ()> { Ok(()) }
 /// // Use this pattern for inline async blocks
-/// retry(|| async move {
-///     download_file("example.com/my_file").await;
-///     download_file("example.com/another_file").await;
-/// }).await
+/// # async fn foo() {
+/// # type SomeError = ();
+/// let result: Result<(), SomeError> = retry(|| async move {
+///     download_file("example.com/my_file").await?;
+///     download_file("example.com/another_file").await?;
+///     Ok::<(), SomeError>(())
+/// }).await;
+/// # ; }
 /// ```
 ///
 /// # Errors
