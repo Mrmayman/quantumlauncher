@@ -14,6 +14,8 @@ use crate::{
 #[allow(clippy::wildcard_imports)] // items may vary based on platform
 use crate::constants::*;
 
+use super::V_1_12_2;
+
 #[allow(non_snake_case)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VersionDetails {
@@ -161,6 +163,11 @@ impl VersionDetails {
     #[must_use]
     pub fn is_legacy_texturepacks(&self) -> bool {
         self.is_before_or_eq(V_LAST_TEXTUREPACK)
+    }
+
+    #[must_use]
+    pub fn is_lwjgl2(&self) -> bool {
+        self.is_before_or_eq(V_1_12_2) && !self.id.ends_with("-lwjgl3")
     }
 
     #[must_use]

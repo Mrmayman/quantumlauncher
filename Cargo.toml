@@ -38,6 +38,9 @@ rfd = { version = "0.16.*", default-features = false, features = [
 ] }
 clap = { version = "4", features = ["help", "derive"] }
 
+# Shell-like word splitting for CLI prefix commands
+shlex = "2"
+
 zip = { version = "=7.2", default-features = false, features = ["deflate"] } # MSRV
 
 walkdir = "2.3"

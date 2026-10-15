@@ -2,7 +2,7 @@ use owo_colors::{OwoColorize, Style};
 use ql_core::{
     Instance, InstanceKind, IntoStringError, LAUNCHER_DIR, ListEntry, Loader,
     OptifineUniqueVersion, clean, eeprintln, err, info,
-    json::{InstanceConfigJson, VersionDetails},
+    json::{GlobalSettings, InstanceConfigJson, VersionDetails},
 };
 use ql_mod_manager::loaders::LoaderInstallResult;
 use std::{path::PathBuf, process::exit, sync::Arc};
@@ -249,6 +249,7 @@ pub async fn launch_instance(
     kind: InstanceKind,
     show_progress: bool,
     account_type: Option<&str>,
+    prelaunch_prefix: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let account = if matches!(kind, InstanceKind::Client) {
         refresh_account(&username, use_account, show_progress, account_type).await?
@@ -258,6 +259,8 @@ pub async fn launch_instance(
 
     let instance_name = Arc::from(instance_name);
 
+    let global_settings = build_prelaunch_global_settings(prelaunch_prefix);
+
     let child = match kind {
         InstanceKind::Client => {
             ql_instances::launch(
@@ -265,7 +268,7 @@ pub async fn launch_instance(
                 username,
                 None,
                 account.clone(),
-                None, // No global defaults in CLI mode
+                global_settings,
                 Vec::new(),
             )
             .await?
@@ -291,6 +294,26 @@ pub async fn launch_instance(
         None => {}
     }
     Ok(())
+}
+
+/// Builds optional [`GlobalSettings`] with a pre-launch prefix command.
+///
+/// Splits the prefix using [`shlex`] (supporting quotes and escapes, e.g.
+/// `prime-run` or `env VAR=value`). Returns `None` if absent, empty after
+/// splitting, or invalid (parse errors are reported).
+fn build_prelaunch_global_settings(prelaunch_prefix: Option<String>) -> Option<GlobalSettings> {
+    let prefix = prelaunch_prefix.as_deref()?;
+    let parts = match shlex::split(prefix) {
+        Some(parts) if !parts.is_empty() => parts,
+        Some(_) => return None,
+        None => {
+            err!("Failed to parse --prelaunch-prefix (unbalanced quotes?): {prefix:?}");
+            return None;
+        }
+    };
+    let mut global_settings = GlobalSettings::default();
+    global_settings.pre_launch_prefix = Some(parts);
+    Some(global_settings)
 }
 
 pub async fn loader(cmd: QLoader, kind: InstanceKind) -> Result<(), Box<dyn std::error::Error>> {

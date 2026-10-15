@@ -1,4 +1,4 @@
-Contains some **precompiled native libraries** for certain platforms.
+Contains some **precompiled native libraries/binaries** for certain platforms.
 These were *manually compiled from source by me*, because
 they're really hard/inconvenient to build on your own.
 
@@ -31,3 +31,31 @@ unlikely that you'll get matching binary-perfect builds.
 - Lightweight C wrapper that calls shell script
 - Done because of faulty architecture detection for regular scripts on macOS
   ("Do you want to install Rosetta 2?")
+
+--
+
+## `macos_lwjgl_agent`
+
+Sets `NSApplication` activation policy on macOS. Fixes old Minecraft versions'
+windows not appearing.
+
+Built on **macOS Ventura** with Azul Zulu 8
+
+```sh
+export JAVA_HOME=path/to/java/Contents/Home
+clang -shared -o libpolicy.dylib libpolicy.m \
+    -arch x86_64 -arch arm64 -Os \
+    -framework Cocoa \
+    -I"$JAVA_HOME/include" \
+    -I"$JAVA_HOME/include/darwin"
+
+javac -d . src/PolicyJNI.java src/PolicyAgent.java
+jar cfm policy-agent.jar META-INF/MANIFEST.MF PolicyAgent.class PolicyJNI.class libpolicy.dylib
+```
+
+---
+
+Additionally, you will find custom-compiled binaries at
+
+- https://github.com/Mrmayman/lwjgl/releases/
+- https://github.com/Mrmayman/get-jdk/releases/tag/java8-1

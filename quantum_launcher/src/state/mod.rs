@@ -544,9 +544,12 @@ fn migration(version: &str) -> Result<(), String> {
     let version = version.strip_prefix("v").unwrap_or(version);
     let version = semver::Version::parse(version).strerr()?;
 
-    if version <= ver(0, 4, 2) && (cfg!(target_os = "windows") || cfg!(target_os = "macos")) {
-        // Mojang sneakily updated their Java 8 to fix certs.
-        // Let's redownload it.
+    // Mojang sneakily updated their Java 8 to fix certs.
+    // Let's redownload it.
+    let fix_certs =
+        version <= ver(0, 4, 2) && (cfg!(target_os = "windows") || cfg!(target_os = "macos"));
+
+    if fix_certs {
         let java_dir = LAUNCHER_DIR.join("java_installs/java_8");
         if java_dir.is_dir() {
             std::fs::remove_dir_all(&java_dir)

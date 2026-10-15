@@ -76,6 +76,7 @@ zip.workspace = true
 owo-colors.workspace = true
 clap.workspace = true
 terminal_size = "0.4"
+shlex.workspace = true
 
 # OS APIs
 notify = "8"

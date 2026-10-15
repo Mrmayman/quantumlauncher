@@ -509,12 +509,30 @@ pub async fn extract_zip_archive<
     extract_to: P,
     strip_toplevel: bool,
 ) -> Result<(), zip::result::ZipError> {
+    extract_zip_archive_filtered(reader, extract_to, strip_toplevel, |_| true).await
+}
+
+/// Extract a ZIP archive to a directory
+///
+/// If `strip_toplevel` is true, this removes the common root directory
+/// (matches old `zip-extract` behavior).
+pub async fn extract_zip_archive_filtered<
+    R: std::io::Read + std::io::Seek + Send + 'static,
+    P: AsRef<Path>,
+>(
+    reader: R,
+    extract_to: P,
+    strip_toplevel: bool,
+    filter: impl Fn(&Path) -> bool + Send + 'static,
+) -> Result<(), zip::result::ZipError> {
     let mut archive = ZipArchive::new(reader)?;
     let extract_to = canonicalize_a(extract_to).await;
 
     if strip_toplevel {
         tokio::task::spawn_blocking(move || {
-            archive.extract_unwrapped_root_dir(extract_to, zip::read::root_dir_common_filter)
+            archive.extract_unwrapped_root_dir(extract_to, |p| {
+                zip::read::root_dir_common_filter(p) && filter(p)
+            })
         })
         .await
     } else {

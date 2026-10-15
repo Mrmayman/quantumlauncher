@@ -77,6 +77,13 @@ enum QSubCommand {
         #[arg(long)]
         #[arg(help = "microsoft/elyby/littleskin")]
         account_type: Option<String>,
+        #[arg(long)]
+        #[arg(help = "Pre-launch prefix command prepended to the Java launch command")]
+        #[arg(help = "(e.g. 'prime-run' for NVIDIA GPU usage on Linux)")]
+        #[arg(
+            help = "The string is shell-split, so quotes/escapes are supported. No prefix if not present."
+        )]
+        prelaunch_prefix: Option<String>,
     },
     #[command(about = "Cleans temporary files (see `clean --help`)")]
     Clean {
@@ -267,6 +274,7 @@ pub fn start_cli(is_dir_err: bool, launcher_dir: &mut Option<PathBuf>) {
                 use_account,
                 show_progress,
                 account_type,
+                prelaunch_prefix,
             } => {
                 let res = runtime.block_on(command::launch_instance(
                     &instance_name,
@@ -275,6 +283,7 @@ pub fn start_cli(is_dir_err: bool, launcher_dir: &mut Option<PathBuf>) {
                     kind,
                     show_progress,
                     account_type.as_deref(),
+                    prelaunch_prefix,
                 ));
                 std::process::exit(if let Err(err) = res {
                     err!("{err}");

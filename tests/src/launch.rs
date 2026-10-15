@@ -2,6 +2,7 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 use std::{io::Write, time::Duration};
 
+use ql_core::json::GlobalSettings;
 use ql_core::read_log::Diagnostic;
 use ql_core::{IntoStringError, err};
 
@@ -10,13 +11,30 @@ use crate::{Cli, attempt, search::search_for_window, set_terminal};
 pub async fn launch(name: &str, timeout: f32, cli: &Cli) -> bool {
     print!("Testing {name} ");
     _ = std::io::stdout().flush();
+
+    let global_settings = match &cli.prelaunch_prefix {
+        Some(prefix) => match shlex::split(prefix) {
+            Some(parts) if !parts.is_empty() => {
+                let mut global_settings = GlobalSettings::default();
+                global_settings.pre_launch_prefix = Some(parts);
+                Some(global_settings)
+            }
+            Some(_) => None,
+            None => {
+                err!("{name}: Failed to parse --prelaunch-prefix (unbalanced quotes?): {prefix:?}");
+                return false;
+            }
+        },
+        None => None,
+    };
+
     let child = attempt(
         ql_instances::launch(
             Arc::from(name),
             "test".to_owned(),
             None,
             None,
-            None,
+            global_settings,
             Vec::new(),
         )
         .await,

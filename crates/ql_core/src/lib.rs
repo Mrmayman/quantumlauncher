@@ -253,9 +253,8 @@ where
     Res: Future<Output = Result<T, E>>,
     Func: Fn() -> Res,
 {
-    const LIMIT: usize = 5;
     let mut result = f().await;
-    for _ in 0..LIMIT {
+    for _ in 0..RETRY_LIMIT {
         if result.is_ok() {
             break;
         }
@@ -263,6 +262,8 @@ where
     }
     result
 }
+
+pub const RETRY_LIMIT: usize = 5;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Instance {

@@ -75,11 +75,20 @@ pub async fn create_server(
         return Err(ServerError::NoServerDownload);
     };
 
-    progress_server_jar(sender);
+    pt!("Downloading server jar");
+    let progress_closure = |percent| {
+        if let Some(sender) = sender {
+            sender
+                .send(DownloadProgress::DownloadingJar(percent))
+                .unwrap();
+        }
+    };
     if version.name.starts_with("c0.") {
         is_classic_server = true;
 
-        let archive = file_utils::download_file_to_bytes(&server.url, true).await?;
+        let archive = download(&server.url)
+            .bytes_with_progress(progress_closure)
+            .await?;
         file_utils::extract_zip_archive(std::io::Cursor::new(archive), &server_dir, true).await?;
 
         let old_path = server_dir.join("minecraft-server.jar");
@@ -87,7 +96,9 @@ pub async fn create_server(
             .await
             .path(old_path)?;
     } else {
-        download(&server.url).path(&server_jar_path).await?;
+        download(&server.url)
+            .path_with_progress(&server_jar_path, progress_closure)
+            .await?;
     }
 
     version_json.save_to_dir(&server_dir).await?;
@@ -148,13 +159,6 @@ async fn write_eula(server_dir: &std::path::Path) -> Result<(), ServerError> {
         .await
         .path(eula_path)?;
     Ok(())
-}
-
-fn progress_server_jar(sender: Option<&Sender<DownloadProgress>>) {
-    pt!("Downloading server jar");
-    if let Some(sender) = sender {
-        sender.send(DownloadProgress::DownloadingJar).unwrap();
-    }
 }
 
 fn progress_json(sender: Option<&Sender<DownloadProgress>>) {
