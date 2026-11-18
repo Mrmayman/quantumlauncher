@@ -26,6 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 use std::{borrow::Cow, time::Duration};
 
 use config::LauncherConfig;
+use futures::StreamExt;
 use iced::{Settings, Task};
 use owo_colors::OwoColorize;
 use state::{Launcher, Message, get_entries, populate_middleware_clients};
@@ -37,7 +38,7 @@ use ql_core::{
 
 use crate::{
     menu_renderer::FONT_DEFAULT,
-    state::{CustomJarState, State},
+    state::{CustomJarState, LauncherSettingsMessage, State},
 };
 
 /// The CLI interface of the launcher.
@@ -156,9 +157,20 @@ impl Launcher {
             .map(|_| Message::CoreTick);
         let events = iced::event::listen_with(|a, b, _| Some(Message::CoreEvent(a, b)));
 
+        let theme = iced::Subscription::run(|| {
+            let stream: std::pin::Pin<Box<dyn futures::Stream<Item = Message> + Send>> =
+                match dark_light::stream() {
+                    Ok(s) => {
+                        Box::pin(s.map(|n| LauncherSettingsMessage::LoadedSystemTheme(n).into()))
+                    }
+                    Err(_) => Box::pin(futures::stream::empty()),
+                };
+            stream
+        });
+
         iced::Subscription::batch(vec![
-            tick,
-            events,
+            tick, events,
+            theme,
             // Useful for performance profiling
             // iced::window::frames().map(|_| Message::Nothing),
         ])

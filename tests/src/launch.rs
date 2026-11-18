@@ -38,7 +38,13 @@ pub async fn launch(name: &str, timeout: f32, cli: &Cli) -> bool {
     let timeout_duration = Duration::from_secs_f32(timeout);
     let start_time = tokio::time::Instant::now();
 
-    let sys = sysinfo::System::new_all();
+    let sys = match sysinfo::System::new_all() {
+        Ok(n) => n,
+        Err(err) => {
+            err!("sysinfo::System::new_all: {err}");
+            std::process::exit(1);
+        }
+    };
 
     loop {
         if start_time.elapsed() >= timeout_duration {

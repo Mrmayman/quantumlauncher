@@ -213,7 +213,7 @@ pub struct EditInstanceRam {
     pub slider_value: f32,
     pub slider_text: String,
     pub memory_input: String,
-    pub system: sysinfo::System,
+    pub system: Result<sysinfo::System, sysinfo::Error>,
 }
 
 pub enum SelectedState {
