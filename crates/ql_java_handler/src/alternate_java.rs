@@ -53,9 +53,11 @@ fn progress(sender: Option<&Sender<GenericProgress>>, msg: &str, done: usize) {
 }
 
 async fn get_url(mut version: JavaVersion) -> Result<Option<String>, JavaInstallError> {
-    #[cfg(all(target_os = "freebsd", target_arch = "x86_64"))]
     if let JavaVersion::Java8 = version {
+        #[cfg(all(target_os = "freebsd", target_arch = "x86_64"))]
         return Ok(Some("https://github.com/Mrmayman/get-jdk/releases/download/java8-1/jdk-8u452-freebsd-x64.tar.gz".to_owned()));
+        #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+        return Ok(Some("https://download.bell-sw.com/java/11.0.33.0.3+7/bellsoft-jdk11.0.33.0.3+7-windows-aarch64.zip".to_owned()));
     }
     if let JavaVersion::Java21 = version {
         if cfg!(any(
@@ -87,10 +89,15 @@ struct ZuluOut {
     download_url: String,
 }
 
-async fn get_inner(version: JavaVersion) -> Result<Option<String>, JavaInstallError> {
+#[allow(unused_mut)]
+async fn get_inner(mut version: JavaVersion) -> Result<Option<String>, JavaInstallError> {
     let os = get_os();
     let arch = get_arch();
 
+    #[cfg(all(target_os = "linux", target_arch = "arm"))]
+    if let JavaVersion::Java16 = version {
+        version = JavaVersion::Java17;
+    }
     let mut url = format!(
         "https://api.azul.com/metadata/v1/zulu/packages?java_version={version}&os={os}&arch={arch}&page_size=1000",
         version = version as usize

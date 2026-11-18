@@ -30,6 +30,10 @@ QuantumLauncher can be installed in several ways.
 - **Stable releases (recommended) (Windows, macOS, Linux):**
   Available from [the website](https://mrmayman.github.io/quantumlauncher/#downloads) or
   [GitHub Releases](https://github.com/Mrmayman/quantumlauncher/releases/latest).
+- **Homebrew (macOS):** 
+  ```sh
+  brew install hitblast/tap/quantum-launcher
+  ```
 - **Flatpak (Linux):**
   ```sh
   flatpak remote-add quantum-launcher oci+https://mrmayman.github.io/ql-flatpak-remote/
@@ -49,6 +53,7 @@ QuantumLauncher can be installed in several ways.
   cargo run --release
   ```
   Omit `--release` for faster compile times during development. Debug builds have worse performance and produce much larger build artifacts.
+
 # Downloads and Building
 
 Download stable versions from [the website](https://mrmayman.github.io/quantumlauncher/#downloads), or from [Releases](http://github.com/Mrmayman/quantumlauncher/releases/latest)
