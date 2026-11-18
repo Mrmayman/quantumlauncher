@@ -5,6 +5,7 @@ use std::{
     time::Instant,
 };
 
+use chrono::DateTime;
 use ql_core::{Instance, IntoIoError, IoError, Loader, json::VersionDetails};
 use serde::{Deserialize, Serialize};
 use tokio::fs;
@@ -248,6 +249,16 @@ pub struct SearchMod {
 
     pub gallery: Vec<GalleryItem>,
     pub urls: Vec<(UrlKind, String)>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ModVersionInfo {
+    pub id: Arc<str>,
+    pub name: String,
+    pub date_published: DateTime<chrono::FixedOffset>,
+    pub game_versions: Vec<String>,
+    pub loaders: Vec<String>,
+    pub compatible: bool,
 }
 
 impl SearchMod {

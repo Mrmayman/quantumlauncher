@@ -164,18 +164,20 @@ impl Launcher {
 
             ManageModsMessage::UpdatePerform => return self.apply_mod_updates(),
             ManageModsMessage::UpdatePerformDone(Ok((file, should_write_changelog))) => {
-                if let State::EditMods(menu) = &mut self.state {
-                    menu.updates.available.clear();
-                    menu.ui_state.info_message = if let Some(file) = file {
-                        Some(InfoMessage {
-                            text: format!("{} written to disk", file.filename),
-                            kind: InfoMessageKind::AtPath(file.path),
-                        })
-                    } else {
-                        should_write_changelog
-                            .then(|| InfoMessage::error("Changelog was not written to disk"))
-                    };
-                }
+                let info_message = if let Some(file) = file {
+                    Some(InfoMessage {
+                        text: format!("{} written to disk", file.filename),
+                        kind: InfoMessageKind::AtPath(file.path),
+                    })
+                } else {
+                    should_write_changelog
+                        .then(|| InfoMessage::error("Changelog was not written to disk"))
+                };
+
+                // The updater writes a fresh mod_index.json and may replace
+                // files on disk. Rebuild this menu immediately so its indexed
+                // entries and local-file scan cannot show stale duplicates.
+                return self.go_to_edit_mods_menu(info_message);
             }
 
             ManageModsMessage::UpdateCheck => {
@@ -327,6 +329,28 @@ impl Launcher {
                         vec![id],
                         self.selected_instance.clone().unwrap(),
                     ),
+                    |n| Message::Done(n.strerr()),
+                );
+            }
+            ManageModsMessage::TogglePin(id) => {
+                let instance = self.selected_instance.clone().unwrap();
+                let index = if let State::EditMods(menu) = &mut self.state {
+                    if let Some(config) = menu.file_data.mod_index.mods.get_mut(&id) {
+                        config.pinned_version = if config.pinned_version.is_some() {
+                            None
+                        } else {
+                            Some(config.installed_version.clone())
+                        };
+                    }
+                    menu.file_data.mod_index.clone()
+                } else {
+                    return Task::none();
+                };
+                return Task::perform(
+                    async move {
+                        let mut index = index;
+                        index.save(&instance).await
+                    },
                     |n| Message::Done(n.strerr()),
                 );
             }
@@ -894,6 +918,7 @@ impl ManageModsMessage {
             | ManageModsMessage::AddFileDone(_)
             | ManageModsMessage::ToggleSelected
             | ManageModsMessage::ToggleOne(_)
+            | ManageModsMessage::TogglePin(_)
             | ManageModsMessage::ToggleOneLocal(_) => true,
 
             ManageModsMessage::SelectEnsure(_, _, _)

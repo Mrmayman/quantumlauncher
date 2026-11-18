@@ -34,7 +34,7 @@ pub async fn upload_log(content: String, instance: Instance) -> Result<String, S
 
     let mut metadata = vec![Metadata {
         key: "version",
-        value: details.id,
+        value: details.get_id().to_owned(),
         label: "Minecraft version",
     }];
 

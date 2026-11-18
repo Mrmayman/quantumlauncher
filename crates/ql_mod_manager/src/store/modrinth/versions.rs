@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use chrono::DateTime;
 use ql_core::file_utils;
@@ -12,7 +12,7 @@ use super::ModError;
 pub struct ModVersion {
     pub game_versions: Vec<String>,
     pub loaders: Vec<String>,
-    // pub id: String,
+    pub id: Arc<str>,
     // pub project_id: String,
     // pub author_id: String,
     // pub featured: bool,
@@ -30,11 +30,41 @@ pub struct ModVersion {
 }
 
 impl ModVersion {
-    pub async fn download(project_id: &str) -> Result<Vec<Self>, ModError> {
+    pub async fn download_all(project_id: &str) -> Result<Vec<Self>, ModError> {
+        let mut versions = Self::download_page(project_id, 0).await?;
+        let mut seen_ids: HashSet<Arc<str>> = versions.iter().map(|v| v.id.clone()).collect();
+        let mut offset = versions.len();
+
+        loop {
+            let page = Self::download_page(project_id, offset).await?;
+            if page.is_empty() {
+                break;
+            }
+
+            let page_len = page.len();
+            let previous_len = versions.len();
+            versions.extend(page.into_iter().filter(|v| seen_ids.insert(v.id.clone())));
+            offset += page_len;
+
+            if versions.len() == previous_len {
+                break;
+            }
+        }
+
+        Ok(versions)
+    }
+
+    pub async fn download_page(project_id: &str, offset: usize) -> Result<Vec<Self>, ModError> {
         RATE_LIMITER.lock().await;
         let url = format!(
-            "https://api.modrinth.com/v2/project/{project_id}/version?include_changelog=false"
+            "https://api.modrinth.com/v2/project/{project_id}/version?include_changelog=false&limit=100&offset={offset}"
         );
+        Ok(file_utils::download_file_to_json(&url, true).await?)
+    }
+
+    pub async fn download_by_id(version_id: &str) -> Result<Self, ModError> {
+        RATE_LIMITER.lock().await;
+        let url = format!("https://api.modrinth.com/v2/version/{version_id}");
         Ok(file_utils::download_file_to_json(&url, true).await?)
     }
 

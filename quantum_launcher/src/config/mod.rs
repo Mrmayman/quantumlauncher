@@ -60,6 +60,8 @@ pub struct LauncherConfig {
     /// Since: v0.5.2
     #[serde(default = "btrue")]
     pub do_cache: bool,
+    #[serde(default)]
+    pub show_incompatible_mod_versions: bool,
 
     /// A list of Minecraft accounts logged into the launcher.
     ///
@@ -136,6 +138,7 @@ impl Default for LauncherConfig {
             accounts: None,
             ui_scale: None,
             do_cache: true,
+            show_incompatible_mod_versions: false,
             java_installs: Some(Vec::new()),
             ui_antialiasing: Some(true),
             account_selected: None,

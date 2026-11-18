@@ -257,7 +257,7 @@ async fn get_list_of_versions_inner(
     is_quilt: bool,
     kind: InstanceKind,
 ) -> Result<FabricVersionList, JsonDownloadError> {
-    let version = version_json.get_id();
+    let version = &version_json.get_id();
     if is_quilt {
         return get_quilt_list(version_json, kind, version).await;
     }
