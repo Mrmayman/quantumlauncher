@@ -177,6 +177,7 @@ impl Launcher {
             | State::LogUploadResult { .. }
             | State::InstallPaper(_)
             | State::CreateShortcut(_)
+            | State::TokenPasswordPrompt(_)
             | State::ModDescription(_)
             | State::ExportModsText(_) => {}
         }
