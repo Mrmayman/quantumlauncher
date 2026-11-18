@@ -1,5 +1,6 @@
 pub mod fabric;
 pub mod forge;
+pub mod lwjgl;
 pub mod optifine;
 
 pub mod asset_index;
@@ -8,6 +9,7 @@ pub mod manifest;
 pub mod version;
 
 pub use fabric::FabricJSON;
+pub use lwjgl::{LwjglVersion, LwjglVersionList};
 pub use optifine::{JsonOptifine, OptifineArguments, OptifineLibrary};
 
 pub use asset_index::AssetIndex;
