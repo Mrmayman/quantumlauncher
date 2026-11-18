@@ -3,8 +3,8 @@ use std::path::PathBuf;
 fn main() {
     let target_os = std::env::var("CARGO_CFG_TARGET_OS");
 
-    if let Ok(target_os) = target_os {
-        if target_os == "windows" {
+    if let Ok(target_os) = target_os
+        && target_os == "windows" {
             println!("cargo::rerun-if-changed=../assets/icon/ql_logo.rc");
             println!("cargo::rerun-if-changed=../assets/icon/ql_logo.ico");
             let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -17,5 +17,4 @@ fn main() {
                 .manifest_optional()
                 .unwrap();
         }
-    }
 }

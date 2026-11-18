@@ -74,11 +74,10 @@ impl Launcher {
             Message::ManageMods(msg) => {
                 let sort = msg.edits_mod_list();
                 let t = self.update_manage_mods(msg);
-                if sort {
-                    if let State::EditMods(menu) = &mut self.state {
+                if sort
+                    && let State::EditMods(menu) = &mut self.state {
                         menu.sort_mods();
                     }
-                }
                 return t;
             }
 
@@ -333,11 +332,9 @@ impl Launcher {
                     entries: Some(entries),
                     ..
                 }) = &mut self.state
-                {
-                    if let Some((_, b)) = entries.get_mut(idx) {
+                    && let Some((_, b)) = entries.get_mut(idx) {
                         *b = t;
                     }
-                }
             }
             Message::ExportInstanceStart => {
                 if let State::ExportInstance(MenuExportInstance {

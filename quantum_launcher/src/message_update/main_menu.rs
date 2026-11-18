@@ -55,11 +55,10 @@ impl Launcher {
                 let account_data = self.get_selected_account_data();
                 // If the user is loading an existing login from disk
                 // then first refresh the tokens
-                if let Some(account) = &account_data {
-                    if account.access_token.is_none() || account.needs_refresh {
+                if let Some(account) = &account_data
+                    && (account.access_token.is_none() || account.needs_refresh) {
                         return self.account_refresh(account);
                     }
-                }
                 // Or, if the account is already refreshed/freshly added,
                 // directly launch the game
                 self.launch_game(account_data)
@@ -263,11 +262,9 @@ impl Launcher {
                         being_dragged: SidebarSelection::Instance(name, kind),
                         ..
                     }) = modal
-                    {
-                        if self.selected_instance.is_none() {
+                        && self.selected_instance.is_none() {
                             self.selected_instance = Some(Instance::new(name, *kind));
                         }
-                    }
                     *modal = None;
                 }
 

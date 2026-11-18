@@ -404,8 +404,7 @@ impl Launcher {
                 if let State::Launch(MenuLaunch {
                     notes: Some(notes), ..
                 }) = &mut self.state
-                {
-                    if let InstanceNotes::Editing { text_editor, .. } = notes {
+                    && let InstanceNotes::Editing { text_editor, .. } = notes {
                         let content = text_editor.text();
 
                         *notes = InstanceNotes::Viewing {
@@ -423,7 +422,6 @@ impl Launcher {
                             },
                         );
                     }
-                }
             }
             NotesMessage::CancelEdit => {
                 if let State::Launch(MenuLaunch {
@@ -448,11 +446,9 @@ impl Launcher {
                     log_state: Some(logs),
                     ..
                 }) = &mut self.state
-                {
-                    if !action.is_edit() {
+                    && !action.is_edit() {
                         logs.content.perform(action);
                     }
-                }
             }
             GameLogMessage::Copy => {
                 let instance = self.instance();

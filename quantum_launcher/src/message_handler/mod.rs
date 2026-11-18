@@ -238,11 +238,10 @@ impl Launcher {
             .get_dot_minecraft_path()
             .join("mods")
             .join(filename);
-        if *path != new_path {
-            if let Err(err) = std::fs::copy(path, &new_path) {
+        if *path != new_path
+            && let Err(err) = std::fs::copy(path, &new_path) {
                 err!("Couldn't drag and drop mod file in: {err}");
             }
-        }
     }
 
     fn load_qmp_from_path(&mut self, path: &Path) -> Task<Message> {
