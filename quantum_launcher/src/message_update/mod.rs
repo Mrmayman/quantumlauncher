@@ -19,9 +19,9 @@ mod shortcuts;
 
 use crate::state::{
     self, GameLogMessage, InfoMessage, InstallFabricMessage, InstallOptifineMessage,
-    InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsTab, MenuInstallFabric,
-    MenuInstallOptifine, MenuInstallPaper, MenuLaunch, MenuModDescription, Message,
-    ModDescriptionMessage, NotesMessage, ProgressBar, State, WindowMessage,
+    InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsMessage, LauncherSettingsTab,
+    MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLaunch, MenuModDescription,
+    Message, ModDescriptionMessage, NotesMessage, ProgressBar, State, WindowMessage,
 };
 
 pub use discord_rpc::PresenceConnectionState;
@@ -267,14 +267,28 @@ impl Launcher {
         }
     }
 
-    pub fn go_to_launcher_settings(&mut self, selected_tab: LauncherSettingsTab) {
+    pub fn go_to_launcher_settings(&mut self, selected_tab: LauncherSettingsTab) -> Task<Message> {
+        if let State::LauncherSettings(menu) = &self.state {
+            if menu.selected_tab == selected_tab {
+                return Task::none();
+            }
+        }
         self.state = State::LauncherSettings(state::MenuLauncherSettings {
             temp_scale: self.config.ui_scale.unwrap_or(1.0),
             selected_tab,
             arg_split_by_space: true,
+            portable_mode_status: ql_core::FullPortableStatus {
+                portable: None,
+                system_redirect: None,
+            },
+            temp_paths: crate::state::TempPaths::default(),
             outmsg: None,
             outmsg_at: state::SettingsOutmsg::Assets,
         });
+        // Load portable mode status asynchronously
+        Task::perform(async { ql_core::portable_mode_status() }, |status| {
+            LauncherSettingsMessage::PortableModeStatusLoaded(status).into()
+        })
     }
 
     pub fn update_install_paper(&mut self, msg: InstallPaperMessage) -> Task<Message> {

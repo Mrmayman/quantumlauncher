@@ -7,7 +7,9 @@ use iced::{
 use ql_core::{Instance, InstanceKind};
 
 use crate::{
-    config::sidebar::{FolderId, SidebarFolder, SidebarNode, SidebarNodeKind, SidebarSelection},
+    config::sidebar::{
+        FolderId, SidebarConfig, SidebarFolder, SidebarNode, SidebarNodeKind, SidebarSelection,
+    },
     icons,
     menu_renderer::{
         CTXI_SIZE, Element, FONT_MONO, ctx_button_icon, ctxbox, offset,
@@ -198,7 +200,7 @@ impl Launcher {
                 .config
                 .sidebar
                 .as_ref()
-                .and_then(|n| n.get_node(being_dragged))
+                .and_then(|n: &SidebarConfig| n.get_node(being_dragged))
             {
                 let node = self.get_node_rendered(menu, node, NodeMode::Dragged);
                 let (x, y) = self.window_state.mouse_pos;

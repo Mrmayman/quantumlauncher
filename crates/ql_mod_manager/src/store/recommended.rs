@@ -203,7 +203,6 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         enabled_by_default: true,
         backend: StoreBackendType::Modrinth,
     },
-
     // Optional Extras
     RecommendedMod {
         id: "YL57xq9U",
@@ -469,7 +468,6 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         enabled_by_default: false,
         backend: StoreBackendType::Modrinth,
     },
-
 ];
 
 // Recommended Mod template
