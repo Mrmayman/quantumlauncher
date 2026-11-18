@@ -2,7 +2,7 @@
 Type=Application
 Name=Quantum Launcher
 Comment=A simple, powerful Minecraft launcher
-Exec=quantum-launcher
-Icon=quantum-launcher
 Categories=Game;
+Icon=quantum-launcher
+Exec=quantum-launcher
 Terminal=false
