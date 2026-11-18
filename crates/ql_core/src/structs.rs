@@ -109,7 +109,7 @@ impl Loader {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub enum JavaVersion {
     Java8 = 8,
     Java16 = 16,

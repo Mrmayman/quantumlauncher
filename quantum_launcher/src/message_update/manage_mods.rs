@@ -133,8 +133,8 @@ impl Launcher {
                 if let State::EditMods(menu) = &mut self.state {
                     menu.locally_installed_mods
                         .remove(&LocalMod(name.clone(), QueryType::Mods));
-                    if let Some(mod_info) = &mut menu.file_data.config.mod_type_info {
-                        if mod_info.optifine_jar.as_ref().is_some_and(|n| n == &name) {
+                    if let Some(mod_info) = &mut menu.file_data.config.mod_type_info
+                        && mod_info.optifine_jar.as_ref().is_some_and(|n| n == &name) {
                             mod_info.optifine_jar = None;
                             if let Err(err) = block_on(
                                 menu.file_data
@@ -144,7 +144,6 @@ impl Launcher {
                                 self.set_error(err);
                             }
                         }
-                    }
                 }
                 return Task::perform(delete_file_wrapper(mods_dir.join(&*name)), Message::Done);
             }
@@ -224,11 +223,10 @@ impl Launcher {
                 }
             }
             ManageModsMessage::UpdateCheckToggle(idx, t) => {
-                if let State::EditMods(menu) = &mut self.state {
-                    if let Some((_, _, b)) = menu.updates.available.get_mut(idx) {
+                if let State::EditMods(menu) = &mut self.state
+                    && let Some((_, _, b)) = menu.updates.available.get_mut(idx) {
                         *b = t;
                     }
-                }
             }
             ManageModsMessage::SetInfoMessage(message) => {
                 if let State::EditMods(menu) = &mut self.state {
@@ -315,13 +313,11 @@ impl Launcher {
                 }
             }
             ManageModsMessage::ToggleOne(id) => {
-                if let State::EditMods(menu) = &mut self.state {
-                    if let Some(m) = menu.file_data.mod_index.mods.get_mut(&id) {
-                        if m.project_type.is_toggleable() {
+                if let State::EditMods(menu) = &mut self.state
+                    && let Some(m) = menu.file_data.mod_index.mods.get_mut(&id)
+                        && m.project_type.is_toggleable() {
                             m.enabled = !m.enabled;
                         }
-                    }
-                }
                 return Task::perform(
                     ql_mod_manager::store::toggle_mods(
                         vec![id],
@@ -455,13 +451,11 @@ impl Launcher {
             .selected_mods
             .iter()
             .filter_map(|s_mod| {
-                if let SelectedMod::Downloaded { id, .. } = s_mod {
-                    if let Some(config) = menu.file_data.mod_index.mods.get(id) {
-                        if config.manually_installed {
+                if let SelectedMod::Downloaded { id, .. } = s_mod
+                    && let Some(config) = menu.file_data.mod_index.mods.get(id)
+                        && config.manually_installed {
                             return Some(id.clone());
                         }
-                    }
-                }
                 None
             })
             .collect();
@@ -697,8 +691,7 @@ impl Launcher {
             .add_filter("jar/zip", &["jar", "zip"])
             .set_title("Pick a Jar Mod Patch (.jar/.zip)")
             .pick_file()
-        {
-            if let Some(filename) = path.file_name() {
+            && let Some(filename) = path.file_name() {
                 let dest = self
                     .instance()
                     .get_instance_path()
@@ -708,7 +701,6 @@ impl Launcher {
                     self.set_error(format!("While picking jar mod to be added: {err}"));
                 }
             }
-        }
     }
 
     pub fn update_export_mods(&mut self, msg: ExportModsTextMessage) -> Task<Message> {

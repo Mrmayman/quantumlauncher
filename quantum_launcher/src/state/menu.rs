@@ -213,7 +213,7 @@ pub struct EditInstanceRam {
     pub slider_value: f32,
     pub slider_text: String,
     pub memory_input: String,
-    pub system: sysinfo::System,
+    pub system: Result<sysinfo::System, sysinfo::Error>,
 }
 
 pub enum SelectedState {
@@ -419,46 +419,41 @@ impl ContentWatcher {
     }
 
     pub fn tick(&self) -> Option<QueryType> {
-        if let Some(w) = &self.mods {
-            if w.has_changed() {
+        if let Some(w) = &self.mods
+            && w.has_changed() {
                 if log_verbose() {
                     pt!("Watch: dir changed (mods)");
                 }
                 return Some(QueryType::Mods);
             }
-        }
-        if let Some(w) = &self.resource_packs {
-            if w.has_changed() {
+        if let Some(w) = &self.resource_packs
+            && w.has_changed() {
                 if log_verbose() {
                     pt!("Watch: dir changed (resourcepacks)");
                 }
                 return Some(QueryType::ResourcePacks);
             }
-        }
-        if let Some(w) = &self.texture_packs {
-            if w.has_changed() {
+        if let Some(w) = &self.texture_packs
+            && w.has_changed() {
                 if log_verbose() {
                     pt!("Watch: dir changed (texturepacks)");
                 }
                 return Some(QueryType::ResourcePacks);
             }
-        }
-        if let Some(w) = &self.shaders {
-            if w.has_changed() {
+        if let Some(w) = &self.shaders
+            && w.has_changed() {
                 if log_verbose() {
                     pt!("Watch: dir changed (shaderpacks)");
                 }
                 return Some(QueryType::Shaders);
             }
-        }
-        if let Some(w) = &self.data_packs {
-            if w.has_changed() {
+        if let Some(w) = &self.data_packs
+            && w.has_changed() {
                 if log_verbose() {
                     pt!("Watch: dir changed (datapacks)");
                 }
                 return Some(QueryType::DataPacks);
             }
-        }
 
         None
     }

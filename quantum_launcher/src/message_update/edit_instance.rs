@@ -112,13 +112,12 @@ impl Launcher {
                     ..
                 }) = &mut self.state
                 {
-                    if let Ok(mb) = input.parse::<usize>() {
-                        if mb > 0 {
+                    if let Ok(mb) = input.parse::<usize>()
+                        && mb > 0 {
                             menu.config.ram_in_mb = mb;
                             menu.state_ram.slider_value = f32::log2(mb as f32);
                             menu.state_ram.slider_text = format_memory_mb(mb);
                         }
-                    }
                     menu.state_ram.memory_input = input;
                 }
             }
@@ -363,14 +362,11 @@ impl Launcher {
             edit_instance: Some(menu),
             ..
         }) = &mut self.state
-        {
-            if let Some(jar) = &menu.config.custom_jar {
-                if !choices.contains(&jar.name) {
+            && let Some(jar) = &menu.config.custom_jar
+                && !choices.contains(&jar.name) {
                     self.autosave.remove(&AutoSaveKind::InstanceConfig);
                     menu.config.custom_jar = None;
                 }
-            }
-        }
 
         if let Some(cx) = &mut self.custom_jar {
             cx.choices = choices;

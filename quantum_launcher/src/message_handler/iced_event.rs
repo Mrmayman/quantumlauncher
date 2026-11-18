@@ -40,14 +40,13 @@ impl Launcher {
 
                     // Clear the "Resize the window to apply changes"
                     // after changing UI scale
-                    if let State::GenericMessage(msg) = &self.state {
-                        if msg == MSG_RESIZE {
+                    if let State::GenericMessage(msg) = &self.state
+                        && msg == MSG_RESIZE {
                             return self.update(
                                 LauncherSettingsMessage::Open(LauncherSettingsTab::UserInterface)
                                     .into(),
                             );
                         }
-                    }
                 }
                 iced::window::Event::FileHovered(_) => {
                     self.set_drag_and_drop_hover(true);
@@ -198,23 +197,21 @@ impl Launcher {
                 if modifiers.command() {
                     return Task::done(LaunchMessage::Start.into());
                 }
-            } else if let Key::Named(Named::Backspace) = key {
-                if modifiers.command() {
+            } else if let Key::Named(Named::Backspace) = key
+                && modifiers.command() {
                     return Task::done(LaunchMessage::Kill.into());
                 }
-            }
         } else if let State::Create(MenuCreateInstance::Choosing(MenuCreateInstanceChoosing {
             list: Ok(Some(_)),
             ..
         })) = &self.state
         {
-            if let Key::Named(Named::Enter) = key {
-                if modifiers.command() {
+            if let Key::Named(Named::Enter) = key
+                && modifiers.command() {
                     return Task::done(CreateInstanceMessage::Start.into());
                 }
-            }
-        } else if let State::Welcome(menu) = &mut self.state {
-            if let Key::Named(Named::Enter) = key {
+        } else if let State::Welcome(menu) = &mut self.state
+            && let Key::Named(Named::Enter) = key {
                 *menu = match menu {
                     MenuWelcome::P1InitialScreen => MenuWelcome::P2Theme,
                     MenuWelcome::P2Theme => MenuWelcome::P3Auth,
@@ -228,7 +225,6 @@ impl Launcher {
                     }
                 };
             }
-        }
         self.keys_pressed.insert(key);
 
         Task::none()
@@ -400,8 +396,8 @@ impl Launcher {
             if ret_to_mods {
                 return (true, self.go_to_edit_mods_menu(None));
             }
-            if ret_to_mod_store {
-                if let State::ModsDownload(menu) = &mut self.state {
+            if ret_to_mod_store
+                && let State::ModsDownload(menu) = &mut self.state {
                     menu.opened_mod = None;
                     menu.description = None;
                     return (
@@ -412,7 +408,6 @@ impl Launcher {
                         ),
                     );
                 }
-            }
         }
 
         (
@@ -431,12 +426,11 @@ impl Launcher {
                 menu.search = None;
                 return true;
             }
-        } else if let State::Launch(menu) = &mut self.state {
-            if menu.modal.is_some() {
+        } else if let State::Launch(menu) = &mut self.state
+            && menu.modal.is_some() {
                 menu.modal = None;
                 return true;
             }
-        }
         false
     }
 }

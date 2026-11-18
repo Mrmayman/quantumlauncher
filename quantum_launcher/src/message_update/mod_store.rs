@@ -148,8 +148,8 @@ impl Launcher {
                 }
             }
             InstallModsMessage::LoadedExtendedInfo(Ok((id, info))) => {
-                if let State::ModsDownload(menu) = &mut self.state {
-                    if let Some(res) = &mut menu.results {
+                if let State::ModsDownload(menu) = &mut self.state
+                    && let Some(res) = &mut menu.results {
                         for m in &mut res.mods {
                             // Fill in that mod's entry with extended info
                             if m.get_id() == id {
@@ -158,7 +158,6 @@ impl Launcher {
                             }
                         }
                     }
-                }
             }
             InstallModsMessage::Download(index) => {
                 return self.mod_download(index);

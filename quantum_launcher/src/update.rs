@@ -8,13 +8,9 @@ use owo_colors::OwoColorize;
 
 #[cfg(feature = "auto_update")]
 use crate::launcher_update::UpdateCheckInfo;
-use crate::{
-    state::{
-        AutoSaveKind, CustomJarState, FsWatcher, GameProcess, InfoMessage, Launcher,
-        LauncherSettingsMessage, ManageModsMessage, MenuExportInstance, MenuLicense, MenuWelcome,
-        Message, ProgressBar, State, get_entries,
-    },
-    stylesheet::styles::LauncherThemeLightness,
+use crate::state::{
+    AutoSaveKind, CustomJarState, FsWatcher, GameProcess, InfoMessage, Launcher, ManageModsMessage,
+    MenuExportInstance, MenuLicense, MenuWelcome, Message, ProgressBar, State, get_entries,
 };
 
 impl Launcher {
@@ -78,11 +74,10 @@ impl Launcher {
             Message::ManageMods(msg) => {
                 let sort = msg.edits_mod_list();
                 let t = self.update_manage_mods(msg);
-                if sort {
-                    if let State::EditMods(menu) = &mut self.state {
+                if sort
+                    && let State::EditMods(menu) = &mut self.state {
                         menu.sort_mods();
                     }
-                }
                 return t;
             }
 
@@ -141,7 +136,6 @@ impl Launcher {
                 self.tick_timer = self.tick_timer.wrapping_add(1);
                 let mut tasks = self.images.task_get_imgs_to_load();
                 tasks.push(self.tick());
-                tasks.push(self.task_read_system_theme());
 
                 // HOOK: Decorations
                 // tasks.push(
@@ -338,11 +332,9 @@ impl Launcher {
                     entries: Some(entries),
                     ..
                 }) = &mut self.state
-                {
-                    if let Some((_, b)) = entries.get_mut(idx) {
+                    && let Some((_, b)) = entries.get_mut(idx) {
                         *b = t;
                     }
-                }
             }
             Message::ExportInstanceStart => {
                 if let State::ExportInstance(MenuExportInstance {
@@ -450,27 +442,6 @@ impl Launcher {
                 }
             };
             *self_watcher = Some(watcher);
-        }
-    }
-
-    fn task_read_system_theme(&mut self) -> Task<Message> {
-        const INTERVAL: usize = 4;
-
-        let is_auto_theme = self
-            .config
-            .ui_mode
-            .is_none_or(|n| n == LauncherThemeLightness::Auto);
-        let interval = self.tick_timer % INTERVAL == 0;
-
-        if is_auto_theme && interval {
-            Task::perform(tokio::task::spawn_blocking(dark_light::detect), |n| {
-                LauncherSettingsMessage::LoadedSystemTheme(
-                    n.strerr().and_then(IntoStringError::strerr),
-                )
-                .into()
-            })
-        } else {
-            Task::none()
         }
     }
 

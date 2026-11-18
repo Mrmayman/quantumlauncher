@@ -2,7 +2,6 @@
 name = "quantum_launcher"
 version = "0.5.2"
 edition = "2024"
-rust-version = "1.85"
 
 authors = ["Mrmayman <navneetkrishna22@gmail.com>"]
 description = "A simple, powerful Minecraft Launcher"
@@ -58,6 +57,7 @@ serde_json.workspace = true
 tokio.workspace = true
 cfg-if.workspace = true
 semver.workspace = true
+futures.workspace = true
 
 chrono.workspace = true # Logging time/date
 pastey = "0.2.*" # Icon widget macro
@@ -82,10 +82,7 @@ shlex.workspace = true
 notify = "8"
 open = "5.3.2"
 dirs.workspace = true
-
-# Less dependencies than the stable one
-# Remember to update the hashes in flake.nix if you change this
-dark-light = { git = "https://github.com/rust-dark-light/dark-light", rev = "0f18d2fbcaa5d1c175db8aae7d53428988d7e961" }
+dark-light = "3"
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 notify-rust = { version = "4", default-features = false, features = ["z-with-tokio"] }
