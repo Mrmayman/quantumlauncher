@@ -15,6 +15,20 @@ pub const EXCEPTIONS: &[&str] = &[
     "forge",
 ];
 
+pub const SOFT_EXCEPTIONS: &[&str] = &[
+    ".fabric",
+    "logs",
+    "command_history.txt",
+    "realms_persistence.json",
+    "debug",
+    ".cache",
+    // Common mods...
+    "authlib-injector.log",
+    "easy_npc",
+    "CustomSkinLoader",
+    ".bobby",
+];
+
 fn create_instance_info(instance: &Instance, mut exceptions: HashSet<String>) -> InstanceInfo {
     exceptions.extend(EXCEPTIONS.iter().map(|n| (*n).to_owned()));
     InstanceInfo {

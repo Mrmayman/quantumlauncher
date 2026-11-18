@@ -14,17 +14,13 @@
 
 #![allow(clippy::missing_errors_doc)]
 
-use crate::{
-    json::manifest::Version,
-    read_log::{Diagnostic, LogLine, ReadError, read_logs},
-};
+use crate::read_log::{Diagnostic, LogLine, ReadError, read_logs};
 use futures::StreamExt;
 use json::VersionDetails;
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 use std::{
     ffi::OsStr,
-    fmt::{Debug, Display},
+    fmt::Debug,
     future::Future,
     path::{Path, PathBuf},
     process::ExitStatus,
@@ -45,7 +41,7 @@ pub mod print;
 mod progress;
 pub mod read_log;
 pub mod request;
-mod structs;
+mod types;
 
 pub use crate::json::InstanceConfigJson;
 pub use constants::*;
@@ -57,7 +53,7 @@ pub use file_utils::{LAUNCHER_CACHE_DIR, LAUNCHER_DIR, RequestError};
 pub use print::{LOGGER, LogType, LoggingState, logger_finish};
 pub use progress::{DownloadProgress, GenericProgress, Progress};
 pub use request::download;
-pub use structs::{JavaVersion, Loader};
+pub use types::{Instance, InstanceKind, JavaVersion, ListEntry, ListEntryKind, Loader};
 
 pub const LAUNCHER_VERSION_NAME: &str = "0.5.2";
 
@@ -262,231 +258,6 @@ where
         result = f().await;
     }
     result
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct Instance {
-    pub name: Arc<str>,
-    pub kind: InstanceKind,
-}
-
-impl Instance {
-    #[must_use]
-    pub fn new(name: &str, kind: InstanceKind) -> Self {
-        Self {
-            name: Arc::from(name),
-            kind,
-        }
-    }
-
-    #[must_use]
-    pub fn client(name: &str) -> Self {
-        Self::new(name, InstanceKind::Client)
-    }
-
-    #[must_use]
-    pub fn server(name: &str) -> Self {
-        Self::new(name, InstanceKind::Server)
-    }
-
-    /// Gets the path where launcher-specific things are stored.
-    ///
-    /// - Instances: `QuantumLauncher/instances/<NAME>/`
-    /// - Servers: `QuantumLauncher/servers/<Name>/` (identical to `dot_minecraft_path`)
-    #[must_use]
-    pub fn get_instance_path(&self) -> PathBuf {
-        let name = &*self.name;
-        self.kind.get_root_directory().join(name)
-    }
-
-    /// Gets the path where files used by the game itself are stored.
-    ///
-    /// For clients this is the `.minecraft` folder. It can vary,
-    /// the only requirement is that it must be equal to, or a subdirectory of,
-    /// the instance path ([`Instance::get_instance_path`]).
-    ///
-    /// - Instances: `QuantumLauncher/instances/<NAME>/.minecraft/`
-    /// - Servers: `QuantumLauncher/servers/<NAME>/` (identical to `instance_path`)
-    #[must_use]
-    pub fn get_dot_minecraft_path(&self) -> PathBuf {
-        let name = &*self.name;
-        match self.kind {
-            InstanceKind::Client => LAUNCHER_DIR.join("instances").join(name).join(".minecraft"),
-            InstanceKind::Server => LAUNCHER_DIR.join("servers").join(name),
-        }
-    }
-
-    #[must_use]
-    pub fn get_name(&self) -> &str {
-        &self.name
-    }
-
-    #[must_use]
-    pub const fn is_server(&self) -> bool {
-        self.kind.is_server()
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[serde(rename_all = "snake_case")]
-pub enum InstanceKind {
-    Server,
-    #[serde(other)]
-    Client,
-}
-
-impl InstanceKind {
-    #[must_use]
-    pub const fn is_server(self) -> bool {
-        matches!(self, Self::Server)
-    }
-
-    pub fn get_root_directory(&self) -> PathBuf {
-        let name = match self {
-            InstanceKind::Client => "instances",
-            InstanceKind::Server => "servers",
-        };
-        LAUNCHER_DIR.join(name)
-    }
-}
-
-/// A struct representing information about a Minecraft version
-#[derive(Debug, Clone, PartialEq)]
-pub struct ListEntry {
-    pub name: String,
-    pub supports_server: bool,
-    /// For UI display purposes only
-    pub kind: ListEntryKind,
-}
-
-impl ListEntry {
-    #[must_use]
-    pub fn new(name: String) -> Self {
-        Self {
-            kind: ListEntryKind::guess(&name),
-            supports_server: Version::guess_if_supports_server(&name),
-            name,
-        }
-    }
-
-    #[must_use]
-    pub fn with_kind(name: String, ty: &str) -> Self {
-        Self {
-            kind: ListEntryKind::calculate(&name, ty),
-            supports_server: Version::guess_if_supports_server(&name),
-            name,
-        }
-    }
-}
-
-impl Display for ListEntry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name)
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[serde(rename_all = "kebab-case")]
-pub enum ListEntryKind {
-    Release,
-    Snapshot,
-    Preclassic,
-    Classic,
-    Indev,
-    Infdev,
-    Alpha,
-    Beta,
-    AprilFools,
-    Special,
-}
-
-impl Display for ListEntryKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ListEntryKind::Release => write!(f, "Release"),
-            ListEntryKind::Snapshot => write!(f, "Snapshot"),
-            ListEntryKind::Preclassic => write!(f, "Pre-classic"),
-            ListEntryKind::Classic => write!(f, "Classic"),
-            ListEntryKind::Indev => write!(f, "Indev"),
-            ListEntryKind::Infdev => write!(f, "Infdev"),
-            ListEntryKind::Alpha => write!(f, "Alpha"),
-            ListEntryKind::Beta => write!(f, "Beta"),
-            ListEntryKind::AprilFools => write!(f, "April Fools"),
-            ListEntryKind::Special => write!(f, "Special"),
-        }
-    }
-}
-
-impl ListEntryKind {
-    pub const ALL: &'static [ListEntryKind] = &[
-        ListEntryKind::Release,
-        ListEntryKind::Snapshot,
-        ListEntryKind::Beta,
-        ListEntryKind::Alpha,
-        ListEntryKind::Infdev,
-        ListEntryKind::Indev,
-        ListEntryKind::Classic,
-        ListEntryKind::Preclassic,
-        ListEntryKind::AprilFools,
-        ListEntryKind::Special,
-    ];
-
-    /// Returns the default selected categories
-    #[must_use]
-    pub fn default_selected() -> std::collections::HashSet<ListEntryKind> {
-        let mut set = std::collections::HashSet::new();
-        set.extend(Self::ALL);
-        set.remove(&Self::Snapshot);
-        set.remove(&Self::Special);
-        set
-    }
-}
-
-impl ListEntryKind {
-    fn guess(id: &str) -> Self {
-        if id.starts_with("b1.") {
-            ListEntryKind::Beta
-        } else if id.starts_with("a1.") {
-            ListEntryKind::Alpha
-        } else if id.starts_with("inf-") {
-            ListEntryKind::Infdev
-        } else if id.starts_with("in-") {
-            ListEntryKind::Indev
-        } else if id.starts_with("pc-") {
-            ListEntryKind::Preclassic
-        } else if id.starts_with("c0.") {
-            ListEntryKind::Classic
-        } else if id.contains('w') {
-            ListEntryKind::Snapshot
-        } else {
-            ListEntryKind::Release
-        }
-    }
-
-    #[must_use]
-    pub fn calculate(id: &str, ty: &str) -> Self {
-        if ty == "special" {
-            ListEntryKind::Special
-        } else if ty == "april-fools" {
-            ListEntryKind::AprilFools
-        } else if id.starts_with("b1.") {
-            ListEntryKind::Beta
-        } else if id.starts_with("a1.") {
-            ListEntryKind::Alpha
-        } else if id.starts_with("inf-") {
-            ListEntryKind::Infdev
-        } else if id.starts_with("in-") {
-            ListEntryKind::Indev
-        } else if id.starts_with("pc-") {
-            ListEntryKind::Preclassic
-        } else if id.starts_with("c0.") {
-            ListEntryKind::Classic
-        } else if ty == "snapshot" {
-            ListEntryKind::Snapshot
-        } else {
-            ListEntryKind::Release
-        }
-    }
 }
 
 /// Opens the file explorer or browser
