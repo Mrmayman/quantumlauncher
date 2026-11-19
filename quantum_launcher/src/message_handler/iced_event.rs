@@ -1,11 +1,11 @@
 use crate::message_handler::arrow_keys::InstSelectOperation;
 use crate::message_update::MSG_RESIZE;
 use crate::state::{
-    AutoSaveKind, CreateInstanceMessage, EditModsUpdates, InfoMessage, LaunchMessage, LaunchTab,
-    Launcher, LauncherSettingsMessage, LauncherSettingsTab, MainMenuMessage, ManageModsMessage,
-    MenuCreateInstance, MenuCreateInstanceChoosing, MenuEditMods, MenuEditPresets,
-    MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper,
-    MenuLoginAlternate, MenuLoginMS, MenuRecommendedMods, MenuWelcome, Message, State,
+    AutoSaveKind, CreateInstanceMessage, InfoMessage, LaunchMessage, LaunchTab, Launcher,
+    LauncherSettingsMessage, LauncherSettingsTab, MainMenuMessage, ManageModsMessage,
+    MenuCreateInstance, MenuCreateInstanceChoosing, MenuEditPresets, MenuExportInstance,
+    MenuInstallFabric, MenuInstallOptifine, MenuInstallPaper, MenuLoginAlternate, MenuLoginMS,
+    MenuRecommendedMods, MenuWelcome, Message, State,
 };
 use iced::{
     Task,
@@ -41,12 +41,13 @@ impl Launcher {
                     // Clear the "Resize the window to apply changes"
                     // after changing UI scale
                     if let State::GenericMessage(msg) = &self.state
-                        && msg == MSG_RESIZE {
-                            return self.update(
-                                LauncherSettingsMessage::Open(LauncherSettingsTab::UserInterface)
-                                    .into(),
-                            );
-                        }
+                        && msg == MSG_RESIZE
+                    {
+                        return self.update(
+                            LauncherSettingsMessage::Open(LauncherSettingsTab::UserInterface)
+                                .into(),
+                        );
+                    }
                 }
                 iced::window::Event::FileHovered(_) => {
                     self.set_drag_and_drop_hover(true);
@@ -133,7 +134,7 @@ impl Launcher {
                 ("a", true, _, true, State::EditMods(_)) => ManageModsMessage::SelectAll.into(),
                 // Ctrl-F search in mods list (with toggling)
                 #[rustfmt::skip]
-                ("f", true, _, _, State::EditMods(MenuEditMods { search: Some(_), .. })) => {
+                ("f", true, _, _, State::EditMods(mods)) if mods.search.is_some() => {
                     ManageModsMessage::SetSearch(None).into()
                 },
                 ("f", true, _, _, State::EditMods(_)) => Message::Multiple(vec![
@@ -198,33 +199,36 @@ impl Launcher {
                     return Task::done(LaunchMessage::Start.into());
                 }
             } else if let Key::Named(Named::Backspace) = key
-                && modifiers.command() {
-                    return Task::done(LaunchMessage::Kill.into());
-                }
+                && modifiers.command()
+            {
+                return Task::done(LaunchMessage::Kill.into());
+            }
         } else if let State::Create(MenuCreateInstance::Choosing(MenuCreateInstanceChoosing {
             list: Ok(Some(_)),
             ..
         })) = &self.state
         {
             if let Key::Named(Named::Enter) = key
-                && modifiers.command() {
-                    return Task::done(CreateInstanceMessage::Start.into());
-                }
-        } else if let State::Welcome(menu) = &mut self.state
-            && let Key::Named(Named::Enter) = key {
-                *menu = match menu {
-                    MenuWelcome::P1InitialScreen => MenuWelcome::P2Theme,
-                    MenuWelcome::P2Theme => MenuWelcome::P3Auth,
-                    MenuWelcome::P3Auth => {
-                        return Task::done(Message::MScreenOpen {
-                            message: Some(InfoMessage::success(
-                                "Install Minecraft by clicking \"+ New\"",
-                            )),
-                            clear_selection: true,
-                        });
-                    }
-                };
+                && modifiers.command()
+            {
+                return Task::done(CreateInstanceMessage::Start.into());
             }
+        } else if let State::Welcome(menu) = &mut self.state
+            && let Key::Named(Named::Enter) = key
+        {
+            *menu = match menu {
+                MenuWelcome::P1InitialScreen => MenuWelcome::P2Theme,
+                MenuWelcome::P2Theme => MenuWelcome::P3Auth,
+                MenuWelcome::P3Auth => {
+                    return Task::done(Message::MScreenOpen {
+                        message: Some(InfoMessage::success(
+                            "Install Minecraft by clicking \"+ New\"",
+                        )),
+                        clear_selection: true,
+                    });
+                }
+            };
+        }
         self.keys_pressed.insert(key);
 
         Task::none()
@@ -305,10 +309,6 @@ impl Launcher {
 
         match &self.state {
             State::ChangeLog
-            | State::EditMods(MenuEditMods {
-                updates: EditModsUpdates { progress: None, .. },
-                ..
-            })
             | State::Create(MenuCreateInstance::Choosing { .. })
             | State::Error { .. }
             | State::LauncherSettings(_)
@@ -324,6 +324,10 @@ impl Launcher {
             }
             #[cfg(feature = "auto_update")]
             State::UpdateFound(crate::state::MenuLauncherUpdate { progress: None, .. }) => {
+                ret_to_main_screen = true;
+            }
+
+            State::EditMods(mods) if mods.updates.progress.is_none() => {
                 ret_to_main_screen = true;
             }
 
@@ -396,18 +400,17 @@ impl Launcher {
             if ret_to_mods {
                 return (true, self.go_to_edit_mods_menu(None));
             }
-            if ret_to_mod_store
-                && let State::ModsDownload(menu) = &mut self.state {
-                    menu.opened_mod = None;
-                    menu.description = None;
-                    return (
-                        true,
-                        iced::widget::scrollable::scroll_to(
-                            iced::widget::scrollable::Id::new("MenuModsDownload:main:mods_list"),
-                            menu.scroll_offset,
-                        ),
-                    );
-                }
+            if ret_to_mod_store && let State::ModsDownload(menu) = &mut self.state {
+                menu.opened_mod = None;
+                menu.description = None;
+                return (
+                    true,
+                    iced::widget::scrollable::scroll_to(
+                        iced::widget::scrollable::Id::new("MenuModsDownload:main:mods_list"),
+                        menu.scroll_offset,
+                    ),
+                );
+            }
         }
 
         (
@@ -427,10 +430,11 @@ impl Launcher {
                 return true;
             }
         } else if let State::Launch(menu) = &mut self.state
-            && menu.modal.is_some() {
-                menu.modal = None;
-                return true;
-            }
+            && menu.modal.is_some()
+        {
+            menu.modal = None;
+            return true;
+        }
         false
     }
 }

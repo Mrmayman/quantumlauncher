@@ -6,7 +6,7 @@ use ql_core::LAUNCHER_DIR;
 
 use crate::{
     config::LauncherConfig,
-    icons,
+    icons::{self},
     menu_renderer::{Column, button_with_icon, checkered_list, tooltip, tsubtitle},
     state::{LauncherSettingsMessage, MenuLauncherSettings, Message, SettingsOutmsg},
 };
@@ -71,7 +71,7 @@ impl MenuLauncherSettings {
                     button_with_icon(icons::bin_s(12), "Clear Download Cache", 12)
                         .padding([5, 10])
                         .on_press(LauncherSettingsMessage::ClearDownloadCache.into()),
-                    widget::text("(?)").size(12).style(tsubtitle),
+                    icons::qm_s(12)
                 ]
                 .push_maybe(
                     self.outmsg

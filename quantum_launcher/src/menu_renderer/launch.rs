@@ -255,16 +255,16 @@ impl Launcher {
 
     fn get_tab_logs<'element>(
         &'element self,
-        menu: &'element MenuLaunch,
+        // TODO: wtf is this doing here
+        _menu: &'element MenuLaunch,
         kind: InstanceKind,
     ) -> widget::Column<'element, Message, LauncherTheme> {
         const TEXT_SIZE: f32 = 12.0;
 
-        let State::Launch(MenuLaunch {
-            log_state: Some(log_state),
-            ..
-        }) = &self.state
-        else {
+        let State::Launch(menu) = &self.state else {
+            return get_no_logs_message();
+        };
+        let Some(log_state) = &menu.log_state else {
             return get_no_logs_message();
         };
 

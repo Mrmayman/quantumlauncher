@@ -20,18 +20,17 @@ impl Launcher {
         match &mut self.state {
             State::Launch(_) => {
                 if let Some(receiver) = &mut self.java_recv
-                    && receiver.tick() {
-                        self.state = State::InstallJava;
-                        return Task::none();
-                    }
+                    && receiver.tick()
+                {
+                    self.state = State::InstallJava;
+                    return Task::none();
+                }
 
                 let mut commands = Vec::new();
 
-                let edit_config = if let State::Launch(MenuLaunch {
-                    edit_instance: Some(edit),
-                    tab: LaunchTab::Edit,
-                    ..
-                }) = &self.state
+                let edit_config = if let State::Launch(launch_menu) = &self.state
+                    && let Some(edit) = &launch_menu.edit_instance
+                    && launch_menu.tab == LaunchTab::Edit
                 {
                     Some(edit.config.clone())
                 } else {
@@ -41,9 +40,9 @@ impl Launcher {
                 if let Some(config) = edit_config
                     && (self.autosave.insert(AutoSaveKind::InstanceConfig)
                         || self.tick_timer.is_multiple_of(5))
-                    {
-                        self.autosave_instance_config(config, &mut commands);
-                    }
+                {
+                    self.autosave_instance_config(config, &mut commands);
+                }
 
                 for (instance, process) in &mut self.processes {
                     let log_state = if let State::Launch(menu) = &mut self.state {
@@ -135,9 +134,10 @@ impl Launcher {
                 } => {
                     optifine_install_progress.tick();
                     if let Some(java_progress) = java_install_progress
-                        && java_progress.tick() {
-                            *is_java_being_installed = true;
-                        }
+                        && java_progress.tick()
+                    {
+                        *is_java_being_installed = true;
+                    }
                 }
             },
             State::ManagePresets(menu) => {
@@ -183,11 +183,12 @@ impl Launcher {
 
     pub fn tick_interval(&self) -> u64 {
         if let State::Launch(menu) = &self.state
-            && let Some(LaunchModal::SDragging { .. }) = &menu.modal {
-                // Faster tick rate for smoother auto-scrolling
-                // while dragging in the sidebar
-                return 15;
-            }
+            && let Some(LaunchModal::SDragging { .. }) = &menu.modal
+        {
+            // Faster tick rate for smoother auto-scrolling
+            // while dragging in the sidebar
+            return 15;
+        }
 
         self.config.c_idle_fps()
     }
