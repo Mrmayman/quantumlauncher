@@ -956,7 +956,7 @@ pub enum State {
 
     InstallJava,
 
-    ModsDownload(MenuModsDownload),
+    ModsDownload(Box<MenuModsDownload>),
     ModDescription(MenuModDescription),
     LauncherSettings(MenuLauncherSettings),
     ManagePresets(MenuEditPresets),
