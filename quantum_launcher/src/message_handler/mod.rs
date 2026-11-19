@@ -125,7 +125,7 @@ impl Launcher {
 
             let locally_installed_mods = HashSet::new();
 
-            this.state = State::EditMods(MenuEditMods {
+            this.state = State::EditMods(Box::new(MenuEditMods {
                 sorted_mods_list: Vec::new(),
                 selection: EditModsSelection {
                     selected_mods: HashSet::new(),
@@ -164,7 +164,7 @@ impl Launcher {
                 locally_installed_mods,
                 search: None,
                 content_filter: None,
-            });
+            }));
 
             Ok(Task::batch([update_local_mods_task]))
         }
@@ -239,9 +239,10 @@ impl Launcher {
             .join("mods")
             .join(filename);
         if *path != new_path
-            && let Err(err) = std::fs::copy(path, &new_path) {
-                err!("Couldn't drag and drop mod file in: {err}");
-            }
+            && let Err(err) = std::fs::copy(path, &new_path)
+        {
+            err!("Couldn't drag and drop mod file in: {err}");
+        }
     }
 
     fn load_qmp_from_path(&mut self, path: &Path) -> Task<Message> {

@@ -48,7 +48,9 @@ iced = { version = "0.13", default-features = false, features = [
     "advanced",
 ] }
 # The HTML/Markdown renderer
-frostmark = { version = "0.2", default-features = false, features = ["markdown"] }
+frostmark = { version = "0.2", default-features = false, features = [
+    "markdown",
+] }
 # For table widget, I don't need this
 # tabular = { git = "https://github.com/Mrmayman/tabular.git" }
 
@@ -59,15 +61,15 @@ cfg-if.workspace = true
 semver.workspace = true
 futures.workspace = true
 
-chrono.workspace = true # Logging time/date
-pastey = "0.2.*" # Icon widget macro
-rfd.workspace = true # File picker
+chrono.workspace = true  # Logging time/date
+pastey = "0.2.*"         # Icon widget macro
+rfd.workspace = true     # File picker
 constcat = "0.6"
-rand = "0.10" # Instance folder unique id
+rand = "0.10"            # Instance folder unique id
 sysinfo.workspace = true # Dynamic min/max RAM allocation
 
 # For Discord Rich Presence management
-filthy-rich = "1.0.5"
+filthy-rich = "1.0.7"
 # Launcher Update
 thiserror.workspace = true
 zip.workspace = true
@@ -79,12 +81,14 @@ terminal_size = "0.4"
 
 # OS APIs
 notify = "8"
-open = "5.3.2"
+open = "5.4.5"
 dirs.workspace = true
 dark-light = "3"
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
-notify-rust = { version = "4", default-features = false, features = ["z-with-tokio"] }
+notify-rust = { version = "4", default-features = false, features = [
+    "z-with-tokio",
+] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.62.*", features = ["Win32_System_Console"] }
