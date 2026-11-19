@@ -58,10 +58,9 @@ impl Launcher {
                 iced::window::Event::FileDropped(path) => {
                     self.set_drag_and_drop_hover(false);
 
-                    if let (Some(extension), Some(filename)) = (
-                        path.extension().map(OsStr::to_ascii_lowercase),
-                        path.file_name().and_then(OsStr::to_str),
-                    ) {
+                    if let Some(extension) = path.extension().map(OsStr::to_ascii_lowercase)
+                        && let Some(filename) = path.file_name().and_then(OsStr::to_str)
+                    {
                         return self.drag_and_drop(&path, &extension, filename);
                     }
                 }
@@ -114,7 +113,9 @@ impl Launcher {
         status: iced::event::Status,
     ) -> Task<Message> {
         let ignored = matches!(status, iced::event::Status::Ignored);
-        if let (Key::Named(Named::Escape), true) = (key.clone(), ignored) {
+        if let Key::Named(Named::Escape) = key.clone()
+            && ignored
+        {
             return self.key_escape_back(true).1;
         }
 
@@ -189,7 +190,9 @@ impl Launcher {
             } else if let Key::Named(Named::ArrowDown) = key {
                 return Task::done(Message::LicenseChangeTab(menu.selected_tab.next()));
             }
-        } else if let (State::Launch(_), true) = (&self.state, ignored) {
+        } else if let State::Launch(_) = &self.state
+            && ignored
+        {
             if let Key::Named(Named::ArrowUp) = key {
                 return self.select_instance_recursive(InstSelectOperation::Up);
             } else if let Key::Named(Named::ArrowDown) = key {

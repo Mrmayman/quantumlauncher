@@ -38,7 +38,9 @@ impl Launcher {
                     if search.start_time > menu.latest_load && menu.backend == search.backend {
                         menu.latest_load = search.start_time;
 
-                        if let (Some(results), true) = (&mut menu.results, search.offset > 0) {
+                        if let Some(results) = &mut menu.results
+                            && search.offset > 0
+                        {
                             results.mods.extend(search.mods);
                         } else {
                             menu.results = Some(search);

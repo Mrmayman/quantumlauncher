@@ -361,10 +361,9 @@ fn do_migration() {
     // since that runs get_logs_dir which lazy allocates LAUNCHER_DIR
     // which creates the new_dir and that would fail the migration
     println!("Running migration");
-    if let (Some(legacy_dir), Some(new_dir)) = (
-        file_utils::migration_legacy_launcher_dir(),
-        file_utils::migration_launcher_dir(),
-    ) {
+    if let Some(legacy_dir) = file_utils::migration_legacy_launcher_dir()
+        && let Some(new_dir) = file_utils::migration_launcher_dir()
+    {
         if let Err(e) = std::fs::rename(&legacy_dir, &new_dir) {
             eprintln!("Migration failed: {e}");
         } else if let Err(e) = file_utils::create_symlink(&new_dir, &legacy_dir) {

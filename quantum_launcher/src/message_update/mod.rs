@@ -49,8 +49,8 @@ impl Launcher {
                 Ok(list) => {
                     if let State::InstallFabric(menu) = &mut self.state {
                         let (regular_list, backend) = list.clone().just_get_one();
-                        *menu = if let (false, Some(first)) =
-                            (list.is_unsupported(), regular_list.first())
+                        *menu = if !list.is_unsupported()
+                            && let Some(first) = regular_list.first()
                         {
                             MenuInstallFabric::Loaded {
                                 backend,
@@ -380,11 +380,10 @@ impl Launcher {
             NotesMessage::OpenEdit => {
                 if let State::Launch(menu) = &mut self.state
                     && let Some(notes) = &mut menu.notes
+                    && let InstanceNotes::Viewing { content, .. } = &notes
                 {
-                    let content = notes.get_text();
                     *notes = InstanceNotes::Editing {
                         text_editor: text_editor::Content::with_text(content),
-                        original: content.to_owned(),
                     };
                 }
             }

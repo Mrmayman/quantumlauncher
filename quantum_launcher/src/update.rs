@@ -9,7 +9,7 @@ use owo_colors::OwoColorize;
 #[cfg(feature = "auto_update")]
 use crate::launcher_update::UpdateCheckInfo;
 use crate::state::{
-    AutoSaveKind, CustomJarState, FsWatcher, GameProcess, InfoMessage, Launcher, ManageModsMessage,
+    AutoSaveKind, CustomJarState, FsWatcher, InfoMessage, Launcher, ManageModsMessage,
     MenuExportInstance, MenuLicense, MenuWelcome, Message, ProgressBar, State, get_entries,
 };
 
@@ -218,13 +218,9 @@ impl Launcher {
             Message::ServerCommandSubmit => {
                 let server = self.selected_instance.as_ref().unwrap();
                 debug_assert!(server.is_server());
-                if let (
-                    Some(log),
-                    Some(GameProcess {
-                        server_input: Some((stdin, _)),
-                        ..
-                    }),
-                ) = (self.logs.get_mut(server), self.processes.get_mut(server))
+                if let Some(log) = self.logs.get_mut(server)
+                    && let Some(p) = self.processes.get_mut(server)
+                    && let Some((stdin, _)) = &mut p.server_input
                 {
                     let log_cloned = format!("{}\n", log.command);
                     let future = stdin.write_all(log_cloned.as_bytes());

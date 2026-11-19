@@ -325,14 +325,6 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         backend: StoreBackendType::Modrinth,
     },
     RecommendedMod {
-        id: "OmQzuQFa",
-        name: "LazyDFU Reloaded",
-        description: "Speeds up Minecraft start time (for new versions of the game)",
-        category: Category::Optimization,
-        enabled_by_default: false,
-        backend: StoreBackendType::Modrinth,
-    },
-    RecommendedMod {
         id: "VSNURh3q",
         name: "Concurrent Chunk Management Engine (C2ME)",
         description: "Improves the chunk performance (EXPERIMENTAL)",

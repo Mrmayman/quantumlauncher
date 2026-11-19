@@ -83,18 +83,8 @@ pub enum InstanceNotes {
         mark_state: MarkState,
     },
     Editing {
-        original: String,
         text_editor: widget::text_editor::Content,
     },
-}
-
-impl InstanceNotes {
-    pub fn get_text(&self) -> &str {
-        match self {
-            InstanceNotes::Viewing { content, .. } => content,
-            InstanceNotes::Editing { original, .. } => original,
-        }
-    }
 }
 
 pub struct LogState {

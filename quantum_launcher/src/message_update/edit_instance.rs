@@ -22,25 +22,23 @@ use crate::{
 
 macro_rules! iflet_config {
     (c: $state:expr, $config:ident, $body:block) => {
-        if let State::Launch(menu) = $state {
-            if let Some(MenuEditInstance {
+        if let State::Launch(menu) = $state
+            && let Some(MenuEditInstance {
                 config: $config, ..
             }) = &mut menu.edit_instance
-            {
-                $body
-            }
+        {
+            $body
         }
     };
 
     ($state:expr, $field:ident, $body:block) => {
-        if let State::Launch(menu) = $state {
-            if let Some(MenuEditInstance {
+        if let State::Launch(menu) = $state
+            && let Some(MenuEditInstance {
                 config: InstanceConfigJson { $field, .. },
                 ..
             }) = &mut menu.edit_instance
-            {
-                $body
-            }
+        {
+            $body
         }
     };
 
@@ -188,8 +186,8 @@ impl Launcher {
                     && let Some(menu) = &mut launch_menu.edit_instance
                 {
                     if path == REMOVE_JAR_NAME {
-                        if let (Some(jar), Some(list)) =
-                            (&menu.config.custom_jar, &mut self.custom_jar)
+                        if let Some(jar) = &menu.config.custom_jar
+                            && let Some(list) = &mut self.custom_jar
                         {
                             list.choices.retain(|n| *n != jar.name);
                             let name = jar.name.clone();
@@ -220,6 +218,7 @@ impl Launcher {
                 if let State::Launch(launch_menu) = &mut self.state
                     && let Some(menu) = &mut launch_menu.edit_instance
                 {
+                    menu.main_class_mode = t;
                     let (name, autos) = match t {
                         Some(MainClassMode::Custom) => (cls, false),
                         Some(MainClassMode::SafeFallback) => (None, true),
@@ -294,25 +293,22 @@ impl Launcher {
             _ = self.go_to_main_menu(None);
         }
 
-        if let State::Launch(launch_menu) = &mut self.state
-            && launch_menu.edit_instance.is_some()
-        {
-            if let (LaunchTab::Edit, Some(selected_instance)) = (
-                new_tab.unwrap_or(launch_menu.tab),
-                self.selected_instance.as_ref(),
-            ) {
+        if let State::Launch(menu) = &mut self.state {
+            if let LaunchTab::Edit = new_tab.unwrap_or(menu.tab)
+                && let Some(selected_instance) = self.selected_instance.as_ref()
+            {
                 self.autosave.insert(AutoSaveKind::InstanceConfig); // prevent it from saving *right now*
                 if let Err(err) =
-                    load_edit_instance_inner(&mut launch_menu.edit_instance, selected_instance)
+                    load_edit_instance_inner(&mut menu.edit_instance, selected_instance)
                 {
                     err!("Could not open edit instance menu: {err}");
-                    launch_menu.edit_instance = None;
+                    menu.edit_instance = None;
                 }
             } else {
-                launch_menu.edit_instance = None;
+                menu.edit_instance = None;
             }
             if let Some(new_tab) = new_tab {
-                launch_menu.tab = new_tab;
+                menu.tab = new_tab;
             }
         }
     }
@@ -364,15 +360,14 @@ impl Launcher {
     }
 
     fn add_custom_jar(&mut self) -> Task<Message> {
-        if let (Some(custom_jars), State::Launch(menu), Some((path, file_name))) = (
-            &mut self.custom_jar,
-            &mut self.state,
-            rfd::FileDialog::new()
+        if let Some(custom_jars) = &mut self.custom_jar
+            && let State::Launch(menu) = &mut self.state
+            && let Some((path, file_name)) = rfd::FileDialog::new()
                 .set_title("Select Custom Minecraft JAR")
                 .add_filter("Java Archive", &["jar"])
                 .pick_file()
-                .and_then(|n| n.file_name().map(|f| (n.clone(), f.to_owned()))),
-        ) && let Some(menu) = &mut menu.edit_instance
+                .and_then(|n| n.file_name().map(|f| (n.clone(), f.to_owned())))
+            && let Some(menu) = &mut menu.edit_instance
         {
             let file_name = file_name.to_string_lossy().to_string();
             if !custom_jars.choices.contains(&file_name) {

@@ -67,7 +67,9 @@ impl Launcher {
             menu.log_state = None;
             return;
         };
-        if let (Some(logs), LaunchTab::Log) = (self.logs.get(instance), menu.tab) {
+        if let Some(logs) = self.logs.get(instance)
+            && let LaunchTab::Log = menu.tab
+        {
             menu.log_state = Some(LogState {
                 content: iced::widget::text_editor::Content::with_text(&logs.log.join("\n")),
             });

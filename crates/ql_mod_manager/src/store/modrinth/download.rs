@@ -241,8 +241,8 @@ impl ModDownloader {
             .iter()
             .filter(|v| v.game_versions.contains(&self.version))
             .filter(|v| {
-                if let (Some(loader), QueryType::Mods | QueryType::ModPacks) =
-                    (self.loader, project_type)
+                if let Some(loader) = self.loader
+                    && let QueryType::Mods | QueryType::ModPacks = project_type
                 {
                     v.loaders.iter().any(|n| n == loader)
                 } else {

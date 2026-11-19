@@ -72,11 +72,11 @@ impl Mod {
         query_type: QueryType,
     ) -> Result<(CurseforgeFileQuery, i32), ModError> {
         let Some(file) = (if let QueryType::Mods | QueryType::ModPacks = query_type {
-            if let (Some(loader), true) = (
-                loader,
-                self.iter_files(version.clone())
-                    .any(|n| n.modLoader.is_some()),
-            ) {
+            if let Some(loader) = loader
+                && self
+                    .iter_files(version.clone())
+                    .any(|n| n.modLoader.is_some())
+            {
                 self.iter_files(version.clone())
                     .find(|n| {
                         if let Some(l) = n.modLoader.map(|n| n.to_string()) {
