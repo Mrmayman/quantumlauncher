@@ -15,42 +15,39 @@ use crate::{
     state::{
         ADD_JAR_NAME, AutoSaveKind, CustomJarState, EditInstanceMessage, EditInstanceRam,
         EditInstanceRename, FsWatcher, LaunchTab, Launcher, MainMenuMessage, MenuCreateInstance,
-        MenuEditInstance, MenuLaunch, Message, NONE_JAR_NAME, OPEN_FOLDER_JAR_NAME, ProgressBar,
+        MenuEditInstance, Message, NONE_JAR_NAME, OPEN_FOLDER_JAR_NAME, ProgressBar,
         REMOVE_JAR_NAME, State, get_entries,
     },
 };
 
 macro_rules! iflet_config {
     (c: $state:expr, $config:ident, $body:block) => {
-        if let State::Launch(MenuLaunch {
-            edit_instance: Some(MenuEditInstance {
+        if let State::Launch(menu) = $state {
+            if let Some(MenuEditInstance {
                 config: $config, ..
-            }),
-            ..
-        }) = $state
-        $body
+            }) = &mut menu.edit_instance
+            {
+                $body
+            }
+        }
     };
 
     ($state:expr, $field:ident, $body:block) => {
-        if let State::Launch(MenuLaunch {
-            edit_instance: Some(MenuEditInstance {
-                config: InstanceConfigJson {
-                    $field,
-                    ..
-                },
+        if let State::Launch(menu) = $state {
+            if let Some(MenuEditInstance {
+                config: InstanceConfigJson { $field, .. },
                 ..
-            }),
-            ..
-        }) = $state
-        $body
+            }) = &mut menu.edit_instance
+            {
+                $body
+            }
+        }
     };
 
     (g: $state:expr, $field:ident, $body:block) => {
         iflet_config!($state, global_settings, {
-            let global_settings =
-                global_settings.get_or_insert_default();
-            let $field =
-                &mut global_settings.$field;
+            let global_settings = global_settings.get_or_insert_default();
+            let $field = &mut global_settings.$field;
             $body
         });
     };
@@ -63,10 +60,8 @@ impl Launcher {
     ) -> Result<Task<Message>, String> {
         match message {
             EditInstanceMessage::ToggleSplitArg(t) => {
-                if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
-                    ..
-                }) = &mut self.state
+                if let State::Launch(launch_menu) = &mut self.state
+                    && let Some(menu) = &mut launch_menu.edit_instance
                 {
                     menu.arg_split_by_space = t;
                 } else if let State::LauncherSettings(menu) = &mut self.state {
@@ -95,10 +90,8 @@ impl Launcher {
                 }
             }
             EditInstanceMessage::MemoryChanged(new_slider_value) => {
-                if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
-                    ..
-                }) = &mut self.state
+                if let State::Launch(launch_menu) = &mut self.state
+                    && let Some(menu) = &mut launch_menu.edit_instance
                 {
                     menu.config.ram_in_mb = 2f32.powf(new_slider_value) as usize;
                     menu.state_ram.slider_value = new_slider_value;
@@ -107,17 +100,16 @@ impl Launcher {
                 }
             }
             EditInstanceMessage::MemoryInputChanged(input) => {
-                if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
-                    ..
-                }) = &mut self.state
+                if let State::Launch(launch_menu) = &mut self.state
+                    && let Some(menu) = &mut launch_menu.edit_instance
                 {
                     if let Ok(mb) = input.parse::<usize>()
-                        && mb > 0 {
-                            menu.config.ram_in_mb = mb;
-                            menu.state_ram.slider_value = f32::log2(mb as f32);
-                            menu.state_ram.slider_text = format_memory_mb(mb);
-                        }
+                        && mb > 0
+                    {
+                        menu.config.ram_in_mb = mb;
+                        menu.state_ram.slider_value = f32::log2(mb as f32);
+                        menu.state_ram.slider_text = format_memory_mb(mb);
+                    }
                     menu.state_ram.memory_input = input;
                 }
             }
@@ -159,10 +151,8 @@ impl Launcher {
                 });
             }
             EditInstanceMessage::RenameToggle => {
-                if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
-                    ..
-                }) = &mut self.state
+                if let State::Launch(launch_menu) = &mut self.state
+                    && let Some(menu) = &mut launch_menu.edit_instance
                 {
                     self.selected_instance
                         .as_ref()
@@ -173,10 +163,8 @@ impl Launcher {
                 }
             }
             EditInstanceMessage::RenameEdit(n) => {
-                if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
-                    ..
-                }) = &mut self.state
+                if let State::Launch(launch_menu) = &mut self.state
+                    && let Some(menu) = &mut launch_menu.edit_instance
                 {
                     menu.state_rename.name = n;
                 }
@@ -196,10 +184,8 @@ impl Launcher {
             EditInstanceMessage::CustomJarPathChanged(path) => {
                 if path == ADD_JAR_NAME {
                     return Ok(self.add_custom_jar());
-                } else if let State::Launch(MenuLaunch {
-                    edit_instance: Some(menu),
-                    ..
-                }) = &mut self.state
+                } else if let State::Launch(launch_menu) = &mut self.state
+                    && let Some(menu) = &mut launch_menu.edit_instance
                 {
                     if path == REMOVE_JAR_NAME {
                         if let (Some(jar), Some(list)) =
@@ -231,24 +217,16 @@ impl Launcher {
                 Err(err) => err!("Couldn't load list of custom jars (1)! {err}"),
             },
             EditInstanceMessage::SetMainClass(t, cls) => {
-                if let State::Launch(MenuLaunch {
-                    edit_instance:
-                        Some(MenuEditInstance {
-                            config,
-                            main_class_mode,
-                            ..
-                        }),
-                    ..
-                }) = &mut self.state
+                if let State::Launch(launch_menu) = &mut self.state
+                    && let Some(menu) = &mut launch_menu.edit_instance
                 {
-                    *main_class_mode = t;
                     let (name, autos) = match t {
                         Some(MainClassMode::Custom) => (cls, false),
                         Some(MainClassMode::SafeFallback) => (None, true),
                         None => (None, false),
                     };
-                    config.main_class_override = name;
-                    if let Some(c) = &mut config.custom_jar {
+                    menu.config.main_class_override = name;
+                    if let Some(c) = &mut menu.config.custom_jar {
                         c.autoset_main_class = autos;
                     }
                 }
@@ -316,23 +294,25 @@ impl Launcher {
             _ = self.go_to_main_menu(None);
         }
 
-        if let State::Launch(MenuLaunch {
-            tab, edit_instance, ..
-        }) = &mut self.state
+        if let State::Launch(launch_menu) = &mut self.state
+            && launch_menu.edit_instance.is_some()
         {
-            if let (LaunchTab::Edit, Some(selected_instance)) =
-                (new_tab.unwrap_or(*tab), self.selected_instance.as_ref())
-            {
+            if let (LaunchTab::Edit, Some(selected_instance)) = (
+                new_tab.unwrap_or(launch_menu.tab),
+                self.selected_instance.as_ref(),
+            ) {
                 self.autosave.insert(AutoSaveKind::InstanceConfig); // prevent it from saving *right now*
-                if let Err(err) = load_edit_instance_inner(edit_instance, selected_instance) {
+                if let Err(err) =
+                    load_edit_instance_inner(&mut launch_menu.edit_instance, selected_instance)
+                {
                     err!("Could not open edit instance menu: {err}");
-                    *edit_instance = None;
+                    launch_menu.edit_instance = None;
                 }
             } else {
-                *edit_instance = None;
+                launch_menu.edit_instance = None;
             }
             if let Some(new_tab) = new_tab {
-                *tab = new_tab;
+                launch_menu.tab = new_tab;
             }
         }
     }
@@ -358,15 +338,18 @@ impl Launcher {
     fn loaded_custom_jar(&mut self, choices: Vec<String>) -> Task<Message> {
         // If the currently selected jar got deleted/renamed
         // then unselect it
-        if let State::Launch(MenuLaunch {
-            edit_instance: Some(menu),
-            ..
-        }) = &mut self.state
-            && let Some(jar) = &menu.config.custom_jar
-                && !choices.contains(&jar.name) {
-                    self.autosave.remove(&AutoSaveKind::InstanceConfig);
-                    menu.config.custom_jar = None;
-                }
+        if let State::Launch(menu) = &mut self.state
+            && let Some(jar) = &menu
+                .edit_instance
+                .as_ref()
+                .and_then(|i| i.config.custom_jar.as_ref())
+            && !choices.contains(&jar.name)
+        {
+            self.autosave.remove(&AutoSaveKind::InstanceConfig);
+            menu.edit_instance
+                .as_mut()
+                .map(|i| i.config.custom_jar = None);
+        }
 
         if let Some(cx) = &mut self.custom_jar {
             cx.choices = choices;
@@ -385,14 +368,7 @@ impl Launcher {
     }
 
     fn add_custom_jar(&mut self) -> Task<Message> {
-        if let (
-            Some(custom_jars),
-            State::Launch(MenuLaunch {
-                edit_instance: Some(menu),
-                ..
-            }),
-            Some((path, file_name)),
-        ) = (
+        if let (Some(custom_jars), State::Launch(menu), Some((path, file_name))) = (
             &mut self.custom_jar,
             &mut self.state,
             rfd::FileDialog::new()
@@ -400,7 +376,8 @@ impl Launcher {
                 .add_filter("Java Archive", &["jar"])
                 .pick_file()
                 .and_then(|n| n.file_name().map(|f| (n.clone(), f.to_owned()))),
-        ) {
+        ) && let Some(menu) = &mut menu.edit_instance
+        {
             let file_name = file_name.to_string_lossy().to_string();
             if !custom_jars.choices.contains(&file_name) {
                 custom_jars.choices.insert(1, file_name.clone());
@@ -419,11 +396,10 @@ impl Launcher {
     }
 
     fn rename_instance(&mut self) -> Result<Task<Message>, String> {
-        let State::Launch(MenuLaunch {
-            edit_instance: Some(menu),
-            ..
-        }) = &mut self.state
-        else {
+        let State::Launch(launch_menu) = &mut self.state else {
+            return Ok(Task::none());
+        };
+        let Some(menu) = &mut launch_menu.edit_instance else {
             return Ok(Task::none());
         };
 

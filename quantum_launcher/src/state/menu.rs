@@ -912,7 +912,7 @@ pub struct MenuModDescription {
 /// The enum that represents which menu is opened currently.
 pub enum State {
     /// Default home screen
-    Launch(MenuLaunch),
+    Launch(Box<MenuLaunch>),
     Create(MenuCreateInstance),
     /// Screen to guide new users to the launcher
     Welcome(MenuWelcome),
