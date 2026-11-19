@@ -145,25 +145,25 @@ pub struct CfLinks {
 impl CfLinks {
     fn build_urls(&self) -> Vec<(UrlKind, String)> {
         let mut urls = Vec::new();
-        if let Some(website_url) = &self.website {
-            if !website_url.is_empty() {
-                urls.push((UrlKind::Website, website_url.clone()));
-            }
+        if let Some(website_url) = &self.website
+            && !website_url.is_empty()
+        {
+            urls.push((UrlKind::Website, website_url.clone()));
         }
-        if let Some(wiki_url) = &self.wiki {
-            if !wiki_url.is_empty() {
-                urls.push((UrlKind::Wiki, wiki_url.clone()));
-            }
+        if let Some(wiki_url) = &self.wiki
+            && !wiki_url.is_empty()
+        {
+            urls.push((UrlKind::Wiki, wiki_url.clone()));
         }
-        if let Some(issues_url) = &self.issues {
-            if !issues_url.is_empty() {
-                urls.push((UrlKind::Issues, issues_url.clone()));
-            }
+        if let Some(issues_url) = &self.issues
+            && !issues_url.is_empty()
+        {
+            urls.push((UrlKind::Issues, issues_url.clone()));
         }
-        if let Some(source_url) = &self.source {
-            if !source_url.is_empty() {
-                urls.push((UrlKind::Source, source_url.clone()));
-            }
+        if let Some(source_url) = &self.source
+            && !source_url.is_empty()
+        {
+            urls.push((UrlKind::Source, source_url.clone()));
         }
         urls
     }
@@ -418,22 +418,21 @@ impl Backend for CurseforgeBackend {
 
             let result = downloader.download(id, None).await;
 
-            if let Err(ModError::NoCompatibleVersionFound(name)) = &result {
-                if ignore_incompatible {
-                    pt!("No compatible version found for mod {name} ({id}), skipping...");
-                    continue;
-                }
+            if let Err(ModError::NoCompatibleVersionFound(name)) = &result
+                && ignore_incompatible
+            {
+                pt!("No compatible version found for mod {name} ({id}), skipping...");
+                continue;
             }
             result?;
 
-            if set_manually_installed {
-                if let Some(config) = downloader
+            if set_manually_installed
+                && let Some(config) = downloader
                     .index
                     .mods
                     .get_mut(&ModId::Curseforge(id.clone()))
-                {
-                    config.manually_installed = true;
-                }
+            {
+                config.manually_installed = true;
             }
         }
 

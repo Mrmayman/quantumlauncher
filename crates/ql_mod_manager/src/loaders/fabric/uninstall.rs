@@ -73,13 +73,12 @@ async fn uninstall_client(instance_name: &str) -> Result<(), FabricInstallError>
 
             for library in &libraries {
                 let library_path = libraries_dir.join(library.get_path());
-                if exists(&library_path).await {
-                    if let Err(err) = tokio::fs::remove_file(&library_path)
+                if exists(&library_path).await
+                    && let Err(err) = tokio::fs::remove_file(&library_path)
                         .await
                         .path(library_path)
-                    {
-                        err!("While uninstalling fabric/quilt: {err}");
-                    }
+                {
+                    err!("While uninstalling fabric/quilt: {err}");
                 }
             }
         }

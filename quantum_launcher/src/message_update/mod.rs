@@ -424,7 +424,7 @@ impl Launcher {
                     let content = text_editor.text();
                     launch_menu.notes = Some(InstanceNotes::Viewing {
                         mark_state: MarkState::with_html_and_markdown(&content),
-                        content: content.to_owned(),
+                        content: content.clone(),
                     });
                 }
             }

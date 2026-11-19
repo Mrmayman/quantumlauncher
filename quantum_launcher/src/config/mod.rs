@@ -239,9 +239,10 @@ impl LauncherConfig {
 
     fn fix(&mut self) {
         if let (Some(accounts), Some(selected)) = (&self.accounts, &self.account_selected)
-            && !accounts.contains_key(selected) {
-                self.account_selected = None;
-            }
+            && !accounts.contains_key(selected)
+        {
+            self.account_selected = None;
+        }
 
         #[allow(deprecated)]
         {
@@ -342,10 +343,11 @@ impl LauncherConfig {
         const INTERVAL_SECS: u64 = 60 * 60;
 
         if let Some(last) = self.last_update_check
-            && let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-                let elapsed = now.as_secs().saturating_sub(last);
-                return elapsed >= INTERVAL_SECS;
-            }
+            && let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+        {
+            let elapsed = now.as_secs().saturating_sub(last);
+            return elapsed >= INTERVAL_SECS;
+        }
         true
     }
 

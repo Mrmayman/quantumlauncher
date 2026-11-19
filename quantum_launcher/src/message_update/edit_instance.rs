@@ -339,16 +339,12 @@ impl Launcher {
         // If the currently selected jar got deleted/renamed
         // then unselect it
         if let State::Launch(menu) = &mut self.state
-            && let Some(jar) = &menu
-                .edit_instance
-                .as_ref()
-                .and_then(|i| i.config.custom_jar.as_ref())
+            && let Some(edit) = &mut menu.edit_instance
+            && let Some(jar) = &edit.config.custom_jar
             && !choices.contains(&jar.name)
         {
             self.autosave.remove(&AutoSaveKind::InstanceConfig);
-            menu.edit_instance
-                .as_mut()
-                .map(|i| i.config.custom_jar = None);
+            edit.config.custom_jar = None;
         }
 
         if let Some(cx) = &mut self.custom_jar {

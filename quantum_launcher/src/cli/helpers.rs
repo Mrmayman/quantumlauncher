@@ -15,8 +15,7 @@ pub fn render_row(
             n.0.lines()
                 .map(|n| strip_ansi_codes(n).chars().count())
                 .max()
-                .map(|n| n + 2)
-                .unwrap_or_default()
+                .map_or_default(|n| n + 2)
         })
         .collect();
 

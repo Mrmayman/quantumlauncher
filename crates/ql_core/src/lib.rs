@@ -201,10 +201,10 @@ pub async fn do_jobs_with_limit<T, E>(
 
     for result in results {
         tasks.push(result);
-        if tasks.len() >= limit {
-            if let Some(task) = tasks.next().await {
-                outputs.push(task?);
-            }
+        if tasks.len() >= limit
+            && let Some(task) = tasks.next().await
+        {
+            outputs.push(task?);
         }
     }
 
@@ -605,10 +605,10 @@ pub fn get_jar_path(
             .join(format!("{id}.jar"))
     }
 
-    if let Some(custom_jar_path) = custom_jar {
-        if !custom_jar_path.trim().is_empty() {
-            return LAUNCHER_DIR.join("custom_jars").join(custom_jar_path);
-        }
+    if let Some(custom_jar_path) = custom_jar
+        && !custom_jar_path.trim().is_empty()
+    {
+        return LAUNCHER_DIR.join("custom_jars").join(custom_jar_path);
     }
 
     optifine_jar.map_or_else(

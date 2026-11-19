@@ -111,14 +111,13 @@ impl GameLauncher {
                 )));
             };
 
-        if let Some(account_type) = account_details.map(|n| n.account_type) {
-            if matches!(account_type, AccountType::ElyBy | AccountType::LittleSkin)
-                && !self.version_json.is_legacy_version()
-                && !game_arguments.iter().any(|n| n.contains("uuid"))
-            {
-                game_arguments.push("--uuid".to_owned());
-                game_arguments.push("${uuid}".to_owned());
-            }
+        if let Some(account_type) = account_details.map(|n| n.account_type)
+            && matches!(account_type, AccountType::ElyBy | AccountType::LittleSkin)
+            && !self.version_json.is_legacy_version()
+            && !game_arguments.iter().any(|n| n.contains("uuid"))
+        {
+            game_arguments.push("--uuid".to_owned());
+            game_arguments.push("${uuid}".to_owned());
         }
 
         // Add custom resolution arguments if specified
@@ -628,20 +627,19 @@ impl GameLauncher {
         //
         // So I have to remove all the libraries from the classpath which
         // are in the module path.
-        if let Some(args) = &forge_json.arguments {
-            if let Some(jvm) = &args.jvm {
-                if let Some(module_path) = get_after_p(jvm) {
-                    for lib in module_path
-                        .replace("${library_directory}", "../forge/libraries")
-                        .replace("${classpath_separator}", &CLASSPATH_SEPARATOR.to_string())
-                        .split(CLASSPATH_SEPARATOR)
-                    {
-                        if let Some(n) =
-                            remove_substring(&new_classpath, &format!("{lib}{CLASSPATH_SEPARATOR}"))
-                        {
-                            new_classpath = n;
-                        }
-                    }
+        if let Some(args) = &forge_json.arguments
+            && let Some(jvm) = &args.jvm
+            && let Some(module_path) = get_after_p(jvm)
+        {
+            for lib in module_path
+                .replace("${library_directory}", "../forge/libraries")
+                .replace("${classpath_separator}", &CLASSPATH_SEPARATOR.to_string())
+                .split(CLASSPATH_SEPARATOR)
+            {
+                if let Some(n) =
+                    remove_substring(&new_classpath, &format!("{lib}{CLASSPATH_SEPARATOR}"))
+                {
+                    new_classpath = n;
                 }
             }
         }
@@ -1016,10 +1014,10 @@ fn deduplicate_game_args(arr1: &[String], arr2: &[String]) -> Vec<String> {
             if seen_keys.contains(&key) {
                 if let Some(value) = value {
                     // Update value if the key already exists in result (i.e., in case of conflict, overwrite)
-                    if let Some(pos) = result.iter().position(|x| x == &key) {
-                        if let Some(spot) = result.get_mut(pos + 1) {
-                            *spot = value; // Update the value for this key
-                        }
+                    if let Some(pos) = result.iter().position(|x| x == &key)
+                        && let Some(spot) = result.get_mut(pos + 1)
+                    {
+                        *spot = value; // Update the value for this key
                     }
                 }
             } else {

@@ -47,13 +47,13 @@ pub async fn install(
     index: &PackIndex,
     sender: Option<&Sender<GenericProgress>>,
 ) -> Result<(), PackError> {
-    if let Some(version) = index.dependencies.get("minecraft") {
-        if json.get_id() != *version {
-            return Err(PackError::GameVersion {
-                expect: version.clone(),
-                got: json.get_id().to_owned(),
-            });
-        }
+    if let Some(version) = index.dependencies.get("minecraft")
+        && json.get_id() != *version
+    {
+        return Err(PackError::GameVersion {
+            expect: version.clone(),
+            got: json.get_id().to_owned(),
+        });
     }
 
     pt!("Modrinth Modpack: {}", index.name);

@@ -129,11 +129,11 @@ async fn setup_details(instance: &Instance) -> Result<(), InstancePackageError> 
     if exists(&instance.get_instance_path().join("patches/org.lwjgl.json")).await {
         let mut details = VersionDetails::load(instance).await?;
         details.libraries.retain(|lib| {
-            if let Some(name) = &lib.name {
-                if name.starts_with("org.mcphackers:legacy-lwjgl3:") {
-                    pt!("Removing legacy-lwjgl3 for compatibility reasons...");
-                    return false;
-                }
+            if let Some(name) = &lib.name
+                && name.starts_with("org.mcphackers:legacy-lwjgl3:")
+            {
+                pt!("Removing legacy-lwjgl3 for compatibility reasons...");
+                return false;
             }
             true
         });
@@ -148,15 +148,15 @@ fn setup_config(ini: &Ini, instance_recipe: &InstanceRecipe, config: &mut Instan
     }
     // TODO: `LaunchMaximized: bool`
 
-    if let Ok(win_height) = general_get(ini, "MinecraftWinHeight") {
-        if let Ok(height) = win_height.parse::<u32>() {
-            config.c_global_settings().window_height = Some(height);
-        }
+    if let Ok(win_height) = general_get(ini, "MinecraftWinHeight")
+        && let Ok(height) = win_height.parse::<u32>()
+    {
+        config.c_global_settings().window_height = Some(height);
     }
-    if let Ok(win_width) = general_get(ini, "MinecraftWinWidth") {
-        if let Ok(width) = win_width.parse::<u32>() {
-            config.c_global_settings().window_width = Some(width);
-        }
+    if let Ok(win_width) = general_get(ini, "MinecraftWinWidth")
+        && let Ok(width) = win_width.parse::<u32>()
+    {
+        config.c_global_settings().window_width = Some(width);
     }
 
     if let Ok(jvmargs) = general_get(ini, "JvmArgs") {

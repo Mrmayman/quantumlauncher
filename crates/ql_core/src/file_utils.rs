@@ -488,10 +488,10 @@ pub async fn find_item_in_dir<F: FnMut(&Path, &str) -> bool>(
     let mut entries = tokio::fs::read_dir(parent_dir).await.path(parent_dir)?;
     while let Ok(Some(entry)) = entries.next_entry().await {
         let path = entry.path();
-        if let Some(file_name) = path.file_name().and_then(OsStr::to_str) {
-            if f(&path, file_name) {
-                return Ok(Some(path));
-            }
+        if let Some(file_name) = path.file_name().and_then(OsStr::to_str)
+            && f(&path, file_name)
+        {
+            return Ok(Some(path));
         }
     }
     Ok(None)

@@ -19,14 +19,13 @@ pub async fn uninstall(instance: Instance) -> Result<(), String> {
 
 async fn uninstall_client(instance_dir: &Path, instance: Instance) -> Result<(), String> {
     let forge_dir = instance_dir.join("forge");
-    if forge_dir.is_dir() {
-        if let Err(err) = tokio::fs::remove_dir_all(&forge_dir)
+    if forge_dir.is_dir()
+        && let Err(err) = tokio::fs::remove_dir_all(&forge_dir)
             .await
             .path(forge_dir)
             .strerr()
-        {
-            err!("While uninstalling forge: {err}");
-        }
+    {
+        err!("While uninstalling forge: {err}");
     }
 
     let mut config = InstanceConfigJson::read_from_dir(instance_dir)

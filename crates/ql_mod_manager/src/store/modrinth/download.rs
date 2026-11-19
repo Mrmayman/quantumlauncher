@@ -118,15 +118,15 @@ impl ModDownloader {
             ModError::UnknownProjectType(project_info.project_type.clone()),
         )?;
 
-        if let QueryType::Mods | QueryType::ModPacks = query_type {
-            if !self.has_compatible_loader(&project_info) {
-                if let Some(loader) = &self.loader {
-                    pt!("Mod {} doesn't support {loader}", project_info.title);
-                } else {
-                    err!("Mod {} doesn't support unknown loader!", project_info.title);
-                }
-                return Ok(());
+        if let QueryType::Mods | QueryType::ModPacks = query_type
+            && !self.has_compatible_loader(&project_info)
+        {
+            if let Some(loader) = &self.loader {
+                pt!("Mod {} doesn't support {loader}", project_info.title);
+            } else {
+                err!("Mod {} doesn't support unknown loader!", project_info.title);
             }
+            return Ok(());
         }
 
         print_downloading_message(&project_info, dependent);
@@ -253,7 +253,7 @@ impl ModDownloader {
             .collect();
 
         // Sort by date published
-        download_versions.sort_by(|a, b| a.date_published.cmp(&b.date_published));
+        download_versions.sort_by_key(|a| a.date_published);
 
         let download_version =
             download_versions

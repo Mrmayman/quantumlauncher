@@ -134,7 +134,7 @@ impl Launcher {
         let rpc_config = self.config.discord_rpc.clone().unwrap_or_default();
 
         if rpc_config.basic.top_text.is_none() && rpc_config.basic.bottom_text.is_none() {
-            return Task::perform(async move { _ = c.clear_activity().await }, |_| {
+            return Task::perform(async move { _ = c.clear_activity().await }, |()| {
                 Message::Nothing
             });
         }
@@ -196,25 +196,26 @@ impl Launcher {
         Task::perform(
             async move {
                 if let Ok(version_details) = VersionDetails::load(&selected_instance).await
-                    && let Some(c) = client {
-                        let instance = selected_instance.get_name();
-                        let minecraft_vers = version_details.get_id();
+                    && let Some(c) = client
+                {
+                    let instance = selected_instance.get_name();
+                    let minecraft_vers = version_details.get_id();
 
-                        let activity = bake_activity(
-                            name,
-                            sdt,
-                            competing,
-                            details.map(|f| f.substitute(instance, minecraft_vers)),
-                            details_url,
-                            state.map(|f| f.substitute(instance, minecraft_vers)),
-                            state_url,
-                        );
+                    let activity = bake_activity(
+                        name,
+                        sdt,
+                        competing,
+                        details.map(|f| f.substitute(instance, minecraft_vers)),
+                        details_url,
+                        state.map(|f| f.substitute(instance, minecraft_vers)),
+                        state_url,
+                    );
 
-                        match activity {
-                            Ok(a) => _ = c.set_activity(a).await,
-                            Err(e) => err!(no_log, "Failed to bake RPC game update activity: {e}"),
-                        }
+                    match activity {
+                        Ok(a) => _ = c.set_activity(a).await,
+                        Err(e) => err!(no_log, "Failed to bake RPC game update activity: {e}"),
                     }
+                }
             },
             |()| Message::Nothing,
         )

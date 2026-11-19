@@ -137,12 +137,13 @@ impl Launcher {
             shortcut.exec_args.push("-s".to_owned());
         }
         if let Some(n) = dirs::data_dir().map(|d| d.join("QuantumLauncher"))
-            && *LAUNCHER_DIR != n {
-                shortcut.exec_args.push("--dir".to_owned());
-                shortcut
-                    .exec_args
-                    .push(LAUNCHER_DIR.to_string_lossy().to_string());
-            }
+            && *LAUNCHER_DIR != n
+        {
+            shortcut.exec_args.push("--dir".to_owned());
+            shortcut
+                .exec_args
+                .push(LAUNCHER_DIR.to_string_lossy().to_string());
+        }
 
         // Launch command
         shortcut

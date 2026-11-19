@@ -41,10 +41,10 @@ impl RecommendedMod {
         for id in ids {
             let i = i.clone();
             tasks.push_back(id.check_compatibility(&sender, i, len, loader, version, &index));
-            if tasks.len() > LIMIT {
-                if let Some(task) = tasks.next().await.flatten() {
-                    mods.push(task);
-                }
+            if tasks.len() > LIMIT
+                && let Some(task) = tasks.next().await.flatten()
+            {
+                mods.push(task);
             }
         }
 
@@ -203,7 +203,6 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         enabled_by_default: true,
         backend: StoreBackendType::Modrinth,
     },
-
     // Optional Extras
     RecommendedMod {
         id: "YL57xq9U",
@@ -469,7 +468,6 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         enabled_by_default: false,
         backend: StoreBackendType::Modrinth,
     },
-
 ];
 
 // Recommended Mod template

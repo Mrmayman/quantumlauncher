@@ -233,8 +233,7 @@ impl Launcher {
             self.config
                 .ui
                 .as_ref()
-                .map(|n| n.window_decorations)
-                .unwrap_or_default(),
+                .map_or_default(|n| n.window_decorations),
             UiWindowDecorations::Right
         );
 

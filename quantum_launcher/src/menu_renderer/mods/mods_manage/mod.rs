@@ -256,8 +256,7 @@ impl MenuEditMods {
                             .mod_index
                             .mods
                             .get(id)
-                            .map(|n| &*n.name)
-                            .unwrap_or_default();
+                            .map_or_default(|n| &*n.name);
 
                         let toggle = move |b| ManageModsMessage::UpdateCheckToggle(i, b).into();
 

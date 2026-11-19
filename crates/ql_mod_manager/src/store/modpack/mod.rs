@@ -183,8 +183,7 @@ async fn write_regular_file(
     let name = name.unwrap_or_else(|| {
         let time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|n| n.as_secs())
-            .unwrap_or(0);
+            .map_or_default(|n| n.as_secs());
         format!("{dir_name}_{time}")
     });
     let Some(safe_name) = std::path::Path::new(&name).file_name() else {
