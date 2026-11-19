@@ -15,7 +15,7 @@ owo-colors.workspace = true
 sysinfo.workspace = true
 
 duct = "1"
-which = "8.0.6"
+which = "8"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = { version = "0.25", features = ["catalina"] }

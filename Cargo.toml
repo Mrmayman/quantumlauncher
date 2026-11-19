@@ -22,7 +22,7 @@ semver = "1"
 dirs = "7"
 
 sysinfo = "0.40"
-reqwest = { version = "0.13.*", features = ["json", "stream", "query", "form"] }
+reqwest = { version = "0.13", features = ["json", "stream", "query", "form"] }
 
 tokio = { version = "1", features = ["fs", "macros", "process", "rt", "rt-multi-thread"] }
 futures = { version = "0.3", default-features = false, features = ["executor"] }
