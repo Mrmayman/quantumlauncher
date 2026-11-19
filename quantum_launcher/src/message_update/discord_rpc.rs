@@ -195,8 +195,8 @@ impl Launcher {
 
         Task::perform(
             async move {
-                if let Ok(version_details) = VersionDetails::load(&selected_instance).await {
-                    if let Some(c) = client {
+                if let Ok(version_details) = VersionDetails::load(&selected_instance).await
+                    && let Some(c) = client {
                         let instance = selected_instance.get_name();
                         let minecraft_vers = version_details.get_id();
 
@@ -215,7 +215,6 @@ impl Launcher {
                             Err(e) => err!(no_log, "Failed to bake RPC game update activity: {e}"),
                         }
                     }
-                }
             },
             |()| Message::Nothing,
         )

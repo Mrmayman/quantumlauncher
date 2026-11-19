@@ -559,7 +559,7 @@ impl Launcher {
     }
 }
 
-fn search_input(search: &String) -> widget::Stack<'_, Message, LauncherTheme> {
+fn search_input(search: &str) -> widget::Stack<'_, Message, LauncherTheme> {
     widget::stack!(
         widget::text_input("Type to search...", search)
             .on_input(|s| MainMenuMessage::Modal(Some(LaunchModal::SSearch(s))).into())

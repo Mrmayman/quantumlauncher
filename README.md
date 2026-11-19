@@ -53,6 +53,7 @@ QuantumLauncher can be installed in several ways.
   cargo run --release
   ```
   Omit `--release` for faster compile times during development. Debug builds have worse performance and produce much larger build artifacts.
+
 # Downloads and Building
 
 Download stable versions from [the website](https://mrmayman.github.io/quantumlauncher/#downloads), or from [Releases](http://github.com/Mrmayman/quantumlauncher/releases/latest)
@@ -94,8 +95,7 @@ Structure:
 
 # More info
 
-- **MSRV** (Minimum Supported Rust Version): Follows [Debian stable](https://packages.debian.org/en/stable/rustc) (currently `1.85.0`)
-  - Any mismatch is considered a bug, please report if found
+- **Rust Version**: Latest stable
 - [**Roadmap/Plans**](docs/ROADMAP.md)
 - [**Contributing**](CONTRIBUTING.md)
 - [**Test Suite**](tests/README.md)

@@ -274,6 +274,11 @@ impl GameLauncher {
             args.push("-Xss1M".to_owned());
         }
 
+        if self.get_java_version() >= JavaVersion::Java17 {
+            // Temporary mitigation for Java4Shell vulnerability
+            args.push("-XX:-UseBASE64Intrinsics".to_owned());
+        }
+
         if cfg!(target_os = "macos") {
             args.push("-XstartOnFirstThread".to_owned());
         }
@@ -753,6 +758,16 @@ impl GameLauncher {
         Ok(())
     }
 
+    fn get_java_version(&mut self) -> JavaVersion {
+        if let Some(version) = self.config.java_override_version {
+            version.into()
+        } else if let Some(version) = self.version_json.javaVersion.clone() {
+            version.into()
+        } else {
+            JavaVersion::Java8
+        }
+    }
+
     async fn get_java_command(&mut self) -> Result<(Command, PathBuf), GameLaunchError> {
         let which_java = if cfg!(target_os = "windows") && self.config.enable_logger.unwrap_or(true)
         {
@@ -771,13 +786,7 @@ impl GameLauncher {
             ));
         }
 
-        let version = if let Some(version) = self.config.java_override_version {
-            version.into()
-        } else if let Some(version) = self.version_json.javaVersion.clone() {
-            version.into()
-        } else {
-            JavaVersion::Java8
-        };
+        let version = self.get_java_version();
 
         let program = get_java_binary(
             version,

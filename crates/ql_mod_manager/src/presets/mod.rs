@@ -227,7 +227,10 @@ impl Preset {
 
         for i in 0..zip.len() {
             let mut file = zip.by_index(i).map_err(ModError::Zip)?;
-            let name = file.name().to_owned();
+            let Some(name) = file.enclosed_name() else {
+                continue;
+            };
+            let name = name.to_string_lossy().into_owned();
 
             if name == "index.json" {
             } else if name.starts_with("config/") || name.starts_with("config\\") {

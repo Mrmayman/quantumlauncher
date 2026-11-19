@@ -4,7 +4,7 @@ use crate::{
     state::{AutoSaveKind, Launcher, LauncherSettingsMessage, LauncherSettingsTab, Message, State},
 };
 use iced::Task;
-use ql_core::{IntoStringError, err};
+use ql_core::IntoStringError;
 
 impl Launcher {
     pub fn update_launcher_settings(&mut self, msg: LauncherSettingsMessage) -> Task<Message> {
@@ -128,10 +128,7 @@ impl Launcher {
             LauncherSettingsMessage::GlobalEnvVars(msg) => {
                 let split = self.should_split_args();
                 msg.apply(
-                    self.config
-                        .c_global()
-                        .env_vars
-                        .get_or_insert_default(),
+                    self.config.c_global().env_vars.get_or_insert_default(),
                     split,
                 );
             }
@@ -143,25 +140,9 @@ impl Launcher {
                 };
                 self.config.ui.get_or_insert_default().window_decorations = decor;
             }
-            LauncherSettingsMessage::LoadedSystemTheme(res) => match res {
-                Ok(mode) => {
-                    self.theme.system_dark_mode = mode == dark_light::Mode::Dark;
-                }
-                Err(err) if err.contains("Timeout reached") => {
-                    // The system is just lagging, nothing we can do
-                }
-                Err(err)
-                    if err.contains("org.freedesktop.portal.Error.NotFound")
-                        || err.contains("org.freedesktop.DBus.Error.NameHasNoOwner") =>
-                {
-                    // User is on barebones desktop environment
-                    // that doesn't support light/dark mode.
-                    // eg: Raspberry Pi OS, LXDE, Openbox, etc
-                }
-                Err(err) => {
-                    err!(no_log, "while loading system theme: {err}");
-                }
-            },
+            LauncherSettingsMessage::LoadedSystemTheme(mode) => {
+                self.theme.system_dark_mode = mode == dark_light::Mode::Dark;
+            }
             LauncherSettingsMessage::Rpc(msg) => return self.update_rpc(msg),
         }
         Task::none()
