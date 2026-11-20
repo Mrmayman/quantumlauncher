@@ -60,19 +60,26 @@ impl Launcher {
                     );
                 }
 
-                if !self.is_checking_processes && !self.processes.is_empty() {
-                    self.is_checking_processes = true;
-                    let processes = self
+                let one_sec = (self.tick_interval() as usize).max(1); // Every N ticks -> 1 second
+                if !self.is_checking_processes && self.tick_timer.is_multiple_of(one_sec) {
+                    let processes: Vec<_> = self
                         .processes
                         .iter()
                         .filter_map(|(instance, process)| {
-                            process.pid.map(|pid| (instance.clone(), pid))
+                            process
+                                .is_restored()
+                                .then_some(process.pid)
+                                .flatten()
+                                .map(|pid| (instance.clone(), pid))
                         })
                         .collect();
-                    commands.push(Task::perform(
-                        launched_games::closed_instances(processes),
-                        |n| LaunchMessage::ProcessesChecked(n.strerr()).into(),
-                    ));
+                    if !processes.is_empty() {
+                        self.is_checking_processes = true;
+                        commands.push(Task::perform(
+                            launched_games::closed_instances(processes),
+                            |n| LaunchMessage::ProcessesChecked(n.strerr()).into(),
+                        ));
+                    }
                 }
 
                 if let State::Launch(menu) = &self.state {

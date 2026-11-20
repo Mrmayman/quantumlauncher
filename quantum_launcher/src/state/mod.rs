@@ -197,6 +197,11 @@ impl GameProcess {
         }
     }
 
+    /// Restored from disk after a launcher restart (no live [`LaunchedProcess`] handle).
+    pub fn is_restored(&self) -> bool {
+        self.child.is_none()
+    }
+
     pub fn launched_game(&self, instance: &Instance) -> Option<LaunchedGame> {
         self.pid.map(|pid| LaunchedGame {
             instance_name: instance.get_name().to_owned(),

@@ -5,7 +5,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 use chrono::{DateTime, Utc};
 use ql_core::{Instance, InstanceKind, LAUNCHER_DIR};
 use serde::{Deserialize, Serialize};
-use sysinfo::{Pid, System};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 
 const FILE_NAME: &str = "launched_games.json";
 
@@ -52,7 +52,8 @@ pub async fn load() -> Result<Vec<LaunchedGame>, String> {
         .map_err(|err| format!("Could not parse {}: {err}", path.display()))?;
 
     tokio::task::spawn_blocking(move || {
-        let system = System::new_all().map_err(|err| err.to_string())?;
+        let pids: Vec<u32> = games.iter().map(|game| game.pid).collect();
+        let system = system_with_pids(&pids)?;
         Ok(games
             .into_iter()
             .filter(|game: &LaunchedGame| system.process(Pid::from_u32(game.pid)).is_some())
@@ -75,7 +76,8 @@ pub async fn save(games: SharedLaunchedGames) -> Result<(), String> {
 
 pub async fn closed_instances(processes: Vec<(Instance, u32)>) -> Result<Vec<Instance>, String> {
     tokio::task::spawn_blocking(move || {
-        let system = System::new_all().map_err(|err| err.to_string())?;
+        let pids: Vec<u32> = processes.iter().map(|(_, pid)| *pid).collect();
+        let system = system_with_pids(&pids)?;
         Ok(processes
             .into_iter()
             .filter_map(|(instance, pid)| {
@@ -92,7 +94,7 @@ pub async fn closed_instances(processes: Vec<(Instance, u32)>) -> Result<Vec<Ins
 
 pub async fn kill(pid: u32) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        let system = System::new_all().map_err(|err| err.to_string())?;
+        let system = system_with_pids(&[pid])?;
         let Some(process) = system.process(Pid::from_u32(pid)) else {
             return Ok(());
         };
@@ -104,4 +106,16 @@ pub async fn kill(pid: u32) -> Result<(), String> {
     })
     .await
     .map_err(|err| err.to_string())?
+}
+
+/// Builds a [`System`] and refreshes only the given PIDs (existence check, no full scan).
+fn system_with_pids(pids: &[u32]) -> Result<System, String> {
+    let mut system = System::new().map_err(|err| err.to_string())?;
+    let pids: Vec<Pid> = pids.iter().copied().map(Pid::from_u32).collect();
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&pids),
+        true,
+        ProcessRefreshKind::nothing(),
+    );
+    Ok(system)
 }

@@ -309,7 +309,7 @@ impl Launcher {
         match instance.kind {
             InstanceKind::Client => {
                 if let Some(process) = self.processes.get(instance)
-                    && process.child.is_none()
+                    && process.is_restored()
                     && let Some(pid) = process.pid
                 {
                     let instance = instance.clone();
