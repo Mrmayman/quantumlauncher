@@ -1,5 +1,4 @@
 use cfg_if::cfg_if;
-use chrono::{DateTime, Utc};
 use frostmark::MarkWidget;
 use iced::widget::{column, horizontal_space, row, text_editor, tooltip::Position, vertical_space};
 use iced::{Alignment, Length, Padding, widget};
@@ -161,7 +160,16 @@ impl Launcher {
     }
 
     fn get_tab_main<'a>(&'a self, menu: &'a MenuLaunch, selected: &'a Instance) -> Element<'a> {
-        let process = self.processes.get(selected);
+        let (is_running, play_time) = if let Some(process) = self.processes.get(selected) {
+            (true, Some(play_time_text(process.play_time_secs())))
+        } else {
+            (
+                false,
+                self.last_play_time
+                    .get(selected)
+                    .map(|&secs| format!(" Played for {}", play_time_text(secs))),
+            )
+        };
 
         let main_buttons = row![
             if selected.is_server() {
@@ -209,13 +217,12 @@ impl Launcher {
 
         column![
             row![widget::text(selected.get_name()).font(FONT_MONO).size(20)]
-                .push_maybe(process.map(|_| icons::play_s(16)))
-                .push_maybe(process.map(|process| {
-                    widget::text(running_for_text(process.launched_at))
-                        .font(FONT_MONO)
-                        .size(14)
-                        .style(tsubtitle)
-                }))
+                .push_maybe(is_running.then_some(icons::play_s(16)))
+                .push_maybe(
+                    play_time.map(|text| {
+                        widget::text(text).font(FONT_MONO).size(14).style(tsubtitle)
+                    })
+                )
                 .spacing(12)
                 .align_y(Alignment::Center),
             main_buttons,
@@ -694,11 +701,7 @@ fn render_tab_button(tab: LaunchTab, decor: bool, menu: &'_ MenuLaunch) -> Eleme
         .into()
 }
 
-fn running_for_text(launched_at: DateTime<Utc>) -> String {
-    let secs = Utc::now()
-        .signed_duration_since(launched_at)
-        .num_seconds()
-        .max(0) as u64;
+fn play_time_text(secs: u64) -> String {
     let hours = secs / 3600;
     let mins = (secs % 3600) / 60;
     let secs = secs % 60;

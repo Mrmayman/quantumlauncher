@@ -1,4 +1,4 @@
-use std::process::ExitStatus;
+use std::{collections::HashMap, process::ExitStatus};
 
 use chrono::Utc;
 use iced::{Task, futures::executor::block_on};
@@ -80,7 +80,7 @@ impl Launcher {
 
         let mut tasks = Vec::with_capacity(closed.len() + 1);
         for instance in closed {
-            if self.processes.remove(&instance).is_some() {
+            if end_process(&mut self.processes, &mut self.last_play_time, &instance).is_some() {
                 tasks.push(self.rpc_game_update(instance, true));
             }
         }
@@ -98,7 +98,7 @@ impl Launcher {
             return Task::none();
         }
 
-        self.processes.remove(&instance);
+        end_process(&mut self.processes, &mut self.last_play_time, &instance);
         self.save_launched_games()
     }
 
@@ -110,6 +110,7 @@ impl Launcher {
             return Task::none();
         }
         self.logs.remove(selected_instance);
+        self.last_play_time.remove(selected_instance);
 
         match selected_instance.kind {
             InstanceKind::Client => {
@@ -207,7 +208,8 @@ impl Launcher {
             &mut None
         };
 
-        if let Some(process) = self.processes.remove(instance) {
+        if let Some(process) = end_process(&mut self.processes, &mut self.last_play_time, instance)
+        {
             Self::read_game_logs(
                 &process,
                 instance,
@@ -303,16 +305,15 @@ impl Launcher {
     }
 
     fn kill_selected_instance(&mut self) -> Task<Message> {
-        let Some(instance) = &self.selected_instance else {
+        let Some(instance) = self.selected_instance.clone() else {
             return Task::none();
         };
         match instance.kind {
             InstanceKind::Client => {
-                if let Some(process) = self.processes.get(instance)
+                if let Some(process) = self.processes.get(&instance)
                     && process.is_restored()
                     && let Some(pid) = process.pid
                 {
-                    let instance = instance.clone();
                     return Task::perform(crate::launched_games::kill(pid), move |result| {
                         LaunchMessage::PersistedGameKilled {
                             instance: instance.clone(),
@@ -322,7 +323,8 @@ impl Launcher {
                     });
                 }
 
-                if let Some(process) = self.processes.remove(instance)
+                if let Some(process) =
+                    end_process(&mut self.processes, &mut self.last_play_time, &instance)
                     && let Some(child) = process.child
                 {
                     let mut child = block_on(child.child.lock());
@@ -335,7 +337,7 @@ impl Launcher {
                     server_input: Some((stdin, has_issued_stop_command)),
                     child: Some(child),
                     ..
-                }) = self.processes.get_mut(instance)
+                }) = self.processes.get_mut(&instance)
                 {
                     *has_issued_stop_command = true;
                     if child.is_classic_server {
@@ -344,10 +346,9 @@ impl Launcher {
                         let future = stdin.write_all("stop\n".as_bytes());
                         _ = block_on(future);
                     }
-                } else if let Some(process) = self.processes.get(instance)
+                } else if let Some(process) = self.processes.get(&instance)
                     && let Some(pid) = process.pid
                 {
-                    let instance = instance.clone();
                     return Task::perform(crate::launched_games::kill(pid), move |result| {
                         LaunchMessage::PersistedGameKilled {
                             instance: instance.clone(),
@@ -513,4 +514,15 @@ impl Launcher {
         }
         Task::none()
     }
+}
+
+/// Removes a tracked process and freezes its play time for the UI.
+fn end_process(
+    processes: &mut HashMap<Instance, GameProcess>,
+    last_play_time: &mut HashMap<Instance, u64>,
+    instance: &Instance,
+) -> Option<GameProcess> {
+    let process = processes.remove(instance)?;
+    last_play_time.insert(instance.clone(), process.play_time_secs());
+    Some(process)
 }

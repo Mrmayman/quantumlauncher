@@ -85,6 +85,8 @@ pub struct Launcher {
 
     pub processes: HashMap<Instance, GameProcess>,
     pub logs: HashMap<Instance, InstanceLog>,
+    /// Finished-session play time (seconds), kept until the next launch.
+    pub last_play_time: HashMap<Instance, u64>,
     pub launched_games: SharedLaunchedGames,
     pub is_checking_processes: bool,
 
@@ -202,6 +204,13 @@ impl GameProcess {
         self.child.is_none()
     }
 
+    pub fn play_time_secs(&self) -> u64 {
+        chrono::Utc::now()
+            .signed_duration_since(self.launched_at)
+            .num_seconds()
+            .max(0) as u64
+    }
+
     pub fn launched_game(&self, instance: &Instance) -> Option<LaunchedGame> {
         self.pid.map(|pid| LaunchedGame {
             instance_name: instance.get_name().to_owned(),
@@ -287,6 +296,7 @@ impl Launcher {
 
             logs: HashMap::new(),
             processes: HashMap::new(),
+            last_play_time: HashMap::new(),
             launched_games: launched_games::shared(),
             is_checking_processes: false,
 
@@ -358,6 +368,7 @@ impl Launcher {
 
             logs: HashMap::new(),
             processes: HashMap::new(),
+            last_play_time: HashMap::new(),
             launched_games: crate::launched_games::shared(),
             is_checking_processes: false,
             accounts: HashMap::new(),
