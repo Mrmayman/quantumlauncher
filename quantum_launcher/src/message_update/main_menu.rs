@@ -1,5 +1,6 @@
 use std::process::ExitStatus;
 
+use chrono::Utc;
 use iced::{Task, futures::executor::block_on};
 use ql_core::{
     Instance, InstanceKind, IntoStringError, LaunchedProcess, err, info, pt,
@@ -30,7 +31,75 @@ impl Launcher {
             LaunchMessage::Start => self.launch_start(),
             LaunchMessage::End(result) => self.finish_launching(result),
             LaunchMessage::Kill => self.kill_selected_instance(),
+            LaunchMessage::LaunchedGamesLoaded(result) => self.load_launched_games(result),
+            LaunchMessage::LaunchedGamesSaved(Err(err)) => {
+                err!("Could not save launched games: {err}");
+                Task::none()
+            }
+            LaunchMessage::LaunchedGamesSaved(Ok(())) => Task::none(),
+            LaunchMessage::ProcessesChecked(result) => self.remove_closed_games(result),
+            LaunchMessage::PersistedGameKilled { instance, result } => {
+                self.finish_killing_persisted_game(instance, result)
+            }
         }
+    }
+
+    fn load_launched_games(
+        &mut self,
+        result: Result<Vec<crate::launched_games::LaunchedGame>, String>,
+    ) -> Task<Message> {
+        match result {
+            Ok(games) => {
+                for game in games {
+                    self.processes
+                        .entry(game.instance())
+                        .or_insert_with(|| GameProcess::restored(&game));
+                }
+                self.save_launched_games()
+            }
+            Err(err) => {
+                err!("Could not load launched games: {err}");
+                Task::none()
+            }
+        }
+    }
+
+    fn remove_closed_games(&mut self, result: Result<Vec<Instance>, String>) -> Task<Message> {
+        self.is_checking_processes = false;
+        let closed = match result {
+            Ok(closed) => closed,
+            Err(err) => {
+                err!("Could not check launched games: {err}");
+                return Task::none();
+            }
+        };
+
+        if closed.is_empty() {
+            return Task::none();
+        }
+
+        let mut tasks = Vec::with_capacity(closed.len() + 1);
+        for instance in closed {
+            if self.processes.remove(&instance).is_some() {
+                tasks.push(self.rpc_game_update(instance, true));
+            }
+        }
+        tasks.push(self.save_launched_games());
+        Task::batch(tasks)
+    }
+
+    fn finish_killing_persisted_game(
+        &mut self,
+        instance: Instance,
+        result: Result<(), String>,
+    ) -> Task<Message> {
+        if let Err(err) = result {
+            err!("Could not kill {}: {err}", instance.get_name());
+            return Task::none();
+        }
+
+        self.processes.remove(&instance);
+        self.save_launched_games()
     }
 
     fn launch_start(&mut self) -> Task<Message> {
@@ -148,7 +217,10 @@ impl Launcher {
             );
         }
 
-        self.rpc_game_update(instance.clone(), true)
+        Task::batch([
+            self.save_launched_games(),
+            self.rpc_game_update(instance.clone(), true),
+        ])
     }
 
     fn finish_launching(&mut self, result: Result<LaunchedProcess, String>) -> Task<Message> {
@@ -158,16 +230,18 @@ impl Launcher {
             Ok(child) => {
                 let selected_instance = child.instance.clone();
 
-                let server_input = block_on(child.child.lock())
-                    .stdin
-                    .take()
-                    .map(|n| (n, false));
+                let (server_input, pid) = {
+                    let mut process = block_on(child.child.lock());
+                    (process.stdin.take().map(|n| (n, false)), process.id())
+                };
 
                 let (sender, receiver) = std::sync::mpsc::channel();
                 self.processes.insert(
                     selected_instance.clone(),
                     GameProcess {
-                        child: child.clone(),
+                        child: Some(child.clone()),
+                        pid,
+                        launched_at: Utc::now(),
                         receiver: Some(receiver),
                         server_input,
                     },
@@ -181,6 +255,7 @@ impl Launcher {
                 }
 
                 let version_presence_task = self.rpc_game_update(selected_instance.clone(), false);
+                let save_launched_games = self.save_launched_games();
 
                 let log_task = Task::perform(
                     async move {
@@ -211,11 +286,16 @@ impl Launcher {
                     AfterLaunchBehavior::MinimizeLauncher => {
                         let minimize_task = iced::window::get_latest()
                             .and_then(|id| iced::window::minimize(id, true));
-                        return Task::batch([log_task, minimize_task, version_presence_task]);
+                        return Task::batch([
+                            log_task,
+                            minimize_task,
+                            version_presence_task,
+                            save_launched_games,
+                        ]);
                     }
                 }
 
-                return Task::batch([log_task, version_presence_task]);
+                return Task::batch([log_task, version_presence_task, save_launched_games]);
             }
             Err(err) => self.set_error(err),
         }
@@ -228,15 +308,32 @@ impl Launcher {
         };
         match instance.kind {
             InstanceKind::Client => {
-                if let Some(process) = self.processes.remove(instance) {
-                    let mut child = block_on(process.child.child.lock());
+                if let Some(process) = self.processes.get(instance)
+                    && process.child.is_none()
+                    && let Some(pid) = process.pid
+                {
+                    let instance = instance.clone();
+                    return Task::perform(crate::launched_games::kill(pid), move |result| {
+                        LaunchMessage::PersistedGameKilled {
+                            instance: instance.clone(),
+                            result,
+                        }
+                        .into()
+                    });
+                }
+
+                if let Some(process) = self.processes.remove(instance)
+                    && let Some(child) = process.child
+                {
+                    let mut child = block_on(child.child.lock());
                     _ = child.start_kill();
+                    return self.save_launched_games();
                 }
             }
             InstanceKind::Server => {
                 if let Some(GameProcess {
                     server_input: Some((stdin, has_issued_stop_command)),
-                    child,
+                    child: Some(child),
                     ..
                 }) = self.processes.get_mut(instance)
                 {
@@ -247,10 +344,35 @@ impl Launcher {
                         let future = stdin.write_all("stop\n".as_bytes());
                         _ = block_on(future);
                     }
+                } else if let Some(process) = self.processes.get(instance)
+                    && let Some(pid) = process.pid
+                {
+                    let instance = instance.clone();
+                    return Task::perform(crate::launched_games::kill(pid), move |result| {
+                        LaunchMessage::PersistedGameKilled {
+                            instance: instance.clone(),
+                            result,
+                        }
+                        .into()
+                    });
                 }
             }
         }
         Task::none()
+    }
+
+    fn save_launched_games(&self) -> Task<Message> {
+        let games = self
+            .processes
+            .iter()
+            .filter_map(|(instance, process)| process.launched_game(instance))
+            .collect();
+        *self.launched_games.lock().unwrap() = games;
+
+        Task::perform(
+            crate::launched_games::save(self.launched_games.clone()),
+            |n| LaunchMessage::LaunchedGamesSaved(n).into(),
+        )
     }
 
     pub fn update_main_menu(&mut self, msg: MainMenuMessage) -> Task<Message> {

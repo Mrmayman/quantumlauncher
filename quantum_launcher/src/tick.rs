@@ -5,13 +5,14 @@ use ql_core::{
     Instance, IntoIoError, IntoJsonError, IntoStringError, JsonFileError, constants::OS_NAME,
     json::InstanceConfigJson,
 };
+use ql_instances::launched_games;
 use ql_mod_manager::store::ModIndex;
 
 use crate::state::{
-    AutoSaveKind, EditInstanceMessage, GameProcess, InstallModsMessage, InstanceLog, LaunchModal,
-    LaunchTab, Launcher, LogState, ManageJarModsMessage, ManageModsMessage, MenuCreateInstance,
-    MenuEditMods, MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuLaunch,
-    MenuLoginMS, MenuModsDownload, MenuRecommendedMods, Message, State,
+    AutoSaveKind, EditInstanceMessage, GameProcess, InstallModsMessage, InstanceLog, LaunchMessage,
+    LaunchModal, LaunchTab, Launcher, LogState, ManageJarModsMessage, ManageModsMessage,
+    MenuCreateInstance, MenuEditMods, MenuExportInstance, MenuInstallFabric, MenuInstallOptifine,
+    MenuLaunch, MenuLoginMS, MenuModsDownload, MenuRecommendedMods, Message, State,
 };
 use crate::{config::SIDEBAR_WIDTH, state::InfoMessage};
 
@@ -57,6 +58,21 @@ impl Launcher {
                         log_state,
                         self.selected_instance.as_ref(),
                     );
+                }
+
+                if !self.is_checking_processes && !self.processes.is_empty() {
+                    self.is_checking_processes = true;
+                    let processes = self
+                        .processes
+                        .iter()
+                        .filter_map(|(instance, process)| {
+                            process.pid.map(|pid| (instance.clone(), pid))
+                        })
+                        .collect();
+                    commands.push(Task::perform(
+                        launched_games::closed_instances(processes),
+                        |n| LaunchMessage::ProcessesChecked(n.strerr()).into(),
+                    ));
                 }
 
                 if let State::Launch(menu) = &self.state {

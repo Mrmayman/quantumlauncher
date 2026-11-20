@@ -18,11 +18,15 @@ use ql_core::{
     read_log::LogLine,
     request::{CLIENT, build_middleware},
 };
-use ql_instances::auth::{AccountData, AccountType, ms::CLIENT_ID};
+use ql_instances::{
+    auth::{AccountData, AccountType, ms::CLIENT_ID},
+    launched_games,
+};
 use tokio::process::ChildStdin;
 
 use crate::{
     config::{LauncherConfig, SIDEBAR_WIDTH},
+    launched_games::{LaunchedGame, SharedLaunchedGames},
     message_update::PresenceConnectionState,
     stylesheet::styles::LauncherTheme,
 };
@@ -81,6 +85,8 @@ pub struct Launcher {
 
     pub processes: HashMap<Instance, GameProcess>,
     pub logs: HashMap<Instance, InstanceLog>,
+    pub launched_games: SharedLaunchedGames,
+    pub is_checking_processes: bool,
 
     pub window_state: WindowState,
     pub keys_pressed: HashSet<iced::keyboard::Key>,
@@ -173,9 +179,32 @@ impl FsWatcher {
 }
 
 pub struct GameProcess {
-    pub child: LaunchedProcess,
+    pub child: Option<LaunchedProcess>,
+    pub pid: Option<u32>,
+    pub launched_at: chrono::DateTime<chrono::Utc>,
     pub receiver: Option<Receiver<LogLine>>,
     pub server_input: Option<(ChildStdin, bool)>,
+}
+
+impl GameProcess {
+    pub fn restored(game: &LaunchedGame) -> Self {
+        Self {
+            child: None,
+            pid: Some(game.pid),
+            launched_at: game.launched_at,
+            receiver: None,
+            server_input: None,
+        }
+    }
+
+    pub fn launched_game(&self, instance: &Instance) -> Option<LaunchedGame> {
+        self.pid.map(|pid| LaunchedGame {
+            instance_name: instance.get_name().to_owned(),
+            instance_kind: instance.kind,
+            pid,
+            launched_at: self.launched_at,
+        })
+    }
 }
 
 impl Launcher {
@@ -253,6 +282,8 @@ impl Launcher {
 
             logs: HashMap::new(),
             processes: HashMap::new(),
+            launched_games: launched_games::shared(),
+            is_checking_processes: false,
 
             keys_pressed: HashSet::new(),
 
@@ -322,6 +353,8 @@ impl Launcher {
 
             logs: HashMap::new(),
             processes: HashMap::new(),
+            launched_games: crate::launched_games::shared(),
+            is_checking_processes: false,
             accounts: HashMap::new(),
             keys_pressed: HashSet::new(),
 

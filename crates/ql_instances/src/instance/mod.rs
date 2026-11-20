@@ -1,4 +1,5 @@
 pub mod launch;
+pub mod launched_games;
 pub mod list_versions;
 mod migrate;
 

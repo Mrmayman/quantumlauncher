@@ -29,7 +29,8 @@ use config::LauncherConfig;
 use futures::StreamExt;
 use iced::{Settings, Task};
 use owo_colors::OwoColorize;
-use state::{Launcher, Message, get_entries, populate_middleware_clients};
+use ql_instances::launched_games;
+use state::{LaunchMessage, Launcher, Message, get_entries, populate_middleware_clients};
 
 use ql_core::{
     InstanceKind, IntoStringError, JsonFileError, LAUNCHER_DIR, constants::OS_NAME, err,
@@ -147,6 +148,9 @@ impl Launcher {
                     Message::CoreCleanComplete(n.strerr())
                 }),
                 CustomJarState::load(),
+                Task::perform(launched_games::load(), |n| {
+                    LaunchMessage::LaunchedGamesLoaded(n).into()
+                }),
             ]),
         )
     }

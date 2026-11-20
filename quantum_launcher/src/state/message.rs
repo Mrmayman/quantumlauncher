@@ -474,6 +474,10 @@ pub enum LaunchMessage {
     End(Res<LaunchedProcess>),
     Kill,
     GameExited(Res<(ExitStatus, Instance, Option<Diagnostic>)>),
+    LaunchedGamesLoaded(Res<Vec<crate::launched_games::LaunchedGame>>),
+    LaunchedGamesSaved(Res),
+    ProcessesChecked(Res<Vec<Instance>>),
+    PersistedGameKilled { instance: Instance, result: Res },
 }
 
 #[derive(Debug, Clone)]
