@@ -1,4 +1,5 @@
 use cfg_if::cfg_if;
+use chrono::{DateTime, Utc};
 use frostmark::MarkWidget;
 use iced::widget::{column, horizontal_space, row, text_editor, tooltip::Position, vertical_space};
 use iced::{Alignment, Length, Padding, widget};
@@ -160,7 +161,7 @@ impl Launcher {
     }
 
     fn get_tab_main<'a>(&'a self, menu: &'a MenuLaunch, selected: &'a Instance) -> Element<'a> {
-        let is_running = self.is_process_running(selected);
+        let process = self.processes.get(selected);
 
         let main_buttons = row![
             if selected.is_server() {
@@ -208,16 +209,14 @@ impl Launcher {
 
         column![
             row![widget::text(selected.get_name()).font(FONT_MONO).size(20)]
-                .push_maybe(is_running.then_some(icons::play_s(20)))
-                .push_maybe(
-                    is_running.then_some(
-                        widget::text("Running...")
-                            .size(16)
-                            .style(tsubtitle)
-                            .font(FONT_MONO)
-                    )
-                )
-                .spacing(16)
+                .push_maybe(process.map(|_| icons::play_s(16)))
+                .push_maybe(process.map(|process| {
+                    widget::text(running_for_text(process.launched_at))
+                        .font(FONT_MONO)
+                        .size(14)
+                        .style(tsubtitle)
+                }))
+                .spacing(12)
                 .align_y(Alignment::Center),
             main_buttons,
             notes,
@@ -693,6 +692,24 @@ fn render_tab_button(tab: LaunchTab, decor: bool, menu: &'_ MenuLaunch) -> Eleme
         .height(if decor { 31.0 } else { 28.0 })
         .padding(padding)
         .into()
+}
+
+fn running_for_text(launched_at: DateTime<Utc>) -> String {
+    let secs = Utc::now()
+        .signed_duration_since(launched_at)
+        .num_seconds()
+        .max(0) as u64;
+    let hours = secs / 3600;
+    let mins = (secs % 3600) / 60;
+    let secs = secs % 60;
+
+    if hours > 0 {
+        format!("{hours}h {mins}m")
+    } else if mins > 0 {
+        format!("{mins}m {secs}s")
+    } else {
+        format!("{secs}s")
+    }
 }
 
 fn get_no_logs_message<'a>() -> Column<'a> {
