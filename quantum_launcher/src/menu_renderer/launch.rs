@@ -19,8 +19,7 @@ use crate::{
     menu_renderer::DISCORD,
     state::{
         AccountMessage, CreateInstanceMessage, InstanceLog, LaunchTab, Launcher,
-        LauncherSettingsMessage, ManageModsMessage, MenuLaunch, Message, OFFLINE_ACCOUNT_NAME,
-        State,
+        LauncherSettingsMessage, ManageModsMessage, MenuLaunch, Message, State,
     },
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
@@ -380,7 +379,7 @@ impl Launcher {
             )
             .on_press(SidebarMessage::DragDrop(None).into()),
             widget::horizontal_rule(1).style(|t: &LauncherTheme| t.style_rule(Color::Dark, 1)),
-            self.get_accounts_bar(menu),
+            self.get_accounts_bar(),
         ]
         .spacing(5)
         .width(Length::Fill);
@@ -440,26 +439,18 @@ impl Launcher {
         }
     }
 
-    fn get_accounts_bar(&self, menu: &MenuLaunch) -> Element<'_> {
-        let something_is_happening = self.java_recv.is_some() || menu.login_progress.is_some();
-
-        let dropdown: Element = if something_is_happening {
-            widget::text_input("", &self.account_selected)
-                .width(Length::Fill)
-                .into()
-        } else {
-            widget::pick_list(
-                self.accounts_dropdown.as_slice(),
-                Some(&self.account_selected),
-                |n| AccountMessage::Selected(n).into(),
-            )
-            .width(Length::Fill)
-            .into()
-        };
+    fn get_accounts_bar(&self) -> Element<'_> {
+        let dropdown: Element = widget::pick_list(
+            self.accounts.ui_dropdown(),
+            Some(&self.accounts.selected),
+            |n| AccountMessage::Selected(n).into(),
+        )
+        .width(Length::Fill)
+        .into();
 
         column![
             row![widget::text(" Accounts:").size(14).width(Length::Fill)].push_maybe(
-                (self.account_selected != OFFLINE_ACCOUNT_NAME).then_some(
+                (!self.accounts.has_selected_offline()).then_some(
                     widget::button(widget::text("Logout").size(11))
                         .padding(3)
                         .on_press(AccountMessage::LogoutCheck.into())
@@ -470,7 +461,7 @@ impl Launcher {
             dropdown
         ]
         .push_maybe(
-            (self.account_selected == OFFLINE_ACCOUNT_NAME).then_some(
+            self.accounts.has_selected_offline().then_some(
                 widget::text_input("Enter username...", &self.config.username)
                     .on_input(|t| MainMenuMessage::UsernameSet(t).into())
                     .width(Length::Fill),
@@ -486,7 +477,7 @@ impl Launcher {
         selected: &Instance,
     ) -> widget::Tooltip<'_, Message, LauncherTheme> {
         let play_button = button_with_icon(icons::play(), "Play", 16).width(98);
-        let is_offline = self.account_selected == OFFLINE_ACCOUNT_NAME;
+        let is_offline = self.accounts.has_selected_offline();
 
         if self.config.username.is_empty() && is_offline {
             tooltip(play_button, "Username is empty!", Position::Bottom)

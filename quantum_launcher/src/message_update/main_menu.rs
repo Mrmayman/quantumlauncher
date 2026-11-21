@@ -12,7 +12,7 @@ use crate::{
     message_handler::{SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
     state::{
         AutoSaveKind, InfoMessage, LaunchMessage, LaunchModal, LaunchTab, Launcher,
-        MainMenuMessage, Message, OFFLINE_ACCOUNT_NAME, ProgressBar, SidebarMessage, State,
+        MainMenuMessage, Message, ProgressBar, SidebarMessage, State,
     },
 };
 
@@ -43,14 +43,14 @@ impl Launcher {
 
         match selected_instance.kind {
             InstanceKind::Client => {
-                if self.account_selected == OFFLINE_ACCOUNT_NAME
+                if self.accounts.has_selected_offline()
                     && (self.config.username.is_empty() || self.config.username.contains(' '))
                 {
                     return Task::none();
                 }
 
                 self.is_launching_game = true;
-                let account_data = self.get_selected_account_data();
+                let account_data = self.accounts.get_selected_data();
                 // If the user is loading an existing login from disk
                 // then first refresh the tokens
                 if let Some(account) = &account_data
@@ -159,12 +159,7 @@ impl Launcher {
 
         let sender = self.instances.instance_launched(child.clone());
 
-        let mut censors = Vec::new();
-        for account in self.accounts.values() {
-            if let Some(token) = &account.access_token {
-                censors.push(token.clone());
-            }
-        }
+        let censors = self.accounts.censors();
 
         let instance = child.instance.clone();
         let version_presence_task = self.rpc_game_update(instance.clone(), false);
@@ -202,7 +197,7 @@ impl Launcher {
             }
         }
 
-        return Task::batch([log_task, version_presence_task]);
+        Task::batch([log_task, version_presence_task])
     }
 
     pub fn update_main_menu(&mut self, msg: MainMenuMessage) -> Task<Message> {

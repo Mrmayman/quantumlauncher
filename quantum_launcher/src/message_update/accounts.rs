@@ -6,11 +6,10 @@ use ql_core::IntoStringError;
 use ql_instances::auth::{self, AccountType};
 
 use crate::{
-    config::ConfigAccount,
     menu_renderer::back_to_launch_screen,
     state::{
-        AccountMessage, AutoSaveKind, Launcher, LittleSkinOauth, MenuLoginAlternate, MenuLoginMS,
-        Message, NEW_ACCOUNT_NAME, OFFLINE_ACCOUNT_NAME, ProgressBar, State,
+        AccountMessage, AccountState, AutoSaveKind, Launcher, LittleSkinOauth, MenuLoginAlternate,
+        MenuLoginMS, Message, ProgressBar, State,
     },
 };
 
@@ -50,7 +49,7 @@ impl Launcher {
             }
             AccountMessage::LogoutCheck => {
                 self.state = State::ConfirmAction {
-                    msg1: format!("log out of your account: {}", self.account_selected),
+                    msg1: format!("log out of your account: {}", self.accounts.selected),
                     msg2: "You can always log in later".to_owned(),
                     yes: AccountMessage::LogoutConfirm.into(),
                     no: back_to_launch_screen(None),
@@ -95,42 +94,15 @@ impl Launcher {
             }
             AccountMessage::LogoutConfirm => {
                 self.autosave.remove(&AutoSaveKind::LauncherConfig);
-                let username = self.account_selected.clone();
-                let account_type = self
-                    .accounts
-                    .get(&username)
-                    .map_or(AccountType::Microsoft, |n| n.account_type);
-
-                if let Err(err) = auth::logout(account_type.strip_name(&username), account_type) {
+                if let Err(err) = self.accounts.logout_confirm(&mut self.config) {
                     self.set_error(err);
+                } else {
+                    return self.go_to_main_menu(None);
                 }
-                if let Some(accounts) = &mut self.config.accounts {
-                    accounts.remove(&username);
-                }
-                self.accounts.remove(&username);
-                if let Some(idx) = self
-                    .accounts_dropdown
-                    .iter()
-                    .enumerate()
-                    .find_map(|(i, n)| (*n == username).then_some(i))
-                {
-                    self.accounts_dropdown.remove(idx);
-                }
-                let selected_account = self
-                    .accounts_dropdown
-                    .first()
-                    .cloned()
-                    .unwrap_or_else(|| OFFLINE_ACCOUNT_NAME.to_owned());
-                self.account_selected = selected_account;
-
-                return self.go_to_main_menu(None);
             }
             AccountMessage::RefreshComplete(Ok(data)) => {
-                self.accounts.insert(data.get_username_modified(), data);
-
-                let account_data = self.get_selected_account_data();
-
-                return Task::batch([self.go_to_main_menu(None), self.launch_game(account_data)]);
+                self.accounts.insert(data.clone());
+                return Task::batch([self.go_to_main_menu(None), self.launch_game(Some(data))]);
             }
 
             AccountMessage::OpenMenu {
@@ -247,13 +219,13 @@ impl Launcher {
     }
 
     fn account_selected(&mut self, account: String) {
-        if account == NEW_ACCOUNT_NAME {
+        if account == AccountState::NEW_ACCOUNT_NAME {
             self.state = State::AccountLogin;
         } else {
-            if account != OFFLINE_ACCOUNT_NAME {
+            if account != AccountState::OFFLINE_ACCOUNT_NAME {
                 self.config.account_selected = Some(account.clone());
             }
-            self.account_selected = account;
+            self.accounts.selected = account;
         }
     }
 
@@ -285,23 +257,7 @@ impl Launcher {
 
     fn account_response_3(&mut self, data: AccountData) -> Task<Message> {
         self.autosave.remove(&AutoSaveKind::LauncherConfig);
-        if data.username == OFFLINE_ACCOUNT_NAME || data.username == NEW_ACCOUNT_NAME {
-            return self.go_to_main_menu(None);
-        }
-        let username = data.get_username_modified();
-
-        if self.accounts_dropdown.contains(&username) {
-            // Account already logged in
-            return self.go_to_main_menu(None);
-        }
-        self.accounts_dropdown.insert(0, username.clone());
-
-        let config_accounts = self.config.accounts.get_or_insert_default();
-        config_accounts.insert(username.clone(), ConfigAccount::from_account(&data));
-
-        self.account_selected.clone_from(&username);
-        self.accounts.insert(username.clone(), data);
-
+        self.accounts.logged_in(&mut self.config, data);
         self.go_to_main_menu(None)
     }
 
@@ -331,14 +287,5 @@ impl Launcher {
         });
 
         task
-    }
-
-    pub fn get_selected_account_data(&self) -> Option<AccountData> {
-        let account = &self.account_selected;
-        if account == NEW_ACCOUNT_NAME || account == OFFLINE_ACCOUNT_NAME {
-            None
-        } else {
-            self.accounts.get(account).cloned()
-        }
     }
 }

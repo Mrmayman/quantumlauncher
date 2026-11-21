@@ -2,9 +2,7 @@ use ezshortcut::Shortcut;
 use iced::Task;
 use ql_core::{IntoStringError, LAUNCHER_DIR, info};
 
-use crate::state::{
-    Launcher, MenuShortcut, Message, NEW_ACCOUNT_NAME, OFFLINE_ACCOUNT_NAME, ShortcutMessage, State,
-};
+use crate::state::{AccountState, Launcher, MenuShortcut, Message, ShortcutMessage, State};
 
 macro_rules! iflet {
     ($m:ident, $s:expr, $b:block) => {{
@@ -42,7 +40,7 @@ impl Launcher {
                 menu.shortcut.description = desc;
             }),
             ShortcutMessage::AccountSelected(acc) => iflet!(menu, self.state, {
-                if acc == NEW_ACCOUNT_NAME {
+                if acc == AccountState::NEW_ACCOUNT_NAME {
                     self.state = State::AccountLogin;
                 } else {
                     menu.account = acc;
@@ -111,7 +109,7 @@ impl Launcher {
             },
             add_to_menu: true,
             add_to_desktop: false,
-            account: self.account_selected.clone(),
+            account: self.accounts.selected.clone(),
             account_offline: self.config.username.clone(),
         });
     }
@@ -151,7 +149,7 @@ impl Launcher {
             .extend(["launch".to_owned(), instance.get_name().to_owned()]);
 
         // Account setup
-        if menu.account == OFFLINE_ACCOUNT_NAME {
+        if menu.account == AccountState::OFFLINE_ACCOUNT_NAME {
             shortcut.exec_args.push(menu.account_offline.clone());
         } else {
             if let Some(acc) = self.accounts.get(&menu.account) {

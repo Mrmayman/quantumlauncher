@@ -6,7 +6,7 @@ use iced::{
 use crate::{
     icons,
     menu_renderer::tsubtitle,
-    state::{AccountMessage, MenuLoginAlternate, MenuLoginMS, Message, NEW_ACCOUNT_NAME},
+    state::{AccountMessage, AccountState, MenuLoginAlternate, MenuLoginMS, Message},
 };
 
 use super::{Element, back_button, button_with_icon, center_x};
@@ -56,7 +56,7 @@ impl MenuLoginAlternate {
             back_button().on_press(if self.is_from_welcome_screen {
                 Message::WelcomeContinueToAuth
             } else {
-                AccountMessage::Selected(NEW_ACCOUNT_NAME.to_owned()).into()
+                AccountMessage::Selected(AccountState::NEW_ACCOUNT_NAME.to_owned()).into()
             }),
             column![
                 widget::text(if self.is_littleskin {
@@ -177,7 +177,7 @@ impl MenuLoginMS {
             back_button().on_press(if self.is_from_welcome_screen {
                 Message::WelcomeContinueToAuth
             } else {
-                AccountMessage::Selected(NEW_ACCOUNT_NAME.to_owned()).into()
+                AccountMessage::Selected(AccountState::NEW_ACCOUNT_NAME.to_owned()).into()
             }),
             row![
                 widget::horizontal_space(),
