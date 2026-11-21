@@ -40,6 +40,11 @@ pub enum UpdateCheckInfo {
 pub async fn check() -> Result<UpdateCheckInfo, UpdateError> {
     const URL: &str = "https://api.github.com/repos/Mrmayman/quantum-launcher/releases";
 
+    if cfg!(debug_assertions) {
+        // This is a dev build, stop spamming GitHub servers
+        return Ok(UpdateCheckInfo::UpToDate);
+    }
+
     let json: Vec<GithubRelease> = file_utils::download_file_to_json(URL, true).await?;
     let mut json = json.into_iter();
 

@@ -36,8 +36,8 @@ pub enum DownloadError {
     VersionNotFoundInManifest(String),
     #[error("{DOWNLOAD_ERR_PREFIX}in assets JSON, field not found: \"{0}\"")]
     AssetsJsonFieldNotFound(String),
-    #[error("{DOWNLOAD_ERR_PREFIX}could not extract native libraries:\n{0}")]
-    NativesExtractError(zip::result::ZipError),
+    #[error("{DOWNLOAD_ERR_PREFIX}could not extract native libraries from url {1}\n{0}")]
+    NativesExtractError(zip::result::ZipError, String),
     #[error(
         "{DOWNLOAD_ERR_PREFIX}tried to remove natives outside folder. POTENTIAL SECURITY RISK AVOIDED"
     )]
@@ -122,7 +122,6 @@ impl GameDownloader {
 
     pub async fn download_jar(&self) -> Result<(), DownloadError> {
         info!("Downloading game jar file.");
-        self.send_progress(DownloadProgress::DownloadingJar, false);
 
         let version_dir = self
             .instance_dir
@@ -136,7 +135,9 @@ impl GameDownloader {
         let jar_path = version_dir.join(format!("{}.jar", self.version_json.get_id()));
 
         download(&self.version_json.downloads.client.url)
-            .path(&jar_path)
+            .path_with_progress(&jar_path, |percent| {
+                self.send_progress(DownloadProgress::DownloadingJar(percent), false);
+            })
             .await?;
 
         Ok(())

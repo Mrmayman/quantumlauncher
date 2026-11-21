@@ -171,11 +171,17 @@ async fn get_installer(
     neoforge_version: &str,
 ) -> Result<Vec<u8>, ForgeInstallError> {
     pt!("Downloading installer");
-    send_progress(f_progress, ForgeInstallProgress::P3DownloadingInstaller);
     let installer_url = format!(
         "https://maven.neoforged.net/releases/net/neoforged/neoforge/{neoforge_version}/neoforge-{neoforge_version}-installer.jar"
     );
-    Ok(file_utils::download_file_to_bytes(&installer_url, false).await?)
+    Ok(download(&installer_url)
+        .bytes_with_progress(|percent| {
+            send_progress(
+                f_progress,
+                ForgeInstallProgress::P3DownloadingInstaller(percent),
+            );
+        })
+        .await?)
 }
 
 async fn get_version_and_json(

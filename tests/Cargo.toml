@@ -14,6 +14,8 @@ clap.workspace = true
 owo-colors.workspace = true
 sysinfo.workspace = true
 
+shlex.workspace = true
+
 duct = "1"
 which = "8"
 

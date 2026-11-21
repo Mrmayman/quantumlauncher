@@ -33,7 +33,7 @@ chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
 rfd = "0.18"
 clap = { version = "4", features = ["help", "derive"] }
-
+shlex = "2" # Shell-like word splitting for CLI prefix commands
 zip = { version = "9", default-features = false, features = ["deflate"] }
 
 walkdir = "2.5"

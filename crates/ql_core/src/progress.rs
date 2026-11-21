@@ -15,6 +15,7 @@ pub enum DownloadProgress {
     #[default]
     DownloadingJsonManifest,
     DownloadingVersionJson,
+    DownloadingJar(f32),
     DownloadingAssets {
         progress: usize,
         out_of: usize,
@@ -23,7 +24,6 @@ pub enum DownloadProgress {
         progress: usize,
         out_of: usize,
     },
-    DownloadingJar,
 }
 
 impl Display for DownloadProgress {
@@ -31,13 +31,15 @@ impl Display for DownloadProgress {
         match self {
             DownloadProgress::DownloadingJsonManifest => write!(f, "Downloading Manifest JSON"),
             DownloadProgress::DownloadingVersionJson => write!(f, "Downloading Version JSON"),
+            DownloadProgress::DownloadingJar(percent) => {
+                write!(f, "Downloading Game Jar file: {percent}%")
+            }
             DownloadProgress::DownloadingAssets { progress, out_of } => {
                 write!(f, "Downloading asset {progress} / {out_of}")
             }
             DownloadProgress::DownloadingLibraries { progress, out_of } => {
                 write!(f, "Downloading library {progress} / {out_of}")
             }
-            DownloadProgress::DownloadingJar => write!(f, "Downloading Game Jar file"),
         }
     }
 }
@@ -47,7 +49,7 @@ impl From<&DownloadProgress> for f32 {
         match val {
             DownloadProgress::DownloadingJsonManifest => 0.1,
             DownloadProgress::DownloadingVersionJson => 0.2,
-            DownloadProgress::DownloadingJar => 0.3,
+            DownloadProgress::DownloadingJar(percent) => 0.3 + (0.7 * *percent / 100.0),
             DownloadProgress::DownloadingLibraries { progress, out_of } => {
                 (*progress as f32 / *out_of as f32) + 1.0
             }
