@@ -149,9 +149,9 @@ impl Launcher {
                         .spacing(4)
                     )
                     .width(150),
-                    widget::Space::with_height(30)
+                    widget::Space::with_height(26)
                 ]
-                .padding(12),
+                .padding(16),
             )
         } else {
             None
