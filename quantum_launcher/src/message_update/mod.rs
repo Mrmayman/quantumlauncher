@@ -443,7 +443,7 @@ impl Launcher {
             }
             GameLogMessage::Copy => {
                 let instance = self.instance();
-                if let Some(log) = self.logs.get(instance) {
+                if let Some(log) = self.instances.logs_get(instance) {
                     return iced::clipboard::write(log.log.join(""));
                 }
             }
@@ -454,7 +454,7 @@ impl Launcher {
 
                 let instance = self.selected_instance.clone().unwrap();
 
-                if let Some(log) = self.logs.get(&instance) {
+                if let Some(log) = self.instances.logs_get(&instance) {
                     let log_content = log.log.join("");
                     if !log_content.trim().is_empty() {
                         return Task::perform(

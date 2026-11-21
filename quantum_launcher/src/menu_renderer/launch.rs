@@ -89,7 +89,7 @@ impl Launcher {
             }
         } else {
             column![
-                widget::text(if self.client_list.as_ref().is_some_and(Vec::is_empty) {
+                widget::text(if self.instances.list_has_no_instances() {
                     "Click \"New\" to create your first Minecraft instance"
                 } else {
                     "Select an instance"
@@ -160,7 +160,7 @@ impl Launcher {
     }
 
     fn get_tab_main<'a>(&'a self, menu: &'a MenuLaunch, selected: &'a Instance) -> Element<'a> {
-        let is_running = self.is_process_running(selected);
+        let is_running = self.instances.is_running(selected);
 
         let main_buttons = row![
             if selected.is_server() {
@@ -275,7 +275,7 @@ impl Launcher {
         }) = self
             .selected_instance
             .as_ref()
-            .and_then(|selection| self.logs.get(selection))
+            .and_then(|selection| self.instances.logs_get(selection))
         else {
             return get_no_logs_message();
         };
@@ -429,7 +429,7 @@ impl Launcher {
         name: &str,
         kind: InstanceKind,
     ) -> Option<widget::Row<'static, Message, LauncherTheme>> {
-        if self.is_process_running(&Instance::new(name, kind)) {
+        if self.instances.is_running(&Instance::new(name, kind)) {
             Some(row![
                 horizontal_space(),
                 icons::play_s(12),
@@ -438,10 +438,6 @@ impl Launcher {
         } else {
             None
         }
-    }
-
-    fn is_process_running(&self, instance: &Instance) -> bool {
-        self.processes.contains_key(instance)
     }
 
     fn get_accounts_bar(&self, menu: &MenuLaunch) -> Element<'_> {
@@ -496,7 +492,7 @@ impl Launcher {
             tooltip(play_button, "Username is empty!", Position::Bottom)
         } else if self.config.username.contains(' ') && is_offline {
             tooltip(play_button, "Username contains spaces!", Position::Bottom)
-        } else if self.processes.contains_key(selected) {
+        } else if self.instances.is_running(selected) {
             tooltip(
                 button_with_icon(icons::play(), "Kill", 16)
                     .on_press(LaunchMessage::Kill.into())
@@ -533,7 +529,7 @@ impl Launcher {
         &self,
         selected: &Instance,
     ) -> widget::Tooltip<'_, Message, LauncherTheme> {
-        if self.processes.contains_key(selected) {
+        if self.instances.is_running(selected) {
             tooltip(
                 button_with_icon(icons::play(), "Stop", 16)
                     .width(98)

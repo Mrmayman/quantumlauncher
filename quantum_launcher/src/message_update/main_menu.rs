@@ -1,18 +1,17 @@
 use std::process::ExitStatus;
 
-use iced::{Task, futures::executor::block_on};
+use iced::Task;
 use ql_core::{
     Instance, InstanceKind, IntoStringError, LaunchedProcess, err, info, pt,
     read_log::{Diagnostic, ReadError},
 };
 use ql_instances::auth::AccountData;
-use tokio::io::AsyncWriteExt;
 
 use crate::{
     config::{AfterLaunchBehavior, sidebar::SidebarSelection},
     message_handler::{SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
     state::{
-        AutoSaveKind, GameProcess, InfoMessage, LaunchMessage, LaunchModal, LaunchTab, Launcher,
+        AutoSaveKind, InfoMessage, LaunchMessage, LaunchModal, LaunchTab, Launcher,
         MainMenuMessage, Message, OFFLINE_ACCOUNT_NAME, ProgressBar, SidebarMessage, State,
     },
 };
@@ -29,7 +28,7 @@ impl Launcher {
             }
             LaunchMessage::Start => self.launch_start(),
             LaunchMessage::End(result) => self.finish_launching(result),
-            LaunchMessage::Kill => self.kill_selected_instance(),
+            LaunchMessage::Kill => self.instances.terminate_instance(self.instance().clone()),
         }
     }
 
@@ -37,10 +36,10 @@ impl Launcher {
         let Some(selected_instance) = &self.selected_instance else {
             return Task::none();
         };
-        if self.processes.contains_key(selected_instance) {
+        if self.instances.is_running(selected_instance) {
             return Task::none();
         }
-        self.logs.remove(selected_instance);
+        self.instances.logs_clear(selected_instance);
 
         match selected_instance.kind {
             InstanceKind::Client => {
@@ -117,9 +116,12 @@ impl Launcher {
         };
         info!("Game exited ({status})");
 
-        let log_state = if let State::Launch(menu) = &mut self.state {
-            let has_crashed = !status.success();
+        let has_crashed = !status.success();
+        if has_crashed {
+            self.instances.logs_set_crashed(instance);
+        }
 
+        let log_state = if let State::Launch(menu) = &mut self.state {
             if has_crashed {
                 let mut msg = format!("{kind} crashed! ({status})\nCheck \"Logs\" for more info");
                 if let Some(diag) = diagnostic {
@@ -129,24 +131,16 @@ impl Launcher {
                 menu.message = Some(InfoMessage::error(msg));
             }
 
-            if let Some(log) = self.logs.get_mut(instance) {
-                log.has_crashed = has_crashed;
-            }
-
             &mut menu.log_state
         } else {
             &mut None
         };
 
-        if let Some(process) = self.processes.remove(instance) {
-            Self::read_game_logs(
-                &process,
-                instance,
-                &mut self.logs,
-                log_state,
-                self.selected_instance.as_ref(),
-            );
-        }
+        self.instances.instance_voluntarily_exited(
+            instance,
+            log_state,
+            self.selected_instance.as_ref(),
+        );
 
         self.rpc_game_update(instance.clone(), true)
     }
@@ -154,103 +148,61 @@ impl Launcher {
     fn finish_launching(&mut self, result: Result<LaunchedProcess, String>) -> Task<Message> {
         self.java_recv = None;
         self.is_launching_game = false;
-        match result {
-            Ok(child) => {
-                let selected_instance = child.instance.clone();
 
-                let server_input = block_on(child.child.lock())
-                    .stdin
-                    .take()
-                    .map(|n| (n, false));
-
-                let (sender, receiver) = std::sync::mpsc::channel();
-                self.processes.insert(
-                    selected_instance.clone(),
-                    GameProcess {
-                        child: child.clone(),
-                        receiver: Some(receiver),
-                        server_input,
-                    },
-                );
-
-                let mut censors = Vec::new();
-                for account in self.accounts.values() {
-                    if let Some(token) = &account.access_token {
-                        censors.push(token.clone());
-                    }
-                }
-
-                let version_presence_task = self.rpc_game_update(selected_instance.clone(), false);
-
-                let log_task = Task::perform(
-                    async move {
-                        let result = child.read_logs(censors, Some(sender)).await;
-                        let default_output = Ok((ExitStatus::default(), selected_instance, None));
-
-                        match result {
-                            Some(Err(ReadError::Io(io)))
-                                if io.kind() == std::io::ErrorKind::InvalidData =>
-                            {
-                                err!("Minecraft log contains invalid unicode! Stopping logs");
-                                pt!("The game will continue to run");
-                                default_output
-                            }
-                            Some(result) => result.strerr(),
-                            None => default_output,
-                        }
-                    },
-                    |n| LaunchMessage::GameExited(n).into(),
-                );
-
-                match self.config.c_after_launch_behavior() {
-                    AfterLaunchBehavior::DoNothing => {}
-                    AfterLaunchBehavior::CloseLauncher => {
-                        ql_core::logger_finish();
-                        return self.close_launcher();
-                    }
-                    AfterLaunchBehavior::MinimizeLauncher => {
-                        let minimize_task = iced::window::get_latest()
-                            .and_then(|id| iced::window::minimize(id, true));
-                        return Task::batch([log_task, minimize_task, version_presence_task]);
-                    }
-                }
-
-                return Task::batch([log_task, version_presence_task]);
+        let child = match result {
+            Ok(c) => c,
+            Err(err) => {
+                self.set_error(err);
+                return Task::none();
             }
-            Err(err) => self.set_error(err),
-        }
-        Task::none()
-    }
-
-    fn kill_selected_instance(&mut self) -> Task<Message> {
-        let Some(instance) = &self.selected_instance else {
-            return Task::none();
         };
-        match instance.kind {
-            InstanceKind::Client => {
-                if let Some(process) = self.processes.remove(instance) {
-                    let mut child = block_on(process.child.child.lock());
-                    _ = child.start_kill();
-                }
-            }
-            InstanceKind::Server => {
-                if let Some(GameProcess {
-                    server_input: Some((stdin, has_issued_stop_command)),
-                    child,
-                    ..
-                }) = self.processes.get_mut(instance)
-                {
-                    *has_issued_stop_command = true;
-                    if child.is_classic_server {
-                        _ = block_on(child.child.lock()).start_kill();
-                    } else {
-                        let future = stdin.write_all("stop\n".as_bytes());
-                        _ = block_on(future);
-                    }
-                }
+
+        let sender = self.instances.instance_launched(child.clone());
+
+        let mut censors = Vec::new();
+        for account in self.accounts.values() {
+            if let Some(token) = &account.access_token {
+                censors.push(token.clone());
             }
         }
-        Task::none()
+
+        let instance = child.instance.clone();
+        let version_presence_task = self.rpc_game_update(instance.clone(), false);
+
+        let log_task = Task::perform(
+            async move {
+                let result = child.read_logs(censors, Some(sender)).await;
+                let default_output = Ok((ExitStatus::default(), instance, None));
+
+                match result {
+                    Some(Err(ReadError::Io(io)))
+                        if io.kind() == std::io::ErrorKind::InvalidData =>
+                    {
+                        err!("Minecraft log contains invalid unicode! Stopping logs");
+                        pt!("The game will continue to run");
+                        default_output
+                    }
+                    Some(result) => result.strerr(),
+                    None => default_output,
+                }
+            },
+            |n| LaunchMessage::GameExited(n).into(),
+        );
+
+        match self.config.c_after_launch_behavior() {
+            AfterLaunchBehavior::DoNothing => {}
+            AfterLaunchBehavior::CloseLauncher => {
+                ql_core::logger_finish();
+                return self.close_launcher();
+            }
+            AfterLaunchBehavior::MinimizeLauncher => {
+                let minimize_task =
+                    iced::window::get_latest().and_then(|id| iced::window::minimize(id, true));
+                return Task::batch([log_task, minimize_task, version_presence_task]);
+            }
+        }
+
+        return Task::batch([log_task, version_presence_task]);
     }
 
     pub fn update_main_menu(&mut self, msg: MainMenuMessage) -> Task<Message> {

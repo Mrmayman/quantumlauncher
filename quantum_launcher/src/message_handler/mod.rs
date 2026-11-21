@@ -67,7 +67,7 @@ impl Launcher {
             menu.log_state = None;
             return;
         };
-        if let Some(logs) = self.logs.get(instance)
+        if let Some(logs) = self.instances.logs_get(instance)
             && let LaunchTab::Log = menu.tab
         {
             menu.log_state = Some(LogState {

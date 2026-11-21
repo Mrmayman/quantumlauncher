@@ -28,9 +28,11 @@ use crate::{
 };
 
 mod images;
+mod instance_store;
 mod menu;
 mod message;
 pub use images::ImageState;
+pub use instance_store::InstanceStore;
 pub use menu::*;
 pub use message::*;
 
@@ -74,13 +76,7 @@ pub struct Launcher {
     pub accounts_dropdown: Vec<String>,
     pub account_selected: String,
 
-    pub client_list: Option<Vec<String>>,
-    pub server_list: Option<Vec<String>>,
-    pub client_watcher: Option<FsWatcher>,
-    pub server_watcher: Option<FsWatcher>,
-
-    pub processes: HashMap<Instance, GameProcess>,
-    pub logs: HashMap<Instance, InstanceLog>,
+    pub instances: InstanceStore,
 
     pub window_state: WindowState,
     pub keys_pressed: HashSet<iced::keyboard::Key>,
@@ -244,15 +240,9 @@ impl Launcher {
             },
             account_selected,
 
-            client_list: None,
-            server_list: None,
-            client_watcher: None,
-            server_watcher: None,
+            instances: InstanceStore::default(),
             java_recv: None,
             custom_jar: None,
-
-            logs: HashMap::new(),
-            processes: HashMap::new(),
 
             keys_pressed: HashSet::new(),
 
@@ -304,10 +294,7 @@ impl Launcher {
             state: State::Error { error },
 
             java_recv: None,
-            client_list: None,
-            server_list: None,
-            client_watcher: None,
-            server_watcher: None,
+            instances: InstanceStore::default(),
             selected_instance: None,
             custom_jar: None,
 
@@ -320,8 +307,6 @@ impl Launcher {
             discord_ipc_client: None,
             discord_connection_state: Arc::new(Mutex::new(PresenceConnectionState::Uninitialized)),
 
-            logs: HashMap::new(),
-            processes: HashMap::new(),
             accounts: HashMap::new(),
             keys_pressed: HashSet::new(),
 

@@ -122,11 +122,7 @@ impl Launcher {
                         .as_ref()
                         .map_or(InstanceKind::Client, |n| n.kind)
                 };
-                let list = match kind {
-                    InstanceKind::Server => self.server_list.as_deref(),
-                    InstanceKind::Client => self.client_list.as_deref(),
-                };
-                menu.view(list, self.tick_timer)
+                menu.view(self.instances.list_get(kind), self.tick_timer)
             }
             State::ConfirmAction {
                 msg1,
