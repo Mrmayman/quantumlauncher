@@ -104,7 +104,11 @@ impl Launcher {
         let play_time = end_process(&mut self.processes, &mut self.last_play_time, &instance)
             .map(|(_, secs)| self.add_play_time(&instance, secs))
             .unwrap_or_else(Task::none);
-        Task::batch([self.save_launched_games(), play_time])
+        Task::batch([
+            self.save_launched_games(),
+            self.rpc_game_update(instance.clone(), true),
+            play_time,
+        ])
     }
 
     fn launch_start(&mut self) -> Task<Message> {
@@ -292,7 +296,7 @@ impl Launcher {
                     AfterLaunchBehavior::DoNothing => {}
                     AfterLaunchBehavior::CloseLauncher => {
                         ql_core::logger_finish();
-                        self.close_launcher();
+                        return Task::batch([self.close_launcher(), save_launched_games]);
                     }
                     AfterLaunchBehavior::MinimizeLauncher => {
                         let minimize_task = iced::window::get_latest()

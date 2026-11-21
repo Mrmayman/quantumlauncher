@@ -57,9 +57,9 @@ impl Launcher {
         }
     }
 
-    pub fn close_launcher(&mut self) -> ! {
+    pub fn close_launcher(&mut self) -> Task<Message> {
         self.uninitialize_presence();
-        std::process::exit(0);
+        iced::exit()
     }
 
     pub fn load_logs(&mut self) {
