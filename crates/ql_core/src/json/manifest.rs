@@ -12,6 +12,14 @@ use serde::Deserialize;
 static MANIFEST: LazyLock<tokio::sync::RwLock<Option<Manifest>>> =
     LazyLock::new(|| tokio::sync::RwLock::new(None));
 
+const BETTERJSONS_BORKED: &[(&str, &str)] = &[
+    ("26.2-pre1", "26.2-pre-1"),
+    ("26.1-snap11", "26.1-snapshot-11"),
+    ("26.1-snap10", "26.1-snapshot-10"),
+    ("26.1-snap9", "26.1-snapshot-9"),
+    ("26.1-snap8", "26.1-snapshot-8"),
+];
+
 /// An official Minecraft version manifest
 /// (list of all versions and their download links)
 #[derive(Deserialize, Clone, Debug)]
@@ -80,6 +88,16 @@ impl Manifest {
             !(n.id.ends_with("-lwjgl3") && is_already_lwjgl3)
         });
         let newer_manifest: Self = serde_json::from_str(&newer_manifest).json(newer_manifest)?;
+
+        for &(borked, working) in BETTERJSONS_BORKED {
+            let Some(working_version) = newer_manifest.find_name(working).cloned() else {
+                continue;
+            };
+            let Some(slot) = older_manifest.versions.iter_mut().find(|n| n.id == borked) else {
+                continue;
+            };
+            *slot = working_version;
+        }
 
         if let Some(latest_time) = older_manifest.versions.first().map(|n| n.releaseTime) {
             older_manifest.versions.splice(
