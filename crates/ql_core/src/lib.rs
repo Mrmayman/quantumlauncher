@@ -15,7 +15,7 @@
 #![allow(clippy::missing_errors_doc)]
 
 use crate::{
-    json::manifest::Version,
+    json::manifest::ManifestVersion,
     read_log::{Diagnostic, LogLine, ReadError, read_logs},
 };
 use futures::StreamExt;
@@ -371,7 +371,7 @@ impl ListEntry {
     pub fn new(name: String) -> Self {
         Self {
             kind: ListEntryKind::guess(&name),
-            supports_server: Version::guess_if_supports_server(&name),
+            supports_server: ManifestVersion::guess_if_supports_server(&name),
             name,
         }
     }
@@ -380,7 +380,7 @@ impl ListEntry {
     pub fn with_kind(name: String, ty: &str) -> Self {
         Self {
             kind: ListEntryKind::calculate(&name, ty),
-            supports_server: Version::guess_if_supports_server(&name),
+            supports_server: ManifestVersion::guess_if_supports_server(&name),
             name,
         }
     }
