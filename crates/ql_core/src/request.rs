@@ -32,13 +32,39 @@ pub fn build_middleware(path: PathBuf, cache: bool) -> ClientWithMiddleware {
         .build()
 }
 
+macro_rules! populate_agent {
+    ($self:ident, $get:ident) => {
+        match $self.user_agent {
+            UserAgentKind::None => {}
+            UserAgentKind::Ql => {
+                $get = $get.header(
+                    "User-Agent",
+                    "Mrmayman/quantumlauncher (https://mrmayman.github.io/quantumlauncher)",
+                );
+            }
+            UserAgentKind::Spoofed => {
+                $get = $get.header(
+                    "User-Agent",
+                    "Mozilla/5.0 (X11; Linux x86_64; rv:148.0) Gecko/20100101 Firefox/148.0",
+                );
+            }
+        }
+    };
+}
+
 #[must_use]
 pub struct DownloadRequest<'a> {
     url: &'a str,
     user_agent: UserAgentKind,
+    cached: bool,
 }
 
 impl DownloadRequest<'_> {
+    pub fn uncached(mut self) -> Self {
+        self.cached = false;
+        self
+    }
+
     pub fn user_agent_spoof(mut self) -> Self {
         self.user_agent = UserAgentKind::Spoofed;
         self
@@ -50,26 +76,18 @@ impl DownloadRequest<'_> {
     }
 
     async fn send(&self) -> Result<reqwest::Response, RequestError> {
-        let client =
-            CLIENT.get_or_init(|| build_middleware(LAUNCHER_CACHE_DIR.to_path_buf(), true));
-        let mut get = client.get(self.url);
+        let response = if self.cached {
+            let mut get = CLIENT
+                .get_or_init(|| build_middleware(LAUNCHER_CACHE_DIR.to_path_buf(), true))
+                .get(self.url);
+            populate_agent!(self, get);
+            get.send().await?
+        } else {
+            let mut get = CLIENT_UNCACHED.get(self.url);
+            populate_agent!(self, get);
+            get.send().await?
+        };
 
-        match self.user_agent {
-            UserAgentKind::None => {}
-            UserAgentKind::Ql => {
-                get = get.header(
-                    "User-Agent",
-                    "Mrmayman/quantumlauncher (https://mrmayman.github.io/quantumlauncher)",
-                );
-            }
-            UserAgentKind::Spoofed => {
-                get = get.header(
-                    "User-Agent",
-                    "Mozilla/5.0 (X11; Linux x86_64; rv:148.0) Gecko/20100101 Firefox/148.0",
-                );
-            }
-        }
-        let response = get.send().await?;
         check_for_success(&response)?;
         Ok(response)
     }
@@ -148,6 +166,7 @@ pub fn download(url: &str) -> DownloadRequest<'_> {
     DownloadRequest {
         url,
         user_agent: UserAgentKind::None,
+        cached: true,
     }
 }
 
