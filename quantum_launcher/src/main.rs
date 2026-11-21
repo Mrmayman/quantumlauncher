@@ -97,7 +97,7 @@ impl Launcher {
         config: Result<LauncherConfig, JsonFileError>,
     ) -> (Self, Task<Message>) {
         #[cfg(feature = "auto_update")]
-        let check_for_updates_command = {
+        let task_check_updates = {
             let should_check = if let Ok(c) = &config {
                 c.should_update_check()
             } else {
@@ -113,13 +113,13 @@ impl Launcher {
             }
         };
         #[cfg(not(feature = "auto_update"))]
-        let check_for_updates_command = Task::none();
+        let task_check_updates = Task::none();
 
         let mut launcher =
             Launcher::load_new(is_new_user, config).unwrap_or_else(Launcher::with_error);
         // let mut launcher = Launcher::with_error("test");
 
-        let load_notes_command = if let (Some(instance), State::Launch(menu)) =
+        let task_load_notes = if let (Some(instance), State::Launch(menu)) =
             (launcher.selected_instance.clone(), &mut launcher.state)
         {
             menu.reload_notes(instance)
@@ -138,10 +138,10 @@ impl Launcher {
         (
             launcher,
             Task::batch([
-                check_for_updates_command,
+                task_check_updates,
                 Task::perform(get_entries(InstanceKind::Client), Message::CoreListLoaded),
                 Task::perform(get_entries(InstanceKind::Server), Message::CoreListLoaded),
-                load_notes_command,
+                task_load_notes,
                 presence_task,
                 Task::perform(ql_core::clean::dir(LAUNCHER_DIR.join("logs")), |n| {
                     Message::CoreCleanComplete(n.strerr())

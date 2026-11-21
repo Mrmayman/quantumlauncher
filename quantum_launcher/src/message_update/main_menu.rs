@@ -206,7 +206,7 @@ impl Launcher {
                     AfterLaunchBehavior::DoNothing => {}
                     AfterLaunchBehavior::CloseLauncher => {
                         ql_core::logger_finish();
-                        self.close_launcher();
+                        return self.close_launcher();
                     }
                     AfterLaunchBehavior::MinimizeLauncher => {
                         let minimize_task = iced::window::get_latest()

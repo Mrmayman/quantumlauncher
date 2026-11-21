@@ -26,7 +26,7 @@ impl Launcher {
                     return Task::none();
                 }
 
-                let mut commands = Vec::new();
+                let mut tasks = Vec::new();
 
                 let edit_config = if let State::Launch(launch_menu) = &self.state
                     && let Some(edit) = &launch_menu.edit_instance
@@ -41,7 +41,7 @@ impl Launcher {
                     && (self.autosave.insert(AutoSaveKind::InstanceConfig)
                         || self.tick_timer.is_multiple_of(5))
                 {
-                    self.autosave_instance_config(config, &mut commands);
+                    self.autosave_instance_config(config, &mut tasks);
                 }
 
                 for (instance, process) in &mut self.processes {
@@ -60,11 +60,11 @@ impl Launcher {
                 }
 
                 if let State::Launch(menu) = &self.state {
-                    self.tick_sidebar_auto_scroll(menu, &mut commands);
+                    self.tick_sidebar_auto_scroll(menu, &mut tasks);
                 }
                 self.autosave_launcher_config();
 
-                return Task::batch(commands);
+                return Task::batch(tasks);
             }
             State::Create(menu) => {
                 menu.tick();
@@ -194,7 +194,7 @@ impl Launcher {
     }
 
     /// Automatically scrolls the sidebar when dragging near the edges
-    fn tick_sidebar_auto_scroll(&self, menu: &MenuLaunch, commands: &mut Vec<Task<Message>>) {
+    fn tick_sidebar_auto_scroll(&self, menu: &MenuLaunch, tasks: &mut Vec<Task<Message>>) {
         const EDGE_THRESHOLD: f32 = 36.0;
         const MIN_SPEED: f32 = 2.0;
         const MAX_SPEED: f32 = 14.0;
@@ -251,7 +251,7 @@ impl Launcher {
             return;
         }
 
-        commands.push(iced::widget::scrollable::scroll_to(
+        tasks.push(iced::widget::scrollable::scroll_to(
             iced::widget::scrollable::Id::new("MenuLaunch:sidebar"),
             iced::widget::scrollable::AbsoluteOffset {
                 x: 0.0,
@@ -267,18 +267,14 @@ impl Launcher {
         }
     }
 
-    fn autosave_instance_config(
-        &self,
-        config: InstanceConfigJson,
-        commands: &mut Vec<Task<Message>>,
-    ) {
+    fn autosave_instance_config(&self, config: InstanceConfigJson, tasks: &mut Vec<Task<Message>>) {
         let Some(instance) = self.selected_instance.clone() else {
             return;
         };
         let cmd = Task::perform(Launcher::save_config(instance, config), |n| {
             EditInstanceMessage::ConfigSaved(n.strerr()).into()
         });
-        commands.push(cmd);
+        tasks.push(cmd);
     }
 
     pub fn read_game_logs(
