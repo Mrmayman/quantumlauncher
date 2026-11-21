@@ -395,11 +395,10 @@ impl MenuCreateInstance {
     }
 }
 
-fn update_log_render_state(log_state: Option<&mut LogState>, mut message: String) {
+fn update_log_render_state(log_state: Option<&mut LogState>, message: String) {
     if let Some(state) = log_state {
         use iced::widget::text_editor::{Action, Edit, Motion};
         // TODO: preserve selection
-        message = message.replace('\t', "    ");
         let content = &mut state.content;
         content.perform(Action::Move(Motion::DocumentEnd));
         content.perform(Action::Edit(Edit::Paste(Arc::new(message))));

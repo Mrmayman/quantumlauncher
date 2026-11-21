@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 
 use crate::{
     IntoJsonError, JsonDownloadError, RequestError,
-    json::V_A_1_0_15,
+    json::{V_1_12_2, V_A_1_0_15},
     request::{CLIENT_UNCACHED, check_for_success},
 };
 use cfg_if::cfg_if;
@@ -12,12 +12,20 @@ use serde::Deserialize;
 static MANIFEST: LazyLock<tokio::sync::RwLock<Option<Manifest>>> =
     LazyLock::new(|| tokio::sync::RwLock::new(None));
 
+const BETTERJSONS_BORKED: &[(&str, &str)] = &[
+    ("26.2-pre1", "26.2-pre-1"),
+    ("26.1-snap11", "26.1-snapshot-11"),
+    ("26.1-snap10", "26.1-snapshot-10"),
+    ("26.1-snap9", "26.1-snapshot-9"),
+    ("26.1-snap8", "26.1-snapshot-8"),
+];
+
 /// An official Minecraft version manifest
 /// (list of all versions and their download links)
 #[derive(Deserialize, Clone, Debug)]
 pub struct Manifest {
     latest: Latest,
-    pub versions: Vec<Version>,
+    pub versions: Vec<ManifestVersion>,
 }
 
 impl Manifest {
@@ -52,9 +60,6 @@ impl Manifest {
         const ARM64: &str = "https://raw.githubusercontent.com/theofficialgman/piston-meta-arm64/refs/heads/main/mc/game/version_manifest_v2.json";
         const ARM32: &str = "https://raw.githubusercontent.com/theofficialgman/piston-meta-arm32/refs/heads/main/mc/game/version_manifest_v2.json";
 
-        const LAST_BETTERJSONS: &str = "26w14a";
-        const LAST_BETTERJSONS_ALT: &str = "26.1.1";
-
         // An out-of-date but curated manifest
         const OLDER_VERSIONS_JSON: &str =
             "https://mcphackers.org/BetterJSONs/version_manifest_v2.json";
@@ -75,23 +80,31 @@ impl Manifest {
         let (older_manifest, newer_manifest) = tokio::try_join!(old_fn, new_fn)?;
         let mut older_manifest: Self =
             serde_json::from_str(&older_manifest).json(older_manifest)?;
+
+        let last_lwjgl2 =
+            DateTime::parse_from_rfc3339(V_1_12_2).expect("statically known to be valid");
+        older_manifest.versions.retain(|n| {
+            let is_already_lwjgl3 = n.releaseTime > last_lwjgl2;
+            !(n.id.ends_with("-lwjgl3") && is_already_lwjgl3)
+        });
         let newer_manifest: Self = serde_json::from_str(&newer_manifest).json(newer_manifest)?;
 
-        // Remember, if you're trying to go through this in your head,
-        // versions are stored in reverse order of release date (newest first)
+        for &(borked, working) in BETTERJSONS_BORKED {
+            let Some(working_version) = newer_manifest.find_name(working).cloned() else {
+                continue;
+            };
+            let Some(slot) = older_manifest.versions.iter_mut().find(|n| n.id == borked) else {
+                continue;
+            };
+            *slot = working_version;
+        }
 
-        // Removes newer versions from out-of-date manifest
-        // if it ever gets updated, to not mess up the list.
-        older_manifest.versions = take_versions_older_than(&older_manifest.versions, |n| {
-            n.id == LAST_BETTERJSONS || n.id == LAST_BETTERJSONS_ALT
-        });
-        // Add newer versions (that lack fixes/polish) to the manifest
-        older_manifest.versions.splice(
-            0..0,
-            take_versions_newer_than(&newer_manifest.versions, |n| {
-                n.id == LAST_BETTERJSONS || n.id == LAST_BETTERJSONS_ALT
-            }),
-        );
+        if let Some(latest_time) = older_manifest.versions.first().map(|n| n.releaseTime) {
+            older_manifest.versions.splice(
+                0..0,
+                take_versions_newer_than(&newer_manifest.versions, latest_time),
+            );
+        }
 
         Ok(older_manifest)
     }
@@ -99,7 +112,7 @@ impl Manifest {
     /// Looks up a version by its name.
     /// This searches for an *exact match*.
     #[must_use]
-    pub fn find_name(&self, name: &str) -> Option<&Version> {
+    pub fn find_name(&self, name: &str) -> Option<&ManifestVersion> {
         self.versions.iter().find(|n| n.id == name)
     }
 
@@ -110,7 +123,7 @@ impl Manifest {
     /// [`Manifest::download`] it). So it's mostly safe
     /// to unwrap.
     #[must_use]
-    pub fn get_latest_release(&self) -> Option<&Version> {
+    pub fn get_latest_release(&self) -> Option<&ManifestVersion> {
         self.find_name(&self.latest.release)
     }
 }
@@ -134,7 +147,7 @@ pub struct Latest {
 
 #[allow(non_snake_case)]
 #[derive(Deserialize, Clone, Debug)]
-pub struct Version {
+pub struct ManifestVersion {
     pub id: String,
     pub r#type: String,
     pub url: String,
@@ -142,7 +155,7 @@ pub struct Version {
     pub releaseTime: DateTime<chrono::FixedOffset>,
 }
 
-impl Version {
+impl ManifestVersion {
     #[must_use]
     pub fn guess_if_supports_server(id: &str) -> bool {
         if id.starts_with("inf-") || id.starts_with("in-") || id.starts_with("pc-") {
@@ -183,24 +196,11 @@ impl Version {
     }
 }
 
-fn take_versions_older_than<T, F>(vec: &[T], predicate: F) -> Vec<T>
-where
-    T: Clone,
-    F: FnMut(&T) -> bool,
-{
-    if let Some(pos) = vec.iter().position(predicate) {
-        vec[pos..].to_vec()
-    } else {
-        Vec::new()
-    }
-}
-
-fn take_versions_newer_than<T, F>(vec: &[T], predicate: F) -> Vec<T>
-where
-    T: Clone,
-    F: FnMut(&T) -> bool,
-{
-    if let Some(pos) = vec.iter().position(predicate) {
+fn take_versions_newer_than(
+    vec: &[ManifestVersion],
+    time: DateTime<chrono::FixedOffset>,
+) -> Vec<ManifestVersion> {
+    if let Some(pos) = vec.iter().position(|n| n.releaseTime <= time) {
         vec[..pos].to_vec()
     } else {
         vec.to_owned()

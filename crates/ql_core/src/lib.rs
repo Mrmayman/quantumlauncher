@@ -15,7 +15,7 @@
 #![allow(clippy::missing_errors_doc)]
 
 use crate::{
-    json::manifest::Version,
+    json::manifest::ManifestVersion,
     read_log::{Diagnostic, LogLine, ReadError, read_logs},
 };
 use futures::StreamExt;
@@ -232,18 +232,25 @@ pub async fn do_jobs_with_limit<T, E>(
 ///     Ok("Hi".to_owned())
 /// }
 /// # async fn download_something_important() -> Result<String, String> {
-/// retry(|| download_file("example.com/my_file")).await
+/// let result = retry(|| download_file("example.com/my_file")).await;
+/// # result
 /// # }
 /// ```
 ///
 /// Notice how we don't await on `download_file`? Here's another one.
 ///
 /// ```no_run
+/// # use ql_core::retry;
+/// # async fn download_file(_: &str) -> Result<(), ()> { Ok(()) }
 /// // Use this pattern for inline async blocks
-/// retry(|| async move {
-///     download_file("example.com/my_file").await;
-///     download_file("example.com/another_file").await;
-/// }).await
+/// # async fn foo() {
+/// # type SomeError = ();
+/// let result: Result<(), SomeError> = retry(|| async move {
+///     download_file("example.com/my_file").await?;
+///     download_file("example.com/another_file").await?;
+///     Ok::<(), SomeError>(())
+/// }).await;
+/// # ; }
 /// ```
 ///
 /// # Errors
@@ -364,7 +371,7 @@ impl ListEntry {
     pub fn new(name: String) -> Self {
         Self {
             kind: ListEntryKind::guess(&name),
-            supports_server: Version::guess_if_supports_server(&name),
+            supports_server: ManifestVersion::guess_if_supports_server(&name),
             name,
         }
     }
@@ -373,7 +380,7 @@ impl ListEntry {
     pub fn with_kind(name: String, ty: &str) -> Self {
         Self {
             kind: ListEntryKind::calculate(&name, ty),
-            supports_server: Version::guess_if_supports_server(&name),
+            supports_server: ManifestVersion::guess_if_supports_server(&name),
             name,
         }
     }
@@ -552,7 +559,7 @@ impl OptifineUniqueVersion {
         VersionDetails::load(instance)
             .await
             .ok()
-            .and_then(|n| Self::from_version(n.get_id()))
+            .and_then(|n| Self::from_version(&n.get_id()))
     }
 
     #[must_use]
@@ -614,9 +621,11 @@ pub fn get_jar_path(
     optifine_jar.map_or_else(
         || {
             let id = version_json.get_id();
-            let path1 = get_path_from_id(instance_dir, id);
+            let path1 = get_path_from_id(instance_dir, &id);
             if path1.exists() {
                 path1
+            } else if let Some(id) = version_json.id.strip_suffix("-lwjgl3") {
+                get_path_from_id(instance_dir, id)
             } else {
                 get_path_from_id(instance_dir, &version_json.id)
             }
