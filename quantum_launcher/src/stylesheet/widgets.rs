@@ -1,6 +1,6 @@
-use iced::widget;
+use iced::{Degrees, widget};
 
-use crate::stylesheet::styles::BORDER_WIDTH;
+use crate::stylesheet::styles::{BORDER_RADIUS, BORDER_WIDTH, mix};
 
 use super::{color::Color, styles::LauncherTheme};
 
@@ -226,15 +226,50 @@ impl widget::pick_list::Catalog for LauncherTheme {
                     text_color: self.get(Color::Light),
                     placeholder_color: self.get(Color::SecondLight),
                     handle_color: self.get(Color::Light),
-                    background: self.get_bg(Color::Dark),
-                    border: self.get_border(Color::SecondDark),
+                    background: self.gradient_raw(
+                        Degrees(180.0),
+                        [
+                            (0.0, self.get(Color::SecondDark)),
+                            (0.5, mix(self.get(Color::SecondDark), self.get(Color::Dark))),
+                            (
+                                0.55,
+                                mix(
+                                    mix(self.get(Color::SecondDark), self.get(Color::Dark)),
+                                    self.get(Color::Dark),
+                                ),
+                            ),
+                            (1.0, self.get(Color::Dark)),
+                        ],
+                    ),
+                    border: iced::Border {
+                        color: mix(self.get(Color::Dark), self.get(Color::SecondDark)),
+                        width: BORDER_WIDTH,
+                        radius: BORDER_RADIUS.into(),
+                    },
                 }
             }
             widget::pick_list::Status::Hovered => widget::pick_list::Style {
                 text_color: self.get(Color::Light),
                 placeholder_color: self.get(Color::SecondLight),
                 handle_color: self.get(Color::Light),
-                background: self.get_bg(Color::SecondDark),
+                background: self.gradient_raw(
+                    Degrees(180.0),
+                    [
+                        (0.0, mix(self.get(Color::SecondDark), self.get(Color::Mid))),
+                        (0.5, self.get(Color::SecondDark)),
+                        (
+                            0.55,
+                            mix(self.get(Color::SecondDark), self.get(Color::Dark)),
+                        ),
+                        (
+                            1.0,
+                            mix(
+                                mix(self.get(Color::SecondDark), self.get(Color::Dark)),
+                                self.get(Color::Dark),
+                            ),
+                        ),
+                    ],
+                ),
                 border: self.get_border(Color::SecondDark),
             },
         }
@@ -306,7 +341,7 @@ impl widget::text_input::Catalog for LauncherTheme {
             },
             widget::text_input::Status::Disabled => widget::text_input::Style {
                 background: self.get_bg(Color::ExtraDark),
-                border: self.get_border(Color::Dark),
+                border: iced::border::rounded(BORDER_RADIUS),
                 icon: self.get(Color::Light),
                 placeholder: self.get(Color::Mid),
                 value: self.get(Color::White),
@@ -323,9 +358,25 @@ impl widget::progress_bar::Catalog for LauncherTheme {
 
     fn style(&self, (): &()) -> widget::progress_bar::Style {
         widget::progress_bar::Style {
-            background: self.get_bg(Color::SecondDark),
-            bar: self.get_bg(Color::Light),
-            border: self.get_border(Color::Mid),
+            background: self.gradient_raw(
+                iced::Degrees(180.0),
+                [
+                    (0.0, self.get(Color::SecondDark)),
+                    (0.2, self.get(Color::Dark)),
+                    (0.3, self.get(Color::ExtraDark)),
+                    (1.0, self.get(Color::Dark)),
+                ],
+            ),
+            bar: self.gradient_raw(
+                iced::Degrees(180.0),
+                [
+                    (0.0, self.get(Color::Light)),
+                    (0.2, self.get(Color::SecondLight)),
+                    (0.3, mix(self.get(Color::Mid), self.get(Color::SecondLight))),
+                    (1.0, self.get(Color::SecondLight)),
+                ],
+            ),
+            border: self.get_border(Color::SecondDark),
         }
     }
 }
@@ -346,19 +397,25 @@ impl widget::slider::Catalog for LauncherTheme {
                 handle: widget::slider::Handle {
                     shape: widget::slider::HandleShape::Circle { radius: 6.0 },
                     background: self.get_bg(Color::SecondLight),
-                    border_width: 2.0,
+                    border_width: 0.0,
                     border_color: self.get(Color::Light),
                 },
             },
             widget::slider::Status::Hovered => widget::slider::Style {
                 rail: widget::slider::Rail {
-                    backgrounds: (self.get_bg(Color::Light), self.get_bg(Color::Mid)),
-                    width: 4.0,
-                    border: self.get_border(Color::Mid),
+                    backgrounds: (
+                        iced::Background::Color(mix(self.get(Color::Light), self.get(Color::Mid))),
+                        iced::Background::Color(mix(
+                            self.get(Color::SecondDark),
+                            self.get(Color::Mid),
+                        )),
+                    ),
+                    width: 6.0,
+                    border: iced::border::rounded(BORDER_RADIUS),
                 },
                 handle: widget::slider::Handle {
-                    shape: widget::slider::HandleShape::Circle { radius: 8.0 },
-                    background: self.get_bg(Color::SecondLight),
+                    shape: widget::slider::HandleShape::Circle { radius: 6.0 },
+                    background: self.get_bg(Color::Light),
                     border_width: 2.0,
                     border_color: self.get(Color::White),
                 },
@@ -370,7 +427,7 @@ impl widget::slider::Catalog for LauncherTheme {
                     border: self.get_border(Color::Mid),
                 },
                 handle: widget::slider::Handle {
-                    shape: widget::slider::HandleShape::Circle { radius: 12.0 },
+                    shape: widget::slider::HandleShape::Circle { radius: 8.0 },
                     background: self.get_bg(Color::White),
                     border_width: 2.0,
                     border_color: self.get(Color::White),
