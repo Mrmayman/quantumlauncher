@@ -402,7 +402,7 @@ async fn install_optifine(
         PathBuf::from(more),
         None,
         None,
-        OptifineUniqueVersion::from_version(details.get_id()),
+        OptifineUniqueVersion::from_version(&details.get_id()),
     )
     .await?;
     Ok(())

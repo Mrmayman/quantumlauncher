@@ -128,7 +128,7 @@ impl GameDownloader {
             .instance_dir
             .join(".minecraft")
             .join("versions")
-            .join(self.version_json.get_id());
+            .join(&*self.version_json.get_id());
         tokio::fs::create_dir_all(&version_dir)
             .await
             .path(&version_dir)?;

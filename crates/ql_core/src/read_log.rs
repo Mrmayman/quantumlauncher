@@ -59,7 +59,7 @@ pub(crate) async fn read_logs(
         sender.clone(),
         censors.clone(),
         false,
-        false,
+        true,
     ));
 
     let status = loop {
@@ -101,9 +101,9 @@ async fn read_log_from_stream<R: AsyncBufRead + Unpin>(
                 &mut log_raw,
             );
         } else {
-            if !line.ends_with('\n') {
-                line.push('\n');
-            }
+            // `Lines::next_line()` already strips the trailing newline, and
+            // `Display for LogLine` is responsible for adding exactly one
+            // newline per line, so we don't fabricate one here.
             log_raw.push(line.clone());
             send(
                 sender.as_ref(),
@@ -119,13 +119,15 @@ async fn read_log_from_stream<R: AsyncBufRead + Unpin>(
     let remaining = xml_cache.trim();
     if !remaining.is_empty() {
         log_raw.push(remaining.to_owned());
+        // Real newlines were preserved in the cache; don't fabricate more
+        // from tabs. `Display for LogLine` adds the trailing newline.
         send(
             sender.as_ref(),
             if remaining.contains("Minecraft Crash Report") {
-                LogLine::Error
+                LogLine::Error(remaining.to_owned())
             } else {
-                LogLine::Message
-            }(remaining.replace('\t', "\n\t")),
+                LogLine::Message(remaining.to_owned())
+            },
         );
     }
 
@@ -159,6 +161,8 @@ fn send(sender: Option<&Sender<LogLine>>, msg: LogLine) {
     if let Some(sender) = sender {
         _ = sender.send(msg);
     } else {
+        // `print_colored()` intentionally does *not* include a trailing
+        // newline, so `println!` gives us exactly one.
         println!("{}", msg.print_colored());
     }
 }
@@ -170,12 +174,17 @@ fn xml_parse(
     has_errored: &mut bool,
     log_raw: &mut Vec<String>,
 ) {
-    if !line.starts_with("  </log4j:Event>") {
-        xml_cache.push_str(line);
+    // `next_line()` strips newlines, so re-add one after every line to keep
+    // the XML structure (and any multi-line `<Message>`/`<Throwable>`
+    // payloads) faithful to the original stream.
+    xml_cache.push_str(line);
+    xml_cache.push('\n');
+
+    // Be tolerant of indentation changes and single-line events.
+    if !line.contains("</log4j:Event>") {
         return;
     }
 
-    xml_cache.push_str(line);
     let xml = xml_cache.replace("<log4j:", "<").replace("</log4j:", "</");
     let start = xml.find("<Event");
 
@@ -186,9 +195,9 @@ fn xml_parse(
                 log_raw.push(other_text.to_owned());
                 send(sender, LogLine::Message(other_text.to_owned()));
             }
-            &xml[start..]
+            xml[start..].trim()
         }
-        _ => &xml,
+        _ => xml.trim(),
     };
 
     match quick_xml::de::from_str::<LogEvent>(text).or_else(|_| {
@@ -209,6 +218,9 @@ fn xml_parse(
                 err!("Could not parse XML: {err}\n{text}\n");
                 *has_errored = true;
             }
+            // Always clear: otherwise the broken blob keeps growing and
+            // pollutes the next event's `other_text`.
+            xml_cache.clear();
         }
     }
 }
@@ -228,6 +240,10 @@ async fn is_xml(instance: &Instance) -> Result<bool, ReadError> {
 /// - `Message(String)`: A normal log message. Primarily
 ///   used for non-XML logs (old Minecraft versions).
 /// - `Error(String)`: An error log message.
+///
+/// `Display` for `LogLine` always ends with exactly one newline; the
+/// payload itself never contains a trailing newline (but may contain
+/// embedded ones).
 pub enum LogLine {
     Info(LogEvent),
     Message(String),
@@ -235,12 +251,14 @@ pub enum LogLine {
 }
 
 impl LogLine {
+    /// Colored version of `Display`, **without** a trailing newline.
+    /// Intended for `println!`-style call sites.
     #[must_use]
     fn print_colored(&self) -> String {
         match self {
             LogLine::Info(event) => event.print_color(),
-            LogLine::Message(message) => message.clone(),
-            LogLine::Error(error) => error.bright_red().to_string(),
+            LogLine::Message(message) => message.trim_end_matches('\n').to_string(),
+            LogLine::Error(error) => error.trim_end_matches('\n').bright_red().to_string(),
         }
     }
 }
@@ -248,9 +266,9 @@ impl LogLine {
 impl Display for LogLine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LogLine::Info(event) => write!(f, "{event}"),
-            LogLine::Error(error) => write!(f, "{error}"),
-            LogLine::Message(message) => write!(f, "{message}"),
+            LogLine::Info(event) => writeln!(f, "{event}"),
+            LogLine::Error(error) => writeln!(f, "{}", error.trim_end_matches('\n')),
+            LogLine::Message(message) => writeln!(f, "{}", message.trim_end_matches('\n')),
         }
     }
 }
@@ -371,6 +389,7 @@ impl LogEvent {
         Some(datetime.format("%H:%M:%S").to_string())
     }
 
+    /// Colored single-event rendering, **without** a trailing newline.
     #[must_use]
     fn print_color(&self) -> String {
         let date = self.get_time().unwrap_or_else(|| self.timestamp.clone());
@@ -397,15 +416,24 @@ impl LogEvent {
             }
         );
         if let Some(throwable) = self.throwable.as_deref() {
-            let throwable = throwable.replace('\t', "\n\t");
-            _ = writeln!(out, "\nCaused by {throwable}");
+            // `write!` (not `writeln!`) — the trailing newline belongs to
+            // the call site, not to the rendering.
+            _ = write!(out, "\nCaused by {throwable}");
         }
         out
     }
 
     fn fix_tabs(&mut self) {
+        // Tabs in XML content are indentation, not line breaks. Expand them
+        // to spaces so terminal output stays aligned; newlines are now
+        // preserved faithfully by `xml_parse`. `trim_end()` strips the
+        // trailing newline log4j2 sometimes leaves in CDATA so we don't end
+        // up with a blank line after every event.
         if let Some(message) = &mut self.message {
-            *message = message.replace('\t', "\n\t");
+            *message = message.replace('\t', "    ").trim_end().to_string();
+        }
+        if let Some(throwable) = &mut self.throwable {
+            *throwable = throwable.replace('\t', "    ").trim_end().to_string();
         }
     }
 }
@@ -464,7 +492,9 @@ fn parse_color(msg: &str) -> String {
 impl Display for LogEvent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let date = self.get_time().unwrap_or_else(|| self.timestamp.clone());
-        writeln!(
+        // `write!` (not `writeln!`): `Display for LogLine` adds the trailing
+        // newline, so each event contributes exactly one.
+        write!(
             f,
             "[{date}] [{class}/{level}]: {msg}",
             level = self.level,
@@ -473,8 +503,7 @@ impl Display for LogEvent {
             msg = if let Some(n) = &self.message { &n } else { "" }
         )?;
         if let Some(throwable) = self.throwable.as_deref() {
-            let throwable = throwable.replace('\t', "\n\t");
-            writeln!(f, "Caused by {throwable}")?;
+            write!(f, "\nCaused by {throwable}")?;
         }
         Ok(())
     }
