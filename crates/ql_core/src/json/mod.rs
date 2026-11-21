@@ -22,6 +22,7 @@ pub const V_OFFICIAL_FABRIC_SUPPORT: &str = "2018-10-24T10:52:16+00:00";
 /// First version with multiplayer support in alpha
 pub const V_A_1_0_15: &str = "2010-08-03T19:47:25+00:00";
 pub const V_1_5_2: &str = "2013-04-25T15:45:00+00:00";
+/// Last version to use LWJGL2
 pub const V_1_12_2: &str = "2017-09-18T08:39:46+00:00";
 pub const V_1_20_2: &str = "2023-09-20T09:02:57+00:00";
 pub const V_PAULSCODE_LAST: &str = "2019-03-14T14:26:23+00:00";
