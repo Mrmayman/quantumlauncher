@@ -102,7 +102,10 @@ pub async fn make_launch_jar(
 
             for i in 0..jar_reader.len() {
                 let mut entry = jar_reader.by_index(i)?;
-                let name = entry.name().to_string();
+                let Some(name) = entry.enclosed_name() else {
+                    continue;
+                };
+                let name = name.to_string_lossy().into_owned();
 
                 if entry.is_dir() {
                     continue;

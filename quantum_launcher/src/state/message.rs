@@ -281,7 +281,7 @@ pub enum AccountMessage {
 #[derive(Debug, Clone)]
 pub enum LauncherSettingsMessage {
     Open(LauncherSettingsTab),
-    LoadedSystemTheme(Res<dark_light::Mode>),
+    LoadedSystemTheme(dark_light::Mode),
     ThemePicked(LauncherThemeLightness),
     ColorSchemePicked(LauncherThemeColor),
     UiScale(f64),
@@ -375,10 +375,8 @@ impl ListMessage {
             ListMessage::Edit(msg, idx) => {
                 if split && msg.contains(' ') {
                     l.remove(idx);
-                    let mut insert_idx = idx;
-                    for s in msg.split(' ').filter(|n| !n.is_empty()) {
+                    for (insert_idx, s) in (idx..).zip(msg.split(' ').filter(|n| !n.is_empty())) {
                         l.insert(insert_idx, s.to_owned());
-                        insert_idx += 1;
                     }
                 } else if let Some(entry) = l.get_mut(idx) {
                     *entry = msg;

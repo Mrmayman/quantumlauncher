@@ -243,11 +243,11 @@ fn transform_path(input: &str) -> Option<String> {
 fn classpath_v0_3_1_to_v0_4(input: &str) -> String {
     let mut parts: Vec<String> = input.split(':').map(str::to_owned).collect();
 
-    if let Some(first) = parts.get_mut(0) {
-        if let Some(index) = first.find("forge/libraries") {
-            let trimmed = &first[index..];
-            *first = format!("../{trimmed}");
-        }
+    if let Some(first) = parts.get_mut(0)
+        && let Some(index) = first.find("forge/libraries")
+    {
+        let trimmed = &first[index..];
+        *first = format!("../{trimmed}");
     }
 
     parts.join(":")

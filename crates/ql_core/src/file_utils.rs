@@ -150,7 +150,8 @@ fn check_qlportable_file() -> Option<QlDirInfo> {
 
         let mut join_dir = !flags.contains("top");
 
-        let path = if let (Some(stripped), Some(home)) = (path.strip_prefix("~"), dirs::home_dir())
+        let path = if let Some(stripped) = path.strip_prefix("~")
+            && let Some(home) = dirs::home_dir()
         {
             home.join(stripped)
         } else if path == "." {
@@ -488,10 +489,10 @@ pub async fn find_item_in_dir<F: FnMut(&Path, &str) -> bool>(
     let mut entries = tokio::fs::read_dir(parent_dir).await.path(parent_dir)?;
     while let Ok(Some(entry)) = entries.next_entry().await {
         let path = entry.path();
-        if let Some(file_name) = path.file_name().and_then(OsStr::to_str) {
-            if f(&path, file_name) {
-                return Ok(Some(path));
-            }
+        if let Some(file_name) = path.file_name().and_then(OsStr::to_str)
+            && f(&path, file_name)
+        {
+            return Ok(Some(path));
         }
     }
     Ok(None)
@@ -656,7 +657,9 @@ pub fn extract_tar_gz(archive: &[u8], output_dir: &Path) -> std::io::Result<()> 
 
     // Get the first entry path to determine the top-level directory
     let mut entries = tar.entries()?;
-    let top_level_dir = if let (Some(entry), None) = (entries.next(), entries.next()) {
+    let top_level_dir = if let Some(entry) = entries.next()
+        && let None = entries.next()
+    {
         entry?
             .path()?
             .components()

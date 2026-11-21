@@ -42,7 +42,10 @@ pub async fn install_modpack(
 
     // If user accidentally added regular file
     if zip.by_name("pack.mcmeta").is_ok() {
-        if zip.file_names().any(|n| n.starts_with("data/")) {
+        if zip
+            .file_names()
+            .any(|n| n.is_ok_and(|n| n.starts_with("data/")))
+        {
             write_regular_file(&file, filename, &instance, "datapacks").await?;
         } else {
             // Resource Pack/Canvas Shader
@@ -54,7 +57,10 @@ pub async fn install_modpack(
             write_regular_file(&file, filename, &instance, dir).await?;
         }
         return Ok(Some(HashSet::new()));
-    } else if zip.file_names().any(|n| n.starts_with("shaders/")) {
+    } else if zip
+        .file_names()
+        .any(|n| n.is_ok_and(|n| n.starts_with("shaders/")))
+    {
         // Shader pack
         write_regular_file(&file, filename, &instance, "shaderpacks").await?;
         return Ok(Some(HashSet::new()));
@@ -112,7 +118,10 @@ pub async fn install_modpack(
     let len = zip.len();
     for i in 0..len {
         let mut file = zip.by_index(i)?;
-        let name = file.name().to_owned();
+        let Some(name) = file.enclosed_name() else {
+            continue;
+        };
+        let name = name.to_string_lossy().into_owned();
 
         if name == "modrinth.index.json" || name == "manifest.json" || name == "modlist.html" {
             continue;
@@ -174,8 +183,7 @@ async fn write_regular_file(
     let name = name.unwrap_or_else(|| {
         let time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|n| n.as_secs())
-            .unwrap_or(0);
+            .map_or_default(|n| n.as_secs());
         format!("{dir_name}_{time}")
     });
     let Some(safe_name) = std::path::Path::new(&name).file_name() else {

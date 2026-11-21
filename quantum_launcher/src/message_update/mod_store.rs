@@ -38,7 +38,9 @@ impl Launcher {
                     if search.start_time > menu.latest_load && menu.backend == search.backend {
                         menu.latest_load = search.start_time;
 
-                        if let (Some(results), true) = (&mut menu.results, search.offset > 0) {
+                        if let Some(results) = &mut menu.results
+                            && search.offset > 0
+                        {
                             results.mods.extend(search.mods);
                         } else {
                             menu.results = Some(search);
@@ -85,10 +87,8 @@ impl Launcher {
                 Err(err) => self.set_error(err),
             },
             InstallModsMessage::TickDesc(update_msg) => {
-                if let State::ModsDownload(MenuModsDownload {
-                    description: Some(description),
-                    ..
-                }) = &mut self.state
+                if let State::ModsDownload(menu) = &mut self.state
+                    && let Some(description) = &mut menu.description
                 {
                     description.update(update_msg);
                 }
@@ -148,14 +148,14 @@ impl Launcher {
                 }
             }
             InstallModsMessage::LoadedExtendedInfo(Ok((id, info))) => {
-                if let State::ModsDownload(menu) = &mut self.state {
-                    if let Some(res) = &mut menu.results {
-                        for m in &mut res.mods {
-                            // Fill in that mod's entry with extended info
-                            if m.get_id() == id {
-                                *m = info;
-                                break;
-                            }
+                if let State::ModsDownload(menu) = &mut self.state
+                    && let Some(res) = &mut menu.results
+                {
+                    for m in &mut res.mods {
+                        // Fill in that mod's entry with extended info
+                        if m.get_id() == id {
+                            *m = info;
+                            break;
                         }
                     }
                 }
@@ -253,12 +253,10 @@ impl Launcher {
                 );
             }
             InstallModsMessage::Uninstall(index) => {
-                let State::ModsDownload(MenuModsDownload {
-                    results: Some(results),
-                    mods_download_in_progress,
-                    ..
-                }) = &mut self.state
-                else {
+                let State::ModsDownload(menu) = &mut self.state else {
+                    return Task::none();
+                };
+                let Some(results) = &mut menu.results else {
                     return Task::none();
                 };
                 let Some(hit) = results.mods.get(index) else {
@@ -267,8 +265,12 @@ impl Launcher {
                 };
 
                 let mod_id = ModId::from_pair(&hit.id, results.backend);
-                mods_download_in_progress
-                    .insert(mod_id.clone(), (hit.title.clone(), ModOperation::Deleting));
+                let Some(progress) = menu.mods_download_in_progress.remove(&mod_id) else {
+                    return Task::none();
+                };
+
+                menu.mods_download_in_progress
+                    .insert(mod_id.clone(), (progress.0.clone(), ModOperation::Deleting));
                 let selected_instance = self.instance().clone();
 
                 return Task::perform(store::delete_mods(vec![mod_id], selected_instance), |n| {
@@ -322,7 +324,7 @@ impl Launcher {
             menu.search_store(instance.is_server(), 0),
             menu.load_categories(),
         ]);
-        self.state = State::ModsDownload(menu);
+        self.state = State::ModsDownload(Box::new(menu));
         Ok(command)
     }
 

@@ -67,7 +67,9 @@ impl Launcher {
             menu.log_state = None;
             return;
         };
-        if let (Some(logs), LaunchTab::Log) = (self.logs.get(instance), menu.tab) {
+        if let Some(logs) = self.logs.get(instance)
+            && let LaunchTab::Log = menu.tab
+        {
             menu.log_state = Some(LogState {
                 content: iced::widget::text_editor::Content::with_text(&logs.log.join("\n")),
             });
@@ -125,7 +127,7 @@ impl Launcher {
 
             let locally_installed_mods = HashSet::new();
 
-            this.state = State::EditMods(MenuEditMods {
+            this.state = State::EditMods(Box::new(MenuEditMods {
                 sorted_mods_list: Vec::new(),
                 selection: EditModsSelection {
                     selected_mods: HashSet::new(),
@@ -164,7 +166,7 @@ impl Launcher {
                 locally_installed_mods,
                 search: None,
                 content_filter: None,
-            });
+            }));
 
             Ok(Task::batch([update_local_mods_task]))
         }
@@ -238,10 +240,10 @@ impl Launcher {
             .get_dot_minecraft_path()
             .join("mods")
             .join(filename);
-        if *path != new_path {
-            if let Err(err) = std::fs::copy(path, &new_path) {
-                err!("Couldn't drag and drop mod file in: {err}");
-            }
+        if *path != new_path
+            && let Err(err) = std::fs::copy(path, &new_path)
+        {
+            err!("Couldn't drag and drop mod file in: {err}");
         }
     }
 

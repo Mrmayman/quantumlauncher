@@ -96,7 +96,7 @@ impl VersionDetails {
     /// Saves the Minecraft instance JSON to disk
     /// to a `details.json` inside a `dir`.
     pub async fn save_to_dir(&self, dir: &Path) -> Result<(), JsonFileError> {
-        debug_assert!(self.q_patch_overrides.is_empty());
+        debug_assert_eq!(self.q_patch_overrides, [] as [String; 0]);
 
         let text = serde_json::to_string(self).json_to()?;
         let path = dir.join("details.json");
@@ -191,7 +191,7 @@ impl VersionDetails {
     }
 
     #[must_use]
-    pub fn get_id(&self) -> Cow<str> {
+    pub fn get_id(&self) -> Cow<'_, str> {
         let id = self.id.strip_suffix("-lwjgl3").unwrap_or(&self.id);
 
         normalize_game_id(id)
@@ -419,10 +419,10 @@ impl Library {
             }
         }
 
-        if let Some(classifiers) = self.downloads.as_ref().and_then(|n| n.classifiers.as_ref()) {
-            if supports_os(classifiers) {
-                allowed = true;
-            }
+        if let Some(classifiers) = self.downloads.as_ref().and_then(|n| n.classifiers.as_ref())
+            && supports_os(classifiers)
+        {
+            allowed = true;
         }
 
         allowed

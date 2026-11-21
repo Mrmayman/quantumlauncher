@@ -48,12 +48,11 @@ pub async fn login_new(
     let account_response = match serde_json::from_str::<AccountResponse>(&text).json(text.clone()) {
         Ok(n) => n,
         Err(err) => {
-            if let Ok(res_err) = serde_json::from_str::<AccountResponseError>(&text).json(text) {
-                if res_err.error == "ForbiddenOperationException"
-                    && res_err.errorMessage == "Account protected with two factor auth."
-                {
-                    return Ok(Account::NeedsOTP);
-                }
+            if let Ok(res_err) = serde_json::from_str::<AccountResponseError>(&text).json(text)
+                && res_err.error == "ForbiddenOperationException"
+                && res_err.errorMessage == "Account protected with two factor auth."
+            {
+                return Ok(Account::NeedsOTP);
             }
             return Err(err.into());
         }
@@ -76,10 +75,10 @@ pub async fn login_new(
 }
 
 fn insert_agent_field(account_type: AccountType, value: &mut serde_json::Value) {
-    if account_type.yggdrasil_needs_agent_field() {
-        if let (Some(value), Ok(insert)) = (value.as_object_mut(), serde_json::to_value(AGENT)) {
-            value.insert("agent".to_owned(), insert);
-        }
+    if account_type.yggdrasil_needs_agent_field()
+        && let (Some(value), Ok(insert)) = (value.as_object_mut(), serde_json::to_value(AGENT))
+    {
+        value.insert("agent".to_owned(), insert);
     }
 }
 

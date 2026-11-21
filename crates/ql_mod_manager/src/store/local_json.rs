@@ -96,7 +96,9 @@ impl ModIndex {
     fn fix_cf_modpack_id_bug(&mut self) {
         let mut drained_ids = Vec::new();
         for (k, v) in &self.mods {
-            if let (StoreBackendType::Curseforge, ModId::Modrinth(_)) = (v.project_source, k) {
+            if let StoreBackendType::Curseforge = v.project_source
+                && let ModId::Modrinth(_) = k
+            {
                 // Curseforge modpack ID bug fix
                 drained_ids.push(k.clone());
             }

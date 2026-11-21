@@ -109,10 +109,10 @@ async fn modpack(
 }
 
 fn send_progress(sender: Option<&Sender<GenericProgress>>, progress: &GenericProgress) {
-    if let Some(sender) = sender {
-        if sender.send(progress.clone()).is_ok() {
-            return;
-        }
+    if let Some(sender) = sender
+        && sender.send(progress.clone()).is_ok()
+    {
+        return;
     }
     if let Some(msg) = &progress.message {
         pt!("{msg}");

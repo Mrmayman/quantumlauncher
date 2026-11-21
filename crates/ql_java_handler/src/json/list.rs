@@ -49,14 +49,10 @@ impl JavaListJson {
         return None;
     }
 
-    pub fn get_url(&self, mut version: JavaVersion) -> Option<String> {
+    pub fn get_url(&self, version: JavaVersion) -> Option<String> {
         let java_list = self.get_platform()?;
-        let mut fetched = read_ver_from_list(version, java_list);
-        while fetched.is_none() {
-            version = version.next()?;
-            fetched = read_ver_from_list(version, java_list);
-        }
-        Some(fetched?.manifest.url.clone())
+        let fetched = read_ver_from_list(version, java_list)?;
+        Some(fetched.manifest.url.clone())
     }
 }
 

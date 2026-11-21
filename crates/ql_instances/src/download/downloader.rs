@@ -362,17 +362,17 @@ impl GameDownloader {
     }
 
     pub fn send_progress(&self, progress: DownloadProgress, print: bool) {
-        if let Some(ref sender) = self.sender {
-            if sender.send(progress).is_ok() {
-                return;
-            }
+        if let Some(ref sender) = self.sender
+            && sender.send(progress).is_ok()
+        {
+            return;
         }
         if print {
             pt!("{progress}");
         }
     }
 
-    #[allow(clippy::unused_async)]
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
     pub async fn library_extras(&self) -> Result<(), IoError> {
         // Custom LWJGL 2.9.3 FreeBSD natives compiled by me.
         // See `/assets/binaries/README.md` for more info.

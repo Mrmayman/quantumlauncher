@@ -83,18 +83,8 @@ pub enum InstanceNotes {
         mark_state: MarkState,
     },
     Editing {
-        original: String,
         text_editor: widget::text_editor::Content,
     },
-}
-
-impl InstanceNotes {
-    pub fn get_text(&self) -> &str {
-        match self {
-            InstanceNotes::Viewing { content, .. } => content,
-            InstanceNotes::Editing { original, .. } => original,
-        }
-    }
 }
 
 pub struct LogState {
@@ -213,7 +203,7 @@ pub struct EditInstanceRam {
     pub slider_value: f32,
     pub slider_text: String,
     pub memory_input: String,
-    pub system: sysinfo::System,
+    pub system: Result<sysinfo::System, sysinfo::Error>,
 }
 
 pub enum SelectedState {
@@ -419,45 +409,45 @@ impl ContentWatcher {
     }
 
     pub fn tick(&self) -> Option<QueryType> {
-        if let Some(w) = &self.mods {
-            if w.has_changed() {
-                if log_verbose() {
-                    pt!("Watch: dir changed (mods)");
-                }
-                return Some(QueryType::Mods);
+        if let Some(w) = &self.mods
+            && w.has_changed()
+        {
+            if log_verbose() {
+                pt!("Watch: dir changed (mods)");
             }
+            return Some(QueryType::Mods);
         }
-        if let Some(w) = &self.resource_packs {
-            if w.has_changed() {
-                if log_verbose() {
-                    pt!("Watch: dir changed (resourcepacks)");
-                }
-                return Some(QueryType::ResourcePacks);
+        if let Some(w) = &self.resource_packs
+            && w.has_changed()
+        {
+            if log_verbose() {
+                pt!("Watch: dir changed (resourcepacks)");
             }
+            return Some(QueryType::ResourcePacks);
         }
-        if let Some(w) = &self.texture_packs {
-            if w.has_changed() {
-                if log_verbose() {
-                    pt!("Watch: dir changed (texturepacks)");
-                }
-                return Some(QueryType::ResourcePacks);
+        if let Some(w) = &self.texture_packs
+            && w.has_changed()
+        {
+            if log_verbose() {
+                pt!("Watch: dir changed (texturepacks)");
             }
+            return Some(QueryType::ResourcePacks);
         }
-        if let Some(w) = &self.shaders {
-            if w.has_changed() {
-                if log_verbose() {
-                    pt!("Watch: dir changed (shaderpacks)");
-                }
-                return Some(QueryType::Shaders);
+        if let Some(w) = &self.shaders
+            && w.has_changed()
+        {
+            if log_verbose() {
+                pt!("Watch: dir changed (shaderpacks)");
             }
+            return Some(QueryType::Shaders);
         }
-        if let Some(w) = &self.data_packs {
-            if w.has_changed() {
-                if log_verbose() {
-                    pt!("Watch: dir changed (datapacks)");
-                }
-                return Some(QueryType::DataPacks);
+        if let Some(w) = &self.data_packs
+            && w.has_changed()
+        {
+            if log_verbose() {
+                pt!("Watch: dir changed (datapacks)");
             }
+            return Some(QueryType::DataPacks);
         }
 
         None
@@ -912,7 +902,7 @@ pub struct MenuModDescription {
 /// The enum that represents which menu is opened currently.
 pub enum State {
     /// Default home screen
-    Launch(MenuLaunch),
+    Launch(Box<MenuLaunch>),
     Create(MenuCreateInstance),
     /// Screen to guide new users to the launcher
     Welcome(MenuWelcome),
@@ -920,7 +910,7 @@ pub enum State {
     #[cfg(feature = "auto_update")]
     UpdateFound(MenuLauncherUpdate),
 
-    EditMods(MenuEditMods),
+    EditMods(Box<MenuEditMods>),
     ExportModsText(MenuExportModsText),
     EditJarMods(MenuEditJarMods),
     ImportModpack(ProgressBar<GenericProgress>),
@@ -956,7 +946,7 @@ pub enum State {
 
     InstallJava,
 
-    ModsDownload(MenuModsDownload),
+    ModsDownload(Box<MenuModsDownload>),
     ModDescription(MenuModDescription),
     LauncherSettings(MenuLauncherSettings),
     ManagePresets(MenuEditPresets),

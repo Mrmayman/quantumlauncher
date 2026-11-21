@@ -22,13 +22,13 @@ pub async fn do_request(query: &Query, offset: usize) -> Result<Search, ModError
         vec![format!("versions:{}", query.version)],
     ];
 
-    if let QueryType::Mods | QueryType::ModPacks = query.kind {
-        if !query.loader.is_vanilla() {
-            filters.push(vec![format!(
-                "categories:'{}'",
-                query.loader.to_modrinth_str()
-            )]);
-        }
+    if let QueryType::Mods | QueryType::ModPacks = query.kind
+        && !query.loader.is_vanilla()
+    {
+        filters.push(vec![format!(
+            "categories:'{}'",
+            query.loader.to_modrinth_str()
+        )]);
     }
     if query.open_source {
         filters.push(vec!["open_source:true".to_owned()]);

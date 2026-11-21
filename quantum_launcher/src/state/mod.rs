@@ -196,7 +196,7 @@ impl Launcher {
 
         let mut launch = MenuLaunch::default();
         launch.resize_sidebar(SIDEBAR_WIDTH);
-        let launch = State::Launch(launch);
+        let launch = State::Launch(Box::new(launch));
 
         // The version field was added in 0.3
         let version = config.version.as_deref().unwrap_or("0.3.0");
@@ -357,7 +357,7 @@ impl Launcher {
         } else {
             Task::none()
         };
-        self.state = State::Launch(menu_launch);
+        self.state = State::Launch(Box::new(menu_launch));
 
         t
     }

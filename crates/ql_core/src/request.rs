@@ -118,10 +118,10 @@ impl DownloadRequest<'_> {
             let mut stream = StreamReader::new(stream);
 
             let path = path.as_ref();
-            if let Some(parent) = path.parent() {
-                if !parent.is_dir() {
-                    tokio::fs::create_dir_all(&parent).await.path(parent)?;
-                }
+            if let Some(parent) = path.parent()
+                && !parent.is_dir()
+            {
+                tokio::fs::create_dir_all(&parent).await.path(parent)?;
             }
 
             let mut file = tokio::fs::File::create(&path).await.path(path)?;

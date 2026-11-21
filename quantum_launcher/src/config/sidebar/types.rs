@@ -9,10 +9,10 @@ impl PartialEq<SidebarSelection> for SidebarNode {
     fn eq(&self, other: &SidebarSelection) -> bool {
         match other {
             SidebarSelection::Instance(name, instance_kind) => {
-                if let SidebarNodeKind::Instance(kind) = &self.kind {
-                    if kind == instance_kind {
-                        return self.name == *name;
-                    }
+                if let SidebarNodeKind::Instance(kind) = &self.kind
+                    && kind == instance_kind
+                {
+                    return self.name == *name;
                 }
             }
             SidebarSelection::Folder(folder_id) => {

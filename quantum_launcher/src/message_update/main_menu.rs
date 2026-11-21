@@ -13,8 +13,7 @@ use crate::{
     message_handler::{SIDEBAR_LIMIT_LEFT, SIDEBAR_LIMIT_RIGHT},
     state::{
         AutoSaveKind, GameProcess, InfoMessage, LaunchMessage, LaunchModal, LaunchTab, Launcher,
-        MainMenuMessage, MenuLaunch, Message, OFFLINE_ACCOUNT_NAME, ProgressBar, SidebarMessage,
-        State,
+        MainMenuMessage, Message, OFFLINE_ACCOUNT_NAME, ProgressBar, SidebarMessage, State,
     },
 };
 
@@ -55,10 +54,10 @@ impl Launcher {
                 let account_data = self.get_selected_account_data();
                 // If the user is loading an existing login from disk
                 // then first refresh the tokens
-                if let Some(account) = &account_data {
-                    if account.access_token.is_none() || account.needs_refresh {
-                        return self.account_refresh(account);
-                    }
+                if let Some(account) = &account_data
+                    && (account.access_token.is_none() || account.needs_refresh)
+                {
+                    return self.account_refresh(account);
                 }
                 // Or, if the account is already refreshed/freshly added,
                 // directly launch the game
@@ -118,23 +117,23 @@ impl Launcher {
         };
         info!("Game exited ({status})");
 
-        let log_state = if let State::Launch(MenuLaunch {
-            message, log_state, ..
-        }) = &mut self.state
-        {
+        let log_state = if let State::Launch(menu) = &mut self.state {
             let has_crashed = !status.success();
+
             if has_crashed {
                 let mut msg = format!("{kind} crashed! ({status})\nCheck \"Logs\" for more info");
                 if let Some(diag) = diagnostic {
                     msg.push_str("\n\n");
                     msg.push_str(&diag.to_string());
                 }
-                *message = Some(InfoMessage::error(msg));
+                menu.message = Some(InfoMessage::error(msg));
             }
+
             if let Some(log) = self.logs.get_mut(instance) {
                 log.has_crashed = has_crashed;
             }
-            log_state
+
+            &mut menu.log_state
         } else {
             &mut None
         };
@@ -258,15 +257,16 @@ impl Launcher {
         match msg {
             MainMenuMessage::ChangeTab(tab) => {
                 // UX tweak: dragging instance to tab will open tab for that instance
-                if let State::Launch(MenuLaunch { modal, .. }) = &mut self.state {
+                if let State::Launch(menu) = &mut self.state {
+                    let modal = &mut menu.modal;
+
                     if let Some(LaunchModal::SDragging {
                         being_dragged: SidebarSelection::Instance(name, kind),
                         ..
                     }) = modal
+                        && self.selected_instance.is_none()
                     {
-                        if self.selected_instance.is_none() {
-                            self.selected_instance = Some(Instance::new(name, *kind));
-                        }
+                        self.selected_instance = Some(Instance::new(name, *kind));
                     }
                     *modal = None;
                 }
@@ -330,8 +330,8 @@ impl Launcher {
                 }
             }
             SidebarMessage::Scroll(scroll) => {
-                if let State::Launch(MenuLaunch { sidebar_scroll, .. }) = &mut self.state {
-                    *sidebar_scroll = scroll;
+                if let State::Launch(menu) = &mut self.state {
+                    menu.sidebar_scroll = scroll;
                 }
             }
             SidebarMessage::NewFolder(at_position) => {
@@ -359,20 +359,16 @@ impl Launcher {
                 self.sidebar_update_state();
             }
             SidebarMessage::DragDrop(location) => {
-                if let State::Launch(MenuLaunch {
-                    modal: Some(LaunchModal::SDragging { being_dragged, .. }),
-                    ..
-                }) = &mut self.state
+                if let State::Launch(menu) = &mut self.state
+                    && let Some(LaunchModal::SDragging { being_dragged, .. }) = &mut menu.modal
                 {
                     self.config.c_sidebar().drag_drop(being_dragged, location);
                 }
                 self.sidebar_update_state();
             }
             SidebarMessage::DragHover { location, entered } => {
-                if let State::Launch(MenuLaunch {
-                    modal: Some(LaunchModal::SDragging { dragged_to, .. }),
-                    ..
-                }) = &mut self.state
+                if let State::Launch(menu) = &mut self.state
+                    && let Some(LaunchModal::SDragging { dragged_to, .. }) = &mut menu.modal
                 {
                     if entered {
                         *dragged_to = Some(location);
@@ -382,10 +378,8 @@ impl Launcher {
                 }
             }
             SidebarMessage::FolderRenameConfirm => {
-                if let State::Launch(MenuLaunch {
-                    modal: Some(LaunchModal::SRenamingFolder(id, name, _)),
-                    ..
-                }) = &self.state
+                if let State::Launch(menu) = &mut self.state
+                    && let Some(LaunchModal::SRenamingFolder(id, name, _)) = &mut menu.modal
                 {
                     self.config
                         .c_sidebar()

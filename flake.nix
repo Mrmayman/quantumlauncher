@@ -58,7 +58,6 @@
         cargoLock = {
           lockFile = ./Cargo.lock;
           outputHashes = {
-            "dark-light-2.0.0" = "sha256-4JPfNSk8MsMMxJPz6M8ju+sMVXlAerct16xwbkEWpYw=";
             "http-cache-1.0.0-alpha.6" = "sha256-ZnrX0bnLARjwYeH4YnhwidAk2st124rGCR40oyFun4U=";
             "http-cache-semantics-3.0.0" = "sha256-D2n73HWEnhaBEZOwTzAOQ6kd2bO9oin5vEZ+zangJ9A=";
           };
@@ -115,8 +114,8 @@
         pkgs:
         let
           pinnedRustPlatform = pkgs.makeRustPlatform {
-            cargo = pkgs.rust-bin.stable."1.85.0".default;
-            rustc = pkgs.rust-bin.stable."1.85.0".default;
+            cargo = pkgs.rust-bin.stable.latest.default;
+            rustc = pkgs.rust-bin.stable.latest.default;
           };
         in
         {
@@ -174,7 +173,7 @@
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
           nativeBuildInputs = [
-            (pkgs.rust-bin.stable."1.85.0".default.override {
+            (pkgs.rust-bin.stable.latest.default.override {
               extensions = [
                 "rust-src"
                 "rust-analyzer"

@@ -4,14 +4,14 @@ use ql_core::{JsonDownloadError, ListEntry, ListEntryKind, json::Manifest};
 /// Sources the list from multiple places (see [`Manifest`]).
 ///
 /// # Errors
+///
 /// If [`Manifest`] couldn't be downloaded or parsed into JSON
 pub async fn list_versions() -> Result<(Vec<ListEntry>, String), JsonDownloadError> {
     let manifest = Manifest::download().await?;
     let latest = manifest
         .get_latest_release()
         .or_else(|| manifest.versions.first())
-        .map(|version| version.id.clone())
-        .unwrap_or_default();
+        .map_or_default(|version| version.id.clone());
 
     Ok((
         manifest

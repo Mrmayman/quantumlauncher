@@ -111,14 +111,13 @@ impl GameLauncher {
                 )));
             };
 
-        if let Some(account_type) = account_details.map(|n| n.account_type) {
-            if matches!(account_type, AccountType::ElyBy | AccountType::LittleSkin)
-                && !self.version_json.is_legacy_version()
-                && !game_arguments.iter().any(|n| n.contains("uuid"))
-            {
-                game_arguments.push("--uuid".to_owned());
-                game_arguments.push("${uuid}".to_owned());
-            }
+        if let Some(account_type) = account_details.map(|n| n.account_type)
+            && matches!(account_type, AccountType::ElyBy | AccountType::LittleSkin)
+            && !self.version_json.is_legacy_version()
+            && !game_arguments.iter().any(|n| n.contains("uuid"))
+        {
+            game_arguments.push("--uuid".to_owned());
+            game_arguments.push("${uuid}".to_owned());
         }
 
         // Add custom resolution arguments if specified
@@ -272,6 +271,11 @@ impl GameLauncher {
 
         if cfg!(target_pointer_width = "32") {
             args.push("-Xss1M".to_owned());
+        }
+
+        if self.get_java_version() >= JavaVersion::Java17 {
+            // Temporary mitigation for Java4Shell vulnerability
+            args.push("-XX:-UseBASE64Intrinsics".to_owned());
         }
 
         if cfg!(target_os = "macos") {
@@ -623,20 +627,19 @@ impl GameLauncher {
         //
         // So I have to remove all the libraries from the classpath which
         // are in the module path.
-        if let Some(args) = &forge_json.arguments {
-            if let Some(jvm) = &args.jvm {
-                if let Some(module_path) = get_after_p(jvm) {
-                    for lib in module_path
-                        .replace("${library_directory}", "../forge/libraries")
-                        .replace("${classpath_separator}", &CLASSPATH_SEPARATOR.to_string())
-                        .split(CLASSPATH_SEPARATOR)
-                    {
-                        if let Some(n) =
-                            remove_substring(&new_classpath, &format!("{lib}{CLASSPATH_SEPARATOR}"))
-                        {
-                            new_classpath = n;
-                        }
-                    }
+        if let Some(args) = &forge_json.arguments
+            && let Some(jvm) = &args.jvm
+            && let Some(module_path) = get_after_p(jvm)
+        {
+            for lib in module_path
+                .replace("${library_directory}", "../forge/libraries")
+                .replace("${classpath_separator}", &CLASSPATH_SEPARATOR.to_string())
+                .split(CLASSPATH_SEPARATOR)
+            {
+                if let Some(n) =
+                    remove_substring(&new_classpath, &format!("{lib}{CLASSPATH_SEPARATOR}"))
+                {
+                    new_classpath = n;
                 }
             }
         }
@@ -753,6 +756,16 @@ impl GameLauncher {
         Ok(())
     }
 
+    fn get_java_version(&mut self) -> JavaVersion {
+        if let Some(version) = self.config.java_override_version {
+            version.into()
+        } else if let Some(version) = self.version_json.javaVersion.clone() {
+            version.into()
+        } else {
+            JavaVersion::Java8
+        }
+    }
+
     async fn get_java_command(&mut self) -> Result<(Command, PathBuf), GameLaunchError> {
         let which_java = if cfg!(target_os = "windows") && self.config.enable_logger.unwrap_or(true)
         {
@@ -771,13 +784,7 @@ impl GameLauncher {
             ));
         }
 
-        let version = if let Some(version) = self.config.java_override_version {
-            version.into()
-        } else if let Some(version) = self.version_json.javaVersion.clone() {
-            version.into()
-        } else {
-            JavaVersion::Java8
-        };
+        let version = self.get_java_version();
 
         let program = get_java_binary(
             version,
@@ -1007,10 +1014,10 @@ fn deduplicate_game_args(arr1: &[String], arr2: &[String]) -> Vec<String> {
             if seen_keys.contains(&key) {
                 if let Some(value) = value {
                     // Update value if the key already exists in result (i.e., in case of conflict, overwrite)
-                    if let Some(pos) = result.iter().position(|x| x == &key) {
-                        if let Some(spot) = result.get_mut(pos + 1) {
-                            *spot = value; // Update the value for this key
-                        }
+                    if let Some(pos) = result.iter().position(|x| x == &key)
+                        && let Some(spot) = result.get_mut(pos + 1)
+                    {
+                        *spot = value; // Update the value for this key
                     }
                 }
             } else {

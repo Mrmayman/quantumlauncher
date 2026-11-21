@@ -106,7 +106,7 @@ fn get_ui_opacity(config: &LauncherConfig) -> widget::Column<'static, Message, L
             widget::slider(0.5..=1.0, ui_opacity, |n| {
                 LauncherSettingsMessage::UiOpacity(n).into()
             })
-            .step(0.1)
+            .step(0.1f32)
         ]
         .spacing(5)
         .align_y(Alignment::Center),

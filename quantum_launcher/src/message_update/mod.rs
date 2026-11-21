@@ -20,8 +20,8 @@ mod shortcuts;
 use crate::state::{
     self, GameLogMessage, InfoMessage, InstallFabricMessage, InstallOptifineMessage,
     InstallPaperMessage, InstanceNotes, Launcher, LauncherSettingsTab, MenuInstallFabric,
-    MenuInstallOptifine, MenuInstallPaper, MenuLaunch, MenuModDescription, Message,
-    ModDescriptionMessage, NotesMessage, ProgressBar, State, WindowMessage,
+    MenuInstallOptifine, MenuInstallPaper, MenuModDescription, Message, ModDescriptionMessage,
+    NotesMessage, ProgressBar, State, WindowMessage,
 };
 
 pub use discord_rpc::PresenceConnectionState;
@@ -49,8 +49,8 @@ impl Launcher {
                 Ok(list) => {
                     if let State::InstallFabric(menu) = &mut self.state {
                         let (regular_list, backend) = list.clone().just_get_one();
-                        *menu = if let (false, Some(first)) =
-                            (list.is_unsupported(), regular_list.first())
+                        *menu = if !list.is_unsupported()
+                            && let Some(first) = regular_list.first()
                         {
                             MenuInstallFabric::Loaded {
                                 backend,
@@ -254,10 +254,8 @@ impl Launcher {
     }
 
     fn should_split_args(&self) -> bool {
-        if let State::Launch(MenuLaunch {
-            edit_instance: Some(menu),
-            ..
-        }) = &self.state
+        if let State::Launch(launch_menu) = &self.state
+            && let Some(menu) = &launch_menu.edit_instance
         {
             menu.arg_split_by_space
         } else if let State::LauncherSettings(menu) = &self.state {
@@ -380,61 +378,53 @@ impl Launcher {
                 Err(err) => err!(no_log, "While loading instance notes: {err}"),
             },
             NotesMessage::OpenEdit => {
-                if let State::Launch(MenuLaunch {
-                    notes: Some(notes), ..
-                }) = &mut self.state
+                if let State::Launch(menu) = &mut self.state
+                    && let Some(notes) = &mut menu.notes
+                    && let InstanceNotes::Viewing { content, .. } = &notes
                 {
-                    let content = notes.get_text();
                     *notes = InstanceNotes::Editing {
                         text_editor: text_editor::Content::with_text(content),
-                        original: content.to_owned(),
                     };
                 }
             }
             NotesMessage::Edit(action) => {
-                if let State::Launch(MenuLaunch {
-                    notes: Some(InstanceNotes::Editing { text_editor, .. }),
-                    ..
-                }) = &mut self.state
+                if let State::Launch(launch_menu) = &mut self.state
+                    && let Some(InstanceNotes::Editing { text_editor, .. }) = &mut launch_menu.notes
                 {
                     text_editor.perform(action);
                 }
             }
             NotesMessage::SaveEdit => {
-                if let State::Launch(MenuLaunch {
-                    notes: Some(notes), ..
-                }) = &mut self.state
+                if let State::Launch(launch_menu) = &mut self.state
+                    && let Some(InstanceNotes::Editing { text_editor, .. }) = &mut launch_menu.notes
                 {
-                    if let InstanceNotes::Editing { text_editor, .. } = notes {
-                        let content = text_editor.text();
+                    let content = text_editor.text();
 
-                        *notes = InstanceNotes::Viewing {
-                            mark_state: MarkState::with_html_and_markdown(&content),
-                            content: content.clone(),
-                        };
+                    launch_menu.notes = Some(InstanceNotes::Viewing {
+                        mark_state: MarkState::with_html_and_markdown(&content),
+                        content: content.clone(),
+                    });
 
-                        return Task::perform(
-                            ql_instances::notes::write(self.instance().clone(), content),
-                            |r| {
-                                if let Err(err) = r {
-                                    err!(no_log, "While saving instance notes: {err}");
-                                }
-                                Message::Nothing
-                            },
-                        );
-                    }
+                    return Task::perform(
+                        ql_instances::notes::write(self.instance().clone(), content),
+                        |r| {
+                            if let Err(err) = r {
+                                err!(no_log, "While saving instance notes: {err}");
+                            }
+                            Message::Nothing
+                        },
+                    );
                 }
             }
             NotesMessage::CancelEdit => {
-                if let State::Launch(MenuLaunch {
-                    notes: Some(notes), ..
-                }) = &mut self.state
+                if let State::Launch(launch_menu) = &mut self.state
+                    && let Some(InstanceNotes::Editing { text_editor, .. }) = &mut launch_menu.notes
                 {
-                    let content = notes.get_text();
-                    *notes = InstanceNotes::Viewing {
-                        mark_state: MarkState::with_html_and_markdown(content),
-                        content: content.to_owned(),
-                    }
+                    let content = text_editor.text();
+                    launch_menu.notes = Some(InstanceNotes::Viewing {
+                        mark_state: MarkState::with_html_and_markdown(&content),
+                        content: content.clone(),
+                    });
                 }
             }
         }
@@ -444,14 +434,11 @@ impl Launcher {
     pub fn update_game_log(&mut self, msg: GameLogMessage) -> Task<Message> {
         match msg {
             GameLogMessage::Action(action) => {
-                if let State::Launch(MenuLaunch {
-                    log_state: Some(logs),
-                    ..
-                }) = &mut self.state
+                if let State::Launch(launch_menu) = &mut self.state
+                    && let Some(logs) = &mut launch_menu.log_state
+                    && !action.is_edit()
                 {
-                    if !action.is_edit() {
-                        logs.content.perform(action);
-                    }
+                    logs.content.perform(action);
                 }
             }
             GameLogMessage::Copy => {
@@ -461,8 +448,8 @@ impl Launcher {
                 }
             }
             GameLogMessage::Upload => {
-                if let State::Launch(menu) = &mut self.state {
-                    menu.is_uploading_mclogs = true;
+                if let State::Launch(launch_menu) = &mut self.state {
+                    launch_menu.is_uploading_mclogs = true;
                 }
 
                 let instance = self.selected_instance.clone().unwrap();

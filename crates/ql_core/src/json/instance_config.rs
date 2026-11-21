@@ -257,23 +257,22 @@ impl InstanceConfigJson {
             .global_settings
             .as_ref()
             .and_then(|n| n.env_vars.as_ref())
-            .map(|vars| {
+            .map_or_default(|vars| {
                 vars.iter()
                     .map(|n| n.trim().to_owned())
                     .filter(|n| !n.is_empty())
                     .collect()
-            })
-            .unwrap_or_default();
+            });
 
         if env_vars.is_empty() {
             return;
         }
         info!("Environment variables: {env_vars:?}");
         for env_var in env_vars {
-            if let Some((key, value)) = env_var.split_once('=') {
-                if !key.trim().is_empty() {
-                    cmd.env(key.trim(), value);
-                }
+            if let Some((key, value)) = env_var.split_once('=')
+                && !key.trim().is_empty()
+            {
+                cmd.env(key.trim(), value);
             }
         }
     }
@@ -302,12 +301,12 @@ impl InstanceConfigJson {
             if path.is_empty() {
                 return None;
             }
-            if path.starts_with("~/") || path.starts_with("~\\") {
-                if let Some(home_dir) = dirs::home_dir() {
-                    let without_tilde = &path[2..];
-                    let full_path = home_dir.join(without_tilde);
-                    return Some(full_path);
-                }
+            if (path.starts_with("~/") || path.starts_with("~\\"))
+                && let Some(home_dir) = dirs::home_dir()
+            {
+                let without_tilde = &path[2..];
+                let full_path = home_dir.join(without_tilde);
+                return Some(full_path);
             }
             Some(PathBuf::from(path))
         }

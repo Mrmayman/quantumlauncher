@@ -37,7 +37,7 @@ impl Launcher {
                                 .collect(),
                             filters: ql_mod_manager::store::recommended::Category::ALL
                                 .iter()
-                                .cloned()
+                                .copied()
                                 .collect(),
                             config,
                         }
@@ -48,10 +48,9 @@ impl Launcher {
             RecommendedModMessage::Toggle(idx, toggle) => {
                 if let State::RecommendedMods(MenuRecommendedMods::Loaded { mods, .. }) =
                     &mut self.state
+                    && let Some((t, _)) = mods.get_mut(idx)
                 {
-                    if let Some((t, _)) = mods.get_mut(idx) {
-                        *t = toggle;
-                    }
+                    *t = toggle;
                 }
             }
             RecommendedModMessage::ToggleFilter(category, t) => {

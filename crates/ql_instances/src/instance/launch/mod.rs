@@ -150,7 +150,9 @@ fn censor<F: FnOnce(&mut Vec<String>)>(vec: &mut Vec<String>, argument: &str, co
 
         code(vec);
 
-        if let (Some(n), Some(old_id)) = (vec.get_mut(index + 1), old_id) {
+        if let Some(n) = vec.get_mut(index + 1)
+            && let Some(old_id) = old_id
+        {
             *n = old_id;
         }
     } else {

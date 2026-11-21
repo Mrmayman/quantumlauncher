@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::stylesheet::color::{ADWAITA_DARK, ADWAITA_LIGHT};
 
 use super::{
-    color::{BROWN, CATPPUCCIN, Color, HALLOWEEN, PURPLE, SKY_BLUE, TEAL},
+    color::{BROWN, CATPPUCCIN, Color, HALLOWEEN, PURPLE_DARK, PURPLE_LIGHT, SKY_BLUE, TEAL},
     widgets::{IsFlat, StyleButton, StyleScrollable},
 };
 
@@ -142,7 +142,15 @@ impl LauncherTheme {
             )
         } else {
             (
-                self.get_palette(),
+                if let LauncherThemeColor::Purple = self.color {
+                    if self.is_light() {
+                        &PURPLE_LIGHT
+                    } else {
+                        &PURPLE_DARK
+                    }
+                } else {
+                    self.get_palette()
+                },
                 if self.is_light() {
                     color.invert()
                 } else {
@@ -155,7 +163,7 @@ impl LauncherTheme {
     fn get_palette(&self) -> &super::color::Palette {
         match self.color {
             LauncherThemeColor::Brown => &BROWN,
-            LauncherThemeColor::Purple => &PURPLE,
+            LauncherThemeColor::Purple => unreachable!(),
             LauncherThemeColor::SkyBlue => &SKY_BLUE,
             LauncherThemeColor::Catppuccin => &CATPPUCCIN,
             LauncherThemeColor::Teal => &TEAL,
@@ -573,9 +581,9 @@ impl LauncherTheme {
                         ])
                     } else if let StyleButton::Flat = style {
                         self.gradient_horizontal_raw([
-                            (0.0, self.get(Color::SecondDark)),
-                            (0.01, self.get(Color::Dark)),
-                            (1.0, self.get(Color::ExtraDark)),
+                            (0.0, self.get(Color::Mid)),
+                            (0.01, self.get(Color::SecondDark)),
+                            (1.0, self.get(Color::Dark)),
                         ])
                     } else {
                         self.get_bg(color)

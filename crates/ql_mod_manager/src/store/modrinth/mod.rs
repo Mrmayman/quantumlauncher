@@ -91,17 +91,14 @@ impl Backend for ModrinthBackend {
             .cloned()
             .collect();
 
-        download_versions.sort_by(|a, b| a.date_published.cmp(&b.date_published));
+        download_versions.sort_by_key(|a| a.date_published);
 
         let download_version =
             download_versions
                 .into_iter()
                 .next_back()
                 .ok_or(ModError::NoCompatibleVersionFound(
-                    download_info
-                        .first()
-                        .map(|n| n.name.clone())
-                        .unwrap_or_default(),
+                    download_info.first().map_or_default(|n| n.name.clone()),
                 ))?;
 
         Ok((
@@ -159,18 +156,18 @@ impl Backend for ModrinthBackend {
             }
 
             let result = downloader.download(id.clone(), None, true).await;
-            if let Err(ModError::NoCompatibleVersionFound(name)) = &result {
-                if ignore_incompatible {
-                    pt!("No compatible version found for mod {name} ({id}), skipping...");
-                    continue;
-                }
+            if let Err(ModError::NoCompatibleVersionFound(name)) = &result
+                && ignore_incompatible
+            {
+                pt!("No compatible version found for mod {name} ({id}), skipping...");
+                continue;
             }
             result?;
 
-            if set_manually_installed {
-                if let Some(config) = downloader.index.mods.get_mut(&ModId::Modrinth(id.clone())) {
-                    config.manually_installed = true;
-                }
+            if set_manually_installed
+                && let Some(config) = downloader.index.mods.get_mut(&ModId::Modrinth(id.clone()))
+            {
+                config.manually_installed = true;
             }
         }
 

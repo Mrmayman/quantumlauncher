@@ -152,10 +152,9 @@ fn send(sender: Option<&Sender<LogLine>>, msg: LogLine) {
         message: Some(message),
         ..
     }) = &msg
+        && message.contains("Session ID is ")
     {
-        if message.contains("Session ID is ") {
-            return;
-        }
+        return;
     }
     if let Some(sender) = sender {
         _ = sender.send(msg);

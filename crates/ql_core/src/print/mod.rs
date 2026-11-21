@@ -14,20 +14,20 @@ pub mod macros;
 
 /// Censor username for privacy
 pub static REDACTION_USERNAME: LazyLock<(Vec<String>, String)> = LazyLock::new(|| {
-    if let Some(home_dir) = dirs::home_dir() {
-        if let (Some(home_str), Some(username)) = (
+    if let Some(home_dir) = dirs::home_dir()
+        && let (Some(home_str), Some(username)) = (
             home_dir.to_str(),
             home_dir.file_name().and_then(|n| n.to_str()),
-        ) {
-            return (
-                vec![
-                    home_str.to_owned(),
-                    home_str.replace('\\', "/"),
-                    home_str.replace('\\', "\\\\"),
-                ],
-                username.to_owned(),
-            );
-        }
+        )
+    {
+        return (
+            vec![
+                home_str.to_owned(),
+                home_str.replace('\\', "/"),
+                home_str.replace('\\', "\\\\"),
+            ],
+            username.to_owned(),
+        );
     }
     (Vec::new(), String::new())
 });
@@ -106,10 +106,10 @@ impl LoggingState {
         if self.sender.is_none() {
             let (sender, receiver) = std::sync::mpsc::channel::<String>();
 
-            if self.writer.is_none() {
-                if let Some(file) = get_logs_file() {
-                    self.writer = Some(BufWriter::new(file));
-                }
+            if self.writer.is_none()
+                && let Some(file) = get_logs_file()
+            {
+                self.writer = Some(BufWriter::new(file));
             }
 
             if let Some(writer) = self.writer.take() {
@@ -130,10 +130,10 @@ impl LoggingState {
             self.sender = Some(sender);
         }
 
-        if let Some(sender) = &self.sender {
-            if self.config.file {
-                _ = sender.send(s.to_owned());
-            }
+        if let Some(sender) = &self.sender
+            && self.config.file
+        {
+            _ = sender.send(s.to_owned());
         }
     }
 

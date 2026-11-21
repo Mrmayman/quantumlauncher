@@ -41,10 +41,10 @@ impl RecommendedMod {
         for id in ids {
             let i = i.clone();
             tasks.push_back(id.check_compatibility(&sender, i, len, loader, &version, &index));
-            if tasks.len() > LIMIT {
-                if let Some(task) = tasks.next().await.flatten() {
-                    mods.push(task);
-                }
+            if tasks.len() > LIMIT
+                && let Some(task) = tasks.next().await.flatten()
+            {
+                mods.push(task);
             }
         }
 
@@ -320,14 +320,6 @@ pub const RECOMMENDED_MODS: &[RecommendedMod] = &[
         id: "RSeLon5O",
         name: "Particle Core",
         description: "Optimizes particles and their rendering",
-        category: Category::Optimization,
-        enabled_by_default: false,
-        backend: StoreBackendType::Modrinth,
-    },
-    RecommendedMod {
-        id: "OmQzuQFa",
-        name: "LazyDFU Reloaded",
-        description: "Speeds up Minecraft start time (for new versions of the game)",
         category: Category::Optimization,
         enabled_by_default: false,
         backend: StoreBackendType::Modrinth,
