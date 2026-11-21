@@ -45,7 +45,7 @@ impl ImageState {
     }
 
     pub fn task_get_imgs_to_load(&mut self) -> Vec<Task<Message>> {
-        let mut commands = Vec::new();
+        let mut tasks = Vec::new();
 
         // TODO: rewrite this to use do_jobs, may reduce memory usage
         for (url, is_icon) in self.to_load.lock().unwrap().drain() {
@@ -53,7 +53,7 @@ impl ImageState {
                 continue;
             }
             if self.downloads_in_progress.insert(url.clone()) {
-                commands.push(if is_icon {
+                tasks.push(if is_icon {
                     Task::perform(image::get_icon(url), Message::CoreImageDownloaded)
                 } else {
                     Task::perform(image::get(url), Message::CoreImageDownloaded)
@@ -61,7 +61,7 @@ impl ImageState {
             }
         }
 
-        commands
+        tasks
     }
 
     pub fn queue(&mut self, url: &str, is_icon: bool) {

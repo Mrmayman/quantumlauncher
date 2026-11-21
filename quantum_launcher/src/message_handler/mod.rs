@@ -54,9 +54,9 @@ impl Launcher {
         }
     }
 
-    pub fn close_launcher(&mut self) -> ! {
+    pub fn close_launcher(&mut self) -> Task<Message> {
         self.uninitialize_presence();
-        std::process::exit(0);
+        iced::exit()
     }
 
     pub fn load_logs(&mut self) {
@@ -187,7 +187,7 @@ impl Launcher {
         let instance = self.selected_instance.clone().unwrap();
         let instance2 = instance.clone();
 
-        let command = Task::perform(
+        let task = Task::perform(
             async move {
                 if matches!(kind, ForgeKind::NeoForge) {
                     // TODO: Add UI to specify NeoForge version
@@ -215,7 +215,7 @@ impl Launcher {
             java_progress: ProgressBar::with_recv(j_receiver),
             is_java_getting_installed: false,
         });
-        command
+        task
     }
 
     fn load_modpack_from_path(&mut self, path: PathBuf) -> Task<Message> {

@@ -25,7 +25,7 @@ impl Launcher {
             iced::Event::Window(event) => match event {
                 iced::window::Event::CloseRequested => {
                     pt!(no_log, "Closing...");
-                    self.close_launcher();
+                    return self.close_launcher();
                 }
                 iced::window::Event::Resized(size) => {
                     self.window_state.size = (size.width, size.height);
