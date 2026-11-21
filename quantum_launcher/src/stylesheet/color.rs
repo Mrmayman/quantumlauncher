@@ -1,5 +1,3 @@
-use super::styles::{BORDER_RADIUS, BORDER_WIDTH};
-
 pub struct Palette {
     extra_dark: [u8; 3],
     dark: [u8; 3],
@@ -145,18 +143,6 @@ impl Palette {
             Color::Mid => self.mid.into_color(),
             Color::White => self.white.into_color(),
             Color::ExtraDark => self.extra_dark.into_color(),
-        }
-    }
-
-    pub fn get_bg(&self, color: Color) -> iced::Background {
-        iced::Background::Color(self.get(color))
-    }
-
-    pub fn get_border(&self, color: Color) -> iced::Border {
-        iced::Border {
-            color: self.get(color),
-            width: BORDER_WIDTH,
-            radius: BORDER_RADIUS.into(),
         }
     }
 }

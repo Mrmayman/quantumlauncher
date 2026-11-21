@@ -77,6 +77,14 @@ impl Launcher {
                     config.java_override_version = Some(n);
                 });
             }
+            EditInstanceMessage::ResetPlaytime => {
+                if let State::Launch(menu) = &mut self.state
+                    && let Some(m) = &mut menu.edit_instance
+                {
+                    m.config.total_play_time_secs = None;
+                    menu.total_play_time_secs = None;
+                };
+            }
             EditInstanceMessage::BrowseJavaOverride => {
                 if let Some(file) = rfd::FileDialog::new()
                     .set_title("Select Java Executable (./bin/java)")
@@ -475,6 +483,7 @@ impl EditInstanceMessage {
             EditInstanceMessage::WindowWidthChanged(_) |
             EditInstanceMessage::WindowHeightChanged(_) |
             EditInstanceMessage::CustomJarPathChanged(_) |
+            EditInstanceMessage::ResetPlaytime |
             EditInstanceMessage::BrowseJavaOverride => true,
         }
     }

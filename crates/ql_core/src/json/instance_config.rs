@@ -98,6 +98,10 @@ pub struct InstanceConfigJson {
     /// Mainly only used for debugging purposes.
     pub main_class_override: Option<String>,
 
+    /// Total playtime for this instance, in seconds.
+    // Since: v0.5.2
+    pub total_play_time_secs: Option<u64>,
+
     #[serde(flatten)]
     _extra: HashMap<String, serde_json::Value>,
 }
@@ -128,8 +132,30 @@ impl InstanceConfigJson {
 
             version_info: Some(version_info),
             main_class_override: None,
+            total_play_time_secs: None,
             _extra: HashMap::new(),
         }
+    }
+
+    /// Adds `secs` to the instance's total playtime and saves `config.json`.
+    ///
+    /// # Errors
+    /// - `config.json` couldn't be read or written
+    pub async fn add_play_time(instance: &Instance, secs: u64) -> Result<u64, JsonFileError> {
+        if secs == 0 {
+            return Ok(Self::read(instance)
+                .await?
+                .total_play_time_secs
+                .unwrap_or(0));
+        }
+        let mut config = Self::read(instance).await?;
+        let total = config
+            .total_play_time_secs
+            .unwrap_or(0)
+            .saturating_add(secs);
+        config.total_play_time_secs = Some(total);
+        config.save(instance).await?;
+        Ok(total)
     }
 
     /// Returns a String containing the Java argument to

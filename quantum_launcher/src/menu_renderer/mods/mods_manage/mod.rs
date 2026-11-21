@@ -148,7 +148,7 @@ impl MenuEditMods {
                 ]
                 .spacing(4);
 
-                offsetbox(menu_main, folder_menu, 30, 40, 200).into()
+                offsetbox(menu_main, folder_menu, 84, 40, 180).into()
             }
             Some(MenuEditModsModal::AddFile) => {
                 let addfile_msg = |q| Message::ManageMods(ManageModsMessage::AddFile(false, q));

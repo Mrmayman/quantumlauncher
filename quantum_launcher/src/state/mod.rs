@@ -18,11 +18,15 @@ use ql_core::{
     read_log::LogLine,
     request::{CLIENT, build_middleware},
 };
-use ql_instances::auth::{AccountData, AccountType, ms::CLIENT_ID};
+use ql_instances::{
+    auth::{AccountData, AccountType, ms::CLIENT_ID},
+    launched_games,
+};
 use tokio::process::ChildStdin;
 
 use crate::{
     config::{LauncherConfig, SIDEBAR_WIDTH},
+    launched_games::{LaunchedGame, SharedLaunchedGames},
     message_update::PresenceConnectionState,
     stylesheet::styles::LauncherTheme,
 };
@@ -81,6 +85,10 @@ pub struct Launcher {
 
     pub processes: HashMap<Instance, GameProcess>,
     pub logs: HashMap<Instance, InstanceLog>,
+    /// Finished-session play time (seconds), kept until the next launch.
+    pub last_play_time: HashMap<Instance, u64>,
+    pub launched_games: SharedLaunchedGames,
+    pub is_checking_processes: bool,
 
     pub window_state: WindowState,
     pub keys_pressed: HashSet<iced::keyboard::Key>,
@@ -173,9 +181,44 @@ impl FsWatcher {
 }
 
 pub struct GameProcess {
-    pub child: LaunchedProcess,
+    pub child: Option<LaunchedProcess>,
+    pub pid: Option<u32>,
+    pub launched_at: chrono::DateTime<chrono::Utc>,
     pub receiver: Option<Receiver<LogLine>>,
     pub server_input: Option<(ChildStdin, bool)>,
+}
+
+impl GameProcess {
+    pub fn restored(game: &LaunchedGame) -> Self {
+        Self {
+            child: None,
+            pid: Some(game.pid),
+            launched_at: game.launched_at,
+            receiver: None,
+            server_input: None,
+        }
+    }
+
+    /// Restored from disk after a launcher restart (no live [`LaunchedProcess`] handle).
+    pub fn is_restored(&self) -> bool {
+        self.child.is_none()
+    }
+
+    pub fn play_time_secs(&self) -> u64 {
+        chrono::Utc::now()
+            .signed_duration_since(self.launched_at)
+            .num_seconds()
+            .max(0) as u64
+    }
+
+    pub fn launched_game(&self, instance: &Instance) -> Option<LaunchedGame> {
+        self.pid.map(|pid| LaunchedGame {
+            instance_name: instance.get_name().to_owned(),
+            instance_kind: instance.kind,
+            pid,
+            launched_at: self.launched_at,
+        })
+    }
 }
 
 impl Launcher {
@@ -253,6 +296,9 @@ impl Launcher {
 
             logs: HashMap::new(),
             processes: HashMap::new(),
+            last_play_time: HashMap::new(),
+            launched_games: launched_games::shared(),
+            is_checking_processes: false,
 
             keys_pressed: HashSet::new(),
 
@@ -322,6 +368,9 @@ impl Launcher {
 
             logs: HashMap::new(),
             processes: HashMap::new(),
+            last_play_time: HashMap::new(),
+            launched_games: crate::launched_games::shared(),
+            is_checking_processes: false,
             accounts: HashMap::new(),
             keys_pressed: HashSet::new(),
 
@@ -353,7 +402,10 @@ impl Launcher {
         let mut menu_launch = MenuLaunch::new(message);
         menu_launch.resize_sidebar(SIDEBAR_WIDTH);
         let t = if let Some(inst) = &self.selected_instance {
-            menu_launch.reload_notes(inst.clone())
+            Task::batch([
+                menu_launch.reload_notes(inst.clone()),
+                menu_launch.reload_play_time(inst.clone()),
+            ])
         } else {
             Task::none()
         };

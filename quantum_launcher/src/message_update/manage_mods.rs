@@ -92,8 +92,7 @@ impl Launcher {
             ManageModsMessage::DeleteSelected => {
                 if let State::EditMods(menu) = &mut self.state {
                     let instance = self.selected_instance.clone().unwrap();
-                    let delete_downloaded_command =
-                        Self::get_delete_mods_command(instance.clone(), menu);
+                    let task_delete_downloaded = Self::get_delete_mods_task(instance.clone(), menu);
 
                     let local_mods: Vec<LocalMod> = menu
                         .selection
@@ -106,7 +105,7 @@ impl Launcher {
                         menu.locally_installed_mods.remove(l);
                     }
 
-                    let delete_local_command = Task::perform(
+                    let task_delete_local = Task::perform(
                         async move {
                             let json = VersionDetails::load(&instance).await.strerr()?;
                             let dirs = DirStructure::new(instance, &json).await.strerr()?;
@@ -120,7 +119,7 @@ impl Launcher {
                         Message::Done,
                     );
 
-                    return Task::batch([delete_downloaded_command, delete_local_command]);
+                    return Task::batch([task_delete_downloaded, task_delete_local]);
                 }
             }
             ManageModsMessage::DeleteOptiforge(name) => {
@@ -448,7 +447,7 @@ impl Launcher {
         }
     }
 
-    fn get_delete_mods_command(selected_instance: Instance, menu: &MenuEditMods) -> Task<Message> {
+    fn get_delete_mods_task(selected_instance: Instance, menu: &MenuEditMods) -> Task<Message> {
         let ids: Vec<ModId> = menu
             .selection
             .selected_mods

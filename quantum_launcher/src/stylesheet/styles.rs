@@ -173,13 +173,15 @@ impl LauncherTheme {
     }
 
     pub fn get_bg(&self, color: Color) -> iced::Background {
-        let (palette, color) = self.get_base(color);
-        palette.get_bg(color)
+        iced::Background::Color(self.get(color))
     }
 
     pub fn get_border(&self, color: Color) -> Border {
-        let (palette, color) = self.get_base(color);
-        palette.get_border(color)
+        iced::Border {
+            color: self.get(color),
+            width: BORDER_WIDTH,
+            radius: BORDER_RADIUS.into(),
+        }
     }
 
     fn get_border_sharp(&self, color: Color) -> Border {
@@ -376,7 +378,7 @@ impl LauncherTheme {
         Style {
             border: {
                 Border {
-                    color: self.get(Color::Mid),
+                    color: self.get(Color::SecondDark),
                     width,
                     radius: radius.into(),
                 }
@@ -428,16 +430,13 @@ impl LauncherTheme {
         }
         .scale_alpha(self.alpha);
 
-        let mut stops = [None; 8];
-        stops[0] = Some(ColorStop { offset: 0.0, color });
-        stops[1] = Some(ColorStop {
-            offset: 1.0,
-            color: self.get(Color::Dark).scale_alpha(self.alpha),
-        });
-        iced::Background::Gradient(Gradient::Linear(Linear {
-            angle: Radians(0.0),
-            stops,
-        }))
+        self.gradient_raw(
+            Radians(0.0),
+            [
+                (0.0, color),
+                (1.0, self.get(Color::Dark).scale_alpha(self.alpha)),
+            ],
+        )
     }
 
     pub fn style_scrollable_round(
@@ -750,20 +749,18 @@ impl LauncherTheme {
         self.gradient_raw(Radians(f32::consts::FRAC_PI_2), colors)
     }
 
-    fn gradient_raw(
+    pub fn gradient_raw(
         &self,
-        angle: Radians,
+        angle: impl Into<Radians>,
         colors: impl IntoIterator<Item = (f32, iced::Color)>,
     ) -> Background {
-        let mut stops = [None; 8];
-        for (i, (offset, color)) in colors.into_iter().enumerate() {
-            if i == stops.len() {
-                break;
-            }
-            stops[i] = Some(ColorStop { offset, color });
-        }
-
-        Background::Gradient(Gradient::Linear(Linear { angle, stops }))
+        Background::Gradient(Gradient::Linear(
+            Linear::new(angle).add_stops(
+                colors
+                    .into_iter()
+                    .map(|(offset, color)| ColorStop { offset, color }),
+            ),
+        ))
     }
 
     pub fn style_radio(&self, status: widget::radio::Status, color: Color) -> widget::radio::Style {

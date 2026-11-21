@@ -149,9 +149,9 @@ impl Launcher {
                         .spacing(4)
                     )
                     .width(150),
-                    widget::Space::with_height(30)
+                    widget::Space::with_height(26)
                 ]
-                .padding(12),
+                .padding(16),
             )
         } else {
             None
@@ -160,7 +160,16 @@ impl Launcher {
     }
 
     fn get_tab_main<'a>(&'a self, menu: &'a MenuLaunch, selected: &'a Instance) -> Element<'a> {
-        let is_running = self.is_process_running(selected);
+        let (is_running, play_time) = if let Some(process) = self.processes.get(selected) {
+            (true, Some(play_time_text(process.play_time_secs())))
+        } else {
+            (
+                false,
+                self.last_play_time
+                    .get(selected)
+                    .map(|&secs| format!(" Played for {}", play_time_text(secs))),
+            )
+        };
 
         let main_buttons = row![
             if selected.is_server() {
@@ -206,38 +215,46 @@ impl Launcher {
             }
         };
 
+        let total_play_time = menu
+            .total_play_time_secs
+            .filter(|&secs| secs > 0)
+            .map(|secs| {
+                widget::text(format!("Total Playtime: {}", play_time_text(secs)))
+                    .size(12)
+                    .style(|t: &LauncherTheme| t.style_text(Color::Mid))
+            });
+
         column![
             row![widget::text(selected.get_name()).font(FONT_MONO).size(20)]
-                .push_maybe(is_running.then_some(icons::play_s(20)))
+                .push_maybe(is_running.then_some(icons::play_s(16)))
                 .push_maybe(
-                    is_running.then_some(
-                        widget::text("Running...")
-                            .size(16)
-                            .style(tsubtitle)
-                            .font(FONT_MONO)
-                    )
+                    play_time.map(|text| {
+                        widget::text(text).font(FONT_MONO).size(14).style(tsubtitle)
+                    })
                 )
-                .spacing(16)
+                .spacing(12)
                 .align_y(Alignment::Center),
             main_buttons,
             notes,
             row![
-                row![
-                    widget::button(icons::lines_s(10)).padding([5, 8]).on_press(
-                        MainMenuMessage::Modal(Some(LaunchModal::InstanceOptions)).into()
-                    ),
-                    widget::button(
-                        row![
-                            icons::edit_s(10),
-                            widget::text("Edit Notes").size(12).style(tsubtitle)
-                        ]
-                        .align_y(Alignment::Center)
-                        .spacing(8),
-                    )
-                    .padding([4, 8])
-                    .on_press(NotesMessage::OpenEdit.into()),
-                ]
-                .spacing(5),
+                column![].spacing(5).push_maybe(total_play_time).push(
+                    row![
+                        widget::button(icons::lines_s(10)).padding([5, 8]).on_press(
+                            MainMenuMessage::Modal(Some(LaunchModal::InstanceOptions)).into()
+                        ),
+                        widget::button(
+                            row![
+                                icons::edit_s(10),
+                                widget::text("Edit Notes").size(12).style(tsubtitle)
+                            ]
+                            .align_y(Alignment::Center)
+                            .spacing(8),
+                        )
+                        .padding([4, 8])
+                        .on_press(NotesMessage::OpenEdit.into()),
+                    ]
+                    .spacing(5)
+                ),
                 get_footer_text(),
             ]
             .align_y(Alignment::End)
@@ -693,6 +710,20 @@ fn render_tab_button(tab: LaunchTab, decor: bool, menu: &'_ MenuLaunch) -> Eleme
         .height(if decor { 31.0 } else { 28.0 })
         .padding(padding)
         .into()
+}
+
+pub fn play_time_text(secs: u64) -> String {
+    let hours = secs / 3600;
+    let mins = (secs % 3600) / 60;
+    let secs = secs % 60;
+
+    if hours > 0 {
+        format!("{hours}h {mins}m")
+    } else if mins > 0 {
+        format!("{mins}m {secs}s")
+    } else {
+        format!("{secs}s")
+    }
 }
 
 fn get_no_logs_message<'a>() -> Column<'a> {

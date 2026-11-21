@@ -68,6 +68,19 @@ impl RecommendedMod {
     ) -> Option<Self> {
         let mod_id = ModId::from_pair(self.id, self.backend);
         if index.mods.contains_key(&mod_id) || index.mods.iter().any(|n| &*n.1.name == self.name) {
+            let mut i = i.lock().unwrap();
+            *i += 1;
+            if sender
+                .send(GenericProgress {
+                    done: *i,
+                    total: len,
+                    message: Some(format!("Skipped: {}", self.name)),
+                    has_finished: false,
+                })
+                .is_err()
+            {
+                info!(no_log, "Cancelled recommended mod check");
+            }
             return None;
         }
 

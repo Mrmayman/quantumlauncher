@@ -79,14 +79,16 @@ pub enum EditInstanceMessage {
     ConfigSaved(Res),
     ReinstallLibraries,
     UpdateAssets,
-    BrowseJavaOverride,
 
+    BrowseJavaOverride,
     JavaOverride(String),
     JavaOverrideVersion(usize),
+
     MemoryChanged(f32),
     MemoryInputChanged(String),
     LoggingToggle(bool),
     SetMainClass(Option<MainClassMode>, Option<String>),
+    ResetPlaytime,
 
     JavaArgs(ListMessage),
     JavaArgsModeChanged(bool),
@@ -441,6 +443,7 @@ pub enum MainMenuMessage {
     InstanceSelected(Instance),
     UsernameSet(String),
     SetInfoMessage(Option<InfoMessage>),
+    TotalPlayTimeLoaded(Instance, Res<u64>),
 }
 
 #[derive(Debug, Clone)]
@@ -474,6 +477,10 @@ pub enum LaunchMessage {
     End(Res<LaunchedProcess>),
     Kill,
     GameExited(Res<(ExitStatus, Instance, Option<Diagnostic>)>),
+    LaunchedGamesLoaded(Res<Vec<crate::launched_games::LaunchedGame>>),
+    LaunchedGamesSaved(Res),
+    ProcessesChecked(Res<Vec<Instance>>),
+    PersistedGameKilled { instance: Instance, result: Res },
 }
 
 #[derive(Debug, Clone)]
