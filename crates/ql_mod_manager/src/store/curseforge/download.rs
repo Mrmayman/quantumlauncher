@@ -40,7 +40,7 @@ impl<'a> ModDownloader<'a> {
         let config = InstanceConfigJson::read(&instance).await?;
 
         Ok(Self {
-            version: version_json.get_id().to_owned(),
+            version: version_json.get_id().into_owned(),
             loader: config.mod_type.not_vanilla().map(|n| n.to_curseforge_num()),
             index: ModIndex::load(&instance).await?,
             dirs: DirStructure::new(instance, &version_json).await?,
@@ -56,7 +56,7 @@ impl<'a> ModDownloader<'a> {
         let config = InstanceConfigJson::read(&instance).await?;
 
         Ok(Self {
-            version: version_json.get_id().to_owned(),
+            version: version_json.get_id().into_owned(),
             loader: config.mod_type.not_vanilla().map(|n| n.to_curseforge_num()),
             index: ModIndex::default(),
             dirs: DirStructure::new(instance.clone(), &version_json).await?,

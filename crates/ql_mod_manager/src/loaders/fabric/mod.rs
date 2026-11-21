@@ -1,3 +1,13 @@
+//! Installer for fabric modloader and derivatives
+//!
+//! | Version | Fabric/Quilt | Ornithe | Legacy Fabric | Cursed Legacy/Babric |
+//! |:-:|:-:|:-:|:-:|:-:|
+//! | 1.14.4+          | Y | |   |   |
+//! | 1.3 - 1.13.2     | | Y | Y |   |
+//! | b1.8 - 1.2.5     | | Y |   |   |
+//! | b1.7.3           | | Y | Y | Y |
+//! | Classic - b1.7.2 | | Y |   |   |
+
 use std::{
     path::{Path, PathBuf},
     sync::{Mutex, mpsc::Sender},
@@ -55,7 +65,7 @@ pub async fn install_server(
         let json = if let BackendType::CursedLegacy = backend {
             CURSED_LEGACY_JSON.replace("INSERT_COMMIT", &get_latest_cursed_legacy_commit().await?)
         } else {
-            get_fabric_json(&loader_version, backend, version_json.get_id(), "server").await?
+            get_fabric_json(&loader_version, backend, &version_json.get_id(), "server").await?
         };
         let json_path = server_dir.join("fabric.json");
         tokio::fs::write(&json_path, &json).await.path(json_path)?;
@@ -170,7 +180,7 @@ pub async fn install_client(
         let json = if let BackendType::CursedLegacy = backend {
             CURSED_LEGACY_JSON.replace("INSERT_COMMIT", &get_latest_cursed_legacy_commit().await?)
         } else {
-            get_fabric_json(&loader_version, backend, game_version, "profile").await?
+            get_fabric_json(&loader_version, backend, &game_version, "profile").await?
         };
         tokio::fs::write(&json_path, &json).await.path(json_path)?;
         serde_json::from_str(&json).json(json)?

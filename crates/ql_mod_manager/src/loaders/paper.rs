@@ -67,7 +67,7 @@ pub async fn install(instance_name: String, version: PaperVer) -> Result<(), Pap
     let server_dir = LAUNCHER_DIR.join("servers").join(&instance_name);
     let json = VersionDetails::load_from_path(&server_dir).await?;
 
-    let version = version.get(json.get_id()).await?;
+    let version = version.get(&json.get_id()).await?;
 
     pt!("Downloading jar");
     let jar_path = server_dir.join("paper_server.jar");

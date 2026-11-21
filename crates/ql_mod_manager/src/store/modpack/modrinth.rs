@@ -52,7 +52,7 @@ pub async fn install(
     {
         return Err(PackError::GameVersion {
             expect: version.clone(),
-            got: json.get_id().to_owned(),
+            got: json.get_id().into_owned(),
         });
     }
 

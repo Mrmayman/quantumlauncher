@@ -113,7 +113,6 @@ impl InstanceStore {
             if update_ui && let Some(state) = log_state {
                 use iced::widget::text_editor::{Action, Edit, Motion};
                 // TODO: preserve selection
-                let message = message.replace('\t', "    ");
                 let content = &mut state.content;
                 content.perform(Action::Move(Motion::DocumentEnd));
                 content.perform(Action::Edit(Edit::Paste(std::sync::Arc::new(message))));
