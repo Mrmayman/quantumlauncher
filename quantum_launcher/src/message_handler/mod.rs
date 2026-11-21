@@ -48,7 +48,10 @@ impl Launcher {
         self.load_logs();
         if let State::Launch(menu) = &mut self.state {
             menu.modal = None;
-            menu.reload_notes(instance.clone())
+            Task::batch([
+                menu.reload_notes(instance.clone()),
+                menu.reload_play_time(instance),
+            ])
         } else {
             Task::none()
         }
@@ -187,7 +190,7 @@ impl Launcher {
         let instance = self.selected_instance.clone().unwrap();
         let instance2 = instance.clone();
 
-        let command = Task::perform(
+        let task = Task::perform(
             async move {
                 if matches!(kind, ForgeKind::NeoForge) {
                     // TODO: Add UI to specify NeoForge version
@@ -215,7 +218,7 @@ impl Launcher {
             java_progress: ProgressBar::with_recv(j_receiver),
             is_java_getting_installed: false,
         });
-        command
+        task
     }
 
     fn load_modpack_from_path(&mut self, path: PathBuf) -> Task<Message> {

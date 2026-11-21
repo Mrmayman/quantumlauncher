@@ -402,7 +402,10 @@ impl Launcher {
         let mut menu_launch = MenuLaunch::new(message);
         menu_launch.resize_sidebar(SIDEBAR_WIDTH);
         let t = if let Some(inst) = &self.selected_instance {
-            menu_launch.reload_notes(inst.clone())
+            Task::batch([
+                menu_launch.reload_notes(inst.clone()),
+                menu_launch.reload_play_time(inst.clone()),
+            ])
         } else {
             Task::none()
         };

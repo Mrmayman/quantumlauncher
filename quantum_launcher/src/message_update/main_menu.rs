@@ -3,7 +3,7 @@ use std::{collections::HashMap, process::ExitStatus};
 use chrono::Utc;
 use iced::{Task, futures::executor::block_on};
 use ql_core::{
-    Instance, InstanceKind, IntoStringError, LaunchedProcess, err, info, pt,
+    Instance, InstanceConfigJson, InstanceKind, IntoStringError, LaunchedProcess, err, info, pt,
     read_log::{Diagnostic, ReadError},
 };
 use ql_instances::auth::AccountData;
@@ -80,7 +80,10 @@ impl Launcher {
 
         let mut tasks = Vec::with_capacity(closed.len() + 1);
         for instance in closed {
-            if end_process(&mut self.processes, &mut self.last_play_time, &instance).is_some() {
+            if let Some((_, secs)) =
+                end_process(&mut self.processes, &mut self.last_play_time, &instance)
+            {
+                tasks.push(self.add_play_time(&instance, secs));
                 tasks.push(self.rpc_game_update(instance, true));
             }
         }
@@ -98,8 +101,10 @@ impl Launcher {
             return Task::none();
         }
 
-        end_process(&mut self.processes, &mut self.last_play_time, &instance);
-        self.save_launched_games()
+        let play_time = end_process(&mut self.processes, &mut self.last_play_time, &instance)
+            .map(|(_, secs)| self.add_play_time(&instance, secs))
+            .unwrap_or_else(Task::none);
+        Task::batch([self.save_launched_games(), play_time])
     }
 
     fn launch_start(&mut self) -> Task<Message> {
@@ -208,7 +213,9 @@ impl Launcher {
             &mut None
         };
 
-        if let Some(process) = end_process(&mut self.processes, &mut self.last_play_time, instance)
+        let mut play_time = Task::none();
+        if let Some((process, secs)) =
+            end_process(&mut self.processes, &mut self.last_play_time, instance)
         {
             Self::read_game_logs(
                 &process,
@@ -217,11 +224,13 @@ impl Launcher {
                 log_state,
                 self.selected_instance.as_ref(),
             );
+            play_time = self.add_play_time(instance, secs);
         }
 
         Task::batch([
             self.save_launched_games(),
             self.rpc_game_update(instance.clone(), true),
+            play_time,
         ])
     }
 
@@ -323,13 +332,16 @@ impl Launcher {
                     });
                 }
 
-                if let Some(process) =
+                if let Some((process, secs)) =
                     end_process(&mut self.processes, &mut self.last_play_time, &instance)
                     && let Some(child) = process.child
                 {
                     let mut child = block_on(child.child.lock());
                     _ = child.start_kill();
-                    return self.save_launched_games();
+                    return Task::batch([
+                        self.save_launched_games(),
+                        self.add_play_time(&instance, secs),
+                    ]);
                 }
             }
             InstanceKind::Server => {
@@ -360,6 +372,24 @@ impl Launcher {
             }
         }
         Task::none()
+    }
+
+    /// Persists a finished session's play time to the instance's `config.json`
+    /// and reports the new total back through [`MainMenuMessage::TotalPlayTimeLoaded`].
+    fn add_play_time(&self, instance: &Instance, secs: u64) -> Task<Message> {
+        if secs == 0 {
+            return Task::none();
+        }
+        let future_instance = instance.clone();
+        let msg_instance = instance.clone();
+        Task::perform(
+            async move {
+                InstanceConfigJson::add_play_time(&future_instance, secs)
+                    .await
+                    .strerr()
+            },
+            move |res| MainMenuMessage::TotalPlayTimeLoaded(msg_instance.clone(), res).into(),
+        )
     }
 
     fn save_launched_games(&self) -> Task<Message> {
@@ -428,6 +458,24 @@ impl Launcher {
             MainMenuMessage::SetInfoMessage(msg) => {
                 if let State::Launch(menu) = &mut self.state {
                     menu.message = msg;
+                }
+            }
+            MainMenuMessage::TotalPlayTimeLoaded(instance, res) => {
+                if self.selected_instance.as_ref() != Some(&instance) {
+                    return Task::none();
+                }
+                match res {
+                    Ok(secs) => {
+                        if let State::Launch(menu) = &mut self.state {
+                            menu.total_play_time_secs = Some(secs);
+                            // Keep the edit screen's config in sync so autosave
+                            // doesn't overwrite the new total with a stale value
+                            if let Some(edit) = &mut menu.edit_instance {
+                                edit.config.total_play_time_secs = Some(secs);
+                            }
+                        }
+                    }
+                    Err(err) => err!(no_log, "While loading instance play time: {err}"),
                 }
             }
         }
@@ -517,12 +565,14 @@ impl Launcher {
 }
 
 /// Removes a tracked process and freezes its play time for the UI.
+/// Returns the process and its elapsed play time in seconds.
 fn end_process(
     processes: &mut HashMap<Instance, GameProcess>,
     last_play_time: &mut HashMap<Instance, u64>,
     instance: &Instance,
-) -> Option<GameProcess> {
+) -> Option<(GameProcess, u64)> {
     let process = processes.remove(instance)?;
-    last_play_time.insert(instance.clone(), process.play_time_secs());
-    Some(process)
+    let secs = process.play_time_secs();
+    last_play_time.insert(instance.clone(), secs);
+    Some((process, secs))
 }

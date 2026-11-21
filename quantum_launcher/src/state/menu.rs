@@ -43,7 +43,7 @@ use ql_mod_manager::{
 
 use crate::state::ImageState;
 
-use super::{ManageModsMessage, Message, ProgressBar};
+use super::{MainMenuMessage, ManageModsMessage, Message, ProgressBar};
 
 #[derive(Clone, PartialEq, Eq, Debug, Default, Copy)]
 pub enum LaunchTab {
@@ -99,6 +99,7 @@ pub struct MenuLaunch {
     pub edit_instance: Option<MenuEditInstance>,
     pub notes: Option<InstanceNotes>,
     pub log_state: Option<LogState>,
+    pub total_play_time_secs: Option<u64>,
     pub modal: Option<LaunchModal>,
 
     pub sidebar_scroll: SidebarScroll,
@@ -154,6 +155,7 @@ impl MenuLaunch {
             sidebar_split,
             notes: None,
             modal: None,
+            total_play_time_secs: None,
         }
     }
 
@@ -168,6 +170,20 @@ impl MenuLaunch {
         Task::perform(ql_instances::notes::read(instance), |n| {
             NotesMessage::Loaded(n.strerr()).into()
         })
+    }
+
+    pub fn reload_play_time(&mut self, instance: Instance) -> Task<Message> {
+        self.total_play_time_secs = None;
+        let future_instance = instance.clone();
+        Task::perform(
+            async move {
+                InstanceConfigJson::read(&future_instance)
+                    .await
+                    .map(|config| config.total_play_time_secs.unwrap_or(0))
+                    .strerr()
+            },
+            move |res| MainMenuMessage::TotalPlayTimeLoaded(instance.clone(), res).into(),
+        )
     }
 
     pub fn get_modal_drag(&self) -> Option<(&SidebarSelection, Option<&SDragLocation>)> {

@@ -123,7 +123,10 @@ impl Launcher {
         let load_notes_command = if let (Some(instance), State::Launch(menu)) =
             (launcher.selected_instance.clone(), &mut launcher.state)
         {
-            menu.reload_notes(instance)
+            Task::batch([
+                menu.reload_notes(instance.clone()),
+                menu.reload_play_time(instance),
+            ])
         } else {
             Task::none()
         };

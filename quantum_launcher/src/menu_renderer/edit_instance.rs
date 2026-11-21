@@ -1,8 +1,8 @@
 use crate::{
     icons,
     menu_renderer::{
-        Column, FONT_MONO, button_with_icon, checkered_list, settings::PREFIX_EXPLANATION,
-        tsubtitle,
+        Column, FONT_MONO, button_with_icon, checkered_list, launch::play_time_text,
+        settings::PREFIX_EXPLANATION, tsubtitle,
     },
     state::{
         CustomJarState, EditInstanceMessage, ListMessage, MenuEditInstance, Message, NONE_JAR_NAME,
@@ -69,6 +69,17 @@ impl MenuEditInstance {
             self.item_args(),
             self.item_java_override(),
             self.item_custom_jar(jar_choices),
+            column![
+                widget::button(
+                    widget::text!(
+                        "Reset Playtime ({})",
+                        play_time_text(self.config.total_play_time_secs.unwrap_or_default())
+                    )
+                    .size(12)
+                )
+                .padding([4, 8])
+                .on_press(EditInstanceMessage::ResetPlaytime.into())
+            ],
             item_footer(selected_instance.kind),
         ]))
         .style(LauncherTheme::style_scrollable_flat_extra_dark)

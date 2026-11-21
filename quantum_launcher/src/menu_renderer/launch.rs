@@ -215,6 +215,15 @@ impl Launcher {
             }
         };
 
+        let total_play_time = menu
+            .total_play_time_secs
+            .filter(|&secs| secs > 0)
+            .map(|secs| {
+                widget::text(format!("Total Playtime: {}", play_time_text(secs)))
+                    .size(12)
+                    .style(|t: &LauncherTheme| t.style_text(Color::Mid))
+            });
+
         column![
             row![widget::text(selected.get_name()).font(FONT_MONO).size(20)]
                 .push_maybe(is_running.then_some(icons::play_s(16)))
@@ -228,22 +237,24 @@ impl Launcher {
             main_buttons,
             notes,
             row![
-                row![
-                    widget::button(icons::lines_s(10)).padding([5, 8]).on_press(
-                        MainMenuMessage::Modal(Some(LaunchModal::InstanceOptions)).into()
-                    ),
-                    widget::button(
-                        row![
-                            icons::edit_s(10),
-                            widget::text("Edit Notes").size(12).style(tsubtitle)
-                        ]
-                        .align_y(Alignment::Center)
-                        .spacing(8),
-                    )
-                    .padding([4, 8])
-                    .on_press(NotesMessage::OpenEdit.into()),
-                ]
-                .spacing(5),
+                column![].spacing(5).push_maybe(total_play_time).push(
+                    row![
+                        widget::button(icons::lines_s(10)).padding([5, 8]).on_press(
+                            MainMenuMessage::Modal(Some(LaunchModal::InstanceOptions)).into()
+                        ),
+                        widget::button(
+                            row![
+                                icons::edit_s(10),
+                                widget::text("Edit Notes").size(12).style(tsubtitle)
+                            ]
+                            .align_y(Alignment::Center)
+                            .spacing(8),
+                        )
+                        .padding([4, 8])
+                        .on_press(NotesMessage::OpenEdit.into()),
+                    ]
+                    .spacing(5)
+                ),
                 get_footer_text(),
             ]
             .align_y(Alignment::End)
@@ -701,7 +712,7 @@ fn render_tab_button(tab: LaunchTab, decor: bool, menu: &'_ MenuLaunch) -> Eleme
         .into()
 }
 
-fn play_time_text(secs: u64) -> String {
+pub fn play_time_text(secs: u64) -> String {
     let hours = secs / 3600;
     let mins = (secs % 3600) / 60;
     let secs = secs % 60;
