@@ -17,7 +17,7 @@
 //!
 //! ```no_run
 //! # async fn do1() -> Result<(), Box<dyn std::error::Error>> {
-//! use ql_instances::auth::ms::login_1_link;
+//! use ql_auth::ms::login_1_link;
 //! let auth_code_response = login_1_link().await?;
 //! // AuthCodeResponse { verification_uri, user_code, .. }
 //! # Ok(()) }
@@ -30,16 +30,9 @@
 //! ```no_run
 //! # async fn do2() -> Result<(), Box<dyn std::error::Error>> {
 //! # // Default construction
-//! # let auth_code_response = ql_instances::auth::ms::AuthCodeResponse {
-//! #     user_code: String::new(),
-//! #     device_code: String::new(),
-//! #     verification_uri: String::new(),
-//! #     expires_in: 0,
-//! #     interval: 0,
-//! #     message: String::new(),
-//! # };
-//! use ql_instances::auth::ms::login_3_xbox;
-//! use ql_instances::auth::ms::login_2_wait;
+//! # let auth_code_response: ql_auth::ms::AuthCodeResponse = unsafe { std::mem::zeroed() };
+//! use ql_auth::ms::login_3_xbox;
+//! use ql_auth::ms::login_2_wait;
 //!
 //! let auth_token_response = login_2_wait(auth_code_response).await?;
 //! // AuthTokenResponse { access_token, refresh_token }
@@ -60,7 +53,7 @@
 //! # async fn do3() -> Result<(), Box<dyn std::error::Error>> {
 //! # let username = String::new();
 //! # let refresh_token = String::new();
-//! use ql_instances::auth::ms::login_refresh;
+//! use ql_auth::ms::login_refresh;
 //! let account_data = login_refresh(username, refresh_token, None).await?;
 //! # Ok(()) }
 //! ```
