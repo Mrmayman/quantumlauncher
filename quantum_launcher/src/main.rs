@@ -98,7 +98,7 @@ impl Launcher {
         config: Result<LauncherConfig, JsonFileError>,
     ) -> (Self, Task<Message>) {
         #[cfg(feature = "auto_update")]
-        let check_for_updates_command = {
+        let task_check_for_updates = {
             let should_check = if let Ok(c) = &config {
                 c.should_update_check()
             } else {
@@ -114,13 +114,13 @@ impl Launcher {
             }
         };
         #[cfg(not(feature = "auto_update"))]
-        let check_for_updates_command = Task::none();
+        let task_check_for_updates = Task::none();
 
         let mut launcher =
             Launcher::load_new(is_new_user, config).unwrap_or_else(Launcher::with_error);
         // let mut launcher = Launcher::with_error("test");
 
-        let load_notes_command = if let (Some(instance), State::Launch(menu)) =
+        let task_load_info = if let (Some(instance), State::Launch(menu)) =
             (launcher.selected_instance.clone(), &mut launcher.state)
         {
             Task::batch([
@@ -131,7 +131,7 @@ impl Launcher {
             Task::none()
         };
 
-        let presence_task = if launcher.config.c_rpc_enabled() {
+        let task_presence = if launcher.config.c_rpc_enabled() {
             launcher.start_discord_ipc_run()
         } else {
             Task::none()
@@ -142,11 +142,11 @@ impl Launcher {
         (
             launcher,
             Task::batch([
-                check_for_updates_command,
+                task_check_for_updates,
                 Task::perform(get_entries(InstanceKind::Client), Message::CoreListLoaded),
                 Task::perform(get_entries(InstanceKind::Server), Message::CoreListLoaded),
-                load_notes_command,
-                presence_task,
+                task_load_info,
+                task_presence,
                 Task::perform(ql_core::clean::dir(LAUNCHER_DIR.join("logs")), |n| {
                     Message::CoreCleanComplete(n.strerr())
                 }),

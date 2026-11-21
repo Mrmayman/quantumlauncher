@@ -83,7 +83,7 @@ impl Launcher {
                 }
             }
             InstallModsMessage::Open => match block_on(self.open_mods_store()) {
-                Ok(command) => return command,
+                Ok(task) => return task,
                 Err(err) => self.set_error(err),
             },
             InstallModsMessage::TickDesc(update_msg) => {
@@ -320,12 +320,12 @@ impl Launcher {
             backend: StoreBackendType::Modrinth,
             query_type: QueryType::Mods,
         };
-        let command = Task::batch([
+        let task = Task::batch([
             menu.search_store(instance.is_server(), 0),
             menu.load_categories(),
         ]);
         self.state = State::ModsDownload(Box::new(menu));
-        Ok(command)
+        Ok(task)
     }
 
     fn mod_download(&mut self, index: usize) -> Task<Message> {
