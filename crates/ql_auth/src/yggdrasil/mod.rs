@@ -1,7 +1,7 @@
-use crate::auth::alt::AccountResponse;
+use crate::alt::AccountResponse;
 
 use super::{AccountData, AccountType};
-use ql_core::{CLIENT, IntoJsonError, info, pt};
+use ql_core::{IntoJsonError, info, pt, request::CLIENT_UNCACHED};
 
 pub use super::alt::{Account, AccountResponseError, Error};
 use ql_core::request::check_for_success;
@@ -34,7 +34,7 @@ pub async fn login_new(
     });
     insert_agent_field(account_type, &mut value);
 
-    let response = CLIENT
+    let response = CLIENT_UNCACHED
         .post(account_type.yggdrasil_authenticate())
         .json(&value)
         .send()
@@ -95,7 +95,7 @@ pub async fn login_refresh(
         "clientToken": account_type.get_client_id()
     });
     insert_agent_field(account_type, &mut value);
-    let response = CLIENT
+    let response = CLIENT_UNCACHED
         .post(account_type.yggdrasil_refresh())
         .json(&value)
         .send()

@@ -1,11 +1,11 @@
 use std::process::ExitStatus;
 
 use iced::Task;
+use ql_auth::AccountData;
 use ql_core::{
     Instance, InstanceKind, IntoStringError, LaunchedProcess, err, info, pt,
     read_log::{Diagnostic, ReadError},
 };
-use ql_instances::auth::AccountData;
 
 use crate::{
     config::{AfterLaunchBehavior, sidebar::SidebarSelection},

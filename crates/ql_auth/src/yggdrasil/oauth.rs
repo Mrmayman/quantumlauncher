@@ -1,7 +1,7 @@
-use crate::auth::alt::OauthError;
+use crate::alt::OauthError;
 use keyring;
-use ql_core::request::check_for_success;
-use ql_core::{CLIENT, IntoJsonError};
+use ql_core::IntoJsonError;
+use ql_core::request::{CLIENT_UNCACHED, check_for_success};
 use serde::{Deserialize, Serialize};
 
 use super::{CLIENT_ID, Error};
@@ -19,7 +19,7 @@ struct UserInfo {
 }
 
 async fn get_user_info(access_token: &str) -> Result<UserInfo, Error> {
-    let resp = CLIENT
+    let resp = CLIENT_UNCACHED
         .get("https://littleskin.cn/api/user")
         .header("Accept", "application/json")
         .bearer_auth(access_token)
@@ -57,7 +57,7 @@ struct DeviceTokenResponse {
 pub async fn request_device_code() -> Result<DeviceCodeResponse, Error> {
     let encoded_scope = urlencoding::encode(SCOPE);
     let body = format!("client_id={CLIENT_ID}&scope={encoded_scope}");
-    let resp = CLIENT
+    let resp = CLIENT_UNCACHED
         .post("https://open.littleskin.cn/oauth/device_code")
         .header("Accept", "application/json")
         .header("Content-Type", "application/x-www-form-urlencoded")
@@ -117,7 +117,7 @@ pub async fn poll_device_token(
             .map_or_else(|| user_info.username.clone(), |p| p.name.clone()),
         refresh_token: mc_token_resp.access_token,
         needs_refresh: false,
-        account_type: crate::auth::AccountType::LittleSkin,
+        account_type: crate::AccountType::LittleSkin,
     }))
 }
 
@@ -138,7 +138,7 @@ struct MinecraftProfile {
 }
 
 async fn get_minecraft_profile(oauth_access_token: &str) -> Result<MinecraftProfile, Error> {
-    let resp = CLIENT
+    let resp = CLIENT_UNCACHED
         .get("https://littleskin.cn/api/yggdrasil/sessionserver/session/minecraft/profile")
         .header("Accept", "application/json")
         .bearer_auth(oauth_access_token)
@@ -156,7 +156,7 @@ async fn create_minecraft_token(
     oauth_access_token: &str,
     uuid: &str,
 ) -> Result<MinecraftTokenResponse, Error> {
-    let resp = CLIENT
+    let resp = CLIENT_UNCACHED
         .post("https://littleskin.cn/api/yggdrasil/authserver/oauth")
         .bearer_auth(oauth_access_token)
         .header("Accept", "application/json")
@@ -186,7 +186,7 @@ async fn get_device_token(
             ("device_code", device_code),
             ("client_id", CLIENT_ID),
         ];
-        let resp = CLIENT
+        let resp = CLIENT_UNCACHED
             .post("https://open.littleskin.cn/oauth/token")
             .form(&params)
             .header("Accept", "application/json")

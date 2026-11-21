@@ -5,6 +5,7 @@ members = [
     "crates/ql_mod_manager",
     "crates/ql_servers",
     "crates/ql_packager",
+    "crates/ql_auth",
     # Binaries
     "quantum_launcher",
     "tests",

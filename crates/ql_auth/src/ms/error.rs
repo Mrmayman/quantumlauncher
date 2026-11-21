@@ -2,7 +2,7 @@ use ql_core::{JsonError, RequestError};
 use reqwest::StatusCode;
 use serde::Deserialize;
 
-use crate::auth::KeyringError;
+use crate::KeyringError;
 
 #[derive(Debug, Clone, Deserialize)]
 #[allow(non_snake_case)]

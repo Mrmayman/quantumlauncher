@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
+use ql_auth::{self, AccountData, AccountType};
 use ql_core::{IntoStringError, err};
-use ql_instances::auth::{self, AccountData, AccountType};
 
 use crate::config::{ConfigAccount, LauncherConfig};
 
@@ -109,7 +109,7 @@ impl AccountState {
             .get(&username)
             .map_or(AccountType::Microsoft, |n| n.account_type);
 
-        auth::logout(account_type.strip_name(&username), account_type)?;
+        ql_auth::logout(account_type.strip_name(&username), account_type)?;
         if let Some(accounts) = &mut config.accounts {
             accounts.remove(&username);
         }
@@ -167,8 +167,7 @@ fn load_account(
     };
 
     let keyring_username = account.get_keyring_identifier(username);
-    let refresh_token =
-        ql_instances::auth::read_refresh_token(keyring_username, account_type).strerr();
+    let refresh_token = ql_auth::read_refresh_token(keyring_username, account_type).strerr();
 
     let keyring_username = account.get_keyring_identifier(username);
 

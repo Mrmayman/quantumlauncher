@@ -11,6 +11,7 @@ use std::{
 use filthy_rich::PresenceClient;
 use iced::Task;
 use notify::Watcher;
+use ql_auth::ms::CLIENT_ID;
 use ql_core::{
     GenericProgress, Instance, InstanceKind, IntoIoError, IntoStringError, IoError, JsonFileError,
     LAUNCHER_CACHE_DIR, LAUNCHER_DIR, LAUNCHER_VERSION_NAME, LaunchedProcess, Progress, err,
@@ -18,7 +19,6 @@ use ql_core::{
     read_log::LogLine,
     request::{CLIENT, build_middleware},
 };
-use ql_instances::auth::ms::CLIENT_ID;
 use tokio::process::ChildStdin;
 
 use crate::{
