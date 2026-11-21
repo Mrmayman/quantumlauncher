@@ -3,7 +3,7 @@ use crate::{
     menu_renderer::{
         Column, Element, back_button, back_to_launch_screen, button_with_icon, tooltip, tsubtitle,
     },
-    state::{MenuShortcut, Message, OFFLINE_ACCOUNT_NAME, ShortcutMessage},
+    state::{AccountState, MenuShortcut, Message, ShortcutMessage},
     stylesheet::styles::LauncherTheme,
 };
 use cfg_if::cfg_if;
@@ -127,7 +127,7 @@ impl MenuShortcut {
     fn get_disabled_tooltip(&self) -> Option<&'static str> {
         if self.shortcut.name.is_empty() {
             Some("Shortcut name is empty")
-        } else if self.account == OFFLINE_ACCOUNT_NAME {
+        } else if self.account == AccountState::OFFLINE_ACCOUNT_NAME {
             if self.account_offline.trim().is_empty() {
                 Some("Username is empty")
             } else if self.account_offline.contains(' ') {
@@ -174,7 +174,7 @@ impl MenuShortcut {
                 .width(Length::Fill)
             ]
             .push_maybe(
-                (self.account == OFFLINE_ACCOUNT_NAME).then_some(
+                (self.account == AccountState::OFFLINE_ACCOUNT_NAME).then_some(
                     widget::text_input("Enter username...", &self.account_offline)
                         .size(14)
                         .width(Length::Fill)

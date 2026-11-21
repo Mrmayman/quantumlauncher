@@ -17,7 +17,7 @@
 //!
 //! ```no_run
 //! # async fn do1() -> Result<(), Box<dyn std::error::Error>> {
-//! use ql_instances::auth::ms::login_1_link;
+//! use ql_auth::ms::login_1_link;
 //! let auth_code_response = login_1_link().await?;
 //! // AuthCodeResponse { verification_uri, user_code, .. }
 //! # Ok(()) }
@@ -30,16 +30,9 @@
 //! ```no_run
 //! # async fn do2() -> Result<(), Box<dyn std::error::Error>> {
 //! # // Default construction
-//! # let auth_code_response = ql_instances::auth::ms::AuthCodeResponse {
-//! #     user_code: String::new(),
-//! #     device_code: String::new(),
-//! #     verification_uri: String::new(),
-//! #     expires_in: 0,
-//! #     interval: 0,
-//! #     message: String::new(),
-//! # };
-//! use ql_instances::auth::ms::login_3_xbox;
-//! use ql_instances::auth::ms::login_2_wait;
+//! # let auth_code_response: ql_auth::ms::AuthCodeResponse = unsafe { std::mem::zeroed() };
+//! use ql_auth::ms::login_3_xbox;
+//! use ql_auth::ms::login_2_wait;
 //!
 //! let auth_token_response = login_2_wait(auth_code_response).await?;
 //! // AuthTokenResponse { access_token, refresh_token }
@@ -60,18 +53,18 @@
 //! # async fn do3() -> Result<(), Box<dyn std::error::Error>> {
 //! # let username = String::new();
 //! # let refresh_token = String::new();
-//! use ql_instances::auth::ms::login_refresh;
+//! use ql_auth::ms::login_refresh;
 //! let account_data = login_refresh(username, refresh_token, None).await?;
 //! # Ok(()) }
 //! ```
 
-use ql_core::{CLIENT, GenericProgress, IntoJsonError, info, pt, retry};
-use reqwest::{Client, StatusCode};
+use ql_core::{GenericProgress, IntoJsonError, info, pt, request::CLIENT_UNCACHED, retry};
+use reqwest::StatusCode;
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
 
-use crate::auth::AccountType;
+use crate::AccountType;
 
 use super::AccountData;
 
@@ -160,7 +153,7 @@ pub async fn login_refresh(
     send_progress(sender.as_ref(), 0, 4, "Refreshing account token...");
 
     let response: String = retry(|| async {
-        CLIENT
+        CLIENT_UNCACHED
             .post("https://login.live.com/oauth20_token.srf")
             .form(&[
                 ("client_id", CLIENT_ID),
@@ -198,7 +191,7 @@ pub async fn login_1_link() -> Result<AuthCodeResponse, Error> {
     info!("Logging into Microsoft Account...");
 
     pt!("Sending device code request");
-    let response = CLIENT
+    let response = CLIENT_UNCACHED
         .get("https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode")
         .query(&[
             ("client_id", CLIENT_ID),
@@ -228,11 +221,11 @@ pub async fn login_3_xbox(
     let steps = if check_ownership { 5 } else { 4 };
 
     send_progress(sender.as_ref(), 1, steps, "Logging into Xbox live...");
-    let xbox = login_in_xbox_live(&CLIENT, &data).await?;
+    let xbox = login_in_xbox_live(&data).await?;
     send_progress(sender.as_ref(), 2, steps, "Logging into Minecraft...");
-    let minecraft = login_in_minecraft(&CLIENT, &xbox).await?;
+    let minecraft = login_in_minecraft(&xbox).await?;
     send_progress(sender.as_ref(), 3, steps, "Getting account details...");
-    let final_details = get_final_details(&CLIENT, &minecraft).await?;
+    let final_details = get_final_details(&minecraft).await?;
 
     if check_ownership {
         send_progress(sender.as_ref(), 4, steps, "Checking game ownership...");
@@ -283,7 +276,7 @@ pub async fn login_2_wait(response: AuthCodeResponse) -> Result<AuthTokenRespons
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(response.interval + 1)).await;
 
-        let code_resp = CLIENT
+        let code_resp = CLIENT_UNCACHED
             .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/token")
             .form(&[
                 ("client_id", CLIENT_ID),
@@ -323,10 +316,7 @@ pub async fn login_2_wait(response: AuthCodeResponse) -> Result<AuthTokenRespons
     }
 }
 
-async fn login_in_xbox_live(
-    client: &Client,
-    auth_token: &AuthTokenResponse,
-) -> Result<XboxLiveAuthResponse, Error> {
+async fn login_in_xbox_live(auth_token: &AuthTokenResponse) -> Result<XboxLiveAuthResponse, Error> {
     let xbox_authenticate_json = json!({
         "Properties": {
             "AuthMethod": "RPS",
@@ -337,7 +327,7 @@ async fn login_in_xbox_live(
         "TokenType": "JWT"
     });
 
-    let xbox_res = client
+    let xbox_res = CLIENT_UNCACHED
         .post("https://user.auth.xboxlive.com/user/authenticate")
         .json(&xbox_authenticate_json)
         .send()
@@ -350,7 +340,6 @@ async fn login_in_xbox_live(
 }
 
 async fn login_in_minecraft(
-    client: &Client,
     xbox_res: &XboxLiveAuthResponse,
 ) -> Result<MinecraftAuthResponse, Error> {
     let xbox_token = &xbox_res.token;
@@ -369,7 +358,7 @@ async fn login_in_minecraft(
             "xbox_res.display_claims.xui[0].uhs".to_owned(),
         ))?;
 
-    let xbox_security_token_res = client
+    let xbox_security_token_res = CLIENT_UNCACHED
         .post("https://xsts.auth.xboxlive.com/xsts/authorize")
         .json(&json!({
             "Properties": {
@@ -388,7 +377,7 @@ async fn login_in_minecraft(
 
     let xbox_security_token = &xbox_security_token_res.token;
 
-    let minecraft_resp = client
+    let minecraft_resp = CLIENT_UNCACHED
         .post("https://api.minecraftservices.com/authentication/login_with_xbox")
         .json(&json!({
             "identityToken":
@@ -406,10 +395,9 @@ async fn login_in_minecraft(
 }
 
 async fn get_final_details(
-    client: &Client,
     minecraft_res: &MinecraftAuthResponse,
 ) -> Result<MinecraftFinalDetails, Error> {
-    let text = client
+    let text = CLIENT_UNCACHED
         .get("https://api.minecraftservices.com/minecraft/profile")
         .header("Accept", "application/json")
         .bearer_auth(&minecraft_res.access_token)
@@ -428,9 +416,7 @@ async fn check_minecraft_ownership(access_token: &str) -> Result<bool, Error> {
         items: Vec<serde_json::Value>,
     }
 
-    let client = Client::new();
-
-    let response = client
+    let response = CLIENT_UNCACHED
         .get("https://api.minecraftservices.com/entitlements/mcstore")
         .bearer_auth(access_token)
         .send()

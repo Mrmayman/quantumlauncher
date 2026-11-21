@@ -68,10 +68,9 @@ use ql_core::{
     GenericProgress, IntoIoError, IoError, JsonDownloadError, JsonError, LAUNCHER_DIR,
     RequestError,
     constants::OS_NAME,
-    do_jobs_with_limit, err,
+    do_jobs_with_limit, download, err,
     file_utils::{self, DirItem, canonicalize_a, exists, extract_tar_gz},
     info, pt,
-    request::{CLIENT_UNCACHED, check_for_success},
 };
 
 pub use ql_core::JavaVersion;
@@ -351,21 +350,12 @@ async fn java_install_fn(
 }
 
 async fn download_file(downloads: &JavaFileDownload) -> Result<Vec<u8>, JavaInstallError> {
-    async fn download(url: &str) -> Result<Vec<u8>, JavaInstallError> {
-        let response = CLIENT_UNCACHED
-            .get(url)
-            .send()
-            .await
-            .map_err(RequestError::from)?;
-        check_for_success(&response)?;
-
-        Ok(response.bytes().await.map_err(RequestError::from)?.to_vec())
-    }
-
     let Some(lzma) = &downloads.lzma else {
-        return download(&downloads.raw.url).await;
+        return Ok(download(&downloads.raw.url).uncached().bytes().await?);
     };
-    let mut lzma = std::io::BufReader::new(std::io::Cursor::new(download(&lzma.url).await?));
+    let mut lzma = std::io::BufReader::new(std::io::Cursor::new(
+        download(&lzma.url).uncached().bytes().await?,
+    ));
 
     let mut out = Vec::new();
     match lzma_rs::lzma_decompress(&mut lzma, &mut out) {
@@ -375,7 +365,7 @@ async fn download_file(downloads: &JavaFileDownload) -> Result<Vec<u8>, JavaInst
                 "Could not decompress lzma file: {err}\n  ({})",
                 downloads.raw.url.bright_black()
             );
-            download(&downloads.raw.url).await
+            Ok(download(&downloads.raw.url).uncached().bytes().await?)
         }
     }
 }

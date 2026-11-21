@@ -11,16 +11,16 @@ use crate::{
 };
 use filthy_rich::PresenceClient;
 use iced::widget::{self, scrollable::AbsoluteOffset};
+use ql_auth::{
+    AccountData, AccountType,
+    ms::{AuthCodeResponse, AuthTokenResponse},
+};
 use ql_core::{
     Instance, InstanceKind, LaunchedProcess, ListEntry, Loader,
     file_utils::DirItem,
     jarmod::JarMods,
     json::instance_config::{MainClassMode, PreLaunchPrefixMode},
     read_log::Diagnostic,
-};
-use ql_instances::auth::{
-    AccountData, AccountType,
-    ms::{AuthCodeResponse, AuthTokenResponse},
 };
 use ql_mod_manager::{
     loaders::{fabric, paper::PaperVersion},
@@ -265,7 +265,7 @@ pub enum AccountMessage {
     AltOtpInput(String),
     AltShowPassword(bool),
     AltLogin,
-    AltLoginResponse(Res<ql_instances::auth::yggdrasil::Account>),
+    AltLoginResponse(Res<ql_auth::yggdrasil::Account>),
 
     LittleSkinOauthButtonClicked,
     LittleSkinDeviceCodeReady {

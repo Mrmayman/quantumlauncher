@@ -205,10 +205,7 @@ then go to "Mods->Add File""#,
     fn create_instance(&mut self) -> Task<Message> {
         iflet!(self, instance_name, download_assets, selected_version, kind; {
             let already_exists = {
-                let existing_instances = match kind {
-                    InstanceKind::Client => self.client_list.as_ref(),
-                    InstanceKind::Server => self.server_list.as_ref(),
-                };
+                let existing_instances = self.instances.list_get(*kind);
                 existing_instances.is_some_and(|n| {
                     n.contains(instance_name)
                         || (instance_name.is_empty() && n.contains(&selected_version.name))

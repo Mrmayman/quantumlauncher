@@ -1,8 +1,8 @@
 use owo_colors::OwoColorize;
 use std::process::exit;
 
+use ql_auth::{self, AccountType};
 use ql_core::err;
-use ql_instances::auth::{self, AccountType};
 
 use crate::{
     cli::show_notification,
@@ -14,7 +14,7 @@ pub async fn refresh_account(
     use_account: bool,
     show_progress: bool,
     override_account_type: Option<&str>,
-) -> Result<Option<auth::AccountData>, Box<dyn std::error::Error>> {
+) -> Result<Option<ql_auth::AccountData>, Box<dyn std::error::Error>> {
     if !use_account {
         if show_progress {
             tokio::task::spawn_blocking(|| {
@@ -38,16 +38,16 @@ pub async fn refresh_account(
     }
 
     let refresh_token =
-        auth::read_refresh_token(refresh_name, account.account_type.unwrap_or_default())?;
+        ql_auth::read_refresh_token(refresh_name, account.account_type.unwrap_or_default())?;
 
     // Hook: Account types
     let account = if let Some(account_type @ (AccountType::ElyBy | AccountType::LittleSkin)) =
         account.account_type
     {
-        auth::yggdrasil::login_refresh(refresh_name.to_owned(), refresh_token, account_type).await?
+        ql_auth::yggdrasil::login_refresh(refresh_name.to_owned(), refresh_token, account_type)
+            .await?
     } else {
-        let refresh_token = auth::read_refresh_token(username, AccountType::Microsoft)?;
-        auth::ms::login_refresh(username.clone(), refresh_token, None).await?
+        ql_auth::ms::login_refresh(username.clone(), refresh_token, None).await?
     };
 
     Ok(Some(account))

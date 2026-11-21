@@ -337,7 +337,7 @@ async fn create_details_json(instance_path: &Path) -> Result<(), OptifineError> 
     let new_details_path = instance_path
         .join(".minecraft/versions")
         .join(&details.id)
-        .join(format!("{}.json", &details.id));
+        .join(format!("{}.json", details.id));
 
     let details_path = instance_path.join("details.json");
     tokio::fs::copy(&details_path, &new_details_path)

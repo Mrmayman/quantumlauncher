@@ -1,7 +1,6 @@
-use iced::{Task, futures::executor::block_on};
+use iced::Task;
 use ql_core::{InstanceKind, IntoIoError, IntoStringError, err, file_utils::DirItem, info};
 use std::fmt::Write;
-use tokio::io::AsyncWriteExt;
 
 #[allow(unused)]
 use owo_colors::OwoColorize;
@@ -9,8 +8,8 @@ use owo_colors::OwoColorize;
 #[cfg(feature = "auto_update")]
 use crate::launcher_update::UpdateCheckInfo;
 use crate::state::{
-    AutoSaveKind, CustomJarState, FsWatcher, InfoMessage, Launcher, ManageModsMessage,
-    MenuExportInstance, MenuLicense, MenuWelcome, Message, ProgressBar, State, get_entries,
+    AutoSaveKind, CustomJarState, InfoMessage, Launcher, ManageModsMessage, MenuExportInstance,
+    MenuLicense, MenuWelcome, Message, ProgressBar, State,
 };
 
 impl Launcher {
@@ -27,7 +26,7 @@ impl Launcher {
             }
 
             Message::CoreTryQuit => {
-                let safe_to_exit = self.processes.is_empty()
+                let safe_to_exit = self.instances.safe_to_quit()
                     && (self.key_escape_back(false).0 || matches!(self.state, State::Launch(_)));
 
                 if safe_to_exit {
@@ -152,13 +151,8 @@ impl Launcher {
                     tasks.push(CustomJarState::load());
                 }
 
-                let mut watch_reload = |watcher: Option<&FsWatcher>, kind| {
-                    if watcher.is_some_and(FsWatcher::has_changed) {
-                        tasks.push(Task::perform(get_entries(kind), Message::CoreListLoaded));
-                    }
-                };
-                watch_reload(self.client_watcher.as_ref(), InstanceKind::Client);
-                watch_reload(self.server_watcher.as_ref(), InstanceKind::Server);
+                self.instances
+                    .tick(&mut tasks, &mut self.state, self.selected_instance.as_ref());
 
                 return Task::batch(tasks);
             }
@@ -211,25 +205,12 @@ impl Launcher {
             Message::ServerCommandEdit(command) => {
                 let server = self.selected_instance.as_ref().unwrap();
                 debug_assert!(server.is_server());
-                if let Some(log) = self.logs.get_mut(server) {
-                    log.command = command;
-                }
+                self.instances.server_cmd_edit(server, command);
             }
             Message::ServerCommandSubmit => {
                 let server = self.selected_instance.as_ref().unwrap();
                 debug_assert!(server.is_server());
-                if let Some(log) = self.logs.get_mut(server)
-                    && let Some(p) = self.processes.get_mut(server)
-                    && let Some((stdin, _)) = &mut p.server_input
-                {
-                    let log_cloned = format!("{}\n", log.command);
-                    let future = stdin.write_all(log_cloned.as_bytes());
-                    // Make the input command visible in the log
-                    log.log.push(format!("> {}", log.command));
-
-                    log.command.clear();
-                    _ = block_on(future);
-                }
+                self.instances.server_cmd_submit(server);
             }
             Message::CoreListLoaded(Ok((list, kind))) => {
                 self.core_list_loaded(list, kind);
@@ -412,33 +393,16 @@ impl Launcher {
         let p_kind = persistent
             .selected_instance_kind
             .unwrap_or(InstanceKind::Client);
-        if p_kind == kind
+        let selected_instance_disappeared = p_kind == kind
             && persistent
                 .selected_instance
                 .as_ref()
-                .is_some_and(|p| !list.iter().any(|n| n == &**p))
-        {
-            // The previously selected instance no longer exists
+                .is_some_and(|p| !list.iter().any(|n| n == &**p));
+        if selected_instance_disappeared {
             self.unselect_instance();
         }
 
-        let (self_list, self_watcher) = match kind {
-            InstanceKind::Client => (&mut self.client_list, &mut self.client_watcher),
-            InstanceKind::Server => (&mut self.server_list, &mut self.server_watcher),
-        };
-        *self_list = Some(list);
-
-        if self_watcher.is_none() {
-            let dir = kind.get_root_directory();
-            let watcher = match FsWatcher::new(dir) {
-                Ok(n) => n,
-                Err(err) => {
-                    err!("Couldn't start dir watcher! {err}");
-                    return;
-                }
-            };
-            *self_watcher = Some(watcher);
-        }
+        self.instances.list_loaded(list, kind);
     }
 
     fn go_to_licenses_menu(&mut self) {

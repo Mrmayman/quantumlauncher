@@ -1,17 +1,14 @@
-use std::{collections::HashMap, sync::Arc};
-
-use iced::{Rectangle, Task, widget::text_editor};
+use iced::{Rectangle, Task};
 use ql_core::{
-    Instance, IntoIoError, IntoJsonError, IntoStringError, JsonFileError, constants::OS_NAME,
-    json::InstanceConfigJson,
+    Instance, IntoIoError, IntoJsonError, IntoStringError, JsonFileError, json::InstanceConfigJson,
 };
 use ql_mod_manager::store::ModIndex;
 
 use crate::state::{
-    AutoSaveKind, EditInstanceMessage, GameProcess, InstallModsMessage, InstanceLog, LaunchModal,
-    LaunchTab, Launcher, LogState, ManageJarModsMessage, ManageModsMessage, MenuCreateInstance,
-    MenuEditMods, MenuExportInstance, MenuInstallFabric, MenuInstallOptifine, MenuLaunch,
-    MenuLoginMS, MenuModsDownload, MenuRecommendedMods, Message, State,
+    AutoSaveKind, EditInstanceMessage, InstallModsMessage, LaunchModal, LaunchTab, Launcher,
+    ManageJarModsMessage, ManageModsMessage, MenuCreateInstance, MenuEditMods, MenuExportInstance,
+    MenuInstallFabric, MenuInstallOptifine, MenuLaunch, MenuLoginMS, MenuModsDownload,
+    MenuRecommendedMods, Message, State,
 };
 use crate::{config::SIDEBAR_WIDTH, state::InfoMessage};
 
@@ -42,21 +39,6 @@ impl Launcher {
                         || self.tick_timer.is_multiple_of(5))
                 {
                     self.autosave_instance_config(config, &mut tasks);
-                }
-
-                for (instance, process) in &mut self.processes {
-                    let log_state = if let State::Launch(menu) = &mut self.state {
-                        &mut menu.log_state
-                    } else {
-                        &mut None
-                    };
-                    Self::read_game_logs(
-                        process,
-                        instance,
-                        &mut self.logs,
-                        log_state,
-                        self.selected_instance.as_ref(),
-                    );
                 }
 
                 if let State::Launch(menu) = &self.state {
@@ -277,49 +259,6 @@ impl Launcher {
         tasks.push(cmd);
     }
 
-    pub fn read_game_logs(
-        process: &GameProcess,
-        instance: &Instance,
-        logs: &mut HashMap<Instance, InstanceLog>,
-        log_state: &mut Option<LogState>,
-        selected_instance: Option<&Instance>,
-    ) {
-        let update_ui = selected_instance.is_some_and(|n| n == instance);
-
-        while let Some(message) = process.receiver.as_ref().and_then(|n| n.try_recv().ok()) {
-            let message = message.to_string();
-
-            logs.entry(instance.clone())
-                .or_insert_with(|| {
-                    let log_start = format!(
-                        "[00:00:00] [launcher/INFO] {} (OS: {OS_NAME})\n",
-                        if instance.is_server() {
-                            "Starting Minecraft server"
-                        } else {
-                            "Launching Minecraft"
-                        },
-                    );
-
-                    if update_ui {
-                        *log_state = Some(LogState {
-                            content: text_editor::Content::with_text(&log_start),
-                        });
-                    }
-                    InstanceLog {
-                        log: vec![log_start],
-                        has_crashed: false,
-                        command: String::new(),
-                    }
-                })
-                .log
-                .push(message.clone());
-
-            if update_ui {
-                update_log_render_state(log_state.as_mut(), message);
-            }
-        }
-    }
-
     async fn save_config(
         instance: Instance,
         config: InstanceConfigJson,
@@ -392,15 +331,5 @@ impl MenuCreateInstance {
                 progress.tick();
             }
         }
-    }
-}
-
-fn update_log_render_state(log_state: Option<&mut LogState>, message: String) {
-    if let Some(state) = log_state {
-        use iced::widget::text_editor::{Action, Edit, Motion};
-        // TODO: preserve selection
-        let content = &mut state.content;
-        content.perform(Action::Move(Motion::DocumentEnd));
-        content.perform(Action::Edit(Edit::Paste(Arc::new(message))));
     }
 }

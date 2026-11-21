@@ -94,7 +94,6 @@ pub struct LogState {
 /// The home screen of the launcher.
 pub struct MenuLaunch {
     pub message: Option<InfoMessage>,
-    pub login_progress: Option<ProgressBar<GenericProgress>>,
     pub tab: LaunchTab,
     pub edit_instance: Option<MenuEditInstance>,
     pub notes: Option<InstanceNotes>,
@@ -146,7 +145,6 @@ impl MenuLaunch {
             message,
             tab: LaunchTab::default(),
             edit_instance: None,
-            login_progress: None,
             sidebar_scroll: SidebarScroll::default(),
             sidebar_grid_state,
             log_state: None,

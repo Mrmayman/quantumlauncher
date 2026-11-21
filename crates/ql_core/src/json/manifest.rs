@@ -1,9 +1,8 @@
 use std::sync::LazyLock;
 
 use crate::{
-    IntoJsonError, JsonDownloadError, RequestError,
+    JsonDownloadError, download,
     json::{V_1_12_2, V_A_1_0_15},
-    request::{CLIENT_UNCACHED, check_for_success},
 };
 use cfg_if::cfg_if;
 use chrono::DateTime;
@@ -74,12 +73,11 @@ impl Manifest {
                 "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json";
         });
 
-        let old_fn = download(OLDER_VERSIONS_JSON);
-        let new_fn = download(NEWER_VERSIONS_JSON);
+        let old = download(OLDER_VERSIONS_JSON).uncached();
+        let new = download(NEWER_VERSIONS_JSON).uncached();
 
-        let (older_manifest, newer_manifest) = tokio::try_join!(old_fn, new_fn)?;
-        let mut older_manifest: Self =
-            serde_json::from_str(&older_manifest).json(older_manifest)?;
+        let (mut older_manifest, mut newer_manifest) =
+            tokio::try_join!(old.json::<Self>(), new.json::<Self>())?;
 
         let last_lwjgl2 =
             DateTime::parse_from_rfc3339(V_1_12_2).expect("statically known to be valid");
@@ -87,7 +85,6 @@ impl Manifest {
             let is_already_lwjgl3 = n.releaseTime > last_lwjgl2;
             !(n.id.ends_with("-lwjgl3") && is_already_lwjgl3)
         });
-        let newer_manifest: Self = serde_json::from_str(&newer_manifest).json(newer_manifest)?;
 
         for &(borked, working) in BETTERJSONS_BORKED {
             let Some(working_version) = newer_manifest.find_name(working).cloned() else {
@@ -126,17 +123,6 @@ impl Manifest {
     pub fn get_latest_release(&self) -> Option<&ManifestVersion> {
         self.find_name(&self.latest.release)
     }
-}
-
-async fn download(url: &'static str) -> Result<String, RequestError> {
-    let response = CLIENT_UNCACHED
-        .get(url)
-        .send()
-        .await
-        .map_err(RequestError::from)?;
-    check_for_success(&response)?;
-
-    response.text().await.map_err(RequestError::from)
 }
 
 #[derive(Deserialize, Clone, Debug)]

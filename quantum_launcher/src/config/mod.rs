@@ -2,11 +2,11 @@ use crate::config::discord_rpc::RpcConfig;
 use crate::config::sidebar::{SidebarConfig, SidebarNode, SidebarNodeKind};
 use crate::stylesheet::styles::{LauncherTheme, LauncherThemeColor, LauncherThemeLightness};
 use crate::{WINDOW_HEIGHT, WINDOW_WIDTH};
+use ql_auth::{AccountData, AccountType};
 use ql_core::{
     InstanceKind, IntoIoError, IntoJsonError, JsonFileError, LAUNCHER_DIR, LAUNCHER_VERSION_NAME,
     ListEntryKind, err, json::GlobalSettings,
 };
-use ql_instances::auth::{AccountData, AccountType};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::{

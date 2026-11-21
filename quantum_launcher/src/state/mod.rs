@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     fmt::Display,
     path::Path,
     sync::{
@@ -11,6 +11,7 @@ use std::{
 use filthy_rich::PresenceClient;
 use iced::Task;
 use notify::Watcher;
+use ql_auth::ms::CLIENT_ID;
 use ql_core::{
     GenericProgress, Instance, InstanceKind, IntoIoError, IntoStringError, IoError, JsonFileError,
     LAUNCHER_CACHE_DIR, LAUNCHER_DIR, LAUNCHER_VERSION_NAME, LaunchedProcess, Progress, err,
@@ -18,7 +19,6 @@ use ql_core::{
     read_log::LogLine,
     request::{CLIENT, build_middleware},
 };
-use ql_instances::auth::{AccountData, AccountType, ms::CLIENT_ID};
 use tokio::process::ChildStdin;
 
 use crate::{
@@ -27,15 +27,16 @@ use crate::{
     stylesheet::styles::LauncherTheme,
 };
 
+mod accounts;
 mod images;
+mod instance_store;
 mod menu;
 mod message;
+pub use accounts::AccountState;
 pub use images::ImageState;
+pub use instance_store::InstanceStore;
 pub use menu::*;
 pub use message::*;
-
-pub const OFFLINE_ACCOUNT_NAME: &str = "(Offline)";
-pub const NEW_ACCOUNT_NAME: &str = "+ Add Account";
 
 pub const ADD_JAR_NAME: &str = "+ Add JAR";
 pub const REMOVE_JAR_NAME: &str = "- Remove Selected";
@@ -70,17 +71,9 @@ pub struct Launcher {
     /// See [`AutoSaveKind`]
     pub autosave: HashSet<AutoSaveKind>,
 
-    pub accounts: HashMap<String, AccountData>,
-    pub accounts_dropdown: Vec<String>,
-    pub account_selected: String,
+    pub accounts: AccountState,
 
-    pub client_list: Option<Vec<String>>,
-    pub server_list: Option<Vec<String>>,
-    pub client_watcher: Option<FsWatcher>,
-    pub server_watcher: Option<FsWatcher>,
-
-    pub processes: HashMap<Instance, GameProcess>,
-    pub logs: HashMap<Instance, InstanceLog>,
+    pub instances: InstanceStore,
 
     pub window_state: WindowState,
     pub keys_pressed: HashSet<iced::keyboard::Key>,
@@ -213,7 +206,7 @@ impl Launcher {
             State::ChangeLog
         };
 
-        let (accounts, accounts_dropdown, account_selected) = load_accounts(&mut config);
+        let accounts = AccountState::load_from_config(&mut config);
 
         let persistent = config.c_persistent();
         let selected_instance = persistent
@@ -235,24 +228,16 @@ impl Launcher {
             config,
             theme,
             accounts,
-            accounts_dropdown,
 
             window_state: WindowState {
                 size: (window_width, window_height),
                 mouse_pos: (0.0, 0.0),
                 is_maximized: false,
             },
-            account_selected,
 
-            client_list: None,
-            server_list: None,
-            client_watcher: None,
-            server_watcher: None,
+            instances: InstanceStore::default(),
             java_recv: None,
             custom_jar: None,
-
-            logs: HashMap::new(),
-            processes: HashMap::new(),
 
             keys_pressed: HashSet::new(),
 
@@ -304,10 +289,7 @@ impl Launcher {
             state: State::Error { error },
 
             java_recv: None,
-            client_list: None,
-            server_list: None,
-            client_watcher: None,
-            server_watcher: None,
+            instances: InstanceStore::default(),
             selected_instance: None,
             custom_jar: None,
 
@@ -320,9 +302,7 @@ impl Launcher {
             discord_ipc_client: None,
             discord_connection_state: Arc::new(Mutex::new(PresenceConnectionState::Uninitialized)),
 
-            logs: HashMap::new(),
-            processes: HashMap::new(),
-            accounts: HashMap::new(),
+            accounts: AccountState::empty(),
             keys_pressed: HashSet::new(),
 
             images: ImageState::default(),
@@ -332,8 +312,6 @@ impl Launcher {
                 is_maximized: false,
             },
             autosave: HashSet::new(),
-            accounts_dropdown: vec![OFFLINE_ACCOUNT_NAME.to_owned(), NEW_ACCOUNT_NAME.to_owned()],
-            account_selected: OFFLINE_ACCOUNT_NAME.to_owned(),
             modifiers_pressed: iced::keyboard::Modifiers::empty(),
         }
     }
@@ -360,91 +338,6 @@ impl Launcher {
         self.state = State::Launch(Box::new(menu_launch));
 
         t
-    }
-}
-
-fn load_accounts(
-    config: &mut LauncherConfig,
-) -> (HashMap<String, AccountData>, Vec<String>, String) {
-    let mut accounts = HashMap::new();
-
-    let mut accounts_dropdown = vec![OFFLINE_ACCOUNT_NAME.to_owned(), NEW_ACCOUNT_NAME.to_owned()];
-
-    let mut accounts_to_remove = Vec::new();
-
-    for (username, account) in config.accounts.iter_mut().flatten() {
-        load_account(
-            &mut accounts,
-            &mut accounts_dropdown,
-            &mut accounts_to_remove,
-            username,
-            account,
-        );
-    }
-
-    if let Some(accounts) = &mut config.accounts {
-        for rem in accounts_to_remove {
-            accounts.remove(&rem);
-        }
-    }
-
-    let selected_account = config.account_selected.clone().unwrap_or(
-        accounts_dropdown
-            .first()
-            .cloned()
-            .unwrap_or_else(|| OFFLINE_ACCOUNT_NAME.to_owned()),
-    );
-    (accounts, accounts_dropdown, selected_account)
-}
-
-fn load_account(
-    accounts: &mut HashMap<String, AccountData>,
-    accounts_dropdown: &mut Vec<String>,
-    accounts_to_remove: &mut Vec<String>,
-    username: &str,
-    account: &mut crate::config::ConfigAccount,
-) {
-    let account_type = if username.ends_with(" (elyby)") {
-        AccountType::ElyBy
-    } else if username.ends_with(" (littleskin)") {
-        AccountType::LittleSkin
-    } else {
-        account.account_type.unwrap_or_default()
-    };
-
-    let keyring_username = account.get_keyring_identifier(username);
-    let refresh_token =
-        ql_instances::auth::read_refresh_token(keyring_username, account_type).strerr();
-
-    let keyring_username = account.get_keyring_identifier(username);
-
-    match refresh_token {
-        Ok(refresh_token) => {
-            accounts_dropdown.insert(0, username.to_owned());
-            accounts.insert(
-                username.to_owned(),
-                AccountData {
-                    access_token: None,
-                    uuid: account.uuid.clone(),
-                    refresh_token,
-                    needs_refresh: true,
-                    account_type,
-
-                    username: keyring_username.to_owned(),
-                    nice_username: account
-                        .username_nice
-                        .clone()
-                        .unwrap_or_else(|| username.to_owned()),
-                },
-            );
-        }
-        Err(err) => {
-            err!(
-                "Could not load account: {err}\nUsername: {keyring_username}, Account Type: {}",
-                account_type.to_string()
-            );
-            accounts_to_remove.push(username.to_owned());
-        }
     }
 }
 
