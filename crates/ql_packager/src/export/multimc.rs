@@ -77,7 +77,7 @@ pub async fn export_multimc_modpack(
             let path = Path::new(&full);
             let relative = path
                 .strip_prefix(Path::new(
-                    &instance.get_instance_path().to_str().unwrap(),
+                    &instance.get_dot_minecraft_path().to_str().unwrap(),
                 ))
                 .unwrap_or(path);
             (full.clone(), relative.to_string_lossy().into())

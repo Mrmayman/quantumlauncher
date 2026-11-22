@@ -131,7 +131,7 @@ pub async fn export_modrinth_modpack(
     let overrides: Vec<(String, String)> =
         overrides_fn(override_mods_full_path_string, overrides, instance);
 
-    package_format_1_modpack("modrinth.index".to_string(), json_data, zip_path, overrides)
+    package_format_1_modpack("modrinth.index.json".to_string(), json_data, zip_path, overrides)
         .await?;
 
     Ok(())
