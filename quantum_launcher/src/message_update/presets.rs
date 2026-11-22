@@ -100,7 +100,7 @@ impl Launcher {
 
                     return Task::perform(
                         // TODO: Add metadata for preset generating
-                        ql_mod_manager::presets::generate(
+                        ql_packager::generate(
                             selected_instance,
                             mods_selected,
                             dir,

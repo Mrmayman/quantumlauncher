@@ -8,7 +8,7 @@
 //! - Mod configuration files
 //!
 //! ## Usage
-//! - [`generate`] - create from instance
+//! - Creation is handled by the `ql_packager` crate
 //! - [`load`] with `apply: true` - install preset
 //! - [`load`] with `apply: false` - preview without installing
 //!
@@ -27,8 +27,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::store::{ModConfig, ModError, ModId};
 
-mod generate;
-pub use generate::generate;
 mod load;
 pub use load::{PresetOutput, load};
 mod peek;
@@ -69,7 +67,7 @@ pub const SOFT_EXCEPTIONS: &[&str] = &[
     "usernamecache.json",
 ];
 
-pub(crate) const OVERRIDES_NAME: &str = "overrides";
+pub const OVERRIDES_NAME: &str = "overrides";
 
 /// The main upfront choices the user will have to make.
 ///
@@ -87,18 +85,18 @@ pub const MAIN_CHOICES: &[(&str, &str, bool)] = &[
 ];
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct PresetJson {
-    instance_name: Option<Arc<str>>,
-    is_server: Option<bool>,
+pub struct PresetJson {
+    pub instance_name: Option<Arc<str>>,
+    pub is_server: Option<bool>,
 
-    launcher_version: String,
-    minecraft_version: Arc<str>,
-    instance_type: Loader,
+    pub launcher_version: String,
+    pub minecraft_version: Arc<str>,
+    pub instance_type: Loader,
     #[serde(rename = "entries_modrinth")]
-    entries_downloaded: HashMap<ModId, ModConfig>,
-    entries_local: Vec<String>,
+    pub entries_downloaded: HashMap<ModId, ModConfig>,
+    pub entries_local: Vec<String>,
 
-    metadata: Option<ExtraMeta>,
+    pub metadata: Option<ExtraMeta>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -110,7 +108,7 @@ pub struct ExtraMeta {
     version: Option<Arc<str>>,
 }
 
-async fn get_instance_type(instance_name: &Instance) -> Result<Loader, ModError> {
+pub async fn get_instance_type(instance_name: &Instance) -> Result<Loader, ModError> {
     let config = InstanceConfigJson::read(instance_name).await?;
     Ok(config.mod_type)
 }

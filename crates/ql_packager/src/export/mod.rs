@@ -11,6 +11,7 @@ use thiserror::Error;
 use tokio::fs::read;
 
 mod curseforge;
+pub(crate) mod generate;
 mod modrinth;
 mod multimc;
 
@@ -105,7 +106,7 @@ async fn package_multimc_modpack(
         add_file_to_zip(&mut writer, full_path, &in_zip_path).await?;
     }
     
-    let json_builder = ZipEntryBuilder::new("mmc_pack.json".into(), Compression::Deflate);
+    let json_builder = ZipEntryBuilder::new("mmc-pack.json".into(), Compression::Deflate);
     writer
         .write_entry_whole(json_builder, mmc_pack.as_bytes())
         .await?;
@@ -179,3 +180,6 @@ fn create_override_mods_full_path(
 
     override_mods_full_path_string
 }
+
+
+

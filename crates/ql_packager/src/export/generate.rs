@@ -11,8 +11,8 @@ use ql_core::{
 };
 use zip::ZipWriter;
 
-use crate::{
-    presets::{OVERRIDES_NAME, PresetJson, get_instance_type},
+use ql_mod_manager::{
+    presets::{ExtraMeta, OVERRIDES_NAME, PresetJson, get_instance_type},
     store::{ModConfig, ModError, ModId, ModIndex, SelectedMod},
 };
 
@@ -30,7 +30,7 @@ pub async fn generate(
     instance: Instance,
     selected_mods: HashSet<SelectedMod>,
     dotmc_entries: Vec<DirItem>,
-    metadata: Option<super::ExtraMeta>,
+    metadata: Option<ExtraMeta>,
 ) -> Result<Vec<u8>, ModError> {
     let opts = zip::write::FileOptions::<()>::default();
 

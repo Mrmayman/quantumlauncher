@@ -14,6 +14,7 @@ mod export;
 mod import;
 mod multimc;
 
+pub use export::generate::generate;
 pub use import::import_instance;
 
 const PKG_ERR_PREFIX: &str = "while importing/exporting instance:\n";
