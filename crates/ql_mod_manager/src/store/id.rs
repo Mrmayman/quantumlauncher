@@ -24,7 +24,7 @@ impl<'de> serde::Deserialize<'de> for ModId {
         D: serde::Deserializer<'de>,
     {
         struct ModIdVisitor;
-        impl<'de> serde::de::Visitor<'de> for ModIdVisitor {
+        impl serde::de::Visitor<'_> for ModIdVisitor {
             type Value = ModId;
 
             fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
@@ -68,16 +68,6 @@ impl ModId {
             StoreBackendType::Modrinth => Self::Modrinth(n),
             StoreBackendType::Curseforge => Self::Curseforge(n),
         }
-    }
-
-    #[must_use]
-    pub fn to_pair(self) -> (String, StoreBackendType) {
-        let backend = match self {
-            ModId::Modrinth(_) => StoreBackendType::Modrinth,
-            ModId::Curseforge(_) => StoreBackendType::Curseforge,
-        };
-
-        (self.get_internal_id().to_owned(), backend)
     }
 }
 

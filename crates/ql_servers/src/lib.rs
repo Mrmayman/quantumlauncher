@@ -6,7 +6,7 @@
 //! [Quantum Launcher](https://mrmayman.github.io/quantumlauncher)
 //! for managing Minecraft servers.
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use ql_core::{IoError, JsonError, RequestError, impl_3_errs_jri};
 use ql_java_handler::JavaInstallError;
@@ -29,7 +29,7 @@ pub enum ServerError {
     #[error("{SERVER_ERR_PREFIX}{0}")]
     Request(#[from] RequestError),
     #[error("while downloading server\nserver version not found in manifest: {0}")]
-    VersionNotFoundInManifest(String),
+    VersionNotFoundInManifest(Arc<str>),
     #[error("{SERVER_ERR_PREFIX}{0}")]
     Json(#[from] JsonError),
     #[error("{SERVER_ERR_PREFIX}{0}")]

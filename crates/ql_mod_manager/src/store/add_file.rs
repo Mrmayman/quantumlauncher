@@ -2,18 +2,21 @@ use std::{ffi::OsStr, path::PathBuf, sync::mpsc::Sender};
 
 use ql_core::{GenericProgress, Instance, IntoIoError, err, pt};
 
-use crate::{presets, store::download_mods_bulk};
+use crate::{
+    presets,
+    store::{ModError, download_mods_bulk},
+};
 
 use super::{
     CurseforgeNotAllowed,
-    modpack::{self, PackError},
+    modpack::{self},
 };
 
 pub async fn add_files(
     instance: Instance,
     paths: Vec<PathBuf>,
     progress: Option<Sender<GenericProgress>>,
-) -> Result<CurseforgeNotAllowed, PackError> {
+) -> Result<CurseforgeNotAllowed, ModError> {
     let mods_dir = instance.get_dot_minecraft_path().join("mods");
 
     let mut not_allowed = CurseforgeNotAllowed::new();

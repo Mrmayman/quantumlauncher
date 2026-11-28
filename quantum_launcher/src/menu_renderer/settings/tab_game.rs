@@ -72,8 +72,8 @@ fn opt_java_args(config: &LauncherConfig) -> Column<'_> {
 fn opt_resolution(config: &LauncherConfig) -> Column<'_> {
     resolution_dialog(
         config.global_settings.as_ref(),
-        |n| Message::LauncherSettings(LauncherSettingsMessage::DefaultMinecraftWidthChanged(n)),
-        |n| Message::LauncherSettings(LauncherSettingsMessage::DefaultMinecraftHeightChanged(n)),
+        |n| LauncherSettingsMessage::DefaultMinecraftWidthChanged(n).into(),
+        |n| LauncherSettingsMessage::DefaultMinecraftHeightChanged(n).into(),
     )
 }
 

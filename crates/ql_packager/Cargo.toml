@@ -23,3 +23,7 @@ tempfile.workspace = true
 chrono.workspace = true
 zip.workspace = true
 rust-ini = { version = "0.21", features = ["inline-comment"] }
+hex = "0.4.3"
+sha2 = "0.11.0"
+async_zip = { version = "0.0.18", features = ["deflate", "tokio-fs"] }
+sha1 = "0.11.0"

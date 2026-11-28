@@ -35,20 +35,20 @@ impl JsonVersions {
 #[allow(non_snake_case)]
 #[derive(Clone, Deserialize)]
 pub struct JsonInstallProfile {
-    pub install: serde_json::Value,
+    // install: serde_json::Value,
     pub versionInfo: JsonDetails,
 }
 
 #[allow(non_snake_case)]
 #[derive(Clone, Serialize, Deserialize)]
 pub struct JsonDetails {
-    pub id: String,
-    pub time: String,
-    pub releaseTime: String,
-    pub r#type: String,
+    id: String,
+    time: String,
+    releaseTime: String,
+    r#type: String,
     pub mainClass: String,
-    pub inheritsFrom: Option<String>,
-    pub logging: Option<serde_json::Value>,
+    inheritsFrom: Option<String>,
+    logging: Option<serde_json::Value>,
     pub arguments: Option<JsonDetailsArguments>,
     pub libraries: Vec<JsonDetailsLibrary>,
     pub minecraftArguments: Option<String>,
@@ -77,6 +77,6 @@ pub struct JsonDetailsDownloads {
 pub struct JsonDetailsArtifact {
     pub path: String,
     pub url: String,
-    pub sha1: String,
-    pub size: usize,
+    sha1: String,
+    size: usize,
 }

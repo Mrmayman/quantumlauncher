@@ -139,7 +139,7 @@ pub fn list_instances(
 
 pub async fn create_instance(
     instance_name: String,
-    version: String,
+    version: Arc<str>,
     skip_assets: bool,
     kind: InstanceKind,
 ) -> Result<(), Box<dyn std::error::Error>> {

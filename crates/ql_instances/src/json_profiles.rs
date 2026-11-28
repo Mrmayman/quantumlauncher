@@ -9,79 +9,79 @@ use serde::Serialize;
 #[derive(Serialize)]
 #[allow(non_snake_case)]
 pub struct ProfileJson {
-    pub profiles: BTreeMap<String, Profiles>,
-    pub clientToken: Option<String>,
+    profiles: BTreeMap<String, Profiles>,
+    clientToken: Option<String>,
     // Map<UUID, AuthenticationDatabase>
-    pub authenticationDatabase: Option<BTreeMap<String, AuthenticationDatabase>>,
-    pub launcherVersion: Option<LauncherVersion>,
-    pub settings: Settings,
-    pub analyticsToken: Option<String>,
-    pub analyticsFailcount: Option<i32>,
-    pub selectedUser: Option<SelectedUser>,
-    pub version: Option<i32>,
+    authenticationDatabase: Option<BTreeMap<String, AuthenticationDatabase>>,
+    launcherVersion: Option<LauncherVersion>,
+    settings: Settings,
+    analyticsToken: Option<String>,
+    analyticsFailcount: Option<i32>,
+    selectedUser: Option<SelectedUser>,
+    version: Option<i32>,
 }
 
 #[derive(Serialize)]
 #[allow(non_snake_case)]
 pub struct Profiles {
-    pub name: String,
-    pub r#type: Option<String>,
-    pub created: Option<String>,
-    pub lastUsed: Option<String>,
-    pub icon: Option<String>,
-    pub lastVersionId: String,
-    pub gameDir: Option<String>,
-    pub javaDir: Option<String>,
-    pub javaArgs: Option<String>,
-    pub logConfig: Option<String>,
-    pub logConfigIsXML: Option<bool>,
-    pub resolution: Option<Resolution>,
+    name: String,
+    r#type: Option<String>,
+    created: Option<String>,
+    lastUsed: Option<String>,
+    icon: Option<String>,
+    lastVersionId: String,
+    gameDir: Option<String>,
+    javaDir: Option<String>,
+    javaArgs: Option<String>,
+    logConfig: Option<String>,
+    logConfigIsXML: Option<bool>,
+    resolution: Option<Resolution>,
 }
 
 #[derive(Serialize)]
 pub struct Resolution {
-    pub height: i32,
-    pub width: i32,
+    height: i32,
+    width: i32,
 }
 
 #[derive(Serialize)]
 #[allow(non_snake_case)]
 pub struct AuthenticationDatabase {
-    pub accessToken: String,
-    pub username: String,
+    accessToken: String,
+    username: String,
     // Map<UUID, Name>
-    pub profiles: BTreeMap<String, String>,
+    profiles: BTreeMap<String, String>,
 }
 
 #[derive(Serialize)]
 #[allow(non_snake_case)]
 pub struct LauncherVersion {
-    pub name: String,
-    pub format: i32,
-    pub profilesFormat: i32,
+    name: String,
+    format: i32,
+    profilesFormat: i32,
 }
 
 #[derive(Serialize)]
 #[allow(non_snake_case)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Settings {
-    pub enableSnapshots: bool,
-    pub enableAdvanced: bool,
-    pub keepLauncherOpen: bool,
-    pub showGameLog: bool,
-    pub locale: Option<String>,
-    pub showMenu: bool,
-    pub enableHistorical: bool,
-    pub profileSorting: String,
-    pub crashAssistance: bool,
-    pub enableAnalytics: bool,
-    pub soundOn: Option<bool>,
+    enableSnapshots: bool,
+    enableAdvanced: bool,
+    keepLauncherOpen: bool,
+    showGameLog: bool,
+    locale: Option<String>,
+    showMenu: bool,
+    enableHistorical: bool,
+    profileSorting: String,
+    crashAssistance: bool,
+    enableAnalytics: bool,
+    soundOn: Option<bool>,
 }
 
 #[derive(Serialize)]
 pub struct SelectedUser {
-    pub account: String,
-    pub profile: String,
+    account: String,
+    profile: String,
 }
 
 impl Default for ProfileJson {

@@ -8,7 +8,7 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 #[allow(non_snake_case)]
 pub struct JsonOptifine {
-    pub id: String,
+    // id: String,
     pub libraries: Vec<OptifineLibrary>,
     pub mainClass: String,
     pub arguments: Option<OptifineArguments>,

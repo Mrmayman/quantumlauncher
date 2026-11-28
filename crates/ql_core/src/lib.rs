@@ -306,11 +306,6 @@ impl Instance {
     pub const fn is_server(&self) -> bool {
         self.kind.is_server()
     }
-
-    #[must_use]
-    pub fn get_pair(&self) -> (&str, bool) {
-        (self.get_name(), self.is_server())
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -339,7 +334,7 @@ impl InstanceKind {
 /// A struct representing information about a Minecraft version
 #[derive(Debug, Clone, PartialEq)]
 pub struct ListEntry {
-    pub name: String,
+    pub name: Arc<str>,
     pub supports_server: bool,
     /// For UI display purposes only
     pub kind: ListEntryKind,
@@ -347,7 +342,7 @@ pub struct ListEntry {
 
 impl ListEntry {
     #[must_use]
-    pub fn new(name: String) -> Self {
+    pub fn new(name: Arc<str>) -> Self {
         Self {
             kind: ListEntryKind::guess(&name),
             supports_server: Version::guess_if_supports_server(&name),
@@ -356,7 +351,7 @@ impl ListEntry {
     }
 
     #[must_use]
-    pub fn with_kind(name: String, ty: &str) -> Self {
+    pub fn with_kind(name: Arc<str>, ty: &str) -> Self {
         Self {
             kind: ListEntryKind::calculate(&name, ty),
             supports_server: Version::guess_if_supports_server(&name),
@@ -472,20 +467,6 @@ impl ListEntryKind {
         } else {
             ListEntryKind::Release
         }
-    }
-
-    /// Returns true if this is an "old" version category
-    #[must_use]
-    pub const fn is_old(&self) -> bool {
-        matches!(
-            self,
-            ListEntryKind::Alpha
-                | ListEntryKind::Beta
-                | ListEntryKind::Classic
-                | ListEntryKind::Preclassic
-                | ListEntryKind::Indev
-                | ListEntryKind::Infdev
-        )
     }
 }
 

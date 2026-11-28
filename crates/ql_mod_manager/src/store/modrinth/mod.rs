@@ -234,7 +234,7 @@ impl Backend for ModrinthBackend {
 
     async fn get_info(id: &str) -> Result<SearchMod, ModError> {
         let mut info = ProjectInfo::download(id).await?;
-        info.gallery.sort_by(|a, b| a.ordering.cmp(&b.ordering));
+        info.gallery.sort_by_key(|a| a.ordering);
 
         Ok(SearchMod {
             urls: info.build_urls(),
@@ -255,7 +255,7 @@ impl Backend for ModrinthBackend {
         Ok(infos
             .into_iter()
             .map(|mut info| {
-                info.gallery.sort_by(|a, b| a.ordering.cmp(&b.ordering));
+                info.gallery.sort_by_key(|a| a.ordering);
                 SearchMod {
                     urls: info.build_urls(),
                     title: info.title,

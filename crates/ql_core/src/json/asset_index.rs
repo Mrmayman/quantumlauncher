@@ -13,9 +13,9 @@ pub struct AssetIndex {
 pub struct AssetObject {
     pub hash: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub size: Option<usize>,
+    size: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub url: Option<String>,
+    url: Option<String>,
 }
 
 impl AssetObject {

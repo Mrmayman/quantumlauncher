@@ -91,11 +91,11 @@ pub const CLIENT_ID: &str = "43431a16-38f5-4b42-91f9-4bf70c3bee1e";
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct AuthCodeResponse {
     pub user_code: String,
-    pub device_code: String,
+    device_code: String,
     pub verification_uri: String,
-    pub expires_in: isize,
-    pub interval: u64,
-    pub message: String,
+    expires_in: isize,
+    interval: u64,
+    message: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -104,8 +104,8 @@ pub struct AuthTokenResponse {
     // pub scope: String,
     // pub expires_in: i64,
     // pub ext_expires_in: i64,
-    pub access_token: String,
-    pub refresh_token: String,
+    access_token: String,
+    refresh_token: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -129,8 +129,8 @@ struct MinecraftAuthResponse {
 #[derive(Debug, Clone, Deserialize)]
 struct RefreshResponse {
     // pub expires_in: u64,
-    pub access_token: String,
-    pub refresh_token: String,
+    access_token: String,
+    refresh_token: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -141,9 +141,9 @@ struct AuthServiceErrorMessage {
 #[derive(Debug, Clone, Deserialize)]
 #[allow(non_snake_case)]
 pub struct MsaResponseError {
-    pub path: String,
-    pub error: String,
-    pub errorMessage: String,
+    path: String,
+    error: String,
+    errorMessage: String,
 }
 
 impl std::fmt::Display for MsaResponseError {

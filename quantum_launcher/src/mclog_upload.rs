@@ -6,11 +6,11 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct MclogsResponse {
-    pub success: bool,
+    success: bool,
     // pub id: Option<String>,
-    pub url: Option<String>,
+    url: Option<String>,
     // pub raw: Option<String>,
-    pub error: Option<String>,
+    error: Option<String>,
 }
 
 /// Uploads log content to <https://mclo.gs> and returns the URL if successful

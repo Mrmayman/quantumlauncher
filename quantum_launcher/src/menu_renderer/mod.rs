@@ -9,8 +9,9 @@ use crate::{
     config::LauncherConfig,
     icons,
     state::{
-        AccountMessage, InfoMessageKind, InstallModsMessage, LauncherSettingsMessage, LicenseTab,
-        ManageModsMessage, MenuCurseforgeManualDownload, MenuLicense, Message, ProgressBar,
+        AccountMessage, InfoMessageKind, InstallModsMessage, LauncherSettingsMessage,
+        LauncherSettingsTab, LicenseTab, ManageModsMessage, MenuCurseforgeManualDownload,
+        MenuLicense, Message, ProgressBar,
     },
     stylesheet::{color::Color, styles::LauncherTheme, widgets::StyleButton},
 };
@@ -365,9 +366,7 @@ pub fn get_mode_selector(config: &LauncherConfig) -> Element<'static> {
                 .into()
         } else {
             widget::button(row![icon, name].spacing(5))
-                .on_press(Message::LauncherSettings(
-                    LauncherSettingsMessage::ThemePicked(*n),
-                ))
+                .on_press(LauncherSettingsMessage::ThemePicked(*n).into())
                 .into()
         }
     }))
@@ -443,11 +442,7 @@ impl MenuLicense {
                 "MenuLicense:sidebar",
                 Some(
                     back_button()
-                        .on_press(Message::LauncherSettings(
-                            LauncherSettingsMessage::ChangeTab(
-                                crate::state::LauncherSettingsTab::About
-                            ),
-                        ))
+                        .on_press(LauncherSettingsMessage::Open(LauncherSettingsTab::About).into())
                         .into()
                 ),
                 LicenseTab::ALL.iter().map(|tab| {
@@ -639,7 +634,7 @@ fn style_button_color(
     }
 }
 
-pub fn view_changelog() -> Element<'static> {
+pub fn view_changelog(config: &LauncherConfig) -> Element<'static> {
     let back_msg = Message::MScreenOpen {
         message: None,
         clear_selection: true,
@@ -647,7 +642,7 @@ pub fn view_changelog() -> Element<'static> {
     widget::scrollable(
         widget::column!(
             button_with_icon(icons::back(), "Skip", 16).on_press(back_msg.clone()),
-            changelog(),
+            changelog(config),
             button_with_icon(icons::back(), "Continue", 16).on_press(back_msg),
         )
         .padding(10)

@@ -61,12 +61,12 @@ pub struct InstanceConfigJson {
     // Since: v0.3.1
     pub is_classic_server: Option<bool>,
     /// Whether this is a server, not a client
-    pub is_server: Option<bool>,
+    is_server: Option<bool>,
 
     /// Close launcher after client starts, **deprecated**
     // Since: v0.4
     #[deprecated(since = "0.5.2", note = "Use launcher-wide settings instead")]
-    pub close_on_start: Option<bool>,
+    close_on_start: Option<bool>,
     // Since: v0.4.2
     pub global_settings: Option<GlobalSettings>,
 
@@ -92,7 +92,7 @@ pub struct InstanceConfigJson {
     pub custom_jar: Option<CustomJarConfig>,
     /// Information related to the currently-installed
     /// version of the game
-    pub version_info: Option<VersionInfo>,
+    version_info: Option<VersionInfo>,
     /// An override for the main class when launching the game.
     /// Mainly only used for debugging purposes.
     pub main_class_override: Option<String>,
@@ -154,7 +154,7 @@ impl InstanceConfigJson {
     }
 
     /// Loads the launcher-specific instance configuration from disk,
-    /// based on a specific `InstanceSelection`
+    /// based on a specific [`Instance`]
     ///
     /// # Errors
     /// - `config.json` file couldn't be loaded
@@ -178,7 +178,7 @@ impl InstanceConfigJson {
     }
 
     /// Saves the launcher-specific instance configuration to disk,
-    /// based on a specific `InstanceSelection`
+    /// based on a specific [`Instance`]
     ///
     /// # Errors
     /// - `config.json` file couldn't be written to
@@ -252,8 +252,7 @@ impl InstanceConfigJson {
 
     #[must_use]
     pub fn c_global_settings(&mut self) -> &mut GlobalSettings {
-        self.global_settings
-            .get_or_insert_with(GlobalSettings::default)
+        self.global_settings.get_or_insert_default()
     }
 
     #[must_use]
@@ -358,7 +357,7 @@ pub struct GlobalSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionInfo {
-    pub is_special_lwjgl3: bool,
+    is_special_lwjgl3: bool,
     #[serde(flatten)]
     _extra: HashMap<String, serde_json::Value>,
 }
@@ -390,12 +389,6 @@ pub enum PreLaunchPrefixMode {
 }
 
 impl PreLaunchPrefixMode {
-    pub const ALL: &'static [Self] = &[
-        Self::CombineGlobalLocal,
-        Self::CombineLocalGlobal,
-        Self::Disable,
-    ];
-
     #[must_use]
     pub const fn get_description(self) -> &'static str {
         match self {

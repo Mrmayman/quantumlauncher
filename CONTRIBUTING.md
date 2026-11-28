@@ -61,10 +61,14 @@ Treat them as helpers, not replacements for thought or design.
 > There’s nothing worse than writing for the sake of writing,
 > with nothing behind it. It's almost intellectually dishonest in a way.
 
+---
+
 # Contributors
 
+In no particular order...
+
 - [**Mrmayman**](https://github.com/Mrmayman) (lead developer)
-- [Sreehari425](https://github.com/Sreehari425) (many features)
+- [Sreehari425](https://github.com/Sreehari425)
 - [apicalshark](https://github.com/apicalshark) (GitHub CI, packaging, distribution)
 - [Aurlt](https://github.com/Aurlt) (designed logo, icons and theme, help with UI design)
 - [0elek](https://github.com/0elek)

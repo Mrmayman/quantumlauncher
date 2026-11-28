@@ -23,7 +23,7 @@ pub struct PresetOutput {
     pub to_install: Vec<ModId>,
     pub is_regular_modpack: bool,
 
-    pub game_version: String,
+    pub game_version: Arc<str>,
     pub mod_type: Loader,
 }
 
@@ -65,9 +65,7 @@ pub async fn load(instance: Instance, file: &[u8], apply: bool) -> Result<Preset
                 local_overrides: Vec::new(),
                 to_install: Vec::new(),
                 is_regular_modpack: true,
-                game_version: version_json
-                    .map(|n| n.get_id().to_owned())
-                    .unwrap_or_default(),
+                game_version: version_json.map(|n| n.get_id().into()).unwrap_or_default(),
                 mod_type: instance_type.unwrap_or(Loader::Vanilla),
             });
         };
@@ -77,7 +75,7 @@ pub async fn load(instance: Instance, file: &[u8], apply: bool) -> Result<Preset
     };
 
     // Only sideload mods if the version is the same
-    let should_sideload = version_json.is_some_and(|n| n.get_id() == index.minecraft_version)
+    let should_sideload = version_json.is_some_and(|n| n.get_id() == &*index.minecraft_version)
         && instance_type.is_some_and(|n| n == index.instance_type);
 
     for i in 0..zip.len() {
@@ -149,17 +147,16 @@ async fn process_file(
         || name.starts_with(constcat::concat!(OVERRIDES_NAME, "\\"))
     {
         // 3
-        if !apply {
-            return Ok(());
-        }
         let name = name.replace('\\', "/");
         let name = name.strip_prefix(OVERRIDES_NAME).unwrap_or(&name);
         let name = name.strip_prefix("/").unwrap_or(name);
         if !name.ends_with('/') {
-            pt!("Override: {}", name.bright_black());
+            if apply {
+                pt!("Override: {}", name.bright_black());
+            }
             local_overrides.push(name.to_owned());
         }
-        if !should_sideload {
+        if !apply || !should_sideload {
             return Ok(());
         }
         write_file(dotmc_dir, file, name).await?;

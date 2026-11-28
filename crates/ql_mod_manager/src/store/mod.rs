@@ -1,6 +1,5 @@
 use std::{path::PathBuf, sync::mpsc::Sender};
 
-use crate::store::modpack::PackError;
 use chrono::DateTime;
 use ql_core::{GenericProgress, Instance, IntoIoError, Loader, do_jobs, json::VersionDetails, pt};
 
@@ -303,7 +302,7 @@ struct DirStructure {
 }
 
 impl DirStructure {
-    pub async fn new(
+    async fn new(
         instance_name: &Instance,
         version_json: &VersionDetails,
     ) -> Result<Self, ModError> {
@@ -346,13 +345,13 @@ impl DirStructure {
         })
     }
 
-    pub fn get(&self, query_type: QueryType) -> Result<PathBuf, PackError> {
-        Ok(match query_type {
+    fn get(&self, query_type: QueryType) -> Option<PathBuf> {
+        Some(match query_type {
             QueryType::DataPacks => self.data_packs.clone(),
             QueryType::ResourcePacks => self.resource_packs.clone(),
             QueryType::Mods => self.mods.clone(),
             QueryType::Shaders => self.shaders.clone(),
-            QueryType::ModPacks => return Err(PackError::ModpackInModpack),
+            QueryType::ModPacks => return None,
         })
     }
 }

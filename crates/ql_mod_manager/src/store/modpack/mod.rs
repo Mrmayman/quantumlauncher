@@ -1,6 +1,6 @@
 use std::{
     io::{Cursor, Read},
-    sync::mpsc::Sender,
+    sync::{Arc, mpsc::Sender},
 };
 
 use ql_core::{
@@ -10,21 +10,26 @@ use ql_core::{
 };
 
 mod curseforge;
-mod error;
 mod modrinth;
 
-pub use error::PackError;
-
-use crate::{presets, store::download_mods_bulk};
+use crate::{
+    presets,
+    store::{ModError, ModId, download_mods_bulk},
+};
 
 use super::CurseforgeNotAllowed;
 
+#[must_use]
 #[derive(Debug, Clone)]
 pub struct PeekInfo {
-    pub name: String,
-    pub game_version: String,
+    pub name: Arc<str>,
+    pub game_version: Arc<str>,
     pub loader: Loader,
     pub recommended_ram_mb: Option<usize>,
+
+    pub local_mods: Vec<Arc<str>>,
+    pub download_mods: Option<Vec<(ModId, String)>>,
+    pub local_overrides: Vec<String>,
 }
 
 /// Installs a modpack file (Curseforge or Modrinth) to the instance.
@@ -45,7 +50,7 @@ pub async fn install(
     file: &[u8],
     instance: Instance,
     sender: Option<&Sender<GenericProgress>>,
-) -> Result<(bool, CurseforgeNotAllowed), PackError> {
+) -> Result<(bool, CurseforgeNotAllowed), ModError> {
     let mut zip = zip::ZipArchive::new(Cursor::new(file))?;
 
     info!("Installing modpack");
@@ -65,10 +70,9 @@ pub async fn install(
 
             return Box::pin(download_mods_bulk(out.to_install, instance, sender))
                 .await
-                .map(|n| (true, n))
-                .map_err(PackError::Mod);
+                .map(|n| (true, n));
         }
-        return Err(PackError::NoBackendFound);
+        return Err(ModError::NoBackendFound);
     }
 
     let overrides = index_json_curseforge
@@ -135,7 +139,7 @@ pub async fn install(
             if file.is_file() {
                 let mut buf = Vec::new();
                 file.read_to_end(&mut buf)
-                    .map_err(|n| PackError::ZipIoError(n, name.to_owned()))?;
+                    .map_err(|n| ModError::ZipIoError(n, name.to_owned()))?;
 
                 tokio::fs::write(&path, &buf).await.path(&path)?;
             }
@@ -158,13 +162,38 @@ pub async fn install(
 /// - `Ok(Some(PeekInfo))`: Modpack metadata.
 /// - `Ok(None)`: Not a recognized modpack.
 /// - `Err`: Parse or read error.
-pub fn peek(file: &[u8]) -> Result<Option<PeekInfo>, PackError> {
+pub fn peek(file: &[u8]) -> Result<Option<PeekInfo>, ModError> {
     let mut zip = zip::ZipArchive::new(Cursor::new(file))?;
 
     let index_json_modrinth: Option<modrinth::PackIndex> =
         read_json_from_zip(&mut zip, "modrinth.index.json")?;
     let index_json_curseforge: Option<curseforge::PackIndex> =
         read_json_from_zip(&mut zip, "manifest.json")?;
+    let index_json_preset: Option<presets::PresetJson> =
+        read_json_from_zip(&mut zip, "index.json")?;
+
+    let mut local_overrides = Vec::new();
+
+    let overrides = index_json_curseforge
+        .as_ref()
+        .map(|n| n.overrides.clone())
+        .or_else(|| {
+            index_json_preset
+                .as_ref()
+                .map(|_| presets::OVERRIDES_NAME.to_owned())
+        })
+        .unwrap_or_else(|| "overrides".to_owned());
+
+    for i in 0..zip.len() {
+        let Ok(file) = zip.by_index(i) else { continue };
+        if let Some(name) = file
+            .name()
+            .strip_prefix(&format!("{overrides}/"))
+            .or(file.name().strip_prefix(&format!("{overrides}\\")))
+        {
+            local_overrides.push(name.to_owned());
+        }
+    }
 
     if let Some(index) = index_json_modrinth {
         // Handle Modrinth modpack
@@ -191,6 +220,9 @@ pub fn peek(file: &[u8]) -> Result<Option<PeekInfo>, PackError> {
             game_version,
             loader,
             recommended_ram_mb: None,
+            local_mods: Vec::new(),
+            download_mods: None,
+            local_overrides,
         }))
     } else if let Some(index) = index_json_curseforge {
         // Handle Curseforge modpack
@@ -210,14 +242,19 @@ pub fn peek(file: &[u8]) -> Result<Option<PeekInfo>, PackError> {
                     _ => None,
                 }
             })
-            .ok_or(PackError::NoLoadersSpecified)?;
+            .ok_or(ModError::NoLoadersSpecified)?;
 
         Ok(Some(PeekInfo {
             name: index.name,
             game_version,
             loader,
             recommended_ram_mb: index.minecraft.recommendedRam,
+            local_mods: Vec::new(),
+            download_mods: None,
+            local_overrides,
         }))
+    } else if index_json_preset.is_some() {
+        presets::peek(file)
     } else {
         Ok(None)
     }
@@ -226,10 +263,10 @@ pub fn peek(file: &[u8]) -> Result<Option<PeekInfo>, PackError> {
 fn read_json_from_zip<T: serde::de::DeserializeOwned>(
     zip: &mut zip::ZipArchive<Cursor<&[u8]>>,
     name: &str,
-) -> Result<Option<T>, PackError> {
+) -> Result<Option<T>, ModError> {
     Ok(if let Ok(mut index_file) = zip.by_name(name) {
         let buf = std::io::read_to_string(&mut index_file)
-            .map_err(|n| PackError::ZipIoError(n, name.to_owned()))?;
+            .map_err(|n| ModError::ZipIoError(n, name.to_owned()))?;
 
         Some(serde_json::from_str(&buf).json(buf)?)
     } else {

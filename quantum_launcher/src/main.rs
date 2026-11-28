@@ -125,6 +125,12 @@ impl Launcher {
             Task::none()
         };
 
+        let presence_task = if launcher.config.c_rpc_enabled() {
+            launcher.start_discord_ipc_run()
+        } else {
+            Task::none()
+        };
+
         (
             launcher,
             Task::batch([
@@ -132,6 +138,7 @@ impl Launcher {
                 Task::perform(get_entries(InstanceKind::Client), Message::CoreListLoaded),
                 Task::perform(get_entries(InstanceKind::Server), Message::CoreListLoaded),
                 load_notes_command,
+                presence_task,
                 Task::perform(ql_core::clean::dir("logs"), |n| {
                     Message::CoreCleanComplete(n.strerr())
                 }),
@@ -201,6 +208,7 @@ fn main() {
         .scale_factor(Launcher::scale_factor)
         .theme(Launcher::theme)
         .settings(Settings {
+            id: Some("io.github.Mrmayman.QuantumLauncher".to_owned()),
             fonts: load_fonts(),
             default_font: FONT_DEFAULT,
             antialiasing: config
@@ -220,6 +228,11 @@ fn main() {
             }),
             decorations,
             transparent: true,
+            platform_specific: iced::window::settings::PlatformSpecific {
+                #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+                application_id: "io.github.Mrmayman.QuantumLauncher".to_owned(),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .run_with(move || Launcher::new(is_new_user, config))

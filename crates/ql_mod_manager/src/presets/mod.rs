@@ -8,7 +8,7 @@
 //! - Mod configuration files
 //!
 //! ## Usage
-//! - [`generate`] - create from instance
+//! - Creation is handled by the `ql_packager` crate
 //! - [`load`] with `apply: true` - install preset
 //! - [`load`] with `apply: false` - preview without installing
 //!
@@ -27,10 +27,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::store::{ModConfig, ModError, ModId};
 
-mod generate;
-pub use generate::generate;
 mod load;
 pub use load::{PresetOutput, load};
+mod peek;
+pub use peek::peek;
 
 // TODO: (SERVER) Adapt both of these to also suit Minecraft servers,
 // not just clients. This is super important!
@@ -67,7 +67,7 @@ pub const SOFT_EXCEPTIONS: &[&str] = &[
     "usernamecache.json",
 ];
 
-const OVERRIDES_NAME: &str = "overrides";
+pub const OVERRIDES_NAME: &str = "overrides";
 
 /// The main upfront choices the user will have to make.
 ///
@@ -85,19 +85,30 @@ pub const MAIN_CHOICES: &[(&str, &str, bool)] = &[
 ];
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct PresetJson {
-    instance_name: Option<Arc<str>>,
-    is_server: Option<bool>,
+pub struct PresetJson {
+    pub instance_name: Option<Arc<str>>,
+    pub is_server: Option<bool>,
 
-    launcher_version: String,
-    minecraft_version: String,
-    instance_type: Loader,
+    pub launcher_version: String,
+    pub minecraft_version: Arc<str>,
+    pub instance_type: Loader,
     #[serde(rename = "entries_modrinth")]
-    entries_downloaded: HashMap<ModId, ModConfig>,
-    entries_local: Vec<String>,
+    pub entries_downloaded: HashMap<ModId, ModConfig>,
+    pub entries_local: Vec<String>,
+
+    pub metadata: Option<ExtraMeta>,
 }
 
-async fn get_instance_type(instance_name: &Instance) -> Result<Loader, ModError> {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ExtraMeta {
+    nice_name: Option<Arc<str>>,
+    author: Option<Arc<str>>,
+    summary: Option<Arc<str>>,
+    icon: Option<Arc<str>>,
+    version: Option<Arc<str>>,
+}
+
+pub async fn get_instance_type(instance_name: &Instance) -> Result<Loader, ModError> {
     let config = InstanceConfigJson::read(instance_name).await?;
     Ok(config.mod_type)
 }
