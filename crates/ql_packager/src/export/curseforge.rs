@@ -59,6 +59,7 @@ pub async fn export_curseforge_modpack(
     let index = ModIndex::load(&instance).await?;
 
     let mut override_filenames: Vec<String> = Vec::new();
+    let mut project_ids: Vec<String> = Vec::new();
 
     for id in &mod_ids {
         let is_curseforge = matches!(id, ModId::Curseforge(_));
@@ -76,7 +77,7 @@ pub async fn export_curseforge_modpack(
         };
 
         if is_curseforge {
-            continue;
+            project_ids.push(id.get_internal_id().to_string());
         } else {
             override_filenames.push(primary_file.filename.clone());
         }
@@ -98,11 +99,6 @@ pub async fn export_curseforge_modpack(
 
     let file_ids: Vec<&str> = vec!["temp"]; // TODO: get FileIds here!!
 
-    let mod_ids: Vec<String> = mod_ids
-        .into_iter()
-        .map(|map| serde_json::to_string(&map).unwrap())
-        .collect();
-
     let mods_folder_path = instance.get_dot_minecraft_path().join("mods");
     let override_mods_full_path_string: Vec<String> =
         create_override_mods_full_path(override_filenames, &mods_folder_path);
@@ -116,7 +112,7 @@ pub async fn export_curseforge_modpack(
         overrides_fn(override_mods_full_path_string, overrides, instance);
 
     let json_data = write_curseforge_manifest_json(
-        mod_ids,
+        project_ids,
         file_ids,
         author,
         modpack_version,
