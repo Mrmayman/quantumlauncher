@@ -60,6 +60,7 @@ pub async fn export_curseforge_modpack(
 
     let mut override_filenames: Vec<String> = Vec::new();
     let mut project_ids: Vec<String> = Vec::new();
+    let mut file_ids: Vec<u64> = Vec::new();
 
     for id in &mod_ids {
         let is_curseforge = matches!(id, ModId::Curseforge(_));
@@ -77,7 +78,11 @@ pub async fn export_curseforge_modpack(
         };
 
         if is_curseforge {
+            let file_id = file_id_from_url(&primary_file.url).ok_or_else(|| {
+                ModpackExportError::InvalidCurseforgeFileUrl(primary_file.url.clone())
+            })?;
             project_ids.push(id.get_internal_id().to_string());
+            file_ids.push(file_id);
         } else {
             override_filenames.push(primary_file.filename.clone());
         }
@@ -96,8 +101,6 @@ pub async fn export_curseforge_modpack(
     };
     let loader_version = config.mod_type_info.unwrap().version;
     let loader = loader_id.to_string() + "-" + loader_version.unwrap().as_str();
-
-    let file_ids: Vec<&str> = vec!["temp"]; // TODO: get FileIds here!!
 
     let mods_folder_path = instance.get_dot_minecraft_path().join("mods");
     let override_mods_full_path_string: Vec<String> =
@@ -132,7 +135,7 @@ pub async fn export_curseforge_modpack(
 
 fn write_curseforge_manifest_json(
     mod_id: Vec<String>,
-    file_id: Vec<&str>,
+    file_id: Vec<u64>,
     author: String,
     modpack_version: String,
     name: String,
@@ -145,9 +148,9 @@ fn write_curseforge_manifest_json(
     let files: Vec<CurseForgeFileEntry> = mod_id
         .into_iter()
         .zip(file_id)
-        .map(|(proj_str, file_str)| CurseForgeFileEntry {
+        .map(|(proj_str, file_id)| CurseForgeFileEntry {
             project_id: proj_str.parse::<u64>().unwrap(),
-            file_id: file_str.parse::<u64>().unwrap(),
+            file_id,
             required: true,
         })
         .collect();
@@ -173,4 +176,11 @@ fn write_curseforge_manifest_json(
     let manifest_json = serde_json::to_string_pretty(&manifest)?;
 
     Ok(manifest_json)
+}
+
+fn file_id_from_url(url: &str) -> Option<u64> {
+    let path = url.split_once("forgecdn.net/files/")?.1;
+    let (id, rest) = path.split_once('/')?;
+    let (sub_id, _) = rest.split_once('/')?;
+    Some(id.parse::<u64>().ok()? * 1000 + sub_id.parse::<u64>().ok()?)
 }

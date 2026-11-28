@@ -43,6 +43,9 @@ pub enum ModpackExportError {
 
     #[error("packaging failed: {0}")]
     Packaging(#[from] PackageError),
+
+    #[error("invalid CurseForge file URL: {0}")]
+    InvalidCurseforgeFileUrl(String),
 }
 
 #[derive(Error, Debug)]
