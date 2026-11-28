@@ -53,16 +53,9 @@ pub async fn export_multimc_modpack(
         _ => panic!("Unsupported loader type"),
     };
     let loader_version = config.mod_type_info.unwrap().version.unwrap().to_string();
-    let instance_type;
-
-    if version_type(minecraft_version) == true {
-        instance_type = "Legacy";
-    } else {
-        instance_type = "OneSix";
-    }
 
     let mmc_pack = create_mmc_pack(minecraft_version.to_string(), loader_id, loader_version, lwjgl, lwjgl_version)?;
-    let instance_cfg = create_instance_cfg(instance_type.to_string(), modpack_name, modpack_summary, jvm_args, max_mem_alloc);
+    let instance_cfg = create_instance_cfg("OneSix".to_string(), modpack_name, modpack_summary, jvm_args, max_mem_alloc);
 
     let zip_path = PathBuf::from(&modpack_path)
         .join(format!("{}.zip", modpack_file_name))
@@ -150,58 +143,4 @@ fn create_instance_cfg(
     }
 
     instance_cfg
-}
-
-
-fn version_type(version_id: &str) -> bool { //checks if version is below 1.6
-    let version_id = version_id.trim();
-
-    if version_id.starts_with("pc-")
-        || version_id.starts_with("rd-")
-        || version_id.starts_with("c0.")
-        || version_id.starts_with("c.")
-        || version_id.starts_with("indev")
-        || version_id.starts_with("inf-")
-        || version_id.starts_with("inf_")
-        || version_id.starts_with("a1.")
-        || version_id.starts_with("a0.")
-        || version_id.starts_with("b1.")
-        || version_id.starts_with("b.")
-        || version_id == "old_alpha"
-        || version_id == "old_beta"
-    {
-        return true;
-    }
-
-    //snapshots
-    if let Some(w_pos) = version_id.find('w') {
-        if w_pos == 2 {
-            let first_num = &version_id[0..2];
-            if let Ok(f_num) = first_num.parse::<u32>() {
-                if f_num < 13 { return true; }
-                if f_num > 13 { return false; }
-                let after_w = &version_id[w_pos + 1..];
-                let second_num: String = after_w.chars()
-                    .take_while(|c| c.is_ascii_digit())
-                    .collect();
-                if let Ok(s_num) = second_num.parse::<u32>() {
-                    return s_num < 24;
-                }
-                return true;
-            }
-        }
-    }
-
-    // numerical releses
-    let mut parts = version_id.split('.');
-    let major = parts.next().and_then(|s| s.parse::<u32>().ok());
-    let minor:Option<u32> = parts.next().and_then(|s| {
-        s.chars().take_while(|c| c.is_ascii_digit()).collect::<String>().parse().ok()
-    });
-
-    match (major, minor) {
-        (Some(1), Some(m)) => m < 6,
-        (Some(m), _) => m < 1,
-        _ => true,
-    }
 }
